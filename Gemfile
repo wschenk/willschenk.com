@@ -14,3 +14,5 @@ gem "redcarpet"
 gem "builder", "~> 3.0"
 
 gem "bootstrap-sass"
+
+gem 'sinatra', require: 'sinatra/base'
