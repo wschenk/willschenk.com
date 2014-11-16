@@ -92,7 +92,7 @@ Because your emotions are probably not wrong.  They are there for a reason.  The
 
 This is what a lot of startups struggle with.  On the one hand, you need to start with a clear idea and vision of what you want to do.  On the other hand, you need to start small, see what works, try things out and _be able to change your mind as you know more_.  But how can you change your mind enough to make it work while also having enough consistency of purpose to make it work?
 
-<iframe width="560" height="315" src="//www.youtube.com/embed/APx2yFA0-B4" frameborder="0" allowfullscreen></iframe>
+<iframe width="100%" style="max-width: 560px" height="315" src="//www.youtube.com/embed/APx2yFA0-B4" frameborder="0" allowfullscreen></iframe>
 _Honestly, I just wanted an excuse to embed this video_
 
 ## I don't know the answer

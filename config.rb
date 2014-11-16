@@ -17,7 +17,8 @@ set :social, {
   github: "https://github.com/wschenk"
 }
 
-set :siteurl, "http://blog.willschenk.com"
+set :author, "Will Schenk"
+set :siteurl, "http://willschenk.com"
 set :disqus_shortname, "willschenk"
 set :google_analytics_id, "UA-56296045-1"
 
