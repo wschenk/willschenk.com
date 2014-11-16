@@ -11,7 +11,7 @@ set :markdown_engine, :redcarpet
 
 activate :blog do |blog|
   # This will add a prefix to all links, template references and source paths
-  # blog.prefix = "blog"
+  # blog.prefix = "willschenk.com"
 
   # blog.permalink = "{year}/{month}/{day}/{title}.html"
   blog.permalink = "{title}.html"
@@ -87,6 +87,8 @@ page "/feed.xml", layout: false
 #   end
 # end
 
+page "CNAME"
+
 set :css_dir, 'stylesheets'
 
 set :js_dir, 'javascripts'
@@ -112,10 +114,11 @@ configure :build do
   activate :relative_assets
 
   # Or use a different image path
-  # set :http_prefix, "/Content/images/"
+  # set :http_prefix, "/willschenk.com/"
 end
 
 
 activate :deploy do |deploy|
   deploy.method = :git
+  deploy.build_before = true
 end
