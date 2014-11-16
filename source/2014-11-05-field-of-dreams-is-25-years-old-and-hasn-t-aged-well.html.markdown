@@ -3,9 +3,10 @@ title: Field of Dreams is 25 years old and hasn't aged well
 subtitle: if you build it, will anyone really come?
 date: 2014-11-05 00:00 UTC
 tags: product, startup myths
+header_image: fods.jpg
 ---
 
-![Silvrback blog image sb_float](https://silvrback.s3.amazonaws.com/uploads/bc10cbd1-d757-421f-b069-699e2c82911e/fod_medium.jpg)
+![left_float](https://silvrback.s3.amazonaws.com/uploads/bc10cbd1-d757-421f-b069-699e2c82911e/fod_medium.jpg)
 
 I'm sure you all remember the movie.  A man whose normal life is starting to fall apart.  He's got the wife, family, mortgage and it's both not enough and slipping away.  He needs to do something, something to make him feel alive.  And since it was that era of Hollywood film making, he's also got plenty of daddy issues he's working through.  He becomes seized by a vision, caught in the grip of an _idée fixe_ that he needs to go build something that everyone around him thinks is preposterous.
 

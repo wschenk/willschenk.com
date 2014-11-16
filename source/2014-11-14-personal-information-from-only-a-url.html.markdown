@@ -3,6 +3,7 @@ title: Personal information from only a URL
 subtitle: what can automated tools find out
 date: 2014-11-14 00:00 UTC
 tags: ruby, socialinvestigator
+header_image: core_memory.jpg
 ---
 
 Ever wonder what you can find out by looking at a url?  How about physical addresses, server location, emails, phone numbers, various links to other profiles (which can in turn be structurally scraped), technology stack, and more. 

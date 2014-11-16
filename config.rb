@@ -9,6 +9,20 @@ require 'lib/apiserver'
 set :markdown, :tables => true, :autolink => true, :gh_blockcode => true, :fenced_code_blocks => true
 set :markdown_engine, :redcarpet
 
+set :social, {
+  twitter: "http://twitter.com/wschenk",
+  tumblr: "http://sublimeguile.com/",
+  instagram: "http://instagram.com/wschenk",
+  linkedin: "http://www.linkedin.com/pub/will-schenk/0/266/420/",
+  github: "https://github.com/wschenk"
+}
+
+set :siteurl, "http://blog.willschenk.com"
+set :disqus_shortname, "willschenk"
+set :google_analytics_id, "UA-56296045-1"
+
+activate :meta_tags
+
 activate :blog do |blog|
   # This will add a prefix to all links, template references and source paths
   # blog.prefix = "willschenk.com"

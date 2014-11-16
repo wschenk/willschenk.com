@@ -2,7 +2,7 @@
 title: Bot Design Patterns
 subtitle: different ways to make different bots
 date: 2014-11-11 00:00 UTC
-tags: overview
+tags: overview, bots
 ---
 
 In the antediluvian days before Google found everything for us, personal _software agents_ were going to continuously do our bidding in _cyberspace_, tracking down air fares, making stock trades and otherwise doing futuristic things that we soon wouldn't be able to live without.  The anxiety of Y2K rose and crested, and the messianic aura of _agents_ was washed away by more centralized and effective solutions.

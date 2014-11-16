@@ -7,6 +7,7 @@ gem "middleman-blog", "~> 3.5.3"
 gem "middleman-blog-drafts"
 gem "middleman-livereload", "~> 3.1.0"
 gem "middleman-deploy"
+gem "middleman-meta-tags"
 
 gem "nokogiri"
 gem "redcarpet"
@@ -15,5 +16,5 @@ gem "redcarpet"
 gem "builder", "~> 3.0"
 
 gem "bootstrap-sass"
-
+gem "jquery-middleman"
 gem 'sinatra', require: 'sinatra/base'
