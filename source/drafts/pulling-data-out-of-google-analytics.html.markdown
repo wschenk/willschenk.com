@@ -1,7 +1,7 @@
 ---
-title: pulling-data-out-of-google-analytics
-date: 2014-11-15 19:10 UTC
-tags:
+title: "Pulling data out of Google Analytics"
+subtitle: "see who's talking about your stuff"
+tags: socialinvestigator
 published: false
 ---
 

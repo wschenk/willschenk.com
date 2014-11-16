@@ -1,7 +1,8 @@
 ---
-title: making-a-command-line-utility-with-gems-and-thor
+title: Making a command line utility with gems and thor
+subtitle: Any excuse to the use the phrase "Hammer of the Gods"
 date: 2014-11-08 00:00 UTC
-tags: ruby, cli, socialinvestigator
+tags: ruby, thor, socialinvestigator
 ---
 
 Some scripts work well because they are self contained and don't have a lot of dependancies, like the [hosts on your network tracker](http://willschenk.com/how-to-track-your-coworkers).

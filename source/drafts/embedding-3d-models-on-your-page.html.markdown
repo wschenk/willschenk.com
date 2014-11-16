@@ -1,8 +1,7 @@
 ---
-title: embedding-3d-models-on-your-page
-date: 2014-11-15 19:10 UTC
-tags:
-published: false
+title: Embedding 3d models on your page
+subtitle: Github is awesome
+tags: toys
 ---
 
 Github has an [embeddable 3d model viewer](https://help.github.com/articles/3d-file-viewer/) that you can use to display a model on your site.  The model needs to be hosted in a github repo, and the format is

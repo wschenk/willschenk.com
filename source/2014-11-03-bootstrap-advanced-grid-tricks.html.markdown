@@ -1,7 +1,8 @@
 ---
-title: bootstrap-advanced-grid-tricks
+title: "Bootstrap: Advanced Grid Tricks"
+subtitle: You really should be defining your own classes
 date: 2014-11-03 00:00 UTC
-tags: bootstrap, css, sass
+tags: bootstrap
 ---
 
 We are a big fan of [Bootstrap](http://getbootstrap.com/) here at [HappyFunCorp](http://happyfuncorp.com/).  While there are some arguments to be made if Bootstrap in particular is all that, or if [Foundation](http://foundation.zurb.com/) is better for a given thing, its clear that starting with some sort of CSS framework is smarter than trying to roll everything yourself. [1]

@@ -1,5 +1,6 @@
 ---
-title: personal-information-from-only-a-url
+title: Personal information from only a URL
+subtitle: what can automated tools find out
 date: 2014-11-14 00:00 UTC
 tags: ruby, socialinvestigator
 ---
