@@ -2,7 +2,12 @@ require 'middleman-core/preview_server'
 
 class ApiServer < Sinatra::Base
   get '/' do
-    "Hello world"
+    "This is the api server"
+  end
+
+  get '/raw' do
+    puts "Loading up raw file #{params[:file]}"
+    File.read(File.expand_path(params[:file],"source"))
   end
 end
 
