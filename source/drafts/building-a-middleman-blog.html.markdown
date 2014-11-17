@@ -8,12 +8,12 @@ We can look at each of the elements on a website and break down the type of data
 
 - Static Data: Templates, Images, Fonts, Assets
 - Site Data: Product Lists, Categories, Pages, Articles
-- Page Data: Comments, Popular Posts
+- Dynamic Data: Inventory, Comments
 - User Data: User name, Items in cart, Likes, etc.
 
 As we go down the list, the rate in which these things change increase.  Static data, as the name implies, rarely changes.  Templates, with their associated content, are created during the site development process, and once the site is deployed they change only in response to bug fixes or feature requests.
 
-Site Data changes slightly more often and in response to things that outside of the site per se.  These include things like who
+Site Data changes during the operations of the business, but not very frequently and generally in response to things that outside of the site per se.  These include things like who
 - 
 Server Template: ERB, HAML
 Server Template Components: Layouts, Partials
