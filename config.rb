@@ -54,6 +54,7 @@ activate :directory_indexes
 activate :drafts
 
 page "/feed.xml", layout: false
+page "/admin/index.html", layout: false
 
 ###
 # Compass
@@ -116,6 +117,9 @@ end
 
 # Build-specific configuration
 configure :build do
+  ignore '/admin/*'
+  ignore '/stylesheets/admin/*'
+
   # For example, change the Compass output style for deployment
   activate :minify_css
 
