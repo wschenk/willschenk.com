@@ -1,8 +1,13 @@
 ---
-title: 'Building a Middleman Blog'
-subtitle: "Static publishing"
-tags: middleman, ruby
+title: 'Admin tools for static sites with Middleman and Angular'
+subtitle: 'adding a CMS to static apps'
+tags: middleman, ruby, angular
 ---
+
+I feel bad for servers constantly doing a whole lot of busy work with the same result, burning up energy doing the same dumb thing over and over.  Relatively simple sites hosted on wordpress explode on the slightest traffic spike, and what they are serving up is basically static content.   The admin tools are nice, but you end up going deep down the hole of caching, layers of Varnish slapped over PHP Caching, with CNDs out in Cloudfront to distribute the traffic, database servers desperatly needing indexes, the full catastrophe.
+
+But the admin tools are nice.
+
 
 We can look at each of the elements on a website and break down the type of data source it came from:
 
