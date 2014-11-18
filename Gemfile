@@ -7,7 +7,8 @@ gem "middleman-blog", "~> 3.5.3"
 gem "middleman-blog-drafts"
 gem "middleman-livereload", "~> 3.1.0"
 gem "middleman-deploy"
-gem "middleman-meta-tags"
+gem "middleman-meta-tags", github: "happyfuncorp/middleman-meta-tags"
+gem 'middleman-bootstrap-navbar'
 
 gem "nokogiri"
 gem "redcarpet"
