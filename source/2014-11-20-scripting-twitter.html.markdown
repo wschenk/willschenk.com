@@ -1,9 +1,9 @@
 ---
-title: "Scripting Twitter: Collecting Data and Writing Bots"
-subtitle: adding another client to socialinvestigator
-tags: ruby, socialinvestigator, bots
+:title: 'Scripting Twitter: Collecting Data and Writing Bots'
+:subtitle: adding another client to socialinvestigator
+:tags: ruby, socialinvestigator, bots
+:date: 2014-11-20
 ---
-
 Lets build on our [command line url exploring tool](http://willschenk.com/making-a-command-line-utility-with-gems-and-thor) to look at how we can interact with Twitter.  We are going to cover how to make a script that will pull information out of twitter, how to deal with its rate limiting, and how to interact with users on Twitter itself.
 
 Twitter uses [OAuth 1.0A](https://dev.twitter.com/oauth/overview/faq) as a way to authenticate requests.  As a script writer, this is super annoying, because you can't just stick a username and password in the environment and go from there.  You need to:
@@ -235,6 +235,23 @@ Unlike Google, who casually has enough computer power to do personalized type ah
 Note that I'm making the request using `client.get` which will make an arbitrary authenticated request to the Twitter api.  This [particular api call](https://dev.twitter.com/rest/reference/get/application/rate_limit_status) isn't in the Twitter gem, though the gem is aware of the limits and will throw specific exceptions when you hit those limits.
 
 The gem provides methods on top of this `client.get` interface, which may use more API calls then you expect.  Methods like `client.user_timeline` and `client.followers` return `Twitter::Cursor` objects, which you can iterate over in ruby as you'd expect, but may trigger multiple API calls throughout the process which you might not expect.  You'll potentially get an exception in the middle of things, and you'll need to figure a way around this.  In a later post we will get into caching and retry strategies, but since it will dramatically increase the complexity we'll keep things simple for now.  _Punt!_
+
+This basic code will catch the `TooManyRequests` exception and sleep the process until it's ready to go again.  This could take a very very long time.
+
+```rb
+follower_ids = client.follower_ids('justinbieber')
+
+begin
+  follower_ids.to_a
+rescue Twitter::Error::TooManyRequests => error
+  # NOTE: Your process could go to sleep for up to 15 minutes but if you
+  # retry any sooner, it will almost certainly fail with the same exception.
+  sleep error.rate_limit.reset_in + 1
+  retry
+end
+```
+
+## Listing followers
 
 To see what that looks like, lets add another `CLI` command for listing a person's followers:
 
