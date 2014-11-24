@@ -4,7 +4,7 @@ require 'lib/apiserver'
 # Blog settings
 ###
 
-# Time.zone = "UTC"
+# Time.zone = "EST"
 
 set :markdown, :tables => true, :autolink => true, :gh_blockcode => true, :fenced_code_blocks => true
 set :markdown_engine, :redcarpet
@@ -18,7 +18,7 @@ set :social, {
 }
 
 set :author, "Will Schenk"
-set :siteurl, "http://willschenk.com"
+set :siteurl, "http://willschenk.com/"
 set :disqus_shortname, "willschenk"
 set :google_analytics_id, "UA-56296045-1"
 

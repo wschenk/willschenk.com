@@ -1,8 +1,8 @@
 ---
-:title: 'Scripting Twitter: Collecting Data and Writing Bots'
-:subtitle: adding another client to socialinvestigator
-:tags: ruby, socialinvestigator, bots
-:date: 2014-11-20
+title: 'Scripting Twitter: Collecting Data and Writing Bots'
+subtitle: adding another client to socialinvestigator
+tags: ruby, socialinvestigator, bots
+date: 2014-11-20
 ---
 Lets build on our [command line url exploring tool](http://willschenk.com/making-a-command-line-utility-with-gems-and-thor) to look at how we can interact with Twitter.  We are going to cover how to make a script that will pull information out of twitter, how to deal with its rate limiting, and how to interact with users on Twitter itself.
 
