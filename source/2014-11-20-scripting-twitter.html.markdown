@@ -1,7 +1,7 @@
 ---
 title: 'Scripting Twitter: Collecting Data and Writing Bots'
 subtitle: adding another client to socialinvestigator
-tags: ruby, socialinvestigator, bots
+tags: ruby, socialinvestigator, bots, howto
 date: 2014-11-20
 header_image: robots.jpg
 ---
