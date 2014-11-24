@@ -2,7 +2,7 @@
 title: Making a command line utility with gems and thor
 subtitle: Any excuse to the use the phrase "Hammer of the Gods"
 date: 2014-11-08 00:00 UTC
-tags: ruby, thor, socialinvestigator
+tags: ruby, thor, socialinvestigator, howto
 header_image: thor.jpg
 ---
 

@@ -2,7 +2,7 @@
 title: Making Yosemite Faster
 subtitle: something is up with WindowServer
 date: 2014-11-07 00:00 UTC
-tags: osx
+tags: osx, howto
 disqus_id: silvrback-wschenk-9535
 header_image: yosemite.jpg
 ---
