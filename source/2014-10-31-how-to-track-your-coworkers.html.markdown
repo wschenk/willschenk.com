@@ -2,7 +2,7 @@
 title: How to track your coworkers
 subtitle: Simple passive network surveillance
 date: 2014-10-31 00:00 UTC
-tags: toys, ruby, redis
+tags: toys, ruby, redis, howto
 disqus_id: silvrback-wschenk-9332
 ---
 
