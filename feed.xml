@@ -2,13 +2,838 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <title>Will Schenk</title>
   <subtitle>Lets build things</subtitle>
-  <id>http://willschenk.com</id>
-  <link href="http://willschenk.com"/>
+  <id>http://willschenk.com/</id>
+  <link href="http://willschenk.com/"/>
   <link href="http://willschenk.com/feed.xml" rel="self"/>
-  <updated>2014-11-15T19:00:00-05:00</updated>
+  <updated>2014-11-25T11:39:36-05:00</updated>
   <author>
     <name>Will Schenk</name>
   </author>
+  <entry>
+    <title>Building Sites with Middleman</title>
+    <link rel="alternate" href="http://willschenk.com/building-sites-with-middleman/"/>
+    <id>http://willschenk.com/building-sites-with-middleman/</id>
+    <published>2014-11-24T19:00:00-05:00</published>
+    <updated>2014-11-24T19:00:00-05:00</updated>
+    <author>
+      <name>Will Schenk</name>
+    </author>
+    <content type="html">&lt;p&gt;I make a lot of websites, and I have a certain toolkit that I use to build them.  The most useful things I use are:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;layouts and partials so I only need to set things up once&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;haml&lt;/code&gt; for writing html, since I don&amp;#39;t like closing tags&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;Bootstrap&lt;/code&gt; and &lt;code&gt;sass&lt;/code&gt; for writing css&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;Markdown&lt;/code&gt; for formatting large blogs of content&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;coffeescript&lt;/code&gt; for JavaScript&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;Middleman is a static site generator, which means that it takes a bunch of source files, does some stuff with it, and produces static HTML, CSS, Images, and Javascript that can be hosted on a basic server somewhere, including &lt;a href="http://docs.aws.amazon.com/AmazonS3/latest/dev/WebsiteHosting.html"&gt;hosting on S3&lt;/a&gt; or &lt;a href="https://pages.github.com"&gt;Github Pages&lt;/a&gt; so you don&amp;#39;t need to consider a server.&lt;/p&gt;
+
+&lt;p&gt;Middleman is written in Ruby, so it&amp;#39;s our familiar toolset, and unlike &lt;a href="http://jekyllrb.com"&gt;Jekyll&lt;/a&gt; it uses &lt;a href="https://github.com/sstephenson/sprockets"&gt;Sprockets&lt;/a&gt;, which is the same asset pipelining system that Rails uses.  So you get all the benefits of using a robust system that works for Rails apps without having to learn a bunch more things.&lt;/p&gt;
+
+&lt;p&gt;In the node world &lt;a href="http://yeoman.io"&gt;Yeoman&lt;/a&gt; does something similar, but I personally have had poor luck getting &lt;a href="http://gruntjs.com"&gt;Grunt&lt;/a&gt; to work reliably in practice.&lt;/p&gt;
+
+&lt;h2&gt;Setting up a simple static site with Middleman&lt;/h2&gt;
+
+&lt;p&gt;One of the problems with starting with Middleman is that there are so many places to start.  Lets look at how to setup a basic middleman site with bootstrap-sass, haml, and bower.  First thing is to install middleman:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="sh"&gt;$ gem install middleman
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;And create an app:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="sh"&gt;$ middleman new static_site
+[...]
+      create  static_site/.gitignore
+      create  static_site/config.rb
+      create  static_site/source/index.html.erb
+      create  static_site/source/layouts/layout.erb
+      create  static_site/source/stylesheets
+      create  static_site/source/stylesheets/all.css
+      create  static_site/source/stylesheets/normalize.css
+      create  static_site/source/javascripts
+      create  static_site/source/javascripts/all.js
+      create  static_site/source/images
+      create  static_site/source/images/background.png
+      create  static_site/source/images/middleman.png
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;This creates 4 files in the main directory, &lt;code&gt;Gemfile&lt;/code&gt; and &lt;code&gt;Gemfile.lock&lt;/code&gt;, which we know and love, &lt;code&gt;config.rb&lt;/code&gt; which configures how middleman generates the site, and &lt;code&gt;source&lt;/code&gt; which are the sourcefiles of the site.&lt;/p&gt;
+
+&lt;h2&gt;Gemfile&lt;/h2&gt;
+
+&lt;p&gt;By default, &lt;code&gt;middleman&lt;/code&gt; installs the &lt;code&gt;middleman-livereload&lt;/code&gt; plugin, so in development mode any browers that have a page open with refresh when you save a file.  This makes testing a lot easier.  We can install other gems here to add different functionality.  Let&amp;#39;s add a few of these now:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;gem &amp;quot;middleman-deploy&amp;quot;
+gem &amp;#39;middleman-bootstrap-navbar&amp;#39;
+gem &amp;quot;bootstrap-sass&amp;quot;
+gem &amp;quot;jquery-middleman&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;The first two gems expand the functionality of middleman, one to add tasks to push the final site build to &lt;code&gt;s3&lt;/code&gt;, &lt;code&gt;gh-pages&lt;/code&gt; and a whole bunch more, and the second to make it easier to build &lt;code&gt;bootstrap&lt;/code&gt; navbars.&lt;/p&gt;
+
+&lt;p&gt;The file two are including &lt;code&gt;bootstrap-sass&lt;/code&gt; -- the same that we use for rails sites -- and &lt;code&gt;jquery&lt;/code&gt;.  These get included into the sprockets asset path, so you don&amp;#39;t need to maintain them in your project.  (We&amp;#39;ll also see below how to integrate &lt;code&gt;bower&lt;/code&gt; components into your project.)&lt;/p&gt;
+
+&lt;h2&gt;Tweaking Middleman: &lt;code&gt;config.rb&lt;/code&gt;&lt;/h2&gt;
+
+&lt;p&gt;This is where we configure how middleman itself works.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;# For custom domains on github pages
+page &amp;quot;CNAME&amp;quot;, layout: false
+
+set :css_dir, &amp;#39;stylesheets&amp;#39;
+set :js_dir, &amp;#39;javascripts&amp;#39;
+set :images_dir, &amp;#39;images&amp;#39;
+
+# Better markdown support
+# set :markdown, :tables =&amp;gt; true, :autolink =&amp;gt; true, :gh_blockcode =&amp;gt; true, :fenced_code_blocks =&amp;gt; true
+# set :markdown_engine, :redcarpet
+
+# Turn this on if you want to make your url&amp;#39;s prettier, without the .html
+activate :directory_indexes
+
+# Automatic image dimensions on image_tag helper
+# activate :automatic_image_sizes
+
+# Easier bootstrap navbars
+activate :bootstrap_navbar
+
+configure :development do
+  activate :livereload
+end
+
+# Build-specific configuration
+configure :build do
+  # Any files you want to ignore:
+  ignore &amp;#39;/admin/*&amp;#39;
+
+  # For example, change the Compass output style for deployment
+  activate :minify_css
+
+  # Minify Javascript on build
+  activate :minify_javascript
+
+  # Enable cache buster
+  activate :asset_hash
+
+  # Use relative URLs
+  activate :relative_assets
+end
+
+
+# This will push to the gh-pages branch of the repo, which will
+# host it on github pages (If this is a github repository)
+activate :deploy do |deploy|
+  deploy.method = :git
+  deploy.build_before = true
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Lets go through this in detail.&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;page &amp;quot;CNAME&amp;quot;, layout: false&lt;/code&gt;  says to move the file called &lt;code&gt;CNAME&lt;/code&gt; over without wrapping in the main layout.  Since this file doesn&amp;#39;t have .html in the name, it would otherwise get ignored.  This file is for having a custom domain on Github Pages, if that&amp;#39;s the sort of thing you are in to.&lt;/p&gt;
+
+&lt;p&gt;The &lt;code&gt;set&lt;/code&gt; commands are there to configure different middleman settings, here to show where the various stylesheet, image, and css directories are.&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;activate :directory_indexes&lt;/code&gt; with enable &lt;em&gt;pretty urls&lt;/em&gt;.  Directory indexes means that files named &lt;code&gt;about.html&lt;/code&gt; will actually get generated into a file called &lt;code&gt;/about/index.html&lt;/code&gt;, and will rely on the underlying server to have &lt;code&gt;/about&lt;/code&gt; actually show the directory &amp;quot;index&amp;quot; page, making the urls prettier.  This doesn&amp;#39;t work on all servers but works on most of them.  This plugin will actually rewrite the output of the &lt;code&gt;link_to&lt;/code&gt; tags, so you don&amp;#39;t need to adjust your templates to work.&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;activate :bootstrap_navbar&lt;/code&gt; is an extension that we added in the Gemfile, which makes it easier to generate bootstrap navbars.  Extensions generally work in three ways: they add helper methods, they change the way that the sitemap is processed, or they add different commands to the &amp;quot;middleman&amp;quot; command.&lt;/p&gt;
+
+&lt;p&gt;We see an example of that at the bottom of the &lt;code&gt;config.rb&lt;/code&gt; file, where we configure the &lt;code&gt;deploy&lt;/code&gt; extension:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;activate :deploy do |deploy|
+  deploy.method = :git
+  deploy.build_before = true
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;This also takes some configuration, and in this case it set to deploy to github pages, and to make sure that it generates the site before doing so.  Here is the &lt;a href="https://github.com/karlfreeman/middleman-deploy"&gt;middleman-deploy&lt;/a&gt; github page with documentation.&lt;/p&gt;
+
+&lt;p&gt;There are two sections that each configure a different middleman environment.  The first is used when you run &lt;code&gt;middleman server&lt;/code&gt; to look at the site locally:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;configure :development do
+  activate :livereload
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;The final section is configuring the &lt;code&gt;build&lt;/code&gt; process, when you run &lt;code&gt;middleman build&lt;/code&gt; and it creates the generated files in the &lt;code&gt;build&lt;/code&gt; directory.  The entry below ignores certain files for the build, and runs minifiers over the css and javascript, and turns on &lt;em&gt;cache busting&lt;/em&gt;.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;# Build-specific configuration
+configure :build do
+  # Any files you want to ignore:
+  ignore &amp;#39;/admin/*&amp;#39;
+
+  # For example, change the Compass output style for deployment
+  activate :minify_css
+
+  # Minify Javascript on build
+  activate :minify_javascript
+
+  # Enable cache buster
+  activate :asset_hash
+
+  # Use relative URLs
+  activate :relative_assets
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2&gt;Using bower&lt;/h2&gt;
+
+&lt;p&gt;The basic way to use bower is to put this in &lt;code&gt;config.rb&lt;/code&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;sprockets.append_path File.join root, &amp;#39;bower_components&amp;#39;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;And then you can put things in your &lt;code&gt;all.js&lt;/code&gt; file like&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="javascript"&gt;//= require &amp;#39;component&amp;#39;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;To get all of the assets that are included in the packge, you may need to specify the package in the &lt;code&gt;config.rb&lt;/code&gt; file, such as:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;sprockets.import_asset &amp;#39;jquery&amp;#39;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;More information on the &lt;a href="http://middlemanapp.com/basics/asset-pipeline/"&gt;Middleman Asset Pipline documentation&lt;/a&gt;&lt;/p&gt;
+
+&lt;h2&gt;Using layouts and partials&lt;/h2&gt;
+
+&lt;p&gt;The &lt;code&gt;source&lt;/code&gt; directory is where the actual code for your site lives.  Here is an example &lt;code&gt;layouts/layout.haml&lt;/code&gt; file to give you a sense of how to use layouts and include partials:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="haml"&gt;!!! 5
+%html.no-js.sticky
+  %head
+    %meta{ :charset =&amp;gt; &amp;#39;utf-8&amp;#39; }/
+    %meta{ &amp;#39;http-equiv&amp;#39; =&amp;gt; &amp;#39;X-UA-Compatible&amp;#39;, :content =&amp;gt; &amp;#39;IE=edge,chrome=1&amp;#39; }/
+
+    %title This site is amazing!
+
+    %meta{ :name =&amp;gt; &amp;#39;description&amp;#39;, :content =&amp;gt; &amp;#39;&amp;#39; }/
+    %meta{ :name =&amp;gt; &amp;#39;viewport&amp;#39;, :content =&amp;gt; &amp;#39;width=device-width&amp;#39; }/
+    = stylesheet_link_tag &amp;#39;application&amp;#39;, &amp;quot;socicons&amp;quot;, &amp;quot;animate&amp;quot;
+
+  %body
+    = partial &amp;quot;layouts/main_header&amp;quot;
+
+    ~ yield
+
+    = partial &amp;quot;layouts/footer&amp;quot;
+    = partial &amp;quot;layouts/javascripts&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;In this usage, this is similar to the way that rails layouts work.  I&amp;#39;m using the &lt;code&gt;~&lt;/code&gt; HAML operator inside of &lt;code&gt;=&lt;/code&gt; here because I want to make sure that it doesn&amp;#39;t do anything wonky with the indention on &lt;code&gt;&amp;lt;pre&amp;gt;&lt;/code&gt; blocks, btw.&lt;/p&gt;
+
+&lt;p&gt;Middleman has a concept of nested layouts, which lets you have wrap an a layout around another one.  I think that this is confusing in practice, but as an example you could have a &lt;code&gt;layouts/sidebar_layout.erb&lt;/code&gt; that looked like:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="erb"&gt;&amp;lt;% wrap_layout :layout do %&amp;gt;
+    &amp;lt;div class=&amp;quot;sidebar&amp;quot;&amp;gt;
+        &amp;lt;%= partial &amp;quot;layouts/sidebar&amp;quot; %&amp;gt;
+    &amp;lt;/div&amp;gt;
+
+    &amp;lt;div class=&amp;quot;content&amp;quot;&amp;gt;
+        &amp;lt;%= yield %&amp;gt;
+    &amp;lt;/div&amp;gt;
+&amp;lt;% end %&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2&gt;The YAML preable, the preyaml?&lt;/h2&gt;
+
+&lt;p&gt;Metadata about the template is included in a block of text at the top of the file, which gets pulled off to set things that the templating system can use later.  On the top of this file that I am editing right now, it looks like this&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;---
+title: &amp;#39;Building Sites with Middleman&amp;#39;
+subtitle: &amp;#39;lean publishing&amp;#39;
+tags: middleman, ruby, howto
+header_image: books.jpg
+---
+
+I make a lot of websites, and I have a certain toolkit that I use to build... 
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;The &lt;code&gt;title&lt;/code&gt;, &lt;code&gt;subtitle&lt;/code&gt;, &lt;code&gt;tags&lt;/code&gt; and &lt;code&gt;header_image&lt;/code&gt; attributues are available in the templates as page data, so you can access them like:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="haml"&gt;  %h1= current_article.title
+  %h2= current_article.data[&amp;#39;subtitle&amp;#39;]
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;em&gt;title&lt;/em&gt; is built into middleman, &lt;em&gt;subtitle&lt;/em&gt; and &lt;em&gt;header image&lt;/em&gt; are just some random things I made up.  The &lt;code&gt;tags&lt;/code&gt; attribute is part of the &lt;code&gt;middleman-blog&lt;/code&gt; extension which we will cover below.&lt;/p&gt;
+
+&lt;h2&gt;How the build works&lt;/h2&gt;
+
+&lt;p&gt;When you run &lt;code&gt;middleman server&lt;/code&gt; or &lt;code&gt;middleman build&lt;/code&gt;, middleman loads up the configuration file in &lt;code&gt;config.rb&lt;/code&gt;.  It creates a sitemap based upon the files in the &lt;code&gt;source&lt;/code&gt; directory as well as other directives inside of the config.rb file. &lt;/p&gt;
+
+&lt;p&gt;By default it only includes files like &lt;code&gt;.html.erb&lt;/code&gt; and &lt;code&gt;.js&lt;/code&gt;, but you can set it manually include a non-template file (like our &lt;code&gt;page &amp;quot;CNAME&amp;quot;&lt;/code&gt; above or create other &lt;code&gt;proxy&lt;/code&gt; files.  Proxy files are a way of seperating out the templates from the source data.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;# Assumes the file source/about/template.html.erb exists
+[&amp;quot;tom&amp;quot;, &amp;quot;dick&amp;quot;, &amp;quot;harry&amp;quot;].each do |name|
+  proxy &amp;quot;/about/#{name}.html&amp;quot;, &amp;quot;/about/template.html&amp;quot;, :locals =&amp;gt; { :person_name =&amp;gt; name }
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;This creates three entries into the sitemap called &lt;code&gt;/about/tom.html&lt;/code&gt;, &lt;code&gt;/about/dick.html&lt;/code&gt; and &lt;code&gt;/about/harry.html&lt;/code&gt; that use a specific template.&lt;/p&gt;
+
+&lt;p&gt;This data doesn&amp;#39;t need to be hardcoded into the &lt;code&gt;config.rb&lt;/code&gt; btw, you can also place &lt;code&gt;json&lt;/code&gt; and &lt;code&gt;yml&lt;/code&gt; files in the &lt;code&gt;data/&lt;/code&gt; directory which middleman will load automatically.  For example, &lt;code&gt;data/employees.json&lt;/code&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="json"&gt;[{&amp;quot;name&amp;quot;:&amp;quot;Tom&amp;quot;,&amp;quot;title&amp;quot;:&amp;quot;Janitor&amp;quot;},{&amp;quot;name&amp;quot;:&amp;quot;Mary&amp;quot;,&amp;quot;title&amp;quot;:&amp;quot;CEO&amp;quot;}]
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;And then in your &lt;code&gt;config.rb&lt;/code&gt; you could access this as:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;data[&amp;#39;employees&amp;#39;].each do |employee|
+  proxy &amp;quot;/about/#{name}.html&amp;quot;, &amp;quot;/about/template.html&amp;quot;, :locals =&amp;gt; { :person_name =&amp;gt; employee[:name], :title =&amp;gt; employee[:title] }
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Then each entry in the sitemap the file is processed (based upon the extension, so scss -&amp;gt; js, haml -&amp;gt; html, etc.) into the build directory.  Helper methods are available inside of the templates for things like &lt;code&gt;javascript_include_tag&lt;/code&gt;, &lt;code&gt;stylesheet_link_tag&lt;/code&gt;, &lt;code&gt;link_to&lt;/code&gt; and &lt;code&gt;image_tag&lt;/code&gt; and all of the rest.&lt;/p&gt;
+
+&lt;h2&gt;The preview: &lt;code&gt;middleman server&lt;/code&gt;&lt;/h2&gt;
+
+&lt;p&gt;Starting the server in preview mode will start a local server on port &lt;code&gt;4567&lt;/code&gt; that generates the files on demand.  If you have livereload enabled this will automatically trigger a page refresh for any open browsers, so you can tweak and look at things as you go.&lt;/p&gt;
+
+&lt;p&gt;Inside of your templates, &lt;code&gt;config.environment == :development&lt;/code&gt; when you are in preview mode.  So, if there are some things that you don&amp;#39;t want to push to the live site but are useful for development, you can switch them on and off using that mechanism.&lt;/p&gt;
+
+&lt;h2&gt;The build: &lt;code&gt;middleman build&lt;/code&gt;&lt;/h2&gt;
+
+&lt;p&gt;This does basically the same thing as the server, but the templates are generally further processed.  Cachebusting can be enabled, and you can include tracking code if &lt;code&gt;config.environment == :build&lt;/code&gt; is true.  This goes through all of the files in source that look like webfiles and places them in the &lt;code&gt;build&lt;/code&gt; directory.&lt;/p&gt;
+
+&lt;p&gt;And easy way to check out what you have there is by &lt;code&gt;cd&lt;/code&gt;ing into the &lt;code&gt;build/&lt;/code&gt; directory and running a simple webserver to serve the pages.  Relative links don&amp;#39;t work when you open the file directly in the browser, so you need to use an actual webserver.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="sh"&gt;$ cd build
+$ python -m SimpleHTTPServer
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;And then open a new browser on port &lt;code&gt;8000&lt;/code&gt;.&lt;/p&gt;
+
+&lt;h2&gt;The deploy: &lt;code&gt;middleman deploy&lt;/code&gt;&lt;/h2&gt;
+
+&lt;p&gt;In the basic &lt;code&gt;:git&lt;/code&gt; setting that we have above, middleman deploy will build the site into the &lt;code&gt;build/&lt;/code&gt; directory, switch that directory to the &lt;code&gt;gh-pages&lt;/code&gt; branch, and push it to &lt;code&gt;origin&lt;/code&gt;.  Assuming that you are hosting your repo on github, this will publish the static content on github pages.&lt;/p&gt;
+
+&lt;p&gt;If you want to use a &lt;a href="https://help.github.com/articles/setting-up-a-custom-domain-with-github-pages/"&gt;custom domain&lt;/a&gt; then you need to create a &lt;code&gt;CNAME&lt;/code&gt; file in &lt;code&gt;source/&lt;/code&gt; with the domain name, and set up your DNS records to match.&lt;/p&gt;
+
+&lt;p&gt;One thing to note is that while changes to the pages seem to deploy quickly, it takes a long time for the first push to github pages to show up, on the order of 10-15 minutes.&lt;/p&gt;
+
+&lt;p&gt;More information on &lt;a href="https://github.com/karlfreeman/middleman-deploy"&gt;middleman-deploy&lt;/a&gt;.&lt;/p&gt;
+
+&lt;h2&gt;Building a blog&lt;/h2&gt;
+
+&lt;p&gt;There are two good extensions for building a blog with middleman.  The default template for blog is sort of confusing in the way that it&amp;#39;s laid out, mainly because it gets rid of the &lt;code&gt;layouts/&lt;/code&gt; directory, but let&amp;#39;s go through it and see how it&amp;#39;s supposed to work:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="sh"&gt;$ gem install middleman-blog
+$ middleman new static_blog --template=blog
+      create  static_blog/.gitignore
+      create  static_blog/config.rb
+      create  static_blog/source
+      create  static_blog/source/2012-01-01-example-article.html.markdown
+      create  static_blog/source/calendar.html.erb
+      create  static_blog/source/feed.xml.builder
+      create  static_blog/source/index.html.erb
+      create  static_blog/source/layout.erb
+      create  static_blog/source/tag.html.erb
+      create  static_blog/source/stylesheets
+      create  static_blog/source/javascripts
+      create  static_blog/source/images
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now we have another middleman site, with a bunch of files.  It also creates a new command:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="sh"&gt;$ middleman article &amp;quot;This is the title of my article&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Let&amp;#39;s also include the &lt;code&gt;middleman-blog-drafts&lt;/code&gt; gem into the &lt;code&gt;Gemfile&lt;/code&gt;, &lt;code&gt;activate :drafts&lt;/code&gt; in `config.rb, and that will give us a few more commands:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="sh"&gt;$ middleman draft &amp;quot;This is amazing&amp;quot;
+      create  source/drafts/this-is-amazing.html.markdown
+$ middleman publish source/drafts/this-is-amazing.html.markdown
+      create  source/2014-11-25-this-is-amazing.html.markdown
+      remove  source/drafts/this-is-amazing.html.markdown
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;This lets us keep drafts in git and doesn&amp;#39;t force us to commit to a date until we are ready to publish it.  There are &lt;code&gt;published&lt;/code&gt; and &lt;code&gt;date&lt;/code&gt; attributes that the default blog extension knows about to turn it on and off, and is a good example of something that you can see in development but not production, but that still leaves to moving files around manually to adjust the date.&lt;/p&gt;
+
+&lt;h2&gt;What does it add?&lt;/h2&gt;
+
+&lt;p&gt;In addition to the sitemap, we now have a &lt;code&gt;blog&lt;/code&gt;, &lt;code&gt;article&lt;/code&gt;, and &lt;code&gt;tag&lt;/code&gt; concept inside of the middleman app.  Articles are represented as pages (by default using &lt;code&gt;markdown&lt;/code&gt;) but the &lt;code&gt;tag&lt;/code&gt; and &lt;code&gt;calendar&lt;/code&gt; templates are actually more like &lt;code&gt;proxy&lt;/code&gt; templates than file templates, and when the site is generated middleman will iterate over then to produce many output files from one template.&lt;/p&gt;
+
+&lt;p&gt;Part of the &lt;code&gt;index.html.haml&lt;/code&gt; of this site looks like:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="haml"&gt;  - (drafts + page_articles).each do |article|
+    .post
+      .post-date
+        - unless article.is_a? ::Middleman::Blog::Drafts::DraftArticle
+          %p= article.date.strftime( &amp;#39;%b %e&amp;#39; )
+        - else
+          %p.draft Draft
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;I&amp;#39;m putting all of the articles in a list, both drafts and published ones, and only showing the date for articles which have already been published.&lt;/p&gt;
+
+&lt;p&gt;Here&amp;#39;s what gets added to the &lt;code&gt;config.rb&lt;/code&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;activate :blog do |blog|
+  # This will add a prefix to all links, template references and source paths
+  # blog.prefix = &amp;quot;blog&amp;quot;
+
+  # blog.permalink = &amp;quot;{year}/{month}/{day}/{title}.html&amp;quot;
+  # Matcher for blog source files
+  # blog.sources = &amp;quot;{year}-{month}-{day}-{title}.html&amp;quot;
+  # blog.taglink = &amp;quot;tags/{tag}.html&amp;quot;
+  # blog.layout = &amp;quot;layout&amp;quot;
+  # blog.summary_separator = /()/
+  # blog.summary_length = 250
+  # blog.year_link = &amp;quot;{year}.html&amp;quot;
+  # blog.month_link = &amp;quot;{year}/{month}.html&amp;quot;
+  # blog.day_link = &amp;quot;{year}/{month}/{day}.html&amp;quot;
+  # blog.default_extension = &amp;quot;.markdown&amp;quot;
+
+  blog.tag_template = &amp;quot;tag.html&amp;quot;
+  blog.calendar_template = &amp;quot;calendar.html&amp;quot;
+
+  # Enable pagination
+  # blog.paginate = true
+  # blog.per_page = 10
+  # blog.page_link = &amp;quot;page/{num}&amp;quot;
+end
+
+activate :drafts
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;This should be enough to get you started, and more &lt;a href="http://middlemanapp.com/basics/blogging/"&gt;documentation is here&lt;/a&gt; .  At this point it really becomes a design and development challenge, not figuring out how to use the tool.&lt;/p&gt;
+
+&lt;h2&gt;That&amp;#39;s the basics.&lt;/h2&gt;
+
+&lt;p&gt;Middleman gives you all of the front-end developer benefits of using a system like Rails, but outputs static content than can be served anywhere without any dependancies.  Many sites don&amp;#39;t really require all that for them to run, and it&amp;#39;s crazy to me that something as read heavy as a blog often can&amp;#39;t perform well under load given that it&amp;#39;s just serving up the same old stuff over and over again.  You want to have some tooling to make it easier, but it doesn&amp;#39;t need to be &lt;em&gt;run time&lt;/em&gt; tooling.&lt;/p&gt;
+
+&lt;p&gt;&lt;em&gt;Image Credit: &lt;a href="https://www.flickr.com/photos/aigle_dore/6365101775/in/photolist-aGsP14-7PozJp-84P71r-dphot9-5qz3ks-eqHuv-6NP8d6-HdurS-aibaen-ix8Rbz-6buevW-7acJMF-8DFBf3-MLnGM-dGa2xi-f4HeM7-zXqL6-88og6h-r7w3U-2qKgwi-mcp7h-4eXcGM-9uv3gC-7BAEiV-5RzRtp-7JKRHh-6iUdMZ-2bUDT-8s4PDi-8pvSWc-dynb6k-zV2x5-4xWMzG-dsxGqc-7Cby3b-9t3zWm-b4jsc2-8YyqSQ-9ggca5-aGsPSg-68SVDi-4PNHrt-7JGpz4-aL22G2-q1ic-sZMVW-84NAEC-8JBSSW-9k6cM-89NBaJ"&gt;Moyan Brenn&lt;/a&gt;&lt;/em&gt;&lt;/p&gt;
+</content>
+  </entry>
+  <entry>
+    <title>Scripting Twitter: Collecting Data and Writing Bots</title>
+    <link rel="alternate" href="http://willschenk.com/scripting-twitter/"/>
+    <id>http://willschenk.com/scripting-twitter/</id>
+    <published>2014-11-19T19:00:00-05:00</published>
+    <updated>2014-11-19T19:00:00-05:00</updated>
+    <author>
+      <name>Will Schenk</name>
+    </author>
+    <content type="html">&lt;p&gt;Lets build on our &lt;a href="http://willschenk.com/making-a-command-line-utility-with-gems-and-thor"&gt;command line url exploring tool&lt;/a&gt; to look at how we can interact with Twitter.  We are going to cover how to make a script that will pull information out of twitter, how to deal with its rate limiting, and how to interact with users on Twitter itself.&lt;/p&gt;
+
+&lt;p&gt;Twitter uses &lt;a href="https://dev.twitter.com/oauth/overview/faq"&gt;OAuth 1.0A&lt;/a&gt; as a way to authenticate requests.  As a script writer, this is super annoying, because you can&amp;#39;t just stick a username and password in the environment and go from there.  You need to:&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;&lt;p&gt;&lt;a href="https://apps.twitter.com"&gt;Register you application with twitter&lt;/a&gt;.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Store the &amp;quot;client key&amp;quot; for your application.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Get a user to grant your application access to twitter, and then use that &amp;quot;authorization key&amp;quot; to access the API.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Then figure out how to use the API.&lt;/p&gt;&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;This is a bit overkill for building a simple script, especially since the 3 way process of having your application request access on behalf of a specific user on the twitters servers is a pain for a command line interface.  And when you configure your application on twitter you need to specify a &amp;quot;callback URL&amp;quot;, which a) is different on development, staging and production webapp environments and b) you don&amp;#39;t have a web app.&lt;/p&gt;
+
+&lt;p&gt;Luckily for you twitter has a work around.&lt;/p&gt;
+
+&lt;h2&gt;Firstly, we create the Twitter App&lt;/h2&gt;
+
+&lt;ol&gt;
+&lt;li&gt;&lt;p&gt;Go to &lt;a href="https://apps.twitter.com/app/new"&gt;Create new Twitter App&lt;/a&gt; and fill out the required fields.  Specifically, leave &lt;em&gt;callback URL&lt;/em&gt; blank for now.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Select &lt;em&gt;Keys and Access Tokens&lt;/em&gt;.  On this page, create an access token for your user with the &lt;em&gt;Generate Access Token&lt;/em&gt; on the bottom of the page.&lt;/p&gt;&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;Now we have four variables that our script needs to access twitter on behalf of your user.  &lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;&lt;p&gt;The consumer key represents your application.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;The consumer secret represents your application&amp;#39;s &amp;quot;password&amp;quot;.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;The access token represents an authorization that a user has accepted.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;The access token secret is there to make sure that access token is valid.&lt;/p&gt;&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;Make note of these variables.&lt;/p&gt;
+
+&lt;h2&gt;Then, we code with the REST API&lt;/h2&gt;
+
+&lt;p&gt;Make sure you have the twitter gem installed by typing:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="sh"&gt;$ gem install twitter
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;We&amp;#39;re eventually going to add this code our CLI gem, and that dependency will be created by adding the line&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;  spec.add_dependency &amp;#39;twitter&amp;#39;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;OK, lets put this in and see what we get:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;require &amp;#39;thor&amp;#39;
+require &amp;#39;twitter&amp;#39;
+require &amp;#39;httparty&amp;#39;
+
+TWITTER_APP_KEY=&amp;quot;rzlJXhI8...&amp;quot;
+TWITTER_APP_SECRET=&amp;quot;euF5bItp9w...&amp;quot;
+TWITTER_ACCESS_TOKEN=&amp;quot;17827...&amp;quot;
+TWITTER_ACCESS_TOKEN_SECRET=&amp;quot;7NSX...&amp;quot;
+
+def print_user_info( u )
+  t = &amp;quot;%-20s: %s\n&amp;quot;
+  printf t, &amp;quot;Screenname&amp;quot;, u.user_name
+  printf t, &amp;quot;Full Name&amp;quot;, u.name
+  printf t, &amp;quot;Bio&amp;quot;, u.description
+  printf t, &amp;quot;Website&amp;quot;, u.website.to_s
+  printf t, &amp;quot;Joined&amp;quot;, u.created_at.strftime( &amp;quot;%Y-%m-%d&amp;quot; )
+  printf t, &amp;quot;Location&amp;quot;, u.location
+  printf t, &amp;quot;Verified&amp;quot;, u.verified?
+  printf t, &amp;quot;Tweets&amp;quot;, u.tweets_count
+  printf t, &amp;quot;Followers&amp;quot;, u.followers_count
+  printf t, &amp;quot;Following&amp;quot;, u.friends_count
+  printf t, &amp;quot;Favorites count&amp;quot;, u.favorites_count
+end
+
+class CLI &amp;lt; Thor
+  desc &amp;quot;user SCREENAME&amp;quot;, &amp;quot;Look up info for a specific user.&amp;quot;
+  def user( username )
+    print_user_info client.user( &amp;quot;wschenk&amp;quot; )
+  end
+
+# We will add more methods here
+
+  private
+  def client
+    @client ||= Twitter::REST::Client.new do |config|
+      config.consumer_key        = TWITTER_APP_KEY
+      config.consumer_secret     = TWITTER_APP_SECRET
+      config.access_token        = TWITTER_ACCESS_TOKEN
+      config.access_token_secret = TWITTER_ACCESS_TOKEN_SECRET
+    end
+  end
+end
+
+# Only run if the script is called directly
+if __FILE__ == $0
+  CLI.start( ARGV )
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;When we run this, we get:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ ruby lib/socialinvestigator/client/twitter.rb wschenk
+Screenname          : wschenk
+Full Name           : Will Schenk
+Bio                 : Co-Founder of HappyFunCorp.
+Website             : http://t.co/OA0tQaQiAX
+Joined              : 2006-12-22
+Location            : Brooklyn NY
+Verified            : false
+Tweets              : 1674
+Followers           : 330
+Following           : 418
+Favorites count     : 17
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;em&gt;For those keeping score at home, that&amp;#39;s 209 tweets a year.&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;We create a &lt;code&gt;Twitter::REST::Client&lt;/code&gt;, passing in the variables that we got when we created the twitter app.  Eventually we&amp;#39;ll out grow hardcoding them into the script, but for now replace the dummy values I have above with what you have and try it with some screen names.&lt;/p&gt;
+
+&lt;h2&gt;Longing for &lt;code&gt;http://t.co/OA0tQaQiAX&lt;/code&gt;&lt;/h2&gt;
+
+&lt;p&gt;If there&amp;#39;s one word that describes URL shorteners, that word is &lt;em&gt;rude&lt;/em&gt;.  This magical place where anyone can setup shop and link directly to other people now is now infested with middle men, who may indeed be useful but are even less popular than used car salesmen.  URL shorteners are services that &lt;em&gt;intermediate&lt;/em&gt; the actual destination of the link in order to better track who clicks on the link.  You create many shortened links and give them out to different people, and when the world at large clicks on one of them you know who they got it from.&lt;/p&gt;
+
+&lt;p&gt;The easiest way to resolve the link is to make a &lt;code&gt;HEAD&lt;/code&gt; HTTP request to the shortening service and print where they redirect you to.  If there&amp;#39;s no location in the response, we&amp;#39;ll just return the url that was passed in.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;def lookup_url( url )
+  return url if url.nil? || url == &amp;quot;&amp;quot;
+  r = HTTParty.head url, { follow_redirects: false }
+  r[&amp;#39;location&amp;#39;] || url
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;and lets add a Thor command for it too, in the &lt;code&gt;CLI&lt;/code&gt; class, why not:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;  desc &amp;quot;lookup URL&amp;quot;, &amp;quot;Resolve a link&amp;quot;
+  def lookup( url )
+    puts lookup_url( url )
+  end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now we can see that&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ ruby twitter.rb lookup  http://t.co/OA0tQaQiAX
+http://happyfuncorp.com
+$ ruby twitter.rb lookup  http://happyfuncorp.com
+http://happyfuncorp.com
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;So we can update the website &lt;code&gt;printf&lt;/code&gt; line to be:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;  printf t, &amp;quot;Website&amp;quot;, lookup_url( u.website.to_s )
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2&gt;The basics: tweets, timelines, mentions, retweets&lt;/h2&gt;
+
+&lt;p&gt;With read access, you can pull down some basic stuff.&lt;/p&gt;
+
+&lt;p&gt;Load the recent tweets this user has made:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;  desc &amp;quot;user_timeline&amp;quot;, &amp;quot;Show the authenticated user&amp;#39;s tweets&amp;quot;
+  def user_timeline
+    client.user_timeline.each do |tweet|
+      puts &amp;quot;@#{tweet.user.user_name}:#{tweet.text}&amp;quot;
+    end
+  end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Show the tweets of people who they are following:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;  desc &amp;quot;home_timeline&amp;quot;, &amp;quot;Show the authenticated user&amp;#39;s timeline&amp;quot;
+  def home_timeline
+    client.home_timeline.each do |tweet|
+      puts &amp;quot;@#{tweet.user.user_name}:#{tweet.text}&amp;quot;
+    end
+  end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Show which of their tweets have been retweeted:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;  desc &amp;quot;retweets&amp;quot;, &amp;quot;Show the authenticated user&amp;#39;s retweets&amp;quot;
+  def retweets
+    client.retweets_of_me.each do |tweet|
+      puts &amp;quot;@#{tweet.user.user_name}:#{tweet.text}&amp;quot;
+    end
+  end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Pull down only the tweets that mention the authentication user:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;  desc &amp;quot;mentions&amp;quot;, &amp;quot;Show the authenticated user&amp;#39;s mentions&amp;quot;
+  def mentions
+    client.mentions.each do |tweet|
+      puts &amp;quot;@#{tweet.user.user_name}:#{tweet.text}&amp;quot;
+    end
+  end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;If you are building a bot, for example, that you wanted to respond when someone tweets at it, you could use the &lt;code&gt;client.mentions&lt;/code&gt; method to get those tweets in particular.  You&amp;#39;d need a way to make sure you don&amp;#39;t double respond to people each time the bot was run.  If you wanted to always have the bot running, look at the Streaming API below.  If you want to know how to post to twitter, read on.&lt;/p&gt;
+
+&lt;h2&gt;Rate Limits on the REST interface&lt;/h2&gt;
+
+&lt;p&gt;Unlike Google, who casually has enough computer power to do personalized type ahead search of the &lt;em&gt;entire internet&lt;/em&gt; at &lt;em&gt;a global scale&lt;/em&gt;, Twitter is prickly about &lt;a href="https://dev.twitter.com/rest/public/rate-limiting"&gt;you hammering their site&lt;/a&gt;.  Personally, I thought that &lt;a href="http://readwrite.com/2008/07/17/the_story_of_the_fail_whale"&gt;the fail whale&lt;/a&gt; was really fun.  Let&amp;#39;s add a another &lt;code&gt;CLI&lt;/code&gt; command to print out the current rate limit status, how many calls you have left, and when your counter for that resource will reset:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;  desc &amp;quot;limits&amp;quot;, &amp;quot;Print out the current rate limits&amp;quot;
+  def limits
+    resp = client.get( &amp;quot;/1.1/application/rate_limit_status.json&amp;quot; )
+    current_time = Time.now.to_i
+    template = &amp;quot;   %-40s %5d remaining, resets in %3d seconds\n&amp;quot;
+    resp.body[:resources].each do |category,resources|
+      puts category.to_s
+      resources.each do |resource,info|
+        printf template, resource.to_s, info[:remaining], info[:reset] - current_time
+      end
+    end
+  end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Note that I&amp;#39;m making the request using &lt;code&gt;client.get&lt;/code&gt; which will make an arbitrary authenticated request to the Twitter api.  This &lt;a href="https://dev.twitter.com/rest/reference/get/application/rate_limit_status"&gt;particular api call&lt;/a&gt; isn&amp;#39;t in the Twitter gem, though the gem is aware of the limits and will throw specific exceptions when you hit those limits.&lt;/p&gt;
+
+&lt;p&gt;The gem provides methods on top of this &lt;code&gt;client.get&lt;/code&gt; interface, which may use more API calls then you expect.  Methods like &lt;code&gt;client.user_timeline&lt;/code&gt; and &lt;code&gt;client.followers&lt;/code&gt; return &lt;code&gt;Twitter::Cursor&lt;/code&gt; objects, which you can iterate over in ruby as you&amp;#39;d expect, but may trigger multiple API calls throughout the process which you might not expect.  You&amp;#39;ll potentially get an exception in the middle of things, and you&amp;#39;ll need to figure a way around this.  In a later post we will get into caching and retry strategies, but since it will dramatically increase the complexity we&amp;#39;ll keep things simple for now.  &lt;em&gt;Punt!&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;This basic code will catch the &lt;code&gt;TooManyRequests&lt;/code&gt; exception and sleep the process until it&amp;#39;s ready to go again.  This could take a very very long time.
+&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt; HEAD:source/2014-11-20-scripting-twitter.html.markdown&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;follower_ids = client.follower_ids(&amp;#39;justinbieber&amp;#39;)
+=======
+
+```rb
+follower_ids = client.follower_ids( &amp;#39;justinbieber)
+&amp;gt;&amp;gt;&amp;gt;&amp;gt;&amp;gt;&amp;gt;&amp;gt; 67530e9afbddd730c4fe8e19235236777450322a:source/drafts/scripting-twitter.html.markdown
+
+begin
+  follower_ids.to_a
+rescue Twitter::Error::TooManyRequests =&amp;gt; error
+  # NOTE: Your process could go to sleep for up to 15 minutes but if you
+  # retry any sooner, it will almost certainly fail with the same exception.
+  sleep error.rate_limit.reset_in + 1
+  retry
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2&gt;Listing followers&lt;/h2&gt;
+
+&lt;p&gt;To see what that looks like, lets add another &lt;code&gt;CLI&lt;/code&gt; command for listing a person&amp;#39;s followers:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;  desc &amp;quot;followers SCREENNAME&amp;quot;, &amp;quot;Prints out all of the users followers&amp;quot;
+  def followers( screenname )
+    client.followers( screenname ).each do |u|
+      printf( &amp;quot;@%-15s %-20s %s\n&amp;quot;, u.user_name, u.name, u.description )
+    end
+  end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;And if we run this on someone will a lot of followers, you&amp;#39;ll see the &lt;code&gt;Twitter::Error::TooManyRequests&lt;/code&gt; thrown.  We can look use our limits command above to see how long we have to wait until it resets.  Though, since we don&amp;#39;t have any smart retrying logic in place, chances are it will still fail when we try it again.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ ruby twitter.rb limits | grep /followers/list
+   /followers/list        0 remaining, resets in 288 seconds
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2&gt;Searching for URLs&lt;/h2&gt;
+
+&lt;p&gt;There are different types of URLs on twitter.  Lets look at a specific tweet of mine, 529342690476179456, to see what there is:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;&amp;gt; tweet = client.status( 529342690476179456 )
+ =&amp;gt; #&amp;lt;Twitter::Tweet id=529342690476179456&amp;gt; 
+&amp;gt; tweet.uris
+ =&amp;gt; [#&amp;lt;Twitter::Entity::URI:0x007ff614b0fce0 @attrs={:url=&amp;gt;&amp;quot;http://t.co/frfwwIqrYB&amp;quot;, :expanded_url=&amp;gt;&amp;quot;http://willschenk.com/bootstrap-advanced-grid-tricks&amp;quot;, :display_url=&amp;gt;&amp;quot;willschenk.com/bootstrap-adva…&amp;quot;, :indices=&amp;gt;[67, 89]}&amp;gt;] 
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;:url&lt;/code&gt; is the actual link that get&amp;#39;s clicked, and in your logs, the one that will show up as the referer.&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;:expanded_url&lt;/code&gt; is the end link.&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;:display_url&lt;/code&gt; is a shortened version of the end link.&lt;/p&gt;
+
+&lt;p&gt;In the twitter search box we can type in &lt;code&gt;http://willschenk.com/bootstrap-advanced-grid-tricks&lt;/code&gt; and that will match all tweets that go to this URL, regardless of which URL shortening service they use.  (To clarify, all those services which Twitter has support for, which for our purposes is all.)  If we type in &lt;code&gt;http://t.co/frfwwIqrYB&lt;/code&gt; to the twitter search it won&amp;#39;t match the tweet, but if we do &lt;em&gt;an exact search&lt;/em&gt;, with quotes around it like so: &lt;code&gt;&amp;quot;http://t.co/frfwwIqrYB&amp;quot;&lt;/code&gt; we will match the tweet.&lt;/p&gt;
+
+&lt;p&gt;Let&amp;#39;s write some code:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;  desc &amp;quot;search STRING&amp;quot;, &amp;quot;Shows all the tweets that match the string&amp;quot;
+  options [:exact, :user_info]
+  def search( string )
+    string = &amp;quot;\&amp;quot;#{string}\&amp;quot;&amp;quot; if options[:exact]
+    reach = 0
+    client.search( string, count: 100 ).each do |t|
+      puts &amp;quot;#{t.id}:#{t.created_at}:@#{t.user.user_name}:#{t.user.followers_count}:#{t.retweet_count}:#{t.text}&amp;quot;
+      reach += t.user.followers_count
+      if options[:user_info]
+        print_user_info t.user if options[:user_info]
+        puts
+      end
+    end
+    puts &amp;quot;#{string} reached #{reach} people.&amp;quot;
+  end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;This will print out the tweet id, when it was created, who tweeted it, how many followers they had, how many times it was retweeted, and the text of the tweet.  &lt;em&gt;Whew!&lt;/em&gt; Since there&amp;#39;s so much stuff here we made it &lt;code&gt;:&lt;/code&gt; separated on one line, in case you want to parse it with something else.&lt;/p&gt;
+
+&lt;p&gt;The option &lt;code&gt;--exact&lt;/code&gt; will put quotes around the search string, so if you are looking up a tweet from your referrers you can find which tweet sent people to your site.&lt;/p&gt;
+
+&lt;p&gt;The option &lt;code&gt;--user_info&lt;/code&gt; will print out the full information about the user who tweeted.&lt;/p&gt;
+
+&lt;p&gt;Twitter search only returns results from the previous 6-9 days, so better act fast!&lt;/p&gt;
+
+&lt;h2&gt;The Streaming API: Filters&lt;/h2&gt;
+
+&lt;p&gt;So far we have been looking at the REST API, which lets us interact with the Twitter services much like a user would: in response to something that the user requests.  The other API type is called the &lt;a href="https://dev.twitter.com/streaming/userstreams"&gt;streaming api&lt;/a&gt;, which lets us open up a single connection and receive information when Twitter has something new.  This is useful for a few things:&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;&lt;p&gt;We can get notified immediately when our search term is seen&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;We can get notified if someone mentions us, either with an @reply or, when we have more permissions, with Direct Messages.&lt;/p&gt;&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;Here&amp;#39;s how you can watch twitter for different terms, they can be comma separated.  Notice that we&amp;#39;ve added another private method, &lt;code&gt;streaming_client&lt;/code&gt; which uses a different interface, and we&amp;#39;ll need to &lt;code&gt;^C&lt;/code&gt; the script to start it.&lt;/p&gt;
+
+&lt;p&gt;The method &lt;code&gt;filter&lt;/code&gt; takes a block, and will call that block every time it gets a response from twitter.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;  desc &amp;quot;filter TERMS&amp;quot;, &amp;quot;Print out tweets that match the terms&amp;quot;
+  def filter( terms )
+    streaming_client.filter(track: terms) do |object|
+      puts &amp;quot;@#{object.user.user_name}:#{object.text}&amp;quot; if object.is_a?(Twitter::Tweet)
+    end
+  end
+
+
+  private
+  [...]
+
+  def streaming_client
+    @streaming_client ||= Twitter::Streaming::Client.new do |config|
+      config.consumer_key        = TWITTER_APP_KEY
+      config.consumer_secret     = TWITTER_APP_SECRET
+      config.access_token        = TWITTER_ACCESS_TOKEN
+      config.access_token_secret = TWITTER_ACCESS_TOKEN_SECRET
+    end
+  end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2&gt;The Streaming API: Reacting to the timeline&lt;/h2&gt;
+
+&lt;p&gt;We can also watch the timeline come through for the registered user, and do something with it.  The pattern is the same as the &lt;code&gt;filter&lt;/code&gt; method, but it passes an Object of one of the following types:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;p&gt;&lt;code&gt;Twitter::Tweet&lt;/code&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;&lt;code&gt;Twitter::DirectMessage&lt;/code&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;&lt;code&gt;Twitter::Streaming::DeletedTweet&lt;/code&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;&lt;code&gt;Twitter::Streaming::Event&lt;/code&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;&lt;code&gt;Twitter::Streaming::FriendList&lt;/code&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;&lt;code&gt;Twitter::Streaming::StallWarning&lt;/code&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;We&amp;#39;ll be ignoring most of them:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;  desc &amp;quot;listen&amp;quot;, &amp;quot;Prints our the authenticated user&amp;#39;s stream as it happens&amp;quot;
+  def listen
+    streaming_client.user do |object|
+      case object
+      when Twitter::Tweet
+        puts &amp;quot;Tweet:@#{object.user.user_name}:#{object.text}&amp;quot;
+      when Twitter::DirectMessage
+        puts &amp;quot;DM:@#{object.sender.user_name}:#{object.text}&amp;quot;
+      when Twitter::Streaming::StallWarning
+        warn &amp;quot;Falling behind!&amp;quot;
+      end
+    end
+  end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Running this command will print out tweets and messages as they come in.  If you wanted to make an interactive bot, you&amp;#39;d put logic in here to respond to the tweets coming in, calling something like&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;client.update( &amp;quot;@#{object.user.user_name} my reply&amp;quot;, { in_reply_to_status: object.id } )
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Only, you&amp;#39;re not going to get any direct messages, nor are you going to be able to reply, unless you change your application permission settings.&lt;/p&gt;
+
+&lt;h2&gt;Upgrading to the All Access Pass&lt;/h2&gt;
+
+&lt;p&gt;In order to&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;p&gt;Update a status&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Read direct messages&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Send direct messages&lt;/p&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;You need to change the application permission level.  There are three different levels.  Read will let you pull things on behalf of the user.  If they have a private account, or they have access to a private account, your script will be able to see those things.  You will not be able to access or receive direct messages&lt;/p&gt;
+
+&lt;p&gt;Write will let you post public status updates, but not Direct Messages.&lt;/p&gt;
+
+&lt;p&gt;Access direct messages is the third.&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;&lt;p&gt;Go to the &lt;a href="https://apps.twitter.com"&gt;twitter app console&lt;/a&gt; and find your application.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Go to the &amp;quot;Permissions Tab&amp;quot;&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Change the settings to &amp;quot;Read, Write&amp;quot; or &amp;quot;Read, Write and Access direct messages&amp;quot;&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Go to &amp;quot;Keys and Access Settings&amp;quot;&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Scroll down and &amp;quot;Regenerate My Access Token and Token Secret&amp;quot;&lt;/p&gt;&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;Depending upon what you chose, you can now post on behalf of the user:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;client.update( &amp;quot;Hello, World&amp;quot; )
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Read their direct messages:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;client.direct_messages
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Or send a direct message:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;client.create_direct_message &amp;quot;wschenk&amp;quot;, &amp;quot;Hi there&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2&gt;The Code&lt;/h2&gt;
+
+&lt;p&gt;Here is the &lt;a href="https://gist.github.com/wschenk/86e1e87772e7d589e963"&gt;code written for this article&lt;/a&gt;.  The github for &lt;a href="https://github.com/sublimeguile/socialinvestigator"&gt;socialinvestigator&lt;/a&gt; has a more complete sample that loads and stores the credentials in a file.&lt;/p&gt;
+
+&lt;p&gt;&lt;em&gt;Image Credit &lt;a href="https://www.flickr.com/photos/jurvetson/7408451314/in/photolist-bvcbis-7DN6Sk-7DRVeq-7DRUVq-jB3M44-dhZrKM-atAnS1-bi4yL6-atHJJo-85tMTG-cp5WgS-asg29e-chEftd-6Zex9h-djkSiW-acqro-c7PG79-72SJuQ-7fPiox-avgwDx-bEWnc2-4FAqy9-9mvMsP-8fp27H-chEjh3-66UgvR-6oqRAV-6oqUMD-5zWDAn-9mqRC4-6ov3Mw-6oqRQZ-6ov4bh-avgxEZ-6VXNYF-avgwMM-avjcLf-avjcQ1-avjcLS-avjcPd-avjcTW-avjduE-avgwZK-avjdMm-avjcVy-avjcSU-avgwRt-avjcY1-avjd2d-avgwTv"&gt;Steve Jurvetson&lt;/a&gt;&lt;/em&gt;&lt;/p&gt;
+</content>
+  </entry>
   <entry>
     <title>Embedding 3d models on your page</title>
     <link rel="alternate" href="http://willschenk.com/embedding-3d-models-on-your-page/"/>
@@ -24,7 +849,7 @@
 
 &lt;p&gt;Here&amp;#39;s a model of me that we made using the (Structure 3d scanner)[&lt;a href="http://structure.io"&gt;http://structure.io&lt;/a&gt;], which is a fun device that plugs into your iPhone or iPad.&lt;/p&gt;
 
-&lt;script src="https://embed.github.com/view/3d/sublimeguile/model_army/master/will%20clean.stl"&gt;&lt;/script&gt;
+&lt;p&gt;&lt;script src="https://embed.github.com/view/3d/sublimeguile/model_army/master/will%20clean.stl"&gt;&lt;/script&gt;&lt;/p&gt;
 
 &lt;p&gt;Pretty fun right?&lt;/p&gt;
 
@@ -1314,173 +2139,6 @@ Pushed socialinvestigator 0.0.1 to rubygems.org.
 &lt;p&gt;This command tags the repo, pushes the commits and tags onto github, and then pushes the code to rubygems.org, where it gets its &lt;a href="http://rubygems.org/gems/socialinvestigator"&gt;own shiny page&lt;/a&gt;.&lt;/p&gt;
 
 &lt;p&gt;&lt;em&gt;Image Credit: &lt;a href="https://www.flickr.com/photos/jdhancock/4756872724/in/photolist-7E5DeZ-8fmdwY"&gt;JD Hancock&lt;/a&gt;&lt;/em&gt;&lt;/p&gt;
-</content>
-  </entry>
-  <entry>
-    <title>Making Yosemite Faster</title>
-    <link rel="alternate" href="http://willschenk.com/making-yosemite-faster/"/>
-    <id>http://willschenk.com/making-yosemite-faster/</id>
-    <published>2014-11-06T19:00:00-05:00</published>
-    <updated>2014-11-06T19:00:00-05:00</updated>
-    <author>
-      <name>Will Schenk</name>
-    </author>
-    <content type="html">&lt;p&gt;Since I&amp;#39;ve upgraded to Yosemite my computer has gotten slower and slower.  When it first boots up, it is it&amp;#39;s old fast self, but after a few hours everything slows down.  Remember the days when you needed to restart your computer to keep it working well?  I had forgotten, and I wasn&amp;#39;t really into remembering it.&lt;/p&gt;
-
-&lt;p&gt;I also upgraded to &lt;a href="http://airmailapp.com"&gt;Airmail 2&lt;/a&gt;.  I get a ton of email and it used it be a lot faster than using Mail.app, but now I&amp;#39;m typing ahead of what the program can handle and it was driving me crazy. My machine is less than a year old and it&amp;#39;s basically maxed out, so its preposterous to think that it was the hardware!&lt;/p&gt;
-
-&lt;p&gt;The only evidence I could find was that the &lt;code&gt;WindowServer&lt;/code&gt; process was taking up more CPU as time went on.  WindowServer is the part of OSX that is responsible for drawing the display.   There seems to be something wrong with it in the current build, and there&amp;#39;s something about Airmail&amp;#39;s awesomeness that is &lt;a href="https://airmail.tenderapp.com/help/discussions/airmail-beta-259/46-windowserver-40-cpu-os-x-yosemite-becomes-sluggish"&gt;exacerbating the problem&lt;/a&gt;.&lt;/p&gt;
-
-&lt;p&gt;There are two things to do to fix this.  First go to &lt;em&gt;System Preferences &amp;gt; Accessibility&lt;/em&gt; and select &lt;em&gt;Reduce Transparency&lt;/em&gt;:&lt;/p&gt;
-
-&lt;p&gt;&lt;img alt="Silvrback blog image" src="https://silvrback.s3.amazonaws.com/uploads/5da49df8-e23d-4236-9890-67bd040eb19e/Accessibility_large.jpg" /&gt;&lt;/p&gt;
-
-&lt;p&gt;Transparency is most noticeable in the menu bar and window titles.  It&amp;#39;s a nice effect, but this option will go away.  This matter less than you think, because instead of staring at the pretty pictures while you are waiting switching between windows, you&amp;#39;ll just be &lt;em&gt;doing what you intended to do.&lt;/em&gt;&lt;/p&gt;
-
-&lt;p&gt;Then go to &lt;em&gt;System Preferences &amp;gt; Mission Control&lt;/em&gt; and turn off &lt;em&gt;Displays have separate Spaces&lt;/em&gt;:&lt;/p&gt;
-
-&lt;p&gt;&lt;img alt="Silvrback blog image" src="https://silvrback.s3.amazonaws.com/uploads/6cec93bc-e6e9-43dd-ad35-6216a3519ff4/Mission_Control_large.jpg" /&gt;&lt;/p&gt;
-
-&lt;p&gt;You&amp;#39;ll need to logout and log back in for the changes to take effect.  If you have an external monitor plugged in this will make it into more of a mirrored effect.  But it&amp;#39;s less memory for the WindowServer to have to deal with but frankly, for this build, it seems like the WindowServer is in over its head.&lt;/p&gt;
-
-&lt;p&gt;&lt;em&gt;Image source: &lt;a href="https://www.flickr.com/photos/enfocalafoca/10281990664/in/photolist-bemZsr-eTiVKj-7mHDny-9Dy4ax-oCTxUN-6ADKkQ-gEzTB7-9JVCCh-9VBzew-e6drjv-81i16E-dZELmS-9W3aAW-fxk247-bUjtvd-5B9RWQ-haJUc-7PGVs-2bhCy-hiECct-9TdDF5-dxPUZS-k4Cqht-Eybma-dfUT1w-nHgvih-fimRJN-kgE-eTifLY-koWW78-9Mi2sf-fCy2Gj-oR5RdZ-aivjjh-YKHt3-nSa2xB-9KrnK7-j3hzch-7Ry3aQ-Be2KQ-7uyD2-aqbv5m-84hTGU-88gVVn-7yf7Ao-nYeUkp-du6QC8-duy9pH-dGMeu2-2ve91"&gt;Jose Hidalgo&lt;/a&gt;&lt;/em&gt;&lt;/p&gt;
-</content>
-  </entry>
-  <entry>
-    <title>Field of Dreams is 25 years old and hasn't aged well</title>
-    <link rel="alternate" href="http://willschenk.com/field-of-dreams-is-25-years-old-and-hasn-t-aged-well/"/>
-    <id>http://willschenk.com/field-of-dreams-is-25-years-old-and-hasn-t-aged-well/</id>
-    <published>2014-11-04T19:00:00-05:00</published>
-    <updated>2014-11-04T19:00:00-05:00</updated>
-    <author>
-      <name>Will Schenk</name>
-    </author>
-    <content type="html">&lt;p&gt;&lt;img alt="left_float" src="https://silvrback.s3.amazonaws.com/uploads/bc10cbd1-d757-421f-b069-699e2c82911e/fod_medium.jpg" /&gt;&lt;/p&gt;
-
-&lt;p&gt;I&amp;#39;m sure you all remember the movie.  A man whose normal life is starting to fall apart.  He&amp;#39;s got the wife, family, mortgage and it&amp;#39;s both not enough and slipping away.  He needs to do something, something to make him feel alive.  And since it was that era of Hollywood film making, he&amp;#39;s also got plenty of daddy issues he&amp;#39;s working through.  He becomes seized by a vision, caught in the grip of an &lt;em&gt;idée fixe&lt;/em&gt; that he needs to go build something that everyone around him thinks is preposterous.&lt;/p&gt;
-
-&lt;p&gt;The movie&amp;#39;s tagline is: &lt;em&gt;If you believe the impossible, the incredible can come true.&lt;/em&gt;&lt;/p&gt;
-
-&lt;p&gt;And so he takes a chunk of his farm, and turns it into a baseball diamond for a team that doesn&amp;#39;t exist, probably is a delusion brought on by stress and desperation, and that no one is asking to see.&lt;/p&gt;
-
-&lt;p&gt;If you haven&amp;#39;t seen this movie in a while and have fuzzy nostalgic memories of seeing it as a kid, I&amp;#39;d hold off on seeing it again to rekindle the childhood magic.  The movie, as a movie, doesn&amp;#39;t really hold up well and unless you are interested in the late 80s from a cultural anthropology perspective, don&amp;#39;t ruin the memory.  (Unlike, say &lt;em&gt;Bull Durham&lt;/em&gt; or  &lt;em&gt;The Princess Bride&lt;/em&gt;, which are actually as good as you remember.)&lt;/p&gt;
-
-&lt;p&gt;There&amp;#39;s one thing that everyone remembers about this movie.  If there&amp;#39;s a reason why I still had fond memories of this movie, it was the signature quote:&lt;/p&gt;
-
-&lt;blockquote&gt;
-&lt;p&gt;If you build it, he will come.&lt;/p&gt;
-&lt;/blockquote&gt;
-
-&lt;p&gt;In the face of the odds, clearly stacked against you, this phrase captured the emotional experience of &lt;em&gt;keeping the faith&lt;/em&gt; while doing something that wasn&amp;#39;t working and no one around was supporting.  In that moment of pushing ahead to follow a dream that &lt;em&gt;you can see so clearly&lt;/em&gt;, and even your loved ones &lt;em&gt;don&amp;#39;t really get it&lt;/em&gt;, what keeps you going?&lt;/p&gt;
-
-&lt;p&gt;The answer is &lt;strong&gt;courage&lt;/strong&gt;.  &lt;/p&gt;
-
-&lt;blockquote&gt;
-&lt;p&gt;Scientific progress is measured in units of courage, not intelligence.
-&lt;em&gt;Paul Dirac&lt;/em&gt;&lt;/p&gt;
-&lt;/blockquote&gt;
-
-&lt;p&gt;In order to move forward, to make progress in spite of everything, for you to take you vision to the world, you need to be able to find something deep inside of yourself to keep going.  Before things get better there are some dark times.  Paul Graham calls it the &lt;em&gt;Trough of Sorrow&lt;/em&gt;.  Figuring out how to navigate that emotional experience when you have doubts and are constantly second guessing yourself is major part of being an entrepreneur.&lt;/p&gt;
-
-&lt;hr&gt;
-
-&lt;h2&gt;Yeah, but what about that baseball field in the middle of a corn field?&lt;/h2&gt;
-
-&lt;p&gt;Maybe the whole world thinks you are crazy.  Or delusional.  Maybe no one seems to know what you are talking about.  You have a vision, and if you stick to it, if you actually do build the thing, maybe then all of the doubters, the critics who point out of the doer of deeds could have done it better, don&amp;#39;t matter.  Hell, I still think that a 140-character &amp;quot;microblogging platform&amp;quot; makes no sense.  That didn&amp;#39;t stop them, and they built it, and people came.&lt;/p&gt;
-
-&lt;p&gt;People take the wrong moral from this story.  The problem isn&amp;#39;t that people don&amp;#39;t actually persevere in the face of the odds, though that is difficult, is that people don&amp;#39;t have a way to hone in on a good idea.  Or to jump start people using it.  The Twitter folks started out in podcasting, and ended up in, well, whatever Twitter is.&lt;/p&gt;
-
-&lt;p&gt;And check it: using up part of your capital building a baseball diamond for your imaginary friends is actually &lt;em&gt;really stupid&lt;/em&gt;.  Everyone told him that it was a bad idea, they weren&amp;#39;t merely perplexed, they actually tried their damnest to get his attention to save him from his folly.  &lt;em&gt;If you build it, he will come&lt;/em&gt; is magically inspirational, but magical thinking nonetheless.&lt;/p&gt;
-
-&lt;p&gt;This is a myth that people believe.  In the start up world, it shows up in thoughts like:&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;If it just had one more feature, then it would work.&lt;/li&gt;
-&lt;li&gt;The reason that we don&amp;#39;t have traction is because of a corner-case bug.&lt;/li&gt;
-&lt;li&gt;It&amp;#39;s not that no one cares, is that it wasn&amp;#39;t built right.&lt;/li&gt;
-&lt;li&gt;We&amp;#39;ll engineer our way out of this marketing and distribution problem.&lt;/li&gt;
-&lt;li&gt;It&amp;#39;s &lt;em&gt;merely marketing&lt;/em&gt; and once it&amp;#39;s built we expect an overnight success.&lt;/li&gt;
-&lt;li&gt;Sales is something for &lt;em&gt;suits&lt;/em&gt;, we&amp;#39;re doing the real work over here.&lt;/li&gt;
-&lt;li&gt;(Sales snobbery in general.)&lt;/li&gt;
-&lt;li&gt;Everything needs to be perfect, every bug is critical, and they need to be fixed all at once.&lt;/li&gt;
-&lt;li&gt;It &lt;em&gt;does&lt;/em&gt; make sense, the entire world is actually wrong, it&amp;#39;s time to double down.&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;In other words, &lt;em&gt;if you believe the impossible, you have a problem.&lt;/em&gt;  You probably aren&amp;#39;t a misunderstood Artiste or the next Steve Jobs.  The answer is &lt;em&gt;it simply doesn&amp;#39;t make sense&lt;/em&gt;.  Maybe it&amp;#39;s dumb, or maybe it&amp;#39;s ahead of it&amp;#39;s time.  After all, while Twitter may have abandoned podcasting, &lt;a href="http://nymag.com/daily/intelligencer/2014/10/whats-behind-the-great-podcast-renaissance.html"&gt;podcasting is now all the rage&lt;/a&gt;.&lt;/p&gt;
-
-&lt;p&gt;There&amp;#39;s a dark side to this courage-in-the-face-of-adversity.  It&amp;#39;s part of being in the grip of an &lt;em&gt;idée fixe&lt;/em&gt;, where you only hear what you want to hear and filter out everything that is in any way threatening.&lt;/p&gt;
-
-&lt;h2&gt;Does the world need your idea?&lt;/h2&gt;
-
-&lt;p&gt;You should sit down with your &lt;em&gt;idée fixe&lt;/em&gt; and have a long talk.  What are you actually trying to do with your life?  Do you really have a problem that&amp;#39;s worth solving?  Are you actually trying to do anything worth doing?&lt;/p&gt;
-
-&lt;p&gt;A lot of aspiring entrepreneurs fall in love with their idea and it hurts them when they need to make a business.  We say that they fall in love with the product, and don&amp;#39;t understand what it means to start a business.&lt;/p&gt;
-
-&lt;blockquote&gt;
-&lt;p&gt;Build a better mouse trap, and the world will beat a path to your door.
-&lt;em&gt;not Ralph Waldo Emerson, who is actually awesome but has this dumb-ass platitude associated with his name&lt;/em&gt;&lt;/p&gt;
-&lt;/blockquote&gt;
-
-&lt;p&gt;The idea is important, a necessary but not sufficient component of a successful enterprise.  How does the idea fit in to the rest of the world?  What is it that people actually would like?  How would they ever even find out about it, really?  If it&amp;#39;s not what people want, or not what they need, well, maybe your idea has a happier existence as a very elaborate day-dream.  Before you spin up the manufacturing plant, you should check in with some mice before running with that platitude:&lt;/p&gt;
-
-&lt;blockquote&gt;
-&lt;p&gt;So with all of these people trying to invent a better mousetrap, the dirty secret of trapping mice is mice are really easy to catch. That&amp;#39;s why every inventor thinks that he can do it. Catching a mouse is basically playing against a casino where you always win.
- [...]
-The regular, old-fashioned, cheap, little mousetrap, Andy says, will usually catch the mouse in 24 to 48 hours. It will kill it 88% of the time. Other traps that aren&amp;#39;t much more expensive have 100% lethality. Mice are easy to kill because mice, unlike rats, are incredibly inquisitive animals.
-[...]
-So the problem for the mousetrap inventor is the world doesn&amp;#39;t need a better mousetrap. You know that old saying, &amp;quot;Build a better mousetrap and the world will beat its way to your door?&amp;quot; Not true. Andy makes a traditional mousetrap that sells two for $0.99. It does the job just fine. But most inventors never understand this.
-&lt;em&gt;Ira Glass, &lt;a href="http://www.thisamericanlife.org/radio-archives/episode/366/transcript"&gt;This America Life #366&lt;/a&gt;&lt;/em&gt;&lt;/p&gt;
-&lt;/blockquote&gt;
-
-&lt;hr&gt;
-
-&lt;h1&gt;The Long Game, not the Long Con&lt;/h1&gt;
-
-&lt;p&gt;As an aside, I&amp;#39;m not really sure that I&amp;#39;m smart enough to read Ralph Waldo Emerson, at least the real thing and not the &amp;quot;well known quotes&amp;quot;. It&amp;#39;s all too damn subtle and I find myself drifting off.  So many rhythmic sentences that just go on and on, and on, and so on.  Nietzsche I&amp;#39;m fascinated by, and I&amp;#39;ve read most of his books multiple times.  Those I can follow.  I find something new in them every time.  In the beginning of his writing, it&amp;#39;s clear that Emerson&amp;#39;s essays blew Nietzsche&amp;#39;s socks off.  He kept his ragged, annotated, school issued copy of the essays with him throughout his life.  Based on this alone I&amp;#39;m sure good old &lt;em&gt;Waldo&lt;/em&gt; deserves his place in the pantheon but in this go-go-go world I just can&amp;#39;t get a grasp on it.&lt;/p&gt;
-
-&lt;p&gt;The actual Emerson quote that the mousetrap thing started our as is: &lt;/p&gt;
-
-&lt;blockquote&gt;
-&lt;p&gt;If a man has good corn or wood, or boards, or pigs, to sell, or can make better chairs or knives, crucibles or church organs, than anybody else, you will find a broad hard-beaten road to his house, though it be in the woods.&lt;/p&gt;
-&lt;/blockquote&gt;
-
-&lt;p&gt;Such poetry!  Such rhythm!  Such circumlocution!  Yes yes, totally!  Not precisely sure what I can take from Emerson here, as like &lt;em&gt;an action item&lt;/em&gt;, but I&amp;#39;m certainly jazzed up about it!  Just like &lt;em&gt;If you build it, he will come.&lt;/em&gt;&lt;/p&gt;
-
-&lt;p&gt;Compare this nineteenth century poetry to our modern Paul Graham&amp;#39;s &lt;a href="http://paulgraham.com/good.html"&gt;&lt;em&gt;Build something people want.&lt;/em&gt;&lt;/a&gt; It&amp;#39;s not like they are saying anything different (though it&amp;#39;s certainly said differently) but one has these emotional overtones that strike a chord right when things are the bleakest.  When confronted between the dream and the reality, stuck spinning somewhere between the dream and the soul crushing contingency of the market, how do you move forward?&lt;/p&gt;
-
-&lt;p&gt;Sometimes the problem is the bleakness, where you need to hold on to something for psychological reasons.  Sometimes the problem is bullheaded stupidity, a type of hubris where you stubbornly cling to a mistaken belief about how the world works.  And in the later cases, using the emotional techniques to keep going is actually hurting you.&lt;/p&gt;
-
-&lt;p&gt;Because your emotions are probably not wrong.  They are there for a reason.  They&amp;#39;ve been honed by a jillion years of evolution (or instilled by a benevolent creator; the net is the same) and if there&amp;#39;s something wrong on a gut level you should take a cold hard look at what it is that you are doing.  If you&amp;#39;re building something as a get rich quick scheme, because you have some sort of &lt;em&gt;angle&lt;/em&gt; any change of the situation will topple the whole scheme.  A fundamental trait of an Entrepreneur is to look at the world and see in it&amp;#39;s problems an opportunity, and while that has an element of being bold and self-confident enough to say &amp;quot;I can do this better&amp;quot;, it&amp;#39;s not a &lt;em&gt;uber-menchean&lt;/em&gt; dismissal of everyone else.  It&amp;#39;s better to be clear on your vision and be able to adapt to feedback.&lt;/p&gt;
-
-&lt;p&gt;This is what a lot of startups struggle with.  On the one hand, you need to start with a clear idea and vision of what you want to do.  On the other hand, you need to start small, see what works, try things out and &lt;em&gt;be able to change your mind as you know more&lt;/em&gt;.  But how can you change your mind enough to make it work while also having enough consistency of purpose to make it work?&lt;/p&gt;
-
-&lt;iframe width="100%" style="max-width: 560px" height="315" src="//www.youtube.com/embed/APx2yFA0-B4" frameborder="0" allowfullscreen&gt;&lt;/iframe&gt;
-
-&lt;p&gt;&lt;em&gt;Honestly, I just wanted an excuse to embed this video&lt;/em&gt;&lt;/p&gt;
-
-&lt;h2&gt;I don&amp;#39;t know the answer&lt;/h2&gt;
-
-&lt;p&gt;And I don&amp;#39;t think that Field of Dreams has it either.  And blindly absorbing the myth of &lt;em&gt;if you build it, he will come&lt;/em&gt; is overly simplistic and only works in heart-warming sports memoirs.  Which is too bad because James Earl Jones was great in it, and it was some vintage Kevin Costner.&lt;/p&gt;
-
-&lt;p&gt;Still, there&amp;#39;s always Iowa.&lt;/p&gt;
-
-&lt;blockquote&gt;
-&lt;p&gt;John Kinsella: Is this heaven?
-Ray Kinsella: It&amp;#39;s Iowa.&lt;/p&gt;
-&lt;/blockquote&gt;
-
-&lt;p&gt;&lt;img alt="Silvrback blog image" src="https://silvrback.s3.amazonaws.com/uploads/cc64ea20-716c-4238-a3bf-ca06177d0971/6010329940_c7d0b24dd9_b_large.jpg" /&gt;&lt;/p&gt;
-
-&lt;p&gt;(Image source: &lt;a href="https://www.flickr.com/photos/54159370@N08/6010329940/in/photolist-aa7vGh-5YUB2z-8i5gyw-8XdesP-4r2QNd-tzwz2-2u3Zn-9tVv1A-gT25Tz-b6ixTD-746UmW-aP33La-5WkwXU-4NEa39-6iGa2w-oxpiPX-9cYvE8-hUcRsF-3Wgmz-bzLcHH-a8h1SU-nT93SB-cdmedf-hT1Xgc-9d2BsG-8u5mxh-8DCzJo-47nSFq-fs6j6i-dXvgqN-b43D94-fQoepV-7fADo-nrE8uT-8sABRF-8rG36o-aE7KjU-hUe2it-hjinhV-6umECH-oJfujc-cpMtrS-i7WL3d-aE7pVu-pyZLUw-7AzhL7-9992tA-nf2TZx-32can-8rnGgp"&gt;keeve99a&lt;/a&gt; )&lt;/p&gt;
-
-&lt;hr&gt;
-
-&lt;h2&gt;Footnotes&lt;/h2&gt;
-
-&lt;ol&gt;
-&lt;li&gt;&lt;p&gt;I originally thought that the Paul Dirac quote was from Richard Hamming, whose talk &lt;a href="http://www.paulgraham.com/hamming.html"&gt;You and Your Research&lt;/a&gt; has really stuck with me since I first read it.&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;Here&amp;#39;s a whole journal exploring the &lt;a href="http://libarts.wsu.edu/english/Journals/ESQ/emersonandnietzche.html"&gt;influence of Emerson on Nietzsche&lt;/a&gt;, which has nothing to do with startups, but is interesting anyway.&lt;/p&gt;&lt;/li&gt;
-&lt;/ol&gt;
 </content>
   </entry>
 </feed>

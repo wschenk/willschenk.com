@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html class='no-js'>
+  <head>
+    <meta charset='utf-8'>
+    <meta content='IE=edge,chrome=1' http-equiv='X-UA-Compatible'>
+    <title>Scripting Twitter: Collecting Data and Writing Bots | Will Schenk</title>
+    <meta name="site" content="Will Schenk" />
+    <meta name="og:site_name" content="Will Schenk" />
+    <meta name="title" content="Scripting Twitter: Collecting Data and Writing Bots" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Scripting Twitter: Collecting Data and Writing Bots" />
+    <meta name="twitter:creator" content="@wschenk" />
+    <meta name="og:title" content="Scripting Twitter: Collecting Data and Writing Bots" />
+    <!-- - if current_article -->
+    <!-- %title= current_article.title -->
+    <!-- - else -->
+    <!-- %title Will Schenk -->
+    <!-- %meta{ :name => 'description', :content => '' }/ -->
+    <meta content='width=device-width' name='viewport'>
+    <link href="../stylesheets/application-1f7583c4.css" rel="stylesheet" type="text/css" /><link href="../stylesheets/socicons-d8ab83dd.css" rel="stylesheet" type="text/css" /><link href="../stylesheets/animate-8335fea6.css" rel="stylesheet" type="text/css" />
+    <link href='//cdnjs.cloudflare.com/ajax/libs/highlight.js/8.3/styles/default.min.css' rel='stylesheet'>
+    <link rel="alternate" type="application/atom+xml" title="Atom Feed" href="/feed.xml" />
+  </head>
+  <body>
+    <div class='banner'>
+      <img class="fadeInDown animated" src="../images/robots-e21f5a15.jpg" />
+    </div>
+    <div class='article-header lighter'>
+      <h1>Scripting Twitter: Collecting Data and Writing Bots</h1>
+      <h2>adding another client to socialinvestigator</h2>
+      <div class='avatar'>
+        <a href='/'>
+          <img class="img-responsive" src="../images/avatar-87e8d0c3.jpg" />
+        </a>
+      </div>
+      <h3><a href="/">Will Schenk</a></h3>
+      <span class='disqus-comment-count' data-disqus-identifier='2014-11-20-scripting-twitter.html'></span>
+      <!-- %p.social -->
+      <!-- - (config.social || {}).each do |type,url| -->
+      <!-- %a{ href: url } -->
+      <!-- %span{ class: "socicon socicon-#{type.to_s} fgcolor" } -->
+    </div>
+    <div class='container-fluid content'>
+      <div class='row'>
+        <div class='article'>
+          <p>Lets build on our <a href="http://willschenk.com/making-a-command-line-utility-with-gems-and-thor">command line url exploring tool</a> to look at how we can interact with Twitter.  We are going to cover how to make a script that will pull information out of twitter, how to deal with its rate limiting, and how to interact with users on Twitter itself.</p>
+          
+          <p>Twitter uses <a href="https://dev.twitter.com/oauth/overview/faq">OAuth 1.0A</a> as a way to authenticate requests.  As a script writer, this is super annoying, because you can&#39;t just stick a username and password in the environment and go from there.  You need to:</p>
+          
+          <ol>
+          <li><p><a href="https://apps.twitter.com">Register you application with twitter</a>.</p></li>
+          <li><p>Store the &quot;client key&quot; for your application.</p></li>
+          <li><p>Get a user to grant your application access to twitter, and then use that &quot;authorization key&quot; to access the API.</p></li>
+          <li><p>Then figure out how to use the API.</p></li>
+          </ol>
+          
+          <p>This is a bit overkill for building a simple script, especially since the 3 way process of having your application request access on behalf of a specific user on the twitters servers is a pain for a command line interface.  And when you configure your application on twitter you need to specify a &quot;callback URL&quot;, which a) is different on development, staging and production webapp environments and b) you don&#39;t have a web app.</p>
+          
+          <p>Luckily for you twitter has a work around.</p>
+          
+          <h2>Firstly, we create the Twitter App</h2>
+          
+          <ol>
+          <li><p>Go to <a href="https://apps.twitter.com/app/new">Create new Twitter App</a> and fill out the required fields.  Specifically, leave <em>callback URL</em> blank for now.</p></li>
+          <li><p>Select <em>Keys and Access Tokens</em>.  On this page, create an access token for your user with the <em>Generate Access Token</em> on the bottom of the page.</p></li>
+          </ol>
+          
+          <p>Now we have four variables that our script needs to access twitter on behalf of your user.  </p>
+          
+          <ol>
+          <li><p>The consumer key represents your application.</p></li>
+          <li><p>The consumer secret represents your application&#39;s &quot;password&quot;.</p></li>
+          <li><p>The access token represents an authorization that a user has accepted.</p></li>
+          <li><p>The access token secret is there to make sure that access token is valid.</p></li>
+          </ol>
+          
+          <p>Make note of these variables.</p>
+          
+          <h2>Then, we code with the REST API</h2>
+          
+          <p>Make sure you have the twitter gem installed by typing:</p>
+          
+          <pre><code class="sh">$ gem install twitter&#x000A;</code></pre>
+          
+          <p>We&#39;re eventually going to add this code our CLI gem, and that dependency will be created by adding the line</p>
+          
+          <pre><code class="rb">  spec.add_dependency &#39;twitter&#39;&#x000A;</code></pre>
+          
+          <p>OK, lets put this in and see what we get:</p>
+          
+          <pre><code class="rb">require &#39;thor&#39;&#x000A;require &#39;twitter&#39;&#x000A;require &#39;httparty&#39;&#x000A;&#x000A;TWITTER_APP_KEY=&quot;rzlJXhI8...&quot;&#x000A;TWITTER_APP_SECRET=&quot;euF5bItp9w...&quot;&#x000A;TWITTER_ACCESS_TOKEN=&quot;17827...&quot;&#x000A;TWITTER_ACCESS_TOKEN_SECRET=&quot;7NSX...&quot;&#x000A;&#x000A;def print_user_info( u )&#x000A;  t = &quot;%-20s: %s\n&quot;&#x000A;  printf t, &quot;Screenname&quot;, u.user_name&#x000A;  printf t, &quot;Full Name&quot;, u.name&#x000A;  printf t, &quot;Bio&quot;, u.description&#x000A;  printf t, &quot;Website&quot;, u.website.to_s&#x000A;  printf t, &quot;Joined&quot;, u.created_at.strftime( &quot;%Y-%m-%d&quot; )&#x000A;  printf t, &quot;Location&quot;, u.location&#x000A;  printf t, &quot;Verified&quot;, u.verified?&#x000A;  printf t, &quot;Tweets&quot;, u.tweets_count&#x000A;  printf t, &quot;Followers&quot;, u.followers_count&#x000A;  printf t, &quot;Following&quot;, u.friends_count&#x000A;  printf t, &quot;Favorites count&quot;, u.favorites_count&#x000A;end&#x000A;&#x000A;class CLI &lt; Thor&#x000A;  desc &quot;user SCREENAME&quot;, &quot;Look up info for a specific user.&quot;&#x000A;  def user( username )&#x000A;    print_user_info client.user( &quot;wschenk&quot; )&#x000A;  end&#x000A;&#x000A;# We will add more methods here&#x000A;&#x000A;  private&#x000A;  def client&#x000A;    @client ||= Twitter::REST::Client.new do |config|&#x000A;      config.consumer_key        = TWITTER_APP_KEY&#x000A;      config.consumer_secret     = TWITTER_APP_SECRET&#x000A;      config.access_token        = TWITTER_ACCESS_TOKEN&#x000A;      config.access_token_secret = TWITTER_ACCESS_TOKEN_SECRET&#x000A;    end&#x000A;  end&#x000A;end&#x000A;&#x000A;# Only run if the script is called directly&#x000A;if __FILE__ == $0&#x000A;  CLI.start( ARGV )&#x000A;end&#x000A;</code></pre>
+          
+          <p>When we run this, we get:</p>
+          
+          <pre><code>$ ruby lib/socialinvestigator/client/twitter.rb wschenk&#x000A;Screenname          : wschenk&#x000A;Full Name           : Will Schenk&#x000A;Bio                 : Co-Founder of HappyFunCorp.&#x000A;Website             : http://t.co/OA0tQaQiAX&#x000A;Joined              : 2006-12-22&#x000A;Location            : Brooklyn NY&#x000A;Verified            : false&#x000A;Tweets              : 1674&#x000A;Followers           : 330&#x000A;Following           : 418&#x000A;Favorites count     : 17&#x000A;</code></pre>
+          
+          <p><em>For those keeping score at home, that&#39;s 209 tweets a year.</em></p>
+          
+          <p>We create a <code>Twitter::REST::Client</code>, passing in the variables that we got when we created the twitter app.  Eventually we&#39;ll out grow hardcoding them into the script, but for now replace the dummy values I have above with what you have and try it with some screen names.</p>
+          
+          <h2>Longing for <code>http://t.co/OA0tQaQiAX</code></h2>
+          
+          <p>If there&#39;s one word that describes URL shorteners, that word is <em>rude</em>.  This magical place where anyone can setup shop and link directly to other people now is now infested with middle men, who may indeed be useful but are even less popular than used car salesmen.  URL shorteners are services that <em>intermediate</em> the actual destination of the link in order to better track who clicks on the link.  You create many shortened links and give them out to different people, and when the world at large clicks on one of them you know who they got it from.</p>
+          
+          <p>The easiest way to resolve the link is to make a <code>HEAD</code> HTTP request to the shortening service and print where they redirect you to.  If there&#39;s no location in the response, we&#39;ll just return the url that was passed in.</p>
+          
+          <pre><code class="rb">def lookup_url( url )&#x000A;  return url if url.nil? || url == &quot;&quot;&#x000A;  r = HTTParty.head url, { follow_redirects: false }&#x000A;  r[&#39;location&#39;] || url&#x000A;end&#x000A;</code></pre>
+          
+          <p>and lets add a Thor command for it too, in the <code>CLI</code> class, why not:</p>
+          
+          <pre><code class="rb">  desc &quot;lookup URL&quot;, &quot;Resolve a link&quot;&#x000A;  def lookup( url )&#x000A;    puts lookup_url( url )&#x000A;  end&#x000A;</code></pre>
+          
+          <p>Now we can see that</p>
+          
+          <pre><code>$ ruby twitter.rb lookup  http://t.co/OA0tQaQiAX&#x000A;http://happyfuncorp.com&#x000A;$ ruby twitter.rb lookup  http://happyfuncorp.com&#x000A;http://happyfuncorp.com&#x000A;</code></pre>
+          
+          <p>So we can update the website <code>printf</code> line to be:</p>
+          
+          <pre><code class="rb">  printf t, &quot;Website&quot;, lookup_url( u.website.to_s )&#x000A;</code></pre>
+          
+          <h2>The basics: tweets, timelines, mentions, retweets</h2>
+          
+          <p>With read access, you can pull down some basic stuff.</p>
+          
+          <p>Load the recent tweets this user has made:</p>
+          
+          <pre><code class="rb">  desc &quot;user_timeline&quot;, &quot;Show the authenticated user&#39;s tweets&quot;&#x000A;  def user_timeline&#x000A;    client.user_timeline.each do |tweet|&#x000A;      puts &quot;@#{tweet.user.user_name}:#{tweet.text}&quot;&#x000A;    end&#x000A;  end&#x000A;</code></pre>
+          
+          <p>Show the tweets of people who they are following:</p>
+          
+          <pre><code class="rb">  desc &quot;home_timeline&quot;, &quot;Show the authenticated user&#39;s timeline&quot;&#x000A;  def home_timeline&#x000A;    client.home_timeline.each do |tweet|&#x000A;      puts &quot;@#{tweet.user.user_name}:#{tweet.text}&quot;&#x000A;    end&#x000A;  end&#x000A;</code></pre>
+          
+          <p>Show which of their tweets have been retweeted:</p>
+          
+          <pre><code class="rb">  desc &quot;retweets&quot;, &quot;Show the authenticated user&#39;s retweets&quot;&#x000A;  def retweets&#x000A;    client.retweets_of_me.each do |tweet|&#x000A;      puts &quot;@#{tweet.user.user_name}:#{tweet.text}&quot;&#x000A;    end&#x000A;  end&#x000A;</code></pre>
+          
+          <p>Pull down only the tweets that mention the authentication user:</p>
+          
+          <pre><code class="rb">  desc &quot;mentions&quot;, &quot;Show the authenticated user&#39;s mentions&quot;&#x000A;  def mentions&#x000A;    client.mentions.each do |tweet|&#x000A;      puts &quot;@#{tweet.user.user_name}:#{tweet.text}&quot;&#x000A;    end&#x000A;  end&#x000A;</code></pre>
+          
+          <p>If you are building a bot, for example, that you wanted to respond when someone tweets at it, you could use the <code>client.mentions</code> method to get those tweets in particular.  You&#39;d need a way to make sure you don&#39;t double respond to people each time the bot was run.  If you wanted to always have the bot running, look at the Streaming API below.  If you want to know how to post to twitter, read on.</p>
+          
+          <h2>Rate Limits on the REST interface</h2>
+          
+          <p>Unlike Google, who casually has enough computer power to do personalized type ahead search of the <em>entire internet</em> at <em>a global scale</em>, Twitter is prickly about <a href="https://dev.twitter.com/rest/public/rate-limiting">you hammering their site</a>.  Personally, I thought that <a href="http://readwrite.com/2008/07/17/the_story_of_the_fail_whale">the fail whale</a> was really fun.  Let&#39;s add a another <code>CLI</code> command to print out the current rate limit status, how many calls you have left, and when your counter for that resource will reset:</p>
+          
+          <pre><code class="rb">  desc &quot;limits&quot;, &quot;Print out the current rate limits&quot;&#x000A;  def limits&#x000A;    resp = client.get( &quot;/1.1/application/rate_limit_status.json&quot; )&#x000A;    current_time = Time.now.to_i&#x000A;    template = &quot;   %-40s %5d remaining, resets in %3d seconds\n&quot;&#x000A;    resp.body[:resources].each do |category,resources|&#x000A;      puts category.to_s&#x000A;      resources.each do |resource,info|&#x000A;        printf template, resource.to_s, info[:remaining], info[:reset] - current_time&#x000A;      end&#x000A;    end&#x000A;  end&#x000A;</code></pre>
+          
+          <p>Note that I&#39;m making the request using <code>client.get</code> which will make an arbitrary authenticated request to the Twitter api.  This <a href="https://dev.twitter.com/rest/reference/get/application/rate_limit_status">particular api call</a> isn&#39;t in the Twitter gem, though the gem is aware of the limits and will throw specific exceptions when you hit those limits.</p>
+          
+          <p>The gem provides methods on top of this <code>client.get</code> interface, which may use more API calls then you expect.  Methods like <code>client.user_timeline</code> and <code>client.followers</code> return <code>Twitter::Cursor</code> objects, which you can iterate over in ruby as you&#39;d expect, but may trigger multiple API calls throughout the process which you might not expect.  You&#39;ll potentially get an exception in the middle of things, and you&#39;ll need to figure a way around this.  In a later post we will get into caching and retry strategies, but since it will dramatically increase the complexity we&#39;ll keep things simple for now.  <em>Punt!</em></p>
+          
+          <p>This basic code will catch the <code>TooManyRequests</code> exception and sleep the process until it&#39;s ready to go again.  This could take a very very long time.
+          &lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD:source/2014-11-20-scripting-twitter.html.markdown</p>
+          
+          <pre><code class="rb">follower_ids = client.follower_ids(&#39;justinbieber&#39;)&#x000A;=======&#x000A;&#x000A;```rb&#x000A;follower_ids = client.follower_ids( &#39;justinbieber)&#x000A;&gt;&gt;&gt;&gt;&gt;&gt;&gt; 67530e9afbddd730c4fe8e19235236777450322a:source/drafts/scripting-twitter.html.markdown&#x000A;&#x000A;begin&#x000A;  follower_ids.to_a&#x000A;rescue Twitter::Error::TooManyRequests =&gt; error&#x000A;  # NOTE: Your process could go to sleep for up to 15 minutes but if you&#x000A;  # retry any sooner, it will almost certainly fail with the same exception.&#x000A;  sleep error.rate_limit.reset_in + 1&#x000A;  retry&#x000A;end&#x000A;</code></pre>
+          
+          <h2>Listing followers</h2>
+          
+          <p>To see what that looks like, lets add another <code>CLI</code> command for listing a person&#39;s followers:</p>
+          
+          <pre><code class="rb">  desc &quot;followers SCREENNAME&quot;, &quot;Prints out all of the users followers&quot;&#x000A;  def followers( screenname )&#x000A;    client.followers( screenname ).each do |u|&#x000A;      printf( &quot;@%-15s %-20s %s\n&quot;, u.user_name, u.name, u.description )&#x000A;    end&#x000A;  end&#x000A;</code></pre>
+          
+          <p>And if we run this on someone will a lot of followers, you&#39;ll see the <code>Twitter::Error::TooManyRequests</code> thrown.  We can look use our limits command above to see how long we have to wait until it resets.  Though, since we don&#39;t have any smart retrying logic in place, chances are it will still fail when we try it again.</p>
+          
+          <pre><code>$ ruby twitter.rb limits | grep /followers/list&#x000A;   /followers/list        0 remaining, resets in 288 seconds&#x000A;</code></pre>
+          
+          <h2>Searching for URLs</h2>
+          
+          <p>There are different types of URLs on twitter.  Lets look at a specific tweet of mine, 529342690476179456, to see what there is:</p>
+          
+          <pre><code class="rb">&gt; tweet = client.status( 529342690476179456 )&#x000A; =&gt; #&lt;Twitter::Tweet id=529342690476179456&gt; &#x000A;&gt; tweet.uris&#x000A; =&gt; [#&lt;Twitter::Entity::URI:0x007ff614b0fce0 @attrs={:url=&gt;&quot;http://t.co/frfwwIqrYB&quot;, :expanded_url=&gt;&quot;http://willschenk.com/bootstrap-advanced-grid-tricks&quot;, :display_url=&gt;&quot;willschenk.com/bootstrap-adva…&quot;, :indices=&gt;[67, 89]}&gt;] &#x000A;</code></pre>
+          
+          <p><code>:url</code> is the actual link that get&#39;s clicked, and in your logs, the one that will show up as the referer.</p>
+          
+          <p><code>:expanded_url</code> is the end link.</p>
+          
+          <p><code>:display_url</code> is a shortened version of the end link.</p>
+          
+          <p>In the twitter search box we can type in <code>http://willschenk.com/bootstrap-advanced-grid-tricks</code> and that will match all tweets that go to this URL, regardless of which URL shortening service they use.  (To clarify, all those services which Twitter has support for, which for our purposes is all.)  If we type in <code>http://t.co/frfwwIqrYB</code> to the twitter search it won&#39;t match the tweet, but if we do <em>an exact search</em>, with quotes around it like so: <code>&quot;http://t.co/frfwwIqrYB&quot;</code> we will match the tweet.</p>
+          
+          <p>Let&#39;s write some code:</p>
+          
+          <pre><code class="rb">  desc &quot;search STRING&quot;, &quot;Shows all the tweets that match the string&quot;&#x000A;  options [:exact, :user_info]&#x000A;  def search( string )&#x000A;    string = &quot;\&quot;#{string}\&quot;&quot; if options[:exact]&#x000A;    reach = 0&#x000A;    client.search( string, count: 100 ).each do |t|&#x000A;      puts &quot;#{t.id}:#{t.created_at}:@#{t.user.user_name}:#{t.user.followers_count}:#{t.retweet_count}:#{t.text}&quot;&#x000A;      reach += t.user.followers_count&#x000A;      if options[:user_info]&#x000A;        print_user_info t.user if options[:user_info]&#x000A;        puts&#x000A;      end&#x000A;    end&#x000A;    puts &quot;#{string} reached #{reach} people.&quot;&#x000A;  end&#x000A;</code></pre>
+          
+          <p>This will print out the tweet id, when it was created, who tweeted it, how many followers they had, how many times it was retweeted, and the text of the tweet.  <em>Whew!</em> Since there&#39;s so much stuff here we made it <code>:</code> separated on one line, in case you want to parse it with something else.</p>
+          
+          <p>The option <code>--exact</code> will put quotes around the search string, so if you are looking up a tweet from your referrers you can find which tweet sent people to your site.</p>
+          
+          <p>The option <code>--user_info</code> will print out the full information about the user who tweeted.</p>
+          
+          <p>Twitter search only returns results from the previous 6-9 days, so better act fast!</p>
+          
+          <h2>The Streaming API: Filters</h2>
+          
+          <p>So far we have been looking at the REST API, which lets us interact with the Twitter services much like a user would: in response to something that the user requests.  The other API type is called the <a href="https://dev.twitter.com/streaming/userstreams">streaming api</a>, which lets us open up a single connection and receive information when Twitter has something new.  This is useful for a few things:</p>
+          
+          <ol>
+          <li><p>We can get notified immediately when our search term is seen</p></li>
+          <li><p>We can get notified if someone mentions us, either with an @reply or, when we have more permissions, with Direct Messages.</p></li>
+          </ol>
+          
+          <p>Here&#39;s how you can watch twitter for different terms, they can be comma separated.  Notice that we&#39;ve added another private method, <code>streaming_client</code> which uses a different interface, and we&#39;ll need to <code>^C</code> the script to start it.</p>
+          
+          <p>The method <code>filter</code> takes a block, and will call that block every time it gets a response from twitter.</p>
+          
+          <pre><code class="rb">  desc &quot;filter TERMS&quot;, &quot;Print out tweets that match the terms&quot;&#x000A;  def filter( terms )&#x000A;    streaming_client.filter(track: terms) do |object|&#x000A;      puts &quot;@#{object.user.user_name}:#{object.text}&quot; if object.is_a?(Twitter::Tweet)&#x000A;    end&#x000A;  end&#x000A;&#x000A;&#x000A;  private&#x000A;  [...]&#x000A;&#x000A;  def streaming_client&#x000A;    @streaming_client ||= Twitter::Streaming::Client.new do |config|&#x000A;      config.consumer_key        = TWITTER_APP_KEY&#x000A;      config.consumer_secret     = TWITTER_APP_SECRET&#x000A;      config.access_token        = TWITTER_ACCESS_TOKEN&#x000A;      config.access_token_secret = TWITTER_ACCESS_TOKEN_SECRET&#x000A;    end&#x000A;  end&#x000A;</code></pre>
+          
+          <h2>The Streaming API: Reacting to the timeline</h2>
+          
+          <p>We can also watch the timeline come through for the registered user, and do something with it.  The pattern is the same as the <code>filter</code> method, but it passes an Object of one of the following types:</p>
+          
+          <ul>
+          <li><p><code>Twitter::Tweet</code></p></li>
+          <li><p><code>Twitter::DirectMessage</code></p></li>
+          <li><p><code>Twitter::Streaming::DeletedTweet</code></p></li>
+          <li><p><code>Twitter::Streaming::Event</code></p></li>
+          <li><p><code>Twitter::Streaming::FriendList</code></p></li>
+          <li><p><code>Twitter::Streaming::StallWarning</code></p></li>
+          </ul>
+          
+          <p>We&#39;ll be ignoring most of them:</p>
+          
+          <pre><code class="rb">  desc &quot;listen&quot;, &quot;Prints our the authenticated user&#39;s stream as it happens&quot;&#x000A;  def listen&#x000A;    streaming_client.user do |object|&#x000A;      case object&#x000A;      when Twitter::Tweet&#x000A;        puts &quot;Tweet:@#{object.user.user_name}:#{object.text}&quot;&#x000A;      when Twitter::DirectMessage&#x000A;        puts &quot;DM:@#{object.sender.user_name}:#{object.text}&quot;&#x000A;      when Twitter::Streaming::StallWarning&#x000A;        warn &quot;Falling behind!&quot;&#x000A;      end&#x000A;    end&#x000A;  end&#x000A;</code></pre>
+          
+          <p>Running this command will print out tweets and messages as they come in.  If you wanted to make an interactive bot, you&#39;d put logic in here to respond to the tweets coming in, calling something like</p>
+          
+          <pre><code class="rb">client.update( &quot;@#{object.user.user_name} my reply&quot;, { in_reply_to_status: object.id } )&#x000A;</code></pre>
+          
+          <p>Only, you&#39;re not going to get any direct messages, nor are you going to be able to reply, unless you change your application permission settings.</p>
+          
+          <h2>Upgrading to the All Access Pass</h2>
+          
+          <p>In order to</p>
+          
+          <ul>
+          <li><p>Update a status</p></li>
+          <li><p>Read direct messages</p></li>
+          <li><p>Send direct messages</p></li>
+          </ul>
+          
+          <p>You need to change the application permission level.  There are three different levels.  Read will let you pull things on behalf of the user.  If they have a private account, or they have access to a private account, your script will be able to see those things.  You will not be able to access or receive direct messages</p>
+          
+          <p>Write will let you post public status updates, but not Direct Messages.</p>
+          
+          <p>Access direct messages is the third.</p>
+          
+          <ol>
+          <li><p>Go to the <a href="https://apps.twitter.com">twitter app console</a> and find your application.</p></li>
+          <li><p>Go to the &quot;Permissions Tab&quot;</p></li>
+          <li><p>Change the settings to &quot;Read, Write&quot; or &quot;Read, Write and Access direct messages&quot;</p></li>
+          <li><p>Go to &quot;Keys and Access Settings&quot;</p></li>
+          <li><p>Scroll down and &quot;Regenerate My Access Token and Token Secret&quot;</p></li>
+          </ol>
+          
+          <p>Depending upon what you chose, you can now post on behalf of the user:</p>
+          
+          <pre><code class="rb">client.update( &quot;Hello, World&quot; )&#x000A;</code></pre>
+          
+          <p>Read their direct messages:</p>
+          
+          <pre><code class="rb">client.direct_messages&#x000A;</code></pre>
+          
+          <p>Or send a direct message:</p>
+          
+          <pre><code class="rb">client.create_direct_message &quot;wschenk&quot;, &quot;Hi there&quot;&#x000A;</code></pre>
+          
+          <h2>The Code</h2>
+          
+          <p>Here is the <a href="https://gist.github.com/wschenk/86e1e87772e7d589e963">code written for this article</a>.  The github for <a href="https://github.com/sublimeguile/socialinvestigator">socialinvestigator</a> has a more complete sample that loads and stores the credentials in a file.</p>
+          
+          <p><em>Image Credit <a href="https://www.flickr.com/photos/jurvetson/7408451314/in/photolist-bvcbis-7DN6Sk-7DRVeq-7DRUVq-jB3M44-dhZrKM-atAnS1-bi4yL6-atHJJo-85tMTG-cp5WgS-asg29e-chEftd-6Zex9h-djkSiW-acqro-c7PG79-72SJuQ-7fPiox-avgwDx-bEWnc2-4FAqy9-9mvMsP-8fp27H-chEjh3-66UgvR-6oqRAV-6oqUMD-5zWDAn-9mqRC4-6ov3Mw-6oqRQZ-6ov4bh-avgxEZ-6VXNYF-avgwMM-avjcLf-avjcQ1-avjcLS-avjcPd-avjcTW-avjduE-avgwZK-avjdMm-avjcVy-avjcSU-avgwRt-avjcY1-avjd2d-avgwTv">Steve Jurvetson</a></em></p>
+        </div>
+      </div>
+      <div class="row article_footer">
+        <div class="comments">
+          November 20, 2014
+          <a href="#" id="comment_shower">
+            <span class="socicon socicon-disqus fgcolor"></span>
+            <span class="disqus-comment-count" data-disqus-identifier="2014-11-20-scripting-twitter.html">Be the first to comment.</span>
+          </a>
+        </div>
+        <div class="sharing">
+          <a href="http://www.twitter.com/share?url=http://willschenk.com//scripting-twitter/&amp;text=Scripting Twitter: Collecting Data and Writing Bots by @wschenk" title="Share this post on Twitter" data-lang="en" onclick="return !window.open(this.href, 'Twitter', 'width=640,height=300')"><span class="socicon socicon-twitter fgcolor"></span></a>
+      
+          <a target="_blank" onclick="return !window.open(this.href, 'Facebook', 'width=640,height=300')" href="http://www.facebook.com/sharer/sharer.php?u=http://willschenk.com//scripting-twitter/" title="Share this post on Facebook"><span class="socicon socicon-facebook fgcolor"></span></a>
+      
+          <a href="http://plus.google.com/share?url=http://willschenk.com//scripting-twitter/" target="_blank" onclick="return !window.open(this.href, 'Google +', 'width=640,height=300')" title="Share this post on Google +"><span class="socicon socicon-google fgcolor"></span></a>
+        </div>
+      </div>
+      <div class="row comment_universe">
+        <div id="disqus_thread" class="col-sm-10 col-sm-offset-1"></div>
+      </div>
+      
+      
+        <div class="row navigation">
+          <div class="before">
+              <h3>Earlier posts</h3>
+                <p>Chronological, Howto: <a href="/embedding-3d-models-on-your-page/">Embedding 3d models on your page</a></p>
+                <p>Ruby, Socialinvestigator: <a href="/personal-information-from-only-a-url/">Personal information from only a URL</a></p>
+                <p>Bots: <a href="/bot-design-patterns/">Bot Design Patterns</a></p>
+          </div>
+      
+          <div class="after">
+              <h3>Later posts</h3>
+                <p>Chronological, Ruby, Howto: <a href="/building-sites-with-middleman/">Building Sites with Middleman</a></p>
+          </div>
+        </div>
+    </div>
+    <footer class='footer lighter'>
+      <ul class='nav nav-pills header_links'>
+        <li><a href="/">Articles</a></li>
+        <!-- %li= link_to "About", "/about.html" -->
+        <li><a href="/tags/overview/">Compleat</a></li>
+        <li><a href="/tags/howto/">Howto</a></li>
+        <li><a href="/tags/socialinvestigator/">Socialinvestigator</a></li>
+        <li><a href="http://happyfuncorp.com">HappyFunCorp</a></li>
+        <li><a href="/feed.xml">RSS</a></li>
+      </ul>
+      <p>
+        You can also find me on
+        <a href='http://twitter.com/wschenk'>
+          Twitter,
+        </a>
+        <a href='http://sublimeguile.com/'>
+          Tumblr,
+        </a>
+        <a href='http://instagram.com/wschenk'>
+          Instagram,
+        </a>
+        <a href='http://www.linkedin.com/pub/will-schenk/0/266/420/'>
+          Linkedin,
+        </a>
+        <a href='https://github.com/wschenk'>
+          Github,
+        </a>
+        or on
+        <a href='mailto: will@happyfuncorp'>Email.</a>
+      </p>
+      <p class='social'>
+        <a href='http://twitter.com/wschenk'>
+          <span class='socicon socicon-twitter bgcolor'></span>
+        </a>
+        <a href='http://sublimeguile.com/'>
+          <span class='socicon socicon-tumblr bgcolor'></span>
+        </a>
+        <a href='http://instagram.com/wschenk'>
+          <span class='socicon socicon-instagram bgcolor'></span>
+        </a>
+        <a href='http://www.linkedin.com/pub/will-schenk/0/266/420/'>
+          <span class='socicon socicon-linkedin bgcolor'></span>
+        </a>
+        <a href='https://github.com/wschenk'>
+          <span class='socicon socicon-github bgcolor'></span>
+        </a>
+      </p>
+    </footer>
+    <script src="../javascripts/application-f8812046.js" type="text/javascript"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/8.3/highlight.min.js"></script>
+    <script type="text/javascript">
+      hljs.initHighlightingOnLoad();
+    
+      $(".article img").addClass( "img-responsive");
+    
+      $("iframe").map( function(e) {
+        $(this).css( "max-width", $(this).width() );
+        $(this).width( "100%" );
+    
+      });
+    
+      var _gaq=[['_setAccount','UA-56296045-1'],['_trackPageview']];
+      (function(d,t){var g=d.createElement(t),s=d.getElementsByTagName(t)[0];
+      g.src=('https:'==location.protocol?'//ssl':'//www')+'.google-analytics.com/ga.js';
+      s.parentNode.insertBefore(g,s)}(document,'script'));
+    
+      var disqus_shortname = 'willschenk';
+        var disqus_identifier = '2014-11-20-scripting-twitter.html';
+            
+      (function() {
+          var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+          dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+          (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+      })();
+    
+      (function () {
+    var s = document.createElement('script'); s.async = true;
+    s.type = 'text/javascript';
+    s.src = 'http://' + disqus_shortname + '.disqus.com/count.js';
+    (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+    }());
+    </script>
+  </body>
+</html>
