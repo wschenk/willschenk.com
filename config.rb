@@ -22,7 +22,7 @@ set :siteurl, "http://willschenk.com/"
 set :disqus_shortname, "willschenk"
 set :google_analytics_id, "UA-56296045-1"
 
-activate :meta_tags
+activate :autometatags
 activate :bootstrap_navbar
 
 activate :blog do |blog|
