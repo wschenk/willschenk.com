@@ -1,10 +1,10 @@
 ---
-title: 'Building Sites with Middleman'
-subtitle: 'lean publishing'
-tags: middleman, ruby, howto
-header_image: books.jpg
+:title: Building Sites with Middleman
+:subtitle: lean publishing
+:tags: middleman, ruby, howto
+:header_image: books.jpg
+:date: 2014-11-25
 ---
-
 I make a lot of websites, and I have a certain toolkit that I use to build them.  The most useful things I use are:
 
 - layouts and partials so I only need to set things up once
