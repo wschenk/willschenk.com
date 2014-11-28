@@ -127,7 +127,7 @@ The `set` commands are there to configure different middleman settings, here to 
 
 `activate :directory_indexes` with enable _pretty urls_.  Directory indexes means that files named `about.html` will actually get generated into a file called `/about/index.html`, and will rely on the underlying server to have `/about` actually show the directory "index" page, making the urls prettier.  This doesn't work on all servers but works on most of them.  This plugin will actually rewrite the output of the `link_to` tags, so you don't need to adjust your templates to work.
 
-` activate :bootstrap_navbar` is an extension that we added in the Gemfile, which makes it easier to generate bootstrap navbars.  Extensions generally work in three ways: they add helper methods, they change the way that the sitemap is processed, or they add different commands to the "middleman" command.
+`activate :bootstrap_navbar` is an extension that we added in the Gemfile, which makes it easier to generate bootstrap navbars.  Extensions generally work in three ways: they add helper methods, they change the way that the sitemap is processed, or they add different commands to the "middleman" command.
 
 We see an example of that at the bottom of the `config.rb` file, where we configure the `deploy` extension:
 
