@@ -1,11 +1,11 @@
 ---
-title: "Pulling data out of Google Analytics"
-subtitle: "see who's talking about your stuff"
-tags: socialinvestigator, howto, ruby
-published: false
-header_image: lava-lamp.jpg
+:title: Pulling data out of Google Analytics
+:subtitle: see who's talking about your stuff
+:tags: socialinvestigator, howto, ruby
+:published: false
+:header_image: lava-lamp.jpg
+:date: 2014-12-04
 ---
-
 I like staring at the real time stats of [Google Analytics](http://www.google.com/analytics/).  As a dashboard, it's not really as amazing as [Chartbeat](https://chartbeat.com) is, and it doesn't let you drill down into the data as much as [Mixpanel](https://mixpanel.com).  But GA is super simple to setup and it's Google, so everyone uses it.
 
 Another obsessive/fun thing to do is to see where that spike in inbound traffic is coming from.  On [HappyFunCorp](http://happyfuncorp.com) there are days where we get a sudden influx of [Happy Thoughts](http://happyfuncorp.com/#happy-thoughts) which warms our hearts and floods our inboxes.  Where did they come from?  How do we figure it out?
