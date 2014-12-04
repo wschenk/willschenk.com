@@ -58,6 +58,8 @@ page "/feed.xml", layout: false
 page "/admin/index.html", layout: false
 
 sprockets.append_path File.join root, 'bower_components'
+sprockets.append_path File.join root, 'bower_components/mermaid/dist'
+sprockets.import_asset 'mermaid.full.min.js'
 
 page "CNAME"
 
