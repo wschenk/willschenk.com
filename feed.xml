@@ -5,10 +5,247 @@
   <id>http://willschenk.com/</id>
   <link href="http://willschenk.com/"/>
   <link href="http://willschenk.com/feed.xml" rel="self"/>
-  <updated>2014-11-28T15:02:46-05:00</updated>
+  <updated>2014-12-07T16:52:22-05:00</updated>
   <author>
     <name>Will Schenk</name>
   </author>
+  <entry>
+    <title>Dateslice: Writing rails extensions</title>
+    <link rel="alternate" href="http://willschenk.com/dateslice-writing-rails-extensions/"/>
+    <id>http://willschenk.com/dateslice-writing-rails-extensions/</id>
+    <published>2014-12-06T19:00:00-05:00</published>
+    <updated>2014-12-06T19:00:00-05:00</updated>
+    <author>
+      <name>Will Schenk</name>
+    </author>
+    <content type="html">&lt;p&gt;Ruby on Rails is a very modular framework since the merging with Merb in 2008.  The &lt;em&gt;opinionated conventions&lt;/em&gt; are implemented under using techniques that let you jump in and build your own components, picking and choosing different parts that let you build Rails apps in the same straightforward way you would if using the official modules.&lt;/p&gt;
+
+&lt;p&gt;Let&amp;#39;s go through the &lt;a href="https://github.com/HappyFunCorp/dateslices"&gt;&lt;code&gt;dateslices&lt;/code&gt; gem&lt;/a&gt; which I wrote to extend active record so that we could better interact with the &lt;code&gt;group by&lt;/code&gt; sql command when dealing with dates.  Thanks to &lt;a href="https://github.com/mbrookes"&gt;mbrookes&lt;/a&gt; this command now outputs in a format compatible with &lt;a href="http://ankane.github.io/chartkick/"&gt;Chartkick&lt;/a&gt; making it a good tool to use when graphing date related things, say user signups, on an admin panel for your application.&lt;/p&gt;
+
+&lt;h2&gt;Databases&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href="http://guides.rubyonrails.org/active_record_basics.html"&gt;ActiveRecord&lt;/a&gt; is how Rails interacts with the database, this includes both SQL generation, validations, and a whole bunch more.  It creates a startardized interface over the many subtle differences between SQL implementations on different databases.  Date handling and grouping on dymanic terms is one area where databases differer greatly from one another, and when we want to find counts and sums grouped by different dates we need to tune our SQL for the vagaries of switching to different databases.&lt;/p&gt;
+
+&lt;h2&gt;Keeping development the same as production&lt;/h2&gt;
+
+&lt;p&gt;I tend to develop locally on Sqlite3 and deploy on Postgres.  When we get into something fancy where we want to use some of the amazing features that Postgres has, like &lt;a href="http://www.postgresql.org/docs/9.2/static/libpq-notify.html"&gt;LISTEN/NOTIFY&lt;/a&gt; or &lt;a href="http://postgresguide.com/sexy/hstore.html"&gt;hstore&lt;/a&gt; , then it makes sense to run a Postgres instance locally.  But most of the time it&amp;#39;s overkill, and I prefer running with Sqlite3 since I just need to checkout the project, run bundle, and I&amp;#39;m in a self contained environment.&lt;/p&gt;
+
+&lt;p&gt;Pub/sub and attribute store are cool enough things to warrant managing a local Postgres instance, grouping by date doesn&amp;#39;t cut it in my book.&lt;/p&gt;
+
+&lt;p&gt;If you do already have a Postgres instance running locally, then you should check out the &lt;a href="https://github.com/ankane/groupdate"&gt;&lt;code&gt;groupdate&lt;/code&gt; gem&lt;/a&gt;, which is better and worse than &lt;code&gt;dateslice&lt;/code&gt;: better because it supports Timezones which is awesome and difficult to solve well and worse because it doesn&amp;#39;t support Sqlite3.&lt;/p&gt;
+
+&lt;h2&gt;Enter dataslice&lt;/h2&gt;
+
+&lt;p&gt;Lets first take a look at how the SQL differs between the different databases.  The basic structure is&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="sql"&gt;select aggregation(aggregation_column), timeslice from table group by timeslice
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Where &lt;code&gt;aggregation&lt;/code&gt; is one of &lt;code&gt;count&lt;/code&gt;, &lt;code&gt;sum&lt;/code&gt;, and &lt;code&gt;avg&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;aggregation_column&lt;/code&gt; is the column we are counting, summing or averaging.  For counts, normally we do &lt;code&gt;count(*)&lt;/code&gt; but we can also do &lt;code&gt;count(distinct(aggregation_column))&lt;/code&gt; if you only want to count the number of unique occurances.&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;timeslice&lt;/code&gt; is the time period that we want to look at.  The basic idea here is that we convert a &lt;code&gt;datetime&lt;/code&gt; to a string with lower precision (getting rid of the seconds, or minutes, or hours, or days) and then group on that string.  We need to select this on the left side of the query, and we also need it as the input of the &lt;code&gt;GROUP BY&lt;/code&gt; on the right.&lt;/p&gt;
+
+&lt;p&gt;For example, if we want to group by day, this is the SQL that we&amp;#39;d need for the 3 different database variants we are targetting:&lt;/p&gt;
+
+&lt;table class="table table-bordered"&gt;
+  &lt;tr&gt;&lt;th&gt;Database&lt;/th&gt;&lt;th&gt;Time Slice&lt;/th&gt;&lt;/tr&gt;
+  &lt;tr&gt;&lt;th&gt;Mysql&lt;/th&gt;&lt;td&gt;&lt;code&gt;DATE_FORMAT(#{column}, '%Y-%m-%d 00:00:00 UTC')&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+  &lt;tr&gt;&lt;th&gt;Sqlite3&lt;/th&gt;&lt;td&gt;&lt;code&gt;strftime( \"%Y-%m-%d 00:00:00 UTC\", #{column} )&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+  &lt;tr&gt;&lt;th&gt;Postgres&lt;/th&gt;&lt;td&gt;&lt;code&gt;DATE_TRUNC( 'day' , #{column} )&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+
+&lt;p&gt;The different variants can be found in the sourecode for &lt;a href="https://github.com/HappyFunCorp/dateslices/blob/master/lib/dateslices/mysql.rb"&gt;mysql&lt;/a&gt;, &lt;a href="https://github.com/HappyFunCorp/dateslices/blob/master/lib/dateslices/sqlite.rb"&gt;sqlite&lt;/a&gt;, and &lt;a href="https://github.com/HappyFunCorp/dateslices/blob/master/lib/dateslices/postgresql.rb"&gt;Postgres&lt;/a&gt;.  (Notice how Postgres is better here too!)&lt;/p&gt;
+
+&lt;h2&gt;Our api&lt;/h2&gt;
+
+&lt;p&gt;We want to add &lt;code&gt;group_by_second&lt;/code&gt;, &lt;code&gt;group_by_minute&lt;/code&gt;, &lt;code&gt;group_by_hour&lt;/code&gt;, &lt;code&gt;group_by_day&lt;/code&gt;, &lt;code&gt;group_by_week&lt;/code&gt;, &lt;code&gt;group_by_day_of_week&lt;/code&gt;, &lt;code&gt;group_by_month&lt;/code&gt;, &lt;code&gt;group_by_year&lt;/code&gt; to ActiveRecord classes that we can use either on the model itself:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;User.group_by_day
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Or on a scope:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;Post.unmoderated.group_by_day
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;And get a resulting hash back like:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;{
+      &amp;quot;2014-07-12 00:00:00 UTC&amp;quot; =&amp;gt; 1,
+      &amp;quot;2014-07-18 00:00:00 UTC&amp;quot; =&amp;gt; 2,
+      &amp;quot;2014-07-19 00:00:00 UTC&amp;quot; =&amp;gt; 1
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Or, in a &lt;code&gt;rspec&lt;/code&gt; test, something like this:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;  it &amp;quot;should return items grouped by day&amp;quot; do
+    expect( User.count ).to eq(0)
+
+    @initial_time = Time.parse &amp;quot;2014-07-19 15:26:48 -0400&amp;quot;
+
+    User.create created_at: @initial_time
+    User.create created_at: @initial_time - 1.day
+    User.create created_at: @initial_time - 1.day
+    User.create created_at: @initial_time - 1.week
+
+    expect( User.count ).to eq( 4 )
+
+    res = User.group_by_day( :created_at )
+
+    expect(res).to eq({
+      &amp;quot;2014-07-12 00:00:00 UTC&amp;quot; =&amp;gt; 1,
+      &amp;quot;2014-07-18 00:00:00 UTC&amp;quot; =&amp;gt; 2,
+      &amp;quot;2014-07-19 00:00:00 UTC&amp;quot; =&amp;gt; 1})
+  end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2&gt;Building the Rails Extension&lt;/h2&gt;
+
+&lt;p&gt;Now that we have an idea of what we want to generate, lets take a look at how we build a rails extension.  This is done with the &lt;code&gt;rails plugin new&lt;/code&gt; command.  We saw the &lt;code&gt;bundle gem&lt;/code&gt; command before back in the &lt;a href="/making-a-command-line-utility-with-gems-and-thor/"&gt;making a command line utility with gems and thor&lt;/a&gt; post, and in many ways they are similar.  But the &lt;code&gt;rails plugin new&lt;/code&gt; command creates a gem setup for a rails environment for testing and developing your app.&lt;/p&gt;
+
+&lt;p&gt;&lt;a href="http://seed.happyfuncorp.com/"&gt;Happy Seed&lt;/a&gt; also has a rails plugin generator which will setup rspec testing for you, instead of the default &lt;code&gt;TestUnit&lt;/code&gt;.  This runs the &lt;code&gt;rails plugin new&lt;/code&gt; command which sets up the rails gem environment and does a few other things you need to do to get rspec working correctly, and HappySeed will do that stuff for you.&lt;/p&gt;
+
+&lt;p&gt;Either way, now you have a new folder with an empty gem that we need to fill out.&lt;/p&gt;
+
+&lt;p&gt;We&amp;#39;re going to create a &lt;code&gt;Module&lt;/code&gt;,  &lt;code&gt;Datelices::Scope&lt;/code&gt;, with our methods and then register our methods with the &lt;code&gt;ActiveRecord::Base&lt;/code&gt; class.  This looks like so:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt; ActiveRecord::Base.send(:extend, Dateslices::Scopes)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;This will mixin our methods into all of the classes that extend &lt;code&gt;ActiveRecord::Base&lt;/code&gt;.&lt;/p&gt;
+
+&lt;h2&gt;Metaprogramming with Ruby&lt;/h2&gt;
+
+&lt;p&gt;Inside of &lt;code&gt;lib/dateslices.rb&lt;/code&gt; lets define all of the fields that we want to define.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;module Dateslices
+  FIELDS = [:second, :minute, :hour, :day, :week, :day_of_week, :month, :year ]
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now inside of &lt;code&gt;lib/dateslices/scopes.rb&lt;/code&gt; we can sketch out our scopes method generator:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;module Dateslices
+  module Scopes
+    Dateslices::FIELDS.each do |field|
+      define_method :&amp;quot;group_by_#{field}&amp;quot; do |*args|
+        # create query based on args, and field
+      end
+    end
+  end
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Lets go through this for a second.  When this code is evaluated, we are going to loop over &lt;code&gt;Dateslices::FIELDS&lt;/code&gt; and call the &lt;code&gt;define_method&lt;/code&gt; function for each type of grouping.  These are defined inside of the main &lt;code&gt;Dateslices&lt;/code&gt; module, and we are naming our method &lt;code&gt;:&amp;quot;group_by_#{field}&amp;quot;&lt;/code&gt;.  Image that a developer writes &lt;code&gt;User.group_by_day( :updated_at )&lt;/code&gt;, what happens then?&lt;/p&gt;
+
+&lt;p&gt;When that is invoked the Ruby runtime is actually invoking the closure that we are passing into &lt;code&gt;define_method&lt;/code&gt;, which is generated inside of the loop with a different value for &lt;code&gt;field&lt;/code&gt; on each one.  In addition to using this inside of the name of the function, this value is available inside of the body.  The &lt;code&gt;*args&lt;/code&gt; on the other hand, and in our example it would equal &lt;code&gt;[:updated_at]&lt;/code&gt;, comes from the method invocation as we would expect.&lt;/p&gt;
+
+&lt;p&gt;We are writing code which generates code, and some of the variables are part of our desire &amp;quot;not to write 15 of the basically the same methods&amp;quot; and some of the variables are there to tweak the functionality of the API.&lt;/p&gt;
+
+&lt;h2&gt;The SQL Bit&lt;/h2&gt;
+
+&lt;p&gt;The full details can be found in &lt;a href="https://github.com/HappyFunCorp/dateslices/blob/master/lib/dateslices/scopes.rb"&gt;the repo&lt;/a&gt; but here&amp;#39;s the bit that actually generates the query switching out to the various classes that know how to deal with each of the databases that we saw before.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;args = args.dup
+
+column = args[0].blank? ? &amp;#39;created_at&amp;#39; : args[0]
+aggregation = args[1].blank? ? &amp;#39;count&amp;#39; : args[1]
+aggregation_column = args[2].blank? ? &amp;#39;*&amp;#39; : args[2]
+
+sql = [&amp;quot;#{aggregation}(#{aggregation_column}) as count&amp;quot;]
+
+time_filter = case connection.adapter_name
+                when &amp;#39;SQLite&amp;#39;
+                  Dateslices::Sqlite.time_filter(column, field)
+                when &amp;#39;PostgreSQL&amp;#39;, &amp;#39;PostGIS&amp;#39;
+                  Dateslices::Postgresql.time_filter(column, field)
+                when &amp;#39;MySQL&amp;#39;, &amp;#39;Mysql2&amp;#39;
+                  Dateslices::Mysql.time_filter(column, field)
+                else
+                  throw &amp;quot;Unknown database adaptor #{connection.adapter_name}&amp;quot;
+              end
+
+sql &amp;lt;&amp;lt; &amp;quot;#{time_filter} as date_slice&amp;quot;
+
+slices = select( sql.join(&amp;#39;, &amp;#39;)).where.not(column =&amp;gt; nil).group(&amp;#39;date_slice&amp;#39;).order(&amp;#39;date_slice&amp;#39;)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;The full code does a bit more to figure out how you want to see the data, but that&amp;#39;s the tricky stuff.&lt;/p&gt;
+
+&lt;h2&gt;Testing a rails plugin that talks to many databases&lt;/h2&gt;
+
+&lt;p&gt;The first thing that&amp;#39;s a little strange when testing a plugin is that you can test your gem in two different contexts: one in a basic ruby context, and your tests go into &lt;code&gt;spec/&lt;/code&gt;, and the other in a rails context.  The plugin generator will create a sample rails app inside of &lt;code&gt;spec/dummy&lt;/code&gt; (or &lt;code&gt;test/dummy&lt;/code&gt; if you are using &lt;code&gt;rails plugin new&lt;/code&gt; without our fancy rspec stuff).  &lt;/p&gt;
+
+&lt;p&gt;Let&amp;#39;s take a look now at how to test a gem that talks to many different databases.  Normally when we start up a rails environment, test or otherwise, it connects to a database and that&amp;#39;s that.  However, we need to run the same test suite over 3 different databases making sure that the gem behaves in exactly the same way for each one.&lt;/p&gt;
+
+&lt;p&gt;Here&amp;#39;s our &lt;code&gt;spec/dummy/spec/models/test_spec.rb&lt;/code&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;require &amp;#39;rails_helper&amp;#39;
+require &amp;#39;dateslice_tester&amp;#39;
+require &amp;#39;groupdate_tester&amp;#39;
+
+databases = [{ :adapter =&amp;gt; &amp;#39;mysql&amp;#39;, :database =&amp;gt; &amp;#39;dateslice_test&amp;#39;, :user =&amp;gt; &amp;#39;root&amp;#39;},
+             { :adapter =&amp;gt; &amp;#39;postgresql&amp;#39;, :database =&amp;gt; &amp;#39;dateslice_test&amp;#39;},
+             { :adapter =&amp;gt; &amp;#39;sqlite3&amp;#39;, :database =&amp;gt; &amp;#39;db/test.sqlite3&amp;#39;}]
+
+formats = [&amp;#39;groupdate&amp;#39;, &amp;#39;dateslice&amp;#39;]
+
+databases.each do |database|
+  formats.each do |format|
+    RSpec.describe &amp;quot;#{database[:adapter].titleize} #{format}&amp;quot;, :type =&amp;gt; :model do
+      include_examples format, database
+    end
+  end
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;em&gt;This code was based on something I cobbled together but cleaned up by &lt;a href="https://github.com/mbrookes"&gt;mbrookes&lt;/a&gt;, thanks mbrooks!&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;We first define a set a database configuration for our test databases.  We then loop over that, and use the &lt;code&gt;include_examples&lt;/code&gt; feature of &lt;code&gt;RSpec&lt;/code&gt;, passing in the both the output format and the database configuration that we want to test.  We have two files of examples, one which defines the &lt;code&gt;groupdate&lt;/code&gt; format, and the other which defines the &lt;code&gt;dateslices&lt;/code&gt; format.  Once again I&amp;#39;d like to point out that if you don&amp;#39;t care about SQLite3 support and want Timezone support, the &lt;a href="https://github.com/ankane/groupdate"&gt;groupdate&lt;/a&gt; is what you want.&lt;/p&gt;
+
+&lt;p&gt;Lets look at the opening stanzas of &lt;code&gt;spec/dummy/spec/dateslice_tester.rb&lt;/code&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;RSpec.shared_examples &amp;quot;dateslice&amp;quot; do |config|
+  before :context do
+    puts &amp;quot;Setting up #{config}&amp;quot;
+
+    ActiveRecord::Base.establish_connection config
+
+    puts &amp;quot;Trying to migrate&amp;quot;
+    ActiveRecord::Migration.create_table :users, :force =&amp;gt; true do |t|
+      t.string :name
+      t.integer :score
+      t.timestamp :created_at
+      t.timestamp :updated_at
+    end
+  end
+
+  before do
+    Dateslices.output_format = :dateslice
+    User.delete_all
+  end
+
+  it &amp;quot;should return items grouped by day&amp;quot;
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;RSpec.shared_examples&lt;/code&gt; is the counter part to the &lt;code&gt;include&lt;/code&gt; examples above, and when it gets called the database &lt;code&gt;config&lt;/code&gt; is passed in.  We then call  &lt;code&gt;ActiveRecord::Base.establish_connection config&lt;/code&gt; to connect &lt;code&gt;ActiveRecord&lt;/code&gt; to the database as part of the &lt;code&gt;before :context&lt;/code&gt; part of the RSpec life cycle.&lt;/p&gt;
+
+&lt;p&gt;Next we need to actually create the database tables that we are going to run tests over.  Since we are switching the databases as part of the testing process itself, it makes no sense to use &lt;code&gt;rake db:create:test&lt;/code&gt; to create the DDL, since which database would that be creating?  We need to do 3 different ones, and we certainly don&amp;#39;t want to have an elaborate process to start any of the tests if you decide to add an additional migration.  So we call a migration directly from the code, turning &lt;code&gt;:force =&amp;gt; true&lt;/code&gt; so even if it already exists we push the current definition there.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;ActiveRecord::Migration.create_table :users, :force =&amp;gt; true
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;And then in the regular &lt;code&gt;before&lt;/code&gt; callback we make sure that the tables are cleared our ready for the next test.&lt;/p&gt;
+
+&lt;h2&gt;That&amp;#39;s just a bit of ActiveRecord&lt;/h2&gt;
+
+&lt;p&gt;We&amp;#39;ve just gone through an ActiveRecord extention and that barely scratches the surface of what else you can do with Rails.  &lt;a href="https://pragprog.com/book/jvrails2/crafting-rails-4-applications"&gt;Crafting Rails 4 Applications&lt;/a&gt; is the best resource I&amp;#39;ve found to get a sense of what is possible, but when I sat down to work on something there was a lot of trial and error.  They through how they created &lt;a href="https://github.com/plataformatec/mail_form"&gt;mail_form&lt;/a&gt;, or at least a simplified version of it, that lets you use rails validations from ActiveRecord without having to back up the model with a database.  (As you might infer from the name, something that is useful for Contact forms that send out email.)  The book also goes through how Rails Engines work, which are very much like rails plugins but with additional integration points into the rails application lifecycle.&lt;/p&gt;
+</content>
+  </entry>
   <entry>
     <title>New HappySeed released</title>
     <link rel="alternate" href="http://willschenk.com/new-happyseed-released/"/>
@@ -1265,616 +1502,6 @@ $ socialinvestigator net page_info http://willschenk.com/bio
 
 &lt;pre&gt;&lt;code&gt;$ socialinvestigator net page_info http://willschenk.com/bio --noreverse
 &lt;/code&gt;&lt;/pre&gt;
-</content>
-  </entry>
-  <entry>
-    <title>Bot Design Patterns</title>
-    <link rel="alternate" href="http://willschenk.com/bot-design-patterns/"/>
-    <id>http://willschenk.com/bot-design-patterns/</id>
-    <published>2014-11-10T19:00:00-05:00</published>
-    <updated>2014-11-10T19:00:00-05:00</updated>
-    <author>
-      <name>Will Schenk</name>
-    </author>
-    <content type="html">&lt;p&gt;In the antediluvian days before Google found everything for us, personal &lt;em&gt;software agents&lt;/em&gt; were going to continuously do our bidding in &lt;em&gt;cyberspace&lt;/em&gt;, tracking down air fares, making stock trades and otherwise doing futuristic things that we soon wouldn&amp;#39;t be able to live without.  The anxiety of Y2K rose and crested, and the messianic aura of &lt;em&gt;agents&lt;/em&gt; was washed away by more centralized and effective solutions.&lt;/p&gt;
-
-&lt;p&gt;The aspirational residue did yield some nuggets, and the idea has found partial success in the form of the &lt;em&gt;bot&lt;/em&gt;. In the popular imagination bots exist on &lt;a href="http://www.newyorker.com/tech/elements/the-rise-of-twitter-bots"&gt;Twitter as art projects&lt;/a&gt; or as &lt;a href="http://www.nytimes.com/2013/08/11/sunday-review/i-flirt-and-tweet-follow-me-at-socialbot.html?_r=0"&gt;marketing machines&lt;/a&gt; or as &lt;a href="http://www.radiolab.org/story/137407-talking-to-machines/"&gt;the perfect online dating scandal&lt;/a&gt;.&lt;/p&gt;
-
-&lt;p&gt;Bots can be characterized by asking a few questions, and from these answers we can tell something about their implementation and what it takes to build one:  &lt;strong&gt;Do they react to messages?&lt;/strong&gt; &lt;strong&gt;Do they know who they are talking to?&lt;/strong&gt; &lt;strong&gt;Can they learn from what was said?&lt;/strong&gt; &lt;strong&gt;Do they know where the conversation is taking place?&lt;/strong&gt;  &lt;strong&gt;Do they remember the overall conversation?&lt;/strong&gt;&lt;/p&gt;
-
-&lt;p&gt;From this, we can classify bots into one of six types:&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;Notifiers&lt;/li&gt;
-&lt;li&gt;Reactors&lt;/li&gt;
-&lt;li&gt;Space Reactors&lt;/li&gt;
-&lt;li&gt;Responders&lt;/li&gt;
-&lt;li&gt;Space Responders&lt;/li&gt;
-&lt;li&gt;Conversationists&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;Each of these have progressively more complex context that the bot is operating in.  Most chat mediums have different message types, where message can be directed towards or private to a particular user.  Confounding things further, some have a native concept of &lt;em&gt;spaces&lt;/em&gt;, generally called a &lt;em&gt;room&lt;/em&gt; or a &lt;em&gt;channel&lt;/em&gt;, and as we treat people differently in different context the bot will also need to be aware of the difference context that the conversion is taking place.  We can call those services &lt;em&gt;Spaced&lt;/em&gt;.&lt;/p&gt;
-
-&lt;table&gt;&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;Service&lt;/th&gt;
-&lt;th&gt;Spaced&lt;/th&gt;
-&lt;th&gt;Notes&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;SMS&lt;/td&gt;
-&lt;td&gt;No&lt;/td&gt;
-&lt;td&gt;Groups are a dynamic list of people&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;Desktop Notifications&lt;/td&gt;
-&lt;td&gt;No&lt;/td&gt;
-&lt;td&gt;Stuck on one computer&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;Push Notifications&lt;/td&gt;
-&lt;td&gt;No&lt;/td&gt;
-&lt;td&gt;One way communication&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;a href="https://www.aim.com"&gt;AIM&lt;/a&gt;&lt;/td&gt;
-&lt;td&gt;No&lt;/td&gt;
-&lt;td&gt;Group chat not core usage&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;a href="https://support.google.com/chat/answer/159495?hl=en"&gt;GChat&lt;/a&gt;&lt;/td&gt;
-&lt;td&gt;No&lt;/td&gt;
-&lt;td&gt;Group chat not core usage&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;a href="https://www.apple.com/ios/messages/"&gt;iMessage&lt;/a&gt;&lt;/td&gt;
-&lt;td&gt;No&lt;/td&gt;
-&lt;td&gt;Groups are a dynamic list of people&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;a href="http://twitter.com/"&gt;Twitter&lt;/a&gt;&lt;/td&gt;
-&lt;td&gt;No&lt;/td&gt;
-&lt;td&gt;Lists aren&amp;#39;t groups&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;a href="https://www.yammer.com"&gt;Yammer&lt;/a&gt;&lt;/td&gt;
-&lt;td&gt;Yes&lt;/td&gt;
-&lt;td&gt;Sorta&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;a href="http://en.wikipedia.org/wiki/Internet_Relay_Chat"&gt;IRC&lt;/a&gt;&lt;/td&gt;
-&lt;td&gt;Yes&lt;/td&gt;
-&lt;td&gt;&lt;em&gt;Channels&lt;/em&gt;&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;a href="https://www.hipchat.com"&gt;HipChat&lt;/a&gt;&lt;/td&gt;
-&lt;td&gt;Yes&lt;/td&gt;
-&lt;td&gt;&lt;em&gt;Rooms&lt;/em&gt;&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;a href="https://slack.com"&gt;Slack&lt;/a&gt;&lt;/td&gt;
-&lt;td&gt;Yes&lt;/td&gt;
-&lt;td&gt;&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;a href="https://campfirenow.com"&gt;Campfire&lt;/a&gt;&lt;/td&gt;
-&lt;td&gt;Yes&lt;/td&gt;
-&lt;td&gt;&lt;em&gt;Rooms&lt;/em&gt;&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;&lt;/table&gt;
-
-&lt;p&gt;&lt;em&gt;Keeping track of User / Space context is more challenging than just User context&lt;/em&gt;&lt;/p&gt;
-
-&lt;h2&gt;Notifiers&lt;/h2&gt;
-
-&lt;p&gt;&lt;em&gt;Notifiers&lt;/em&gt; are the &amp;quot;simplest type&amp;quot;of bots, in the sense that the messaging logic is a minor part of the overall program.  As a consequence they are the most common and the most varied.&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;Broadcast a message based upon an external source&lt;/li&gt;
-&lt;li&gt;Don&amp;#39;t react to messages, so the answers to all the other questions are irrelevant.&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;The trick in &lt;em&gt;Notifiers&lt;/em&gt; is in figuring out what to say, not sending the message.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;# Twitter Example
-message = &amp;quot;Hello, World&amp;quot;
-client.update( message )
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;# AppleScript from the command line example
-$ MESSAGE=&amp;quot;Hello, World&amp;quot;
-$ /usr/bin/osascript -e &amp;quot;display notification \&amp;quot;$MESSAGE\&amp;quot;&amp;quot;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;# Using the terminal-notifier gem
-require &amp;#39;terminal-notifier&amp;#39;
-TerminalNotifier.notify &amp;quot;\u2705 green!&amp;quot;, :title =&amp;gt; &amp;quot;Hello, World&amp;quot;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;These are best implemented by having one program generate the information, and sending that to another program that sends the message to the chat service.  This could be a monitoring agent that is checking to see if a URL is responding, and if not, sends an alert.  It could be a build process that returns a success or failure message.  &lt;/p&gt;
-
-&lt;p&gt;It could be a program that selects &amp;quot;the next word&amp;quot; from a lists of words and tweets one out every hour.  Or it could make a bunch of API calls to different services, correlate that with information from a database, do more complicated calculations, and then post it.  There&amp;#39;s a bot that monitors the top links on hacker news, so it needs to pull down a list of top content, keep track of if it&amp;#39;s tweeted it out before, and then send out the message.  The sending part is simple, but the overall bot may not be.&lt;/p&gt;
-
-&lt;h2&gt;Reactors&lt;/h2&gt;
-
-&lt;p&gt;&lt;em&gt;Reactors&lt;/em&gt; take action based upon incoming messages, but have no memory of who it&amp;#39;s talking with or what space it&amp;#39;s talking in.  The who and where maybe in the message headers, and the bot can return the message in the correct place, but there is no bot-persisted memory of them.&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;Reacts to messages on the chat service&lt;/li&gt;
-&lt;li&gt;Doesn&amp;#39;t remember anything that was said&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;The basic idea is that a reactor gets a message, does something with it, and moves on.  A lot of twitter bots follow this pattern, where they are looking at things on the stream and commenting upon them.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;on_message( message ) = -&amp;gt;
-  result = act_on_message( message )
-  message.reply( result )
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;For example, here&amp;#39;s something that listens for tweets matching the string &lt;code&gt;not a feminist&lt;/code&gt; and reacts by tweeting that that user isn&amp;#39;t a feminist:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;streaming_client.filter(track: &amp;quot;not a feminist&amp;quot;) do |object|
-  if object.is_a?( Twitter::Tweet ) &amp;amp;&amp;amp; object.user.user_name != BOT_NAME
-    client.update( &amp;quot;. @#{object.user.user_name} is not a feminist&amp;quot; )
-  end
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;It could do something more interesting, like looking for an image url, downloading it, running it through ImageMagick, posting it to S3, and then tweeting it back out.  But since the bot itself keeps no message or user state, we consider it a &lt;em&gt;reactor&lt;/em&gt;.&lt;/p&gt;
-
-&lt;h2&gt;Message Dispatching&lt;/h2&gt;
-
-&lt;p&gt;Here we reach a phase change in the level of ambient complexity of the bot.  Simple &lt;em&gt;Reactors&lt;/em&gt; respond to all messages the same way, relying on the filter to select messages that it cares about.  More complex reactors need to figure out what message it&amp;#39;s being sent and reply differently:&lt;/p&gt;
-
-&lt;p&gt;Case loop:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;on_message( message ) = -&amp;gt;
-  dispatch( message )
-
-dispach( message ) = -&amp;gt;
-  case message.text
-    when /^echo/
-      do_echo( message )
-    else
-      message.reply( &amp;quot;Don&amp;#39;t know what you mean&amp;quot; )
-
-do_echo( message ) = -&amp;gt;
-  message.reply( message )
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Command objects:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;on_message( message ) = -&amp;gt;
-  dispatch( message )
-
-dispatch( message ) = -&amp;gt;
-  command = find_command_object( message )
-  command.execute( message )
-
-echo_command.execute( message ) = -&amp;gt;
-  message.reply( message )
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;This can also be done using &lt;em&gt;metaprogramming&lt;/em&gt;, something like this:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;class Dispatcher
-  dispatch( message ) = -&amp;gt;
-    if reponds_to? message.command
-      self.send( message.command, message )
-
-class MyBotClass &amp;lt; Dispatcher
-  echo( message ) = -&amp;gt;
-    message.reply( message )
-
-bot = MyBotClass.new
-
-on_message( message ) = -&amp;gt;
-  bot.dispatch( message )  
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;That is nonsense pseudo code, but a lot of chat bot libraries focus in on that area doing something very similar to what &lt;code&gt;Thor&lt;/code&gt; does for command line programs.&lt;/p&gt;
-
-&lt;h2&gt;Space Reactors&lt;/h2&gt;
-
-&lt;p&gt;&lt;em&gt;Space Reactors&lt;/em&gt;, in addition to having an awesome name, react to incoming messages, and know where they are receiving a message.  The bot has memory of the place, and will respond to the user differently depending upon where the conversation was taking place.&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;Reacts to messages on the chat service&lt;/li&gt;
-&lt;li&gt;Knows where its being addressed&lt;/li&gt;
-&lt;li&gt;Doesn&amp;#39;t remember anything that was said&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;When a reactor is run in on Spaced chat medium, it needs to factor in where the message was received.  Instead of having &lt;em&gt;user&lt;/em&gt; and &lt;em&gt;message&lt;/em&gt; to work with, it now has &lt;em&gt;user&lt;/em&gt;, &lt;em&gt;message&lt;/em&gt;, and &lt;em&gt;space&lt;/em&gt;.&lt;/p&gt;
-
-&lt;p&gt;You can either find the space within each of the commands:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;class MyBot &amp;lt; Dispatcher
-  wtf( message ) = -&amp;gt;
-    space = find_space_from( message )
-    commit_message = space.last_commit_message
-    message.reply( commit_message )
-
-bot = MyBot.new
-
-on_message( message ) = -&amp;gt;
-  bot.dispatch( message )
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Or locate the commands inside of the space, which lets you separate out which commands are available depending the properties of the space.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;class PublicSpaceReactor &amp;lt; Dispatcher
-  wtf( message ) = -&amp;gt;
-    message.reply( &amp;quot;This space has no commits&amp;quot; )
-
-class ProjectSpaceReactor &amp;lt; Dispatcher
-  wtf( message ) = -&amp;gt;
-    message.reply( project.last_commit_message )
-
-class SpaceDispatcher &amp;lt; Dispatcher
-  dispatch( message ) = -&amp;gt;
-    space = find_space( message )
-    responder = nil
-    if space.project?
-      responder =  ProjectSpaceReactor.new( space.project )
-    else
-      responder = PublicSpaceReactor.new
-    responder.dispatch( message )
-
-bot = SpaceDispatcher.new
-
-on_message( message ) = -&amp;gt;
-  bot.dispatch( message )
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;If you have a HipChat bot and have a room for each company project, and you want to have the bot respond to &lt;code&gt;wtf&lt;/code&gt; with the last commit message on github.  The first thing that you need to do is look at which room the message came from, and correlate that a list of repositories, then make a Github API call, and finally post the commit message back to the room.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;  # This is a lita based bot, which provides dispatching 
-  # so we find the space inside of the command
-  def wtf(response)
-    project = find_project response.message.source.room
-    message = project.last_commit_message
-    response.reply message
-  end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;The &lt;code&gt;find_project&lt;/code&gt; method implies that you now need to have persistent state associated with the &lt;em&gt;Space&lt;/em&gt;, in this case the unspecified &lt;code&gt;project&lt;/code&gt; object.  It&amp;#39;s not just a matter of making sure that your reply goes to the correct place, but that what you reply will changed based upon where the person said it.&lt;/p&gt;
-
-&lt;h2&gt;Responders&lt;/h2&gt;
-
-&lt;p&gt;&lt;em&gt;Responders&lt;/em&gt; listen for messages and remember what was said to them.  They are different from &lt;em&gt;Reactors&lt;/em&gt; because they have persisted User state, and so can learn something from the user.&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;Reacts to messages&lt;/li&gt;
-&lt;li&gt;Knows who they are talking to&lt;/li&gt;
-&lt;li&gt;Can learn from what was said&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;It&amp;#39;s natural here to include the dispatching inside of the object that keeps track of the user state.  Here&amp;#39;s a pseudo example of a bot that lets you update your nickname. First by loading the user inside of the Bot:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;class NickBot &amp;lt; Dispatcher
-  nick( message ) = -&amp;gt;
-    user = User.load_from_datastore( message.user )
-    user.nickname = message.arg1
-    user.save
-    message.reply( &amp;quot;Your nick name has been updated to &amp;quot; + message.arg1 )
-
-bot = NickBot.new
-
-on_message( message ) = -&amp;gt;
-  bot.dispatch( message )
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;But it may also make sense to create different types of dispatchers for different users, in this pseudo code there are 3 different types of responders and depending upon who is sending the message different functions are available to them:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;class AnonymousUserResponder &amp;lt; Dispatcher
-  nick( message ) = -&amp;gt;
-    user.nickname = message.arg1
-    user.save
-    message.reply( &amp;quot;Your nick name has been updated to &amp;quot; + message.arg1 )
-
-class NamedUserResponder &amp;lt; AnonymousUserResponder
-  comment( message ) = -&amp;gt;
-    create_a_comment( user.nickname, message )
-    message.reply( &amp;quot;Thanks for the message&amp;quot; )
-
-class AdminResponder &amp;lt; NamedUserResponder
-  restart( message ) = -&amp;gt;
-    restart_server
-    message.reply( &amp;quot;You&amp;#39;ve restarted the server&amp;quot; )
-
-class UserDispatcher &amp;lt; Dispatcher
-  dispatch( message ) = -&amp;gt;
-    user = User.load_from_datastore( message.user )
-    responder = nil
-    if user.admin?
-      responder = AdminResponder.new( user )
-    elseif user.nickname?
-      responder = NamedUserResponder.new( user )
-    else
-      responder = AnonymousUserResponder.new( user )
-    responder.dispatch( message )
-
-bot = UserDispatcher.new
-
-on_message( message )
-  bot.dispatch( message )
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;&lt;em&gt;This example is misleading because in real life direct inherency doesn&amp;#39;t scale well, as we&amp;#39;ll see below.&lt;/em&gt;&lt;/p&gt;
-
-&lt;h2&gt;Space Responders&lt;/h2&gt;
-
-&lt;p&gt;&lt;em&gt;Space Responder&lt;/em&gt; learn things about who is talking with them and the context in which they are speaking.&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;Reacts to messages&lt;/li&gt;
-&lt;li&gt;Knows who they are talking to&lt;/li&gt;
-&lt;li&gt;Can learn from what was said&lt;/li&gt;
-&lt;li&gt;Knows where its being addressed&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;The challenge here is how do you juggle the permutations of state.  Lets take the example of a user is an admin in one project, where they can send commands to reboot the server, and in another project they can only open new tickets.  In the basic case, you can do everything in each of your methods:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;class ServerBot &amp;lt; Dispatcher
-  restart( message ) = -&amp;gt;
-    user = find_user( message )
-    space = find_space( message )
-    if space.is_admin?( user )
-      restart_server
-      message.reply( &amp;quot;Go go go&amp;quot; )
-    else
-      message.reply( &amp;quot;Sorry Charlie, try again&amp;quot; )
-
-  ticket( message ) = -&amp;gt;
-    space = find_space( message )
-    ticket = space.create_ticket_message( message )
-    message.reply( ticket.id + &amp;quot; has been created&amp;quot; )
-
-bot = ServerBot.new
-
-on_message( message ) = -&amp;gt;
-  bot.dispatch( message )
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Lets say that we had two different types of users, admins or not, and two different types of spaces, one that mapped to a project and another that mapped to a hangout area.  We could expand out idea of the SpaceDispatcher to return a different command object based upon the combinations.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;class SpaceDispatcher &amp;lt; Dispatcher
-  dispatch( message ) = -&amp;gt;
-    space = find_space( message )
-    user = find_user( message )
-    if !space.project?
-      if space.is_admin?( user )
-        AdminLobbyResponder.new( space, user ).dispatch( message )
-      else
-        LobbyResponder.new( space, user ).dispatch( message )
-    else if space.is_admin?( user )
-      AdminSpaceResponder.new( space, user ).dispatch( message )
-    else
-      ProjectResponder.new( space, user ).dispatch( message )
-
-class LobbyResponder &amp;lt; Dispatcher
-  vote( message ) = -&amp;gt;
-    votes = space.tally_term( message )
-    message.reply( &amp;quot;That totals: &amp;quot; + votes )
-
-class AdminLobbyResponder &amp;lt; LobbyResponder
-  topic( message ) = -&amp;gt;
-    space.set_topic( message )
-    message.reply( &amp;quot;Topic updated&amp;quot; )
-
-class ProjectResponder &amp;lt; LobbyResponder
-  ticket( message ) = -&amp;gt;
-    ticket = space.create_ticket( message )
-    message.reply( ticket.id + &amp;quot; has been created&amp;quot; )
-
-class AdminProjectResponder &amp;lt; ProjectResponder
-  restart( message ) = -&amp;gt;
-    restart_server
-    message.reply( &amp;quot;Server restarted&amp;quot; )
-
-bot = SpaceDispatcher.new
-
-on_message( message ) = -&amp;gt;
-  bot.dispatch( message )
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;We&amp;#39;re also using inheritance to include all of the methods that the regular user can do into the class that has all of the Admin methods.  This pseudocode has turned into an unholey mixture of Ruby and CoffeeScript, so it probably isn&amp;#39;t work doing into language details with this.  But straight up inheritance doesn&amp;#39;t work well for this type of reuse, and in our example project admins won&amp;#39;t be able to change the &lt;code&gt;topic&lt;/code&gt;.  These commands would better be structured as mixins.&lt;/p&gt;
-
-&lt;h2&gt;Conversationists&lt;/h2&gt;
-
-&lt;p&gt;The final, and technically most complicated type of bot to write is a &lt;em&gt;Conversationalist&lt;/em&gt;.&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;Reacts to messages&lt;/li&gt;
-&lt;li&gt;Knows who they are talking to&lt;/li&gt;
-&lt;li&gt;Can learn from what was said&lt;/li&gt;
-&lt;li&gt;Has conversational state&lt;/li&gt;
-&lt;li&gt;Knows where its being addressed&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;The basic structure is:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;class Conversation &amp;lt; Dispatcher
-  # knowledge collected during the course of the conversation #
-
-  # state machine mapping conversion state #
-
-  dispatch( message ) = -&amp;gt;
-    # Store incoming message in log
-    # interpret the response based upon the current state
-    # print a message on state transition
-
-class ChatBot &amp;lt; Dispatcher
-  dispatch( message ) = -&amp;gt;
-    user = find_user( message )
-    conversation = user.current_conversation
-    conversation.dispatch( message )
-
-bot = ChatBot.new
-
-on_message(message) = -&amp;gt;
-  bot.dispatch( message )
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;The &lt;code&gt;User&lt;/code&gt; object is responsible for keeping track of conversations.  &lt;code&gt;current_conversation&lt;/code&gt; can be smart enough to create a new conversation when things are stale or if there user explicitly closed out an active one.&lt;/p&gt;
-
-&lt;p&gt;Here is an example of code from a bot that asks you questions about where you are and what sort of food you are looking for.  It searches a number of APIs in the background to see what information it can get from what you say.  The code is written with an Adaptor to talk Twitter or GChat, and they both have a different idea of location.  Sometimes it can get an accurate enough location the message metadata, but more likely it&amp;#39;s too vague and it will ask you to clarify.  (&lt;em&gt;Not all of that logic is below, but its useful to demonstrate the use of the state machine&lt;/em&gt;.)&lt;/p&gt;
-
-&lt;p&gt;The knowledge attributes are what the bot knows in the conversation.  Below you&amp;#39;ll see an example of &lt;em&gt;knowledge of the conversation&lt;/em&gt; from the state machine, &lt;em&gt;knowledge of what as been said&lt;/em&gt; from previous messages, and &lt;em&gt;knowledge of deduction&lt;/em&gt; from the content and context of the messages.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;class ConversationResponder
-  # State Machine
-  workflow do
-    state :new do
-      event :process_message,  :transitions_to =&amp;gt; :processing_location
-    end
-
-    state :processing_location do
-      event :needs_location,    :transitions_to =&amp;gt; :clarify_location
-      event :location_clear,    :transitions_to =&amp;gt; :has_location
-    end
-
-    state :clarify_location do
-      event :process_message,   :transitions_to =&amp;gt; :processing_location
-    end
-
-    state :has_location do
-      event :needs_keywords,    :transitions_to =&amp;gt; :clarify_keywords
-      event :has_keywords,      :transitions_to =&amp;gt; :processing_keywords
-    end
-
-    state :clarify_keywords do
-      event :process_message,   :transitions_to =&amp;gt; :processing_keywords
-    end
-
-    state :processing_keywords do
-      event :needs_keywords,    :transitions_to =&amp;gt; :clarify_keywords
-      event :needs_location,    :transitions_to =&amp;gt; :clarify_location
-      event :found_places,      :transitions_to =&amp;gt; :refining_selection
-      event :no_places_found,   :transitions_to =&amp;gt; :clarify_keywords
-    end
-
-    state :refining_selection do
-      event :process_message,   :transitions_to =&amp;gt; :processing_keywords
-    end
-  end
-
-  # Knowledge Attributes
-  def looking_for_location?
-    !knows_location? || location_vague?
-  end
-
-  def knows_location?
-    !lat.blank? &amp;amp;&amp;amp; !lng.blank?
-  end
-
-  def location_vague?
-    return false if location_range == &amp;quot;ROOFTOP&amp;quot; || location_range == &amp;quot;RANGE_INTERPOLATED&amp;quot;
-    #Added by Jon so that zip codes are sufficient
-    return false if location_range == &amp;quot;APPROXIMATE&amp;quot;
-    #TODO: put more intelligence into this: eg location_range = &amp;quot;GEOMETRIC_CENTER&amp;quot; is good enough for Iowa but not for NYC
-    true
-  end
-
-  def location_name
-    if knows_location?
-      status,address =  Geocode.reverse_geocode([lat,lng])
-      return address
-    else
-      return nil
-    end
-  end
-
-  def looking_for_places?
-    places.count == 0
-  end
-
-  def have_keyword_messages?
-    !keyword_messages.nil? &amp;amp;&amp;amp; keyword_messages.length &amp;gt; 0
-  end
-
-  def keyword_messages
-    @keyword_messages ||= messages.select{ |x| x.looks_like_keyword? &amp;amp;&amp;amp; !x.is_a?( OutgoingMessage ) }
-  end
-
-  def keywords
-    keyword_messages.collect { |x| x.search_terms }.join( &amp;quot;, &amp;quot;)
-  end
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;hr&gt;
-
-&lt;h2&gt;That&amp;#39;s the shape of it&lt;/h2&gt;
-
-&lt;p&gt;&lt;em&gt;Notifiers&lt;/em&gt;, &lt;em&gt;Reactors&lt;/em&gt;, &lt;em&gt;Space Reactors&lt;/em&gt;, &lt;em&gt;Responders&lt;/em&gt;, &lt;em&gt;Space Responders&lt;/em&gt;, and &lt;em&gt;Conversationists&lt;/em&gt;.  Writing &lt;em&gt;Notifiers&lt;/em&gt; and &lt;em&gt;Reactors&lt;/em&gt; are more playful, and as you get into things later in the list you spend a lot more time dealing with code and logic complexity.&lt;/p&gt;
-
-&lt;p&gt;The distinction between a &lt;em&gt;Spaced&lt;/em&gt; and &lt;em&gt;Global&lt;/em&gt; chat medium is something that makes using chat libraries, and building &lt;strong&gt;Adapters&lt;/strong&gt; to different services difficult.  If the library was built with a &lt;em&gt;Spaced&lt;/em&gt; service in mind it&amp;#39;s pretty straightforward to make it work for one, but going the other way isn&amp;#39;t swimming upstream.&lt;/p&gt;
-
-&lt;hr&gt;
-
-&lt;h2&gt;Towards a taxonomy of Twitter Bots&lt;/h2&gt;
-
-&lt;p&gt;&lt;a href="http://tinysubversions.com/botsummit/2014/"&gt;BotSummit&lt;/a&gt; was a few days ago, and a bunch of people got together to talk about Twitter bots that they made largely as art projects.  Here&amp;#39;s a draft of a taxonomy of Twitter bots made by &lt;a href="https://twitter.com/tullyhansen"&gt;Tully Hanson&lt;/a&gt;.  In the parlance of this post, these are mainly &lt;em&gt;Notifiers&lt;/em&gt; and &lt;em&gt;Reactors&lt;/em&gt;, with some possible &lt;em&gt;Responders&lt;/em&gt; thrown in:&lt;/p&gt;
-
-&lt;p&gt;&lt;img alt="Twitter Bot Taxonomy" src="http://i.imgur.com/bKXNQ0V.png" /&gt;&lt;/p&gt;
-
-&lt;p&gt;&lt;em&gt;Here&amp;#39;s the &lt;a href="https://gist.github.com/tullyhansen/7621632"&gt;source document&lt;/a&gt;&lt;/em&gt;&lt;/p&gt;
-
-&lt;p&gt;&lt;em&gt;Notifiers&lt;/em&gt; are interesting not because of their technology, but because of what they actually do.  Here&amp;#39;s a &lt;a href="https://docs.google.com/document/d/1bka4o1RE9RPUeoUzgpTIKRWsgWHzZEKEADialnv7haQ/view"&gt;list of ideas that people came up with&lt;/a&gt;.&lt;/p&gt;
-
-&lt;hr&gt;
-
-&lt;h1&gt;Agents of Note&lt;/h1&gt;
-
-&lt;h2&gt;&lt;a href="https://hubot.github.com"&gt;Hubot from Github&lt;/a&gt; is a company chat bot, written in Node:&lt;/h2&gt;
-
-&lt;p&gt;&lt;img alt="Silvrback blog image" src="https://silvrback.s3.amazonaws.com/uploads/5a2b7f44-c37b-4cfc-b0df-16e28a889160/HUBOT_large.jpg" /&gt;&lt;/p&gt;
-
-&lt;blockquote&gt;
-&lt;p&gt;GitHub, Inc., wrote the first version of Hubot to automate our company chat room. Hubot knew how to deploy the site, automate a lot of tasks, and be a source of fun in the company. Eventually he grew to become a formidable force in GitHub. But he led a private, messy life. So we rewrote him.&lt;/p&gt;
-&lt;/blockquote&gt;
-
-&lt;p&gt;&lt;em&gt;Image from &lt;a href="https://hubot.github.com"&gt;Hubot site&lt;/a&gt;&lt;/em&gt;&lt;/p&gt;
-
-&lt;h2&gt;&lt;a href="https://www.lita.io"&gt;Lita&lt;/a&gt; is similar to Hubot, but written in Ruby:&lt;/h2&gt;
-
-&lt;p&gt;&lt;img alt="Silvrback blog image" src="https://silvrback.s3.amazonaws.com/uploads/a1895cd0-8429-4a82-9cd7-2b7557d3c0a3/lita-94f070fbb79e8ec62cc7a21ca39f8448_large.png" /&gt;
-&lt;em&gt;Image from &lt;a href="https://www.lita.io"&gt;Lita&lt;/a&gt;&lt;/em&gt;&lt;/p&gt;
-
-&lt;h2&gt;&lt;a href="https://github.com/cantino/huginn"&gt;Huginn&lt;/a&gt; is your agent, standing by&lt;/h2&gt;
-
-&lt;p&gt;&lt;img alt="Silvrback blog image sb_float" src="https://silvrback.s3.amazonaws.com/uploads/4c8d7718-e8a1-4d6f-92b7-e2d1c92cec43/220px-Odin%2C_der_G%C3%B6ttervater_large.jpg" /&gt;&lt;/p&gt;
-
-&lt;p&gt;Huginn takes a bit to install, but it&amp;#39;s a full on &lt;em&gt;software agent&lt;/em&gt; of the old school.&lt;/p&gt;
-
-&lt;blockquote&gt;
-&lt;p&gt;Huginn is a system for building agents that perform automated tasks for you online. They can read the web, watch for events, and take actions on your behalf. Huginn&amp;#39;s Agents create and consume events, propagating them along a directed graph. Think of it as a hackable Yahoo! Pipes plus IFTTT on your own server. You always know who has your data. You do.&lt;/p&gt;
-
-&lt;p&gt;We&amp;#39;re just getting started, but here are some of the things that you can do with Huginn right now:&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;Track the weather and get an email when it&amp;#39;s going to rain (or snow) tomorrow (&amp;quot;Don&amp;#39;t forget your umbrella!&amp;quot;)&lt;/li&gt;
-&lt;li&gt;List terms that you care about and receive emails when their occurrence on Twitter changes. (For example, want to know when something interesting has happened in the world of Machine Learning? Huginn will watch the term &amp;quot;machine learning&amp;quot; on Twitter and tell you when there is a large spike.)&lt;/li&gt;
-&lt;li&gt;Watch for air travel or shopping deals&lt;/li&gt;
-&lt;li&gt;Follow your project names on Twitter and get updates when people mention them&lt;/li&gt;
-&lt;li&gt;Scrape websites and receive emails when they change&lt;/li&gt;
-&lt;li&gt;Connect to Adioso, HipChat, Basecamp, Growl, FTP, IMAP, Jabber, JIRA, MQTT, nextbus, Pushbullet, Pushover, RSS, Bash, Slack, StubHub, translation APIs, Twilio, Twitter, Wunderground, and Weibo, to name a few.&lt;/li&gt;
-&lt;li&gt;Compose digest emails about things you care about to be sent at specific times of the day&lt;/li&gt;
-&lt;li&gt;Track counts of high frequency events and send an SMS within moments when they spike, such as the term &amp;quot;san francisco emergency&amp;quot;&lt;/li&gt;
-&lt;li&gt;Send and receive WebHooks&lt;/li&gt;
-&lt;li&gt;Run arbitrary JavaScript Agents on the server&lt;/li&gt;
-&lt;li&gt;Track your location over time&lt;/li&gt;
-&lt;li&gt;Create Amazon Mechanical Turk workflows as the inputs, or outputs, of agents. (&amp;quot;Once a day, ask 5 people for a funny cat photo; send the results to 5 more people to be rated; send the top-rated photo to 5 people for a funny caption; send to 5 final people to rate for funniest caption; finally, post the best captioned photo on my blog.&amp;quot;)&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/blockquote&gt;
-
-&lt;p&gt;&lt;em&gt;Image &amp;quot;Odin, der Göttervater&amp;quot; by Carl Emil Doepler (1824-1905) - Wägner, Wilhelm. 1882. Nordisch-germanische Götter und Helden. Otto Spamer, Leipzig &amp;amp; Berlin. Page 7.. Licensed under Public domain via Wikimedia Commons - &lt;a href="http://commons.wikimedia.org/wiki/File:Odin,_der_G%C3%B6ttervater.jpg#mediaviewer/File:Odin,_der_G%C3%B6ttervater.jpg"&gt;Link&lt;/a&gt;&lt;/em&gt;&lt;/p&gt;
-
-&lt;hr&gt;
-
-&lt;p&gt;Let me know cool things you build!&lt;/p&gt;
 </content>
   </entry>
 </feed>
