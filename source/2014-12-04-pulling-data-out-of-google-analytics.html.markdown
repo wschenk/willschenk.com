@@ -2,7 +2,6 @@
 :title: Pulling data out of Google Analytics
 :subtitle: see who's talking about your stuff
 :tags: socialinvestigator, howto, ruby
-:published: false
 :header_image: lava-lamp.jpg
 :date: 2014-12-04
 ---
