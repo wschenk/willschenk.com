@@ -5,7 +5,7 @@
   <id>http://willschenk.com/</id>
   <link href="http://willschenk.com/"/>
   <link href="http://willschenk.com/feed.xml" rel="self"/>
-  <updated>2014-12-07T16:52:22-05:00</updated>
+  <updated>2014-12-07T21:57:01-05:00</updated>
   <author>
     <name>Will Schenk</name>
   </author>
@@ -244,6 +244,426 @@ end
 &lt;h2&gt;That&amp;#39;s just a bit of ActiveRecord&lt;/h2&gt;
 
 &lt;p&gt;We&amp;#39;ve just gone through an ActiveRecord extention and that barely scratches the surface of what else you can do with Rails.  &lt;a href="https://pragprog.com/book/jvrails2/crafting-rails-4-applications"&gt;Crafting Rails 4 Applications&lt;/a&gt; is the best resource I&amp;#39;ve found to get a sense of what is possible, but when I sat down to work on something there was a lot of trial and error.  They through how they created &lt;a href="https://github.com/plataformatec/mail_form"&gt;mail_form&lt;/a&gt;, or at least a simplified version of it, that lets you use rails validations from ActiveRecord without having to back up the model with a database.  (As you might infer from the name, something that is useful for Contact forms that send out email.)  The book also goes through how Rails Engines work, which are very much like rails plugins but with additional integration points into the rails application lifecycle.&lt;/p&gt;
+</content>
+  </entry>
+  <entry>
+    <title>Pulling data out of Google Analytics</title>
+    <link rel="alternate" href="http://willschenk.com/pulling-data-out-of-google-analytics/"/>
+    <id>http://willschenk.com/pulling-data-out-of-google-analytics/</id>
+    <published>2014-12-03T19:00:00-05:00</published>
+    <updated>2014-12-03T19:00:00-05:00</updated>
+    <author>
+      <name>Will Schenk</name>
+    </author>
+    <content type="html">&lt;p&gt;I like staring at the real time stats of &lt;a href="http://www.google.com/analytics/"&gt;Google Analytics&lt;/a&gt;.  As a dashboard, it&amp;#39;s not really as amazing as &lt;a href="https://chartbeat.com"&gt;Chartbeat&lt;/a&gt; is, and it doesn&amp;#39;t let you drill down into the data as much as &lt;a href="https://mixpanel.com"&gt;Mixpanel&lt;/a&gt;.  But GA is super simple to setup and it&amp;#39;s Google, so everyone uses it.&lt;/p&gt;
+
+&lt;p&gt;Another obsessive/fun thing to do is to see where that spike in inbound traffic is coming from.  On &lt;a href="http://happyfuncorp.com"&gt;HappyFunCorp&lt;/a&gt; there are days where we get a sudden influx of &lt;a href="http://happyfuncorp.com/#happy-thoughts"&gt;Happy Thoughts&lt;/a&gt; which warms our hearts and floods our inboxes.  Where did they come from?  How do we figure it out?&lt;/p&gt;
+
+&lt;p&gt;Lets look at how we can interact with Google Analytics using &lt;a href="https://github.com/google/google-api-ruby-client"&gt;google-api-ruby-client&lt;/a&gt;.  At the end of this, we are going to be able to see the current traffic stats, top referrals, see a timeline of when the referals first came in, and do what we can from that information to track down who is talking about us.  GA will show us that we are getting a lot of &lt;code&gt;SOCIAL&lt;/code&gt; traffic, but what else can we figure out?&lt;/p&gt;
+
+&lt;h2&gt;Step 1: OAuth: Setting it up to access Google on behalf of the user&lt;/h2&gt;
+
+&lt;p&gt;We&amp;#39;re going to be using OAuth2 to authorize our script.  So head over to the &lt;a href="https://console.developers.google.com/project"&gt;Google Developers Console&lt;/a&gt;.&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;&lt;p&gt;&lt;em&gt;Create a Project&lt;/em&gt;.  You should name this something that makes sense to you.  I called my &lt;em&gt;Social Investigator&lt;/em&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Enable the &lt;em&gt;Analytics API&lt;/em&gt;.  This can be done on the side bar, under &lt;strong&gt;APIs and auth &amp;gt; Apis&lt;/strong&gt;.  Scroll down to find it.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;&lt;strong&gt;APIs and auth &amp;gt; Consent Screen&lt;/strong&gt;.  Create something here, you&amp;#39;ll need to flesh this out later.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;&lt;strong&gt;APIs and auth &amp;gt; Create Client ID&lt;/strong&gt;.  Select &lt;strong&gt;Installed Application&lt;/strong&gt; with type &lt;em&gt;Other&lt;/em&gt;.  This will create the keys for you, and then you &lt;strong&gt;Download JSON&lt;/strong&gt; and save it in a file.&lt;/p&gt;&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h2&gt;Step 2: &lt;code&gt;Google::APIClient::InstalledAppFlow&lt;/code&gt; Getting an access token and an API file&lt;/h2&gt;
+
+&lt;p&gt;Working with the Google API is pretty confusing at first, since there&amp;#39;s multiple steps that need to happen before you can even figure out how to make a call.  Twitter&amp;#39;s API, which in every other way is a joke compared to Google&amp;#39;s way of doing things, has a &lt;a href="/scripting-twitter"&gt;handy way to get a single use access token&lt;/a&gt;.  With Google you need to do this yourself.  And once that&amp;#39;s done, you need to load the API meta data from the API API to be able to access it!&lt;/p&gt;
+
+&lt;p&gt;We&amp;#39;re going to be using a few gems to put in your &lt;code&gt;Gemfile&lt;/code&gt; specifically:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;source &amp;#39;https://rubygems.org&amp;#39;
+
+gem &amp;#39;google-api-client&amp;#39;
+gem &amp;#39;thor&amp;#39;
+gem &amp;#39;hirb&amp;#39;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now we can use the &lt;code&gt;Google::APIClient::InstalledAppFlow&lt;/code&gt; class to open up a web browser, have the user log in as needed to their Google Accounts, and grant access to the API.  The code below shows the basics of this.  We assume that the file you downloaded in step 1 is called &lt;code&gt;client_secrets.json&lt;/code&gt; and in the same directory, and we are writing out the granted credentials into the &lt;code&gt;analytics-oauth2.json&lt;/code&gt; file.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;#!/usr/bin/env ruby -KU
+#
+# This code has been adapted from
+# https://github.com/google/google-api-ruby-client-samples/tree/master/drive
+#
+
+require &amp;#39;thor&amp;#39;
+require &amp;#39;hirb&amp;#39;
+require &amp;#39;google/api_client&amp;#39;
+require &amp;#39;google/api_client/client_secrets&amp;#39;
+require &amp;#39;google/api_client/auth/file_storage&amp;#39;
+require &amp;#39;google/api_client/auth/installed_app&amp;#39;
+require &amp;#39;logger&amp;#39;
+require &amp;#39;csv&amp;#39;
+
+API_VERSION = &amp;#39;v3&amp;#39;
+CACHED_API_FILE = &amp;quot;analytics-#{API_VERSION}.cache&amp;quot;
+CREDENTIAL_STORE_FILE = &amp;quot;analytics-oauth2.json&amp;quot;
+CLIENT_SECRETS_FILE = &amp;quot;client_secrets.json&amp;quot;
+
+class AnalyticsClient
+  def initialize( file_caches = nil )
+    client
+  end
+
+  def client
+    return @client if @client
+
+    @client = Google::APIClient.new(:application_name =&amp;gt; &amp;#39;Analyics-CLI&amp;#39;,
+        :application_version =&amp;gt; &amp;#39;1.0.0&amp;#39;)
+
+    # FileStorage stores auth credentials in a file, so they survive multiple runs
+    # of the application. This avoids prompting the user for authorization every
+    # time the access token expires, by remembering the refresh token.
+    # Note: FileStorage is not suitable for multi-user applications.
+    file_storage = Google::APIClient::FileStorage.new(CREDENTIAL_STORE_FILE)
+    if file_storage.authorization.nil?
+      client_secrets = Google::APIClient::ClientSecrets.load(CLIENT_SECRETS_FILE)
+      # The InstalledAppFlow is a helper class to handle the OAuth 2.0 installed
+      # application flow, which ties in with FileStorage to store credentials
+      # between runs.
+      flow = Google::APIClient::InstalledAppFlow.new(
+        :client_id =&amp;gt; client_secrets.client_id,
+        :client_secret =&amp;gt; client_secrets.client_secret,
+        :scope =&amp;gt; [&amp;#39;https://www.googleapis.com/auth/analytics&amp;#39;]
+      )
+      @client.authorization = flow.authorize(file_storage)
+    else
+      @client.authorization = file_storage.authorization
+    end
+
+    @client
+  end
+end
+
+if __FILE__ == $0
+  AnalyticsClient.new.client
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;When we run this the first time, you should be prompted to grant access to your application.  The second time it should run and exit cleanly -- it has access, but we haven&amp;#39;t asked to do anything yet.&lt;/p&gt;
+
+&lt;h2&gt;Step 3: Discover the API&lt;/h2&gt;
+
+&lt;p&gt;Google takes their software development seriously, and it shows.  Not only are there many different APIs available to use, but they all have different versions.  These endpoints are all different, and rather than have them all hard coded into the client access library, you use the &lt;em&gt;discover api&lt;/em&gt; to pull in metadata associated with it.  The following code will load up this data and cache it to the filesystem so the next access will be faster.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;  def api
+    return @api if @api
+
+    # Load cached discovered API, if it exists. This prevents retrieving the
+    # discovery document on every run, saving a round-trip to API servers.
+    if File.exists? CACHED_API_FILE
+      File.open(CACHED_API_FILE) do |file|
+        @api = Marshal.load(file)
+      end
+    else
+      @api = client.discovered_api(&amp;#39;analytics&amp;#39;, API_VERSION)
+      File.open(CACHED_API_FILE, &amp;#39;w&amp;#39;) do |file|
+        Marshal.dump(@api, file)
+      end
+    end
+
+    @api
+  end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2&gt;Step 4: Finding a web profile&lt;/h2&gt;
+
+&lt;p&gt;In order to pull data from an analytics account, you need to query the management API to get a list of profiles that you user has access to.  We&amp;#39;re going to collapse the differences between accounts and properties, and print them all out in a list directly.  The key variable we are looking for is going to be the profile &lt;em&gt;id&lt;/em&gt;.  This is different from the &lt;em&gt;web property id&lt;/em&gt;, which is what you use in Javascript to add the tracking code (.e.g &lt;code&gt;UA-56296045-1&lt;/code&gt;).  We&amp;#39;ll also show the &lt;em&gt;websiteUrl&lt;/em&gt; associated with the account since that&amp;#39;s what people really know.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;  def profiles
+    client.execute(
+      api_method: api.management.profiles.list,
+      parameters: { accountId: &amp;quot;~all&amp;quot;, webPropertyId: &amp;quot;~all&amp;quot; } )
+  end
+
+  def print_profiles
+    profiles.data.items.each do |profile|
+      printf &amp;quot;%-15d %-15s %s\n&amp;quot;, profile.id, profile.webPropertyId, profile.websiteUrl
+    end
+  end
+end
+
+if __FILE__ == $0
+  AnalyticsClient.new.print_profiles
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2&gt;Step 5: Querying with &lt;code&gt;ga.get&lt;/code&gt;&lt;/h2&gt;
+
+&lt;p&gt;The main end point we are looking at is &lt;code&gt;ga.get&lt;/code&gt;.  There&amp;#39;s an &lt;a href="https://ga-dev-tools.appspot.com/explorer/"&gt;interactive developer tool&lt;/a&gt; that will let you experiment with what is available and how it works.   If you load up that tool now, you&amp;#39;ll see what we&amp;#39;ve written code that will let us find the property id for our query, so we are now ready to start querying.&lt;/p&gt;
+
+&lt;p&gt;The &lt;em&gt;Query Explorer&lt;/em&gt; is really useful because of the dropdowns around &lt;em&gt;dimensions&lt;/em&gt; and &lt;em&gt;metrics&lt;/em&gt;.  When you hover over any of the fields, documentation comes up which will explain what each of the fields mean.&lt;/p&gt;
+
+&lt;p&gt;&lt;em&gt;Dimensions&lt;/em&gt; are different ways of slicing up the data.  These include things like &lt;em&gt;page title&lt;/em&gt;, &lt;em&gt;referer&lt;/em&gt;, &lt;em&gt;adwords&lt;/em&gt;, and other ways of slicing up the people that came to your site.  &lt;em&gt;Metrics&lt;/em&gt; are the actual data for these buckets of users, and include things like &lt;em&gt;sessions&lt;/em&gt;, &lt;em&gt;user counts&lt;/em&gt;, &lt;em&gt;page views&lt;/em&gt; and &lt;em&gt;average session duration&lt;/em&gt;.&lt;/p&gt;
+
+&lt;p&gt;In order to make the query we first need to setup the query parameters.  We&amp;#39;ve split that off into its own method called &lt;code&gt;query_template&lt;/code&gt;.  The required fields are &lt;em&gt;profile id&lt;/em&gt;, &lt;em&gt;start date&lt;/em&gt;, and &lt;em&gt;end date&lt;/em&gt;.  We&amp;#39;re going to setup some defaults here which we will override in other methods when we use it.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;  def query_template( profile_id, start_date = nil, end_date = nil )
+    today = Time.now.strftime( &amp;quot;%Y-%m-%d&amp;quot; )
+    {
+      &amp;quot;ids&amp;quot; =&amp;gt; &amp;quot;ga:#{profile_id}&amp;quot;,
+      &amp;quot;start-date&amp;quot; =&amp;gt; start_date || today,
+      &amp;quot;end-date&amp;quot; =&amp;gt; end_date || today,
+      &amp;quot;sort&amp;quot; =&amp;gt; &amp;quot;-ga:pageviews&amp;quot;,
+      &amp;quot;dimensions&amp;quot; =&amp;gt; &amp;quot;ga:pageTitle&amp;quot;,
+      &amp;quot;metrics&amp;quot; =&amp;gt; &amp;quot;ga:pageviews,ga:newUsers,ga:users&amp;quot;
+    }
+  end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Our default here is that we&amp;#39;re slicing on &lt;code&gt;pageTitle&lt;/code&gt;, showing &lt;code&gt;pageviews&lt;/code&gt;, &lt;code&gt;newUsers&lt;/code&gt;, and &lt;code&gt;users&lt;/code&gt; (which include returning users).&lt;/p&gt;
+
+&lt;p&gt;Let&amp;#39;s do an actual query with the parameters:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;  def hotcontent( profile_id, start_date = nil, end_date = nil )
+    query = query_template( profile_id, start_date, end_date )
+    client.execute(
+      api_method: api.data.ga.get,
+      parameters: query
+      )
+  end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now we need a way to print the result.  The result that we get back has two different things, &lt;code&gt;columnHeaders&lt;/code&gt; which is a reflection of the &lt;code&gt;query&lt;/code&gt; that we passed in, and the data itself is an array of arrays in &lt;code&gt;row&lt;/code&gt;.  We&amp;#39;re using &lt;code&gt;Hirb&lt;/code&gt; helper method here to format the result.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;  def print_query_result( r )
+    headers = r.data.columnHeaders.collect { |x| x.name }
+    puts Hirb::Helpers::AutoTable.render(r.data.rows, headers: headers )
+  end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Let&amp;#39;s give it a try:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;if __FILE__ == $0
+  client = AnalyticsClient.new
+  results = client.hotcontent ARGV[0]
+  client.print_query_result results
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Make sure you&amp;#39;ve made note of your profile id above, and we can see what it looks like now:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="sh"&gt;$ ruby ga.rb 93249816
++--------------------------------------------------+--------------+-------------+----------+
+| ga:pageTitle                                     | ga:pageviews | ga:newUsers | ga:users |
++--------------------------------------------------+--------------+-------------+----------+
+| Building Sites with Middleman | Will Schenk      | 26           | 11          | 24       |
+| Bootstrap: Advanced Grid Tricks | Will Schenk    | 11           | 7           | 11       |
+| Making a command line utility with gems and thor | 9            | 2           | 6        |
+| Will Schenk | Will Schenk                        | 9            | 2           | 5        |
+| Making Yosemite Faster | Will Schenk             | 8            | 7           | 8        |
+| How to track your coworkers | Will Schenk        | 6            | 1           | 6        |
+| Will Schenk - How to track your coworkers        | 3            | 0           | 1        |
++--------------------------------------------------+--------------+-------------+----------+
+7 rows in set
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2&gt;Step 6: Adding more commands&lt;/h2&gt;
+
+&lt;p&gt;Lets create a &lt;code&gt;Thor&lt;/code&gt; class here for the things that we want to query, and then go through a implement the calls in the &lt;code&gt;AnalyticsClient&lt;/code&gt; class.&lt;/p&gt;
+
+&lt;p&gt;We want to be able to specify the timeframe for when we want the results.  It defaults to the current date, but lets add some more options for &lt;strong&gt;today&lt;/strong&gt;, &lt;strong&gt;yesterday&lt;/strong&gt;, &lt;strong&gt;recently&lt;/strong&gt; (last 7 days), and &lt;strong&gt;month&lt;/strong&gt; (last 30 days, which isn&amp;#39;t really a month but close enough.)&lt;/p&gt;
+
+&lt;p&gt;We also want to have different output options, so we&amp;#39;ll add a &lt;strong&gt;table&lt;/strong&gt; switch, like the &lt;code&gt;Hirb&lt;/code&gt; output above, and &lt;strong&gt;csv&lt;/strong&gt; to make it easier to plug this into other tools.&lt;/p&gt;
+
+&lt;p&gt;We&amp;#39;re going to create 4 different ways to query the data.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;What content is getting traffic&lt;/li&gt;
+&lt;li&gt;Who is linking to your site&lt;/li&gt;
+&lt;li&gt;Who is linking to specific pages on your site&lt;/li&gt;
+&lt;li&gt;A timeline of when content was published and people started linking to it&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;pre&gt;&lt;code&gt;Commands:
+  ga.rb profiles                     # List Account Profiles
+  ga.rb hotcontent PROFILE_ID        # Show hot content for profile id
+  ga.rb referers PROFILE_ID          # Show hot content for profile id
+  ga.rb content_referers PROFILE_ID  # Show hot content for profile id
+  ga.rb timeline PROFILE_ID          # Show a timeline of referers
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Here&amp;#39;s the CLI code:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;class HammerOfTheGods &amp;lt; Thor
+  desc &amp;quot;profiles&amp;quot;, &amp;quot;List Account Profiles&amp;quot;
+  def profiles
+    client.print_profiles
+  end
+
+  desc &amp;quot;hotcontent PROFILE_ID&amp;quot;, &amp;quot;Show hot content for profile id&amp;quot;
+  options [:today, :yesterday, :recently, :month, :table, :csv]
+  def hotcontent( profile_id )
+    result = client.hotcontent( profile_id, start_date, end_date )
+    print_result result
+  end
+
+  desc &amp;quot;referers PROFILE_ID&amp;quot;, &amp;quot;Show hot content for profile id&amp;quot;
+  options [:today, :yesterday, :recently, :month, :table, :csv]
+  def referers( profile_id )
+    result = client.referers( profile_id, start_date, end_date )
+    print_result( result )
+  end
+
+  desc &amp;quot;content_referers PROFILE_ID&amp;quot;, &amp;quot;Show hot content for profile id&amp;quot;
+  options [:today, :yesterday, :recently, :month, :table, :csv]
+  def content_referers( profile_id )
+    result = client.content_referers( profile_id, start_date, end_date )
+    print_result( result )
+  end
+
+  desc &amp;quot;timeline PROFILE_ID&amp;quot;, &amp;quot;Show a timeline of referers&amp;quot;
+  def timeline( profile_id )
+    client.timeline( profile_id )
+  end
+
+  private
+  def client
+    @client ||= AnalyticsClient.new
+  end
+
+  def start_date
+    return (Time.now - (24*60*60)).strftime( &amp;quot;%Y-%m-%d&amp;quot; ) if options[:yesterday]
+    return (Time.now - (7*24*60*60)).strftime( &amp;quot;%Y-%m-%d&amp;quot; ) if options[:recently]
+    return (Time.now - (30*24*60*60)).strftime( &amp;quot;%Y-%m-%d&amp;quot; ) if options[:month]
+    nil
+  end
+
+  def end_date
+    return (Time.now - (24*60*60)).strftime( &amp;quot;%Y-%m-%d&amp;quot; ) if options[:yesterday]
+    nil
+  end
+
+  def print_result( result )
+    if options[:csv]
+      client.print_csv_result( result )
+    else
+      client.print_query_result( result )
+    end
+  end
+end
+
+if __FILE__ == $0
+  HammerOfTheGods.start(ARGV)
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2&gt;Step 7: Let&amp;#39;s implement&lt;/h2&gt;
+
+&lt;p&gt;We have the &lt;code&gt;profiles&lt;/code&gt; command and the &lt;code&gt;hotcontent&lt;/code&gt; command, or &lt;strong&gt;what content is getting traffic&lt;/strong&gt; working already.  Lets add some code to make the &lt;code&gt;--csv&lt;/code&gt; option work, this goes into the &lt;code&gt;AnalyticsClient&lt;/code&gt; class:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;  def print_csv_result(r)
+    csv_string = CSV.generate do |csv|
+      csv &amp;lt;&amp;lt; r.data.columnHeaders.collect { |x| x.name }
+      r.data.rows.each do |row|
+        csv &amp;lt;&amp;lt; row
+      end
+    end
+
+    puts csv_string
+    csv_string
+  end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;strong&gt;Who is linking to your site&lt;/strong&gt;?
+We can find out by looking at &lt;code&gt;ga:source&lt;/code&gt; which is basically the domain, &lt;code&gt;ga:referralPath&lt;/code&gt; which is the path part of the url if it&amp;#39;s a link referral, and &lt;code&gt;ga:medium&lt;/code&gt; which will tell you if it&amp;#39;s linking from a direct url, social media link, email link, or ad traffic.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;  def referers( profile_id, start_date = nil, end_date = nil )
+    query = query_template( profile_id, start_date, end_date )
+    query[&amp;quot;dimensions&amp;quot;] = &amp;quot;ga:source,ga:referralPath,ga:medium&amp;quot;
+    client.execute(
+      api_method: api.data.ga.get,
+      parameters: query
+      )
+  end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;strong&gt;Who is linking to specific pages on your site&lt;/strong&gt; can be dertimined by adding the &lt;code&gt;ga:landingPagePath&lt;/code&gt; dimension to the above query.  This now breakdown the source of traffic not to the site as a whole, but to a specific landing page.  We&amp;#39;re also changing the &lt;code&gt;sort&lt;/code&gt; query parameter to take this additional dimension into effect.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;  def content_referers( profile_id, start_date = nil, end_date = nil )
+    query = query_template( profile_id, start_date, end_date )
+    query[&amp;quot;dimensions&amp;quot;] = &amp;quot;ga:landingPagePath,ga:source,ga:referralPath,ga:medium&amp;quot;
+    query[&amp;quot;sort&amp;quot;] = &amp;quot;ga:landingPagePath,-ga:pageviews&amp;quot;
+
+    client.execute(
+      api_method: api.data.ga.get,
+      parameters: query
+      )
+  end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;This works, but we can change the way it&amp;#39;s printed out to be visually more useful.  In the &lt;code&gt;HammerOfTheGods&lt;/code&gt; we can flesh it out a bit, so it only prints out your local path once while listing the referals indented so you can scan and see what&amp;#39;s going on grouped by page.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;  desc &amp;quot;content_referers PROFILE_ID&amp;quot;, &amp;quot;Show hot content for profile id&amp;quot;
+  options [:today, :yesterday, :recently, :month, :table, :csv, :full]
+  def content_referers( profile_id )
+    result = client.content_referers( profile_id, start_date, end_date )
+
+    if options[:table] || options[:csv]
+      print_result( result )
+    else
+      last_title = nil
+
+      result.data.rows.each do |row|
+        puts &amp;quot;\n#{row[0]}&amp;quot; if last_title != row[0]
+        last_title = row[0]
+        printf( &amp;quot;     %-5s %-8s %s%s\n&amp;quot;, row[4], row[3], row[1], row[2])
+      end
+    end
+  end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2&gt;Step 8: The timeline&lt;/h2&gt;
+
+&lt;p&gt;&lt;strong&gt;A timeline of when content was published and people started linking to it&lt;/strong&gt; can be created by combinding 2 of the methods that we&amp;#39;ve already written, &lt;code&gt;hotcontent&lt;/code&gt; and &lt;code&gt;referers&lt;/code&gt;, and looping through and querying them one day at a time.&lt;/p&gt;
+
+&lt;p&gt;We start 30 days ago, and get a list of content for that day.  If we haven&amp;#39;t seen it before, we say that it was posted that day.  We then get a list of referrals for that day.  If we haven&amp;#39;t seen them before, we print it out.  I&amp;#39;m also supressing links that have passed in less that 2 visitors, since they tend to be very noisey.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;  def timeline( profile_id )
+    one_month_ago = Time.now - 30 * 24 * 60 * 60
+
+    start_date = one_month_ago
+
+    today = Time.now
+
+    seen = {}
+    title = {}
+    while start_date.to_date &amp;lt;= today.to_date
+      puts
+      puts start_date.to_date
+
+      contents = hotcontent( profile_id, start_date.strftime( &amp;quot;%Y-%m-%d&amp;quot; ), start_date.strftime( &amp;quot;%Y-%m-%d&amp;quot; ) )
+      contents.data.rows.each do |content|
+        unless title[content[0]]
+          puts &amp;quot;  Posted:  #{content[0]}&amp;quot;
+        end
+
+        title[content[0]] = true
+      end
+      puts
+
+      result = referers( profile_id, start_date.strftime( &amp;quot;%Y-%m-%d&amp;quot; ), start_date.strftime( &amp;quot;%Y-%m-%d&amp;quot; ) )
+      result.data.rows.each do |data|
+        url = data[0]
+        url = &amp;quot;http://#{data[0]}#{data[1]}&amp;quot; if data[2] == &amp;#39;referral&amp;#39;
+        printf &amp;quot;  %-10s %5s %s\n&amp;quot;, data[2], data[3],url if !seen[url] &amp;amp;&amp;amp; data[3].to_i &amp;gt; 2
+        seen[url] = true if data[2] == &amp;#39;referral&amp;#39;
+      end
+      start_date = start_date + 24 * 60 * 60
+    end
+  end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2&gt;Code&lt;/h2&gt;
+
+&lt;p&gt;The &lt;a href="https://gist.github.com/wschenk/d7f8650d619d8f68730a"&gt;full code is available to play with&lt;/a&gt;.  The mechanism for talking to Google APIs from a script works everywhere, but if you are going to do this on your server you&amp;#39;ll want to get the OAuth2 key using a different process than the &lt;code&gt;InstalledAppFlow&lt;/code&gt;.&lt;/p&gt;
 </content>
   </entry>
   <entry>
@@ -1154,354 +1574,6 @@ end
 &lt;p&gt;&lt;img alt="Silvrback blog image" src="https://silvrback.s3.amazonaws.com/uploads/f685deb9-2974-425c-bb5b-6d6727b33159/10514107_312439818930875_824765904_n_large.jpg" /&gt;&lt;/p&gt;
 
 &lt;p&gt;End.&lt;/p&gt;
-</content>
-  </entry>
-  <entry>
-    <title>Personal information from only a URL</title>
-    <link rel="alternate" href="http://willschenk.com/personal-information-from-only-a-url/"/>
-    <id>http://willschenk.com/personal-information-from-only-a-url/</id>
-    <published>2014-11-13T19:00:00-05:00</published>
-    <updated>2014-11-13T19:00:00-05:00</updated>
-    <author>
-      <name>Will Schenk</name>
-    </author>
-    <content type="html">&lt;p&gt;Ever wonder what you can find out by looking at a url?  How about physical addresses, server location, emails, phone numbers, various links to other profiles (which can in turn be structurally scraped), technology stack, and more. &lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ socialinvestigator net page http://willschenk.com/bio
-              domain: willschenk.com
-          created_on: 2014-10-31
-          expires_on: 2015-10-31
-          updated_on: 2014-10-31
-      registrar_name: ENOM, INC.
-       registrar_url: www.enom.com
-  registrant_contact: 
-                     name: WILL SCHENK
-             organization: HAPPYFUNCORP
-                  address: 18 BRIDGE STREET, 2E
-                     city: BROOKLYN
-                      zip: 11201
-                    state: NY
-             country_code: US
-                    phone: +91.76976430
-                    email: WSCHENK@GMAIL.COM
-         server_name: ec2-54-225-218-167.compute-1.amazonaws.com
-      server_country: United States
-     server_location: Ashburn, Virginia
-     server_latitude: 39.0437
-    server_longitude: -77.4875
-     server_ip_owner: Amazon Technologies Inc. (AT-88-Z)
-              emails: wschenk@gmail.com, will@happyfuncorp.com
-               title: Will Schenk
-         description: The blog of Will Schenk
-      twitter_author: wschenk
-         twitter_ids: wschenk
-          responsive: true
-            rss_feed: /feed.rss
-           atom_feed: /feed
-       twitter_links: https://twitter.com/wschenk, http://twitter.com/wschenk
-      linkedin_links: http://www.linkedin.com/pub/will-schenk/0/266/420/
-     instagram_links: http://instagram.com/wschenk
-        github_links: https://github.com/wschenk
-        technologies: Chartbeat, Font Awesome, Google Analytics, RackCache, Ruby
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;&lt;em&gt;Standalone code as &lt;a href="https://gist.github.com/wschenk/7d333acb59b7768f2637"&gt;a gist&lt;/a&gt;, the complete socialinvestigator code &lt;a href="https://github.com/sublimeguile/socialinvestigator"&gt;available on github&lt;/a&gt; or and is easily installable on your machine as a gem.&lt;/em&gt;&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ gem install socialinvestigator
-$ socialinvestigator net get_apps_json
-$ socialinvestigator net page_info url
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Poking around different urls can give you a sense of the corporate entities behind sites, who is actually involved, and help you track down people when you can&amp;#39;t find them otherwise.  It&amp;#39;s actually hard to figure out which URL to include on this post since the data seems so personal and yet people put it out there.  This takes the messy HTML that&amp;#39;s out there and returns structured information that you can use to explore profiles on other sites in a way that can be totally automated.&lt;/p&gt;
-
-&lt;h2&gt;What does it do?&lt;/h2&gt;
-
-&lt;p&gt;What this code does is to first search for DNS information to see who owns the domain and if there&amp;#39;s any contact information associated with it.  It then looks at who owns the IP address and tries to locate where it is geographically.&lt;/p&gt;
-
-&lt;p&gt;It then looks at the page itself to see &lt;a href="http://ogp.me"&gt;Open Graph meta data&lt;/a&gt;,&lt;a href="https://dev.twitter.com/cards/overview"&gt;Twitter Card meta data&lt;/a&gt; and other basic SEO tags.&lt;/p&gt;
-
-&lt;p&gt;Finally, it looks inside the page for likely looking links to other social networks, and scans the page and HTTP metadata for clues about what underlying technology the site was built in.  (The metadata for the technology fingerprinting is from the &lt;a href="https://github.com/ElbertF/Wappalyzer"&gt;Wappalyzer project&lt;/a&gt; which I cobbled together a basic ruby engine for.)&lt;/p&gt;
-
-&lt;p&gt;And finally it takes all of the facts that it has collected, figured out which ones take priority, and prints them out.&lt;/p&gt;
-
-&lt;h2&gt;Finding Domain info&lt;/h2&gt;
-
-&lt;p&gt;The first thing that we do is look for the URL and try to find the domain name.  The difference between a hostname and domain name is subtle, partly in some cases they are interchangeable, and partly because DNS is the &lt;a href="http://codex.happyfuncorp.com/slides/93#1"&gt;second most amazing thing about the Internet&lt;/a&gt;.  (The most truly mind-blowing thing clearly &lt;a href="http://en.wikipedia.org/wiki/Default_route"&gt;the default route&lt;/a&gt;, the &lt;em&gt;life, liberty, and pursuit of happiness&lt;/em&gt; of the Internet.)  A globe spanning, highly distributed database that lets 2.5 billion internet users look up any of the 4 billion potential server addresses in less than 50ms without any real centralized control isn&amp;#39;t exactly straightforward.&lt;/p&gt;
-
-&lt;p&gt;DNS manages this complexity by delegating authority for different branches of the entire namespace.  The first level is called the Top Level Domains, most famous being &lt;em&gt;.com&lt;/em&gt;, when you buy a domain name from someone they delegate authority over that name space to you.  These can go deep, especially with large global organizations.  The first thing we do is look for that &lt;strong&gt;Start of Authority&lt;/strong&gt; (SOA) record for machine named in the URL.  If we can&amp;#39;t find one for that machine, we look up the chain until we find something.&lt;/p&gt;
-
-&lt;p&gt;This looks like:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;require &amp;#39;dnsruby&amp;#39;
-
-hostname = URI(url).hostname
-
-def find_domain( hostname )
-  puts &amp;quot;Looking for SOA of #{hostname}&amp;quot;
-  dns = Dnsruby::Resolver.new
-  soa = dns.query( hostname, &amp;quot;SOA&amp;quot; ).answer.select do |rr|
-    rr.is_a? Dnsruby::RR::IN::SOA
-  end
-
-  return hostname if soa.length &amp;gt; 0
-
-  # Go from &amp;quot;news.bbc.co.uk&amp;quot; -&amp;gt; &amp;quot;bbc.co.uk&amp;quot;
-  parts = hostname.split( /\./ )
-  return nil if parts.length &amp;lt;= 2
-
-  find_domain( parts.slice(1,100).join( &amp;quot;.&amp;quot; ) )
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Once we&amp;#39;ve found the domain, we query the &lt;code&gt;whois&lt;/code&gt; databases to find out who has owns the domain name.  &lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;require &amp;#39;whois&amp;#39;
-
-whois = Whois.lookup( domain )
-
-puts &amp;quot;Expires: #{whois.expires_on}&amp;quot;
-# Print all contact information we find
-whois.contacts.each { |c| puts c }
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;One of the challenges here is that there is no standardized format that there is no standardized way of parsing &lt;code&gt;whois&lt;/code&gt; responses.  The &lt;code&gt;whois&lt;/code&gt; gem gives it a serious try:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ ls -l `bundle show whois`/lib/whois/record/parser | wc -l
-     209
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;But there&amp;#39;s over 500 different whois servers out there, so you won&amp;#39;t always get a parseable response.  In that case we print out that we can&amp;#39;t find a parser, and we store the unparsed response in the data object as &lt;code&gt;unparsed_whois&lt;/code&gt;.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;whois.parts.each do |p|
-  # Check for responses that we couldn&amp;#39;t parse
-  if Whois::Record::Parser.parser_for(p).is_a? Whois::Record::Parser::Blank
-    puts &amp;quot;Couldn&amp;#39;t find a parser for #{p.host}:&amp;quot;
-    puts p.body
-  end
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2&gt;Finding IP and hosting information&lt;/h2&gt;
-
-&lt;p&gt;Now we look at the IP address, and then do a reverse lookup on it to see what the server machine name is.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;ip_address = Dnsruby::Resolv.getaddress uri.host
-
-data.remember :ip_address, ip_address
-begin
-  data.remember :server_name, Dnsruby::Resolv.getname( ip_address )
-rescue Dnsruby::NXDomain
-  # Couldn&amp;#39;t do the reverse lookup
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Sometimes interesting things are encoded in the server name, like if it&amp;#39;s a Rackspace cloud server vs a Rackspace static server, but we make no attempt to interpret that string.&lt;/p&gt;
-
-&lt;p&gt;Then we try and see where the IP address is located geographically, using &lt;a href="http://freegeoip.net/"&gt;freegeoip.net&lt;/a&gt;.  If you did a lot of this it would make sense to buy a more detailed database from &lt;a href="https://www.maxmind.com/en/home"&gt;Maxmind&lt;/a&gt; but for something quick and dirty this works.  Given that you need to follow the rules of the company you are in, it&amp;#39;s interesting to see where the servers are located.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;location_info = HTTParty.get(&amp;#39;http://freegeoip.net/json/&amp;#39; + ip_address)
-
-data.remember :server_country, location_info[&amp;#39;country&amp;#39;]
-data.remember :server_location, [location_info[&amp;#39;city&amp;#39;], location_info[&amp;#39;region_name&amp;#39;]].select { |x| x }.join( &amp;quot;, &amp;quot;)
-data.remember :server_latitude, location_info[&amp;#39;latitude&amp;#39;]
-data.remember :server_longitude, location_info[&amp;#39;longitude&amp;#39;]
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;We can also do a &lt;code&gt;whois&lt;/code&gt; lookup on the IP address, to see who owns that IP block.  This should give us an idea of who is hosting the site.  Note that we don&amp;#39;t even pretend to parse the &lt;code&gt;whois&lt;/code&gt; response here in a clever way.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;ip_whois = Whois.lookup ip_address
-
-ip_whois.to_s.each_line.select { |x| x=~/Organization/ }.each do |org|
-  if org =~ /Organization:\s*(.*)\n/
-    data.another :server_ip_owner, $1
-  end
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2&gt;Page meta data&lt;/h2&gt;
-
-&lt;p&gt;Now we load up the page, and look for some basic stuff.  The first thing that we do is load the &lt;a href="http://en.wikipedia.org/wiki/Meta_element"&gt;meta tags&lt;/a&gt; into something more accessible.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;response = HTTParty.get url
-parsed = Nokogiri.parse response.body
-
-# Meta tags
-
-meta = {}
-parsed.css( &amp;quot;meta[name]&amp;quot; ).each do |t|
-  meta[t.attributes[&amp;quot;name&amp;quot;].value] = t.attributes[&amp;quot;content&amp;quot;].value if t.attributes[&amp;quot;content&amp;quot;]
-end
-
-parsed.css( &amp;quot;meta[property]&amp;quot; ).each do |t|
-  meta[t.attributes[&amp;quot;property&amp;quot;].value] = t.attributes[&amp;quot;content&amp;quot;].value
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Now we load up some basic SEO info, including if there are any feeds for this site&amp;#39;s content.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;data.remember( :author, meta[&amp;#39;author&amp;#39;] ) 
-data.remember( :description, meta[&amp;#39;description&amp;#39;] ) 
-data.remember( :keywords, meta[&amp;#39;keywords&amp;#39;] ) 
-data.remember( :generator, meta[&amp;#39;generator&amp;#39;])
-data.remember( :responsive, true )  if meta[&amp;quot;viewport&amp;quot;] =~ /width=device-width/
-data.remember( :server, response.headers[&amp;#39;server&amp;#39;] )
-data.remember( :page_title, parsed.title )
-
-# RSS Feed:
-if feed = parsed.css( &amp;#39;link[type=&amp;quot;application/rss+xml&amp;quot;]&amp;#39; ).first
-  feed = feed.attributes[&amp;#39;href&amp;#39;].value
-  data.remember( :rss_feed, feed )
-end
-
-# Atom Feed:
-if feed = parsed.css( &amp;#39;link[type=&amp;quot;application/atom+xml&amp;quot;]&amp;#39; ).first
-  feed = feed.attributes[&amp;#39;href&amp;#39;].value
-  data.remember( :atom_feed, feed )
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2&gt;Twitter Cards&lt;/h2&gt;
-
-&lt;p&gt;&lt;a href="https://dev.twitter.com/cards/overview"&gt;Twitter Card meta data&lt;/a&gt; is a way to control how your data gets displayed on twitter, which has the benefit of defining some summary meta data around the social graph.  One thing thing to note is that &lt;code&gt;twitter:creator&lt;/code&gt; is the author of this page, while &lt;code&gt;twitter:site&lt;/code&gt; is the twitter account for the overall site.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;data.remember( :twitter_title, meta[&amp;quot;twitter:title&amp;quot;] ) 
-data.remember( :twitter_creator, meta[&amp;quot;twitter:creator&amp;quot;] ) 
-if /@(.*)/.match( meta[&amp;quot;twitter:creator&amp;quot;] )
-  data.another( :twitter_ids, $1 )
-end
-data.remember( :twitter_site_author, meta[&amp;quot;twitter:site&amp;quot;] )
-if /@(.*)/.match( meta[&amp;quot;twitter:site&amp;quot;] )
-  data.another( :twitter_ids, $1 )
-end
-data.remember( :twitter_image, meta[&amp;quot;twitter:image&amp;quot;] ) 
-data.remember( :twitter_description, meta[&amp;quot;twitter:description&amp;quot;] )
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2&gt;Open Graph&lt;/h2&gt;
-
-&lt;p&gt;&lt;a href="http://ogp.me"&gt;Open Graph meta data&lt;/a&gt; is really about what your link looks like when someone shares it on Facebook.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;data.remember( :og_title, meta[&amp;quot;og:title&amp;quot;] ) 
-data.remember( :og_description, meta[&amp;quot;og:description&amp;quot;] )
-data.remember( :og_type, meta[&amp;quot;og:type&amp;quot;] ) 
-data.remember( :og_image, meta[&amp;quot;og:image&amp;quot;] ) 
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2&gt;Social Page Links&lt;/h2&gt;
-
-&lt;p&gt;We search for social links:&lt;/p&gt;
-
-&lt;table&gt;&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;Service&lt;/th&gt;
-&lt;th&gt;Regex&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;Email&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;/mailto:(.*@.*\..*)/&lt;/code&gt;&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;Twitter&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;/twitter.com\/[^\/]*$/&lt;/code&gt;&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;LinkedIn&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;/linkedin.com/&lt;/code&gt;&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;Instagram&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;/instagram.com/&lt;/code&gt;&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;Facebook&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;/facebook.com\/[^\/]*$/&lt;/code&gt;&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;Google+&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;/plus.google.com\/[^\/]*$/&lt;/code&gt;&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;Github&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;/github.com\/[^\/]*$/&lt;/code&gt;&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;&lt;/table&gt;
-
-&lt;p&gt;For Twitter, Facebook, and Google+ we are only letting through links that have a simple query string, since for the most part this means that it&amp;#39;s the user&amp;#39;s ID.&lt;/p&gt;
-
-&lt;h2&gt;Parsing Twitter Shares and Intents&lt;/h2&gt;
-
-&lt;p&gt;We then look for Twitter Share links, and try and parse out the user names found in there.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;# Look for twitter shared links
-
-twitter_shared = matching_links( parsed, /twitter.com\/share/ )
-
-twitter_shared.each do |l|
-  text = l[&amp;#39;data-text&amp;#39;]
-
-  # See if there&amp;#39;s a &amp;quot;by @user&amp;quot; in the text
-  if /by\s*@([^\s]*)/.match text
-    data.another( :twitter_ids, $1 )
-    data.remember( :twitter_by, $1 ) 
-  end
-
-  # Look for all &amp;quot;@usernames&amp;quot; in the text
-  if text
-    text.split.select { |x| x =~ /@\s*/ }.each do |id|
-      data.another( :twitter_ids, id.slice( 1,100 ) ) # We don&amp;#39;t want the @
-    end
-  end
-
-  # See if there&amp;#39;s a via link on the anchor tag
-  if l[&amp;#39;data-via&amp;#39;]
-    data.another( :twitter_ids, l[&amp;#39;data-via&amp;#39;])
-  end
-
-  possible_via = URI.decode( (URI(l[&amp;#39;href&amp;#39;]).query) || &amp;quot;&amp;quot; ).split( /&amp;amp;amp;/ ).collect { |x| x.split( /=/  ) }.select { |x| x[0] == &amp;#39;via&amp;#39; }
-  if possible_via.size &amp;gt; 0
-    data.another( :twitter_ids, possible_via[0][1] )
-  end
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;There are also twitter intent links:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;twitter_intent = hrefs( matching_links( parsed, /twitter.com\/intent/ ) )
-
-twitter_intent.each do |t|
-  URI.decode( URI(t.gsub( / /, &amp;quot;+&amp;quot; )).query ).split( /&amp;amp;/ ).select do |x| 
-    x =~ /via/
-  end.collect do |x| 
-    x.gsub( /via=/, &amp;quot;&amp;quot; )
-  end.each do |via|
-    data.another( :twitter_ids, via )
-  end
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2&gt;Technology Finger Prints&lt;/h2&gt;
-
-&lt;p&gt;The final thing we do is to load the &lt;code&gt;apps.json&lt;/code&gt; file from &lt;a href="https://github.com/ElbertF/Wappalyzer"&gt;Wappalyzer&lt;/a&gt; which is a cross-platform utility that uncovers the technologies used on websites.  This has a list of regex for the header tags, meta tags, scripts and other parts of the html to make guesses about which technology is in place.  What is in place is very rudimentary, but it gives a general sense of what is used to made the site.&lt;/p&gt;
-
-&lt;h2&gt;Installation&lt;/h2&gt;
-
-&lt;p&gt;The standalone code as &lt;a href="https://gist.github.com/wschenk/7d333acb59b7768f2637"&gt;a gist&lt;/a&gt;, and you can check out the complete &lt;a href="https://github.com/sublimeguile/socialinvestigator"&gt;socialinvestigator code on github&lt;/a&gt;.  To run this on your machine:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ gem install socialinvestigator
-$ socialinvestigator net get_apps_json
-$ socialinvestigator net page_info http://willschenk.com/bio
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;It may take a while to get the responses.  If you want to see everything it&amp;#39;s doing, use the &lt;code&gt;--debug&lt;/code&gt; switch&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ socialinvestigator net page_info http://willschenk.com/bio --debug
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;The reverse lookup can take a while, and if you want to turn that off:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ socialinvestigator net page_info http://willschenk.com/bio --noreverse
-&lt;/code&gt;&lt;/pre&gt;
 </content>
   </entry>
 </feed>

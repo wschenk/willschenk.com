@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html class='no-js'>
+  <head>
+    <meta charset='utf-8'>
+    <meta content='IE=edge,chrome=1' http-equiv='X-UA-Compatible'>
+    <title>Pulling data out of Google Analytics | Will Schenk</title>
+    <meta name="site" content="Will Schenk" />
+    <meta name="og:site_name" content="Will Schenk" />
+    <meta name="title" content="Pulling data out of Google Analytics" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Pulling data out of Google Analytics" />
+    <meta name="twitter:creator" content="@wschenk" />
+    <meta name="og:title" content="Pulling data out of Google Analytics" />
+    <!-- - if current_article -->
+    <!-- %title= current_article.title -->
+    <!-- - else -->
+    <!-- %title Will Schenk -->
+    <!-- %meta{ :name => 'description', :content => '' }/ -->
+    <meta content='width=device-width' name='viewport'>
+    <link href="../stylesheets/application-4b15808a.css" rel="stylesheet" type="text/css" /><link href="../stylesheets/socicons-d8ab83dd.css" rel="stylesheet" type="text/css" /><link href="../stylesheets/animate-8335fea6.css" rel="stylesheet" type="text/css" /><link href="../stylesheets/xcode-11a7835a.css" rel="stylesheet" type="text/css" />
+    <link href='//cdnjs.cloudflare.com/ajax/libs/highlight.js/8.3/styles/default.min.css' rel='stylesheet'>
+    <link rel="alternate" type="application/atom+xml" title="Atom Feed" href="/feed.xml" />
+  </head>
+  <body>
+    <div class='banner'>
+      <img class="fadeInDown animated" src="../images/lava-lamp-99840d19.jpg" />
+    </div>
+    <div class='article-header lighter '>
+      <h1>Pulling data out of Google Analytics</h1>
+      <h2>see who's talking about your stuff</h2>
+      <div class='avatar'>
+        <a href='/'>
+          <img class="img-responsive" src="../images/avatar-87e8d0c3.jpg" />
+        </a>
+      </div>
+      <h3><a href="/">Will Schenk</a></h3>
+      <span class='disqus-comment-count' data-disqus-identifier='2014-12-04-pulling-data-out-of-google-analytics.html'></span>
+      <!-- %p.social -->
+      <!-- - (config.social || {}).each do |type,url| -->
+      <!-- %a{ href: url } -->
+      <!-- %span{ class: "socicon socicon-#{type.to_s} fgcolor" } -->
+    </div>
+    <div class='container-fluid content'>
+      <div class='row'>
+        <div class='article'>
+          <p>I like staring at the real time stats of <a href="http://www.google.com/analytics/">Google Analytics</a>.  As a dashboard, it&#39;s not really as amazing as <a href="https://chartbeat.com">Chartbeat</a> is, and it doesn&#39;t let you drill down into the data as much as <a href="https://mixpanel.com">Mixpanel</a>.  But GA is super simple to setup and it&#39;s Google, so everyone uses it.</p>
+          
+          <p>Another obsessive/fun thing to do is to see where that spike in inbound traffic is coming from.  On <a href="http://happyfuncorp.com">HappyFunCorp</a> there are days where we get a sudden influx of <a href="http://happyfuncorp.com/#happy-thoughts">Happy Thoughts</a> which warms our hearts and floods our inboxes.  Where did they come from?  How do we figure it out?</p>
+          
+          <p>Lets look at how we can interact with Google Analytics using <a href="https://github.com/google/google-api-ruby-client">google-api-ruby-client</a>.  At the end of this, we are going to be able to see the current traffic stats, top referrals, see a timeline of when the referals first came in, and do what we can from that information to track down who is talking about us.  GA will show us that we are getting a lot of <code>SOCIAL</code> traffic, but what else can we figure out?</p>
+          
+          <h2>Step 1: OAuth: Setting it up to access Google on behalf of the user</h2>
+          
+          <p>We&#39;re going to be using OAuth2 to authorize our script.  So head over to the <a href="https://console.developers.google.com/project">Google Developers Console</a>.</p>
+          
+          <ol>
+          <li><p><em>Create a Project</em>.  You should name this something that makes sense to you.  I called my <em>Social Investigator</em></p></li>
+          <li><p>Enable the <em>Analytics API</em>.  This can be done on the side bar, under <strong>APIs and auth &gt; Apis</strong>.  Scroll down to find it.</p></li>
+          <li><p><strong>APIs and auth &gt; Consent Screen</strong>.  Create something here, you&#39;ll need to flesh this out later.</p></li>
+          <li><p><strong>APIs and auth &gt; Create Client ID</strong>.  Select <strong>Installed Application</strong> with type <em>Other</em>.  This will create the keys for you, and then you <strong>Download JSON</strong> and save it in a file.</p></li>
+          </ol>
+          
+          <h2>Step 2: <code>Google::APIClient::InstalledAppFlow</code> Getting an access token and an API file</h2>
+          
+          <p>Working with the Google API is pretty confusing at first, since there&#39;s multiple steps that need to happen before you can even figure out how to make a call.  Twitter&#39;s API, which in every other way is a joke compared to Google&#39;s way of doing things, has a <a href="/scripting-twitter">handy way to get a single use access token</a>.  With Google you need to do this yourself.  And once that&#39;s done, you need to load the API meta data from the API API to be able to access it!</p>
+          
+          <p>We&#39;re going to be using a few gems to put in your <code>Gemfile</code> specifically:</p>
+          
+          <pre><code class="rb">source &#39;https://rubygems.org&#39;&#x000A;&#x000A;gem &#39;google-api-client&#39;&#x000A;gem &#39;thor&#39;&#x000A;gem &#39;hirb&#39;&#x000A;</code></pre>
+          
+          <p>Now we can use the <code>Google::APIClient::InstalledAppFlow</code> class to open up a web browser, have the user log in as needed to their Google Accounts, and grant access to the API.  The code below shows the basics of this.  We assume that the file you downloaded in step 1 is called <code>client_secrets.json</code> and in the same directory, and we are writing out the granted credentials into the <code>analytics-oauth2.json</code> file.</p>
+          
+          <pre><code class="rb">#!/usr/bin/env ruby -KU&#x000A;#&#x000A;# This code has been adapted from&#x000A;# https://github.com/google/google-api-ruby-client-samples/tree/master/drive&#x000A;#&#x000A;&#x000A;require &#39;thor&#39;&#x000A;require &#39;hirb&#39;&#x000A;require &#39;google/api_client&#39;&#x000A;require &#39;google/api_client/client_secrets&#39;&#x000A;require &#39;google/api_client/auth/file_storage&#39;&#x000A;require &#39;google/api_client/auth/installed_app&#39;&#x000A;require &#39;logger&#39;&#x000A;require &#39;csv&#39;&#x000A;&#x000A;API_VERSION = &#39;v3&#39;&#x000A;CACHED_API_FILE = &quot;analytics-#{API_VERSION}.cache&quot;&#x000A;CREDENTIAL_STORE_FILE = &quot;analytics-oauth2.json&quot;&#x000A;CLIENT_SECRETS_FILE = &quot;client_secrets.json&quot;&#x000A;&#x000A;class AnalyticsClient&#x000A;  def initialize( file_caches = nil )&#x000A;    client&#x000A;  end&#x000A;&#x000A;  def client&#x000A;    return @client if @client&#x000A;&#x000A;    @client = Google::APIClient.new(:application_name =&gt; &#39;Analyics-CLI&#39;,&#x000A;        :application_version =&gt; &#39;1.0.0&#39;)&#x000A;&#x000A;    # FileStorage stores auth credentials in a file, so they survive multiple runs&#x000A;    # of the application. This avoids prompting the user for authorization every&#x000A;    # time the access token expires, by remembering the refresh token.&#x000A;    # Note: FileStorage is not suitable for multi-user applications.&#x000A;    file_storage = Google::APIClient::FileStorage.new(CREDENTIAL_STORE_FILE)&#x000A;    if file_storage.authorization.nil?&#x000A;      client_secrets = Google::APIClient::ClientSecrets.load(CLIENT_SECRETS_FILE)&#x000A;      # The InstalledAppFlow is a helper class to handle the OAuth 2.0 installed&#x000A;      # application flow, which ties in with FileStorage to store credentials&#x000A;      # between runs.&#x000A;      flow = Google::APIClient::InstalledAppFlow.new(&#x000A;        :client_id =&gt; client_secrets.client_id,&#x000A;        :client_secret =&gt; client_secrets.client_secret,&#x000A;        :scope =&gt; [&#39;https://www.googleapis.com/auth/analytics&#39;]&#x000A;      )&#x000A;      @client.authorization = flow.authorize(file_storage)&#x000A;    else&#x000A;      @client.authorization = file_storage.authorization&#x000A;    end&#x000A;&#x000A;    @client&#x000A;  end&#x000A;end&#x000A;&#x000A;if __FILE__ == $0&#x000A;  AnalyticsClient.new.client&#x000A;end&#x000A;</code></pre>
+          
+          <p>When we run this the first time, you should be prompted to grant access to your application.  The second time it should run and exit cleanly -- it has access, but we haven&#39;t asked to do anything yet.</p>
+          
+          <h2>Step 3: Discover the API</h2>
+          
+          <p>Google takes their software development seriously, and it shows.  Not only are there many different APIs available to use, but they all have different versions.  These endpoints are all different, and rather than have them all hard coded into the client access library, you use the <em>discover api</em> to pull in metadata associated with it.  The following code will load up this data and cache it to the filesystem so the next access will be faster.</p>
+          
+          <pre><code class="rb">  def api&#x000A;    return @api if @api&#x000A;&#x000A;    # Load cached discovered API, if it exists. This prevents retrieving the&#x000A;    # discovery document on every run, saving a round-trip to API servers.&#x000A;    if File.exists? CACHED_API_FILE&#x000A;      File.open(CACHED_API_FILE) do |file|&#x000A;        @api = Marshal.load(file)&#x000A;      end&#x000A;    else&#x000A;      @api = client.discovered_api(&#39;analytics&#39;, API_VERSION)&#x000A;      File.open(CACHED_API_FILE, &#39;w&#39;) do |file|&#x000A;        Marshal.dump(@api, file)&#x000A;      end&#x000A;    end&#x000A;&#x000A;    @api&#x000A;  end&#x000A;</code></pre>
+          
+          <h2>Step 4: Finding a web profile</h2>
+          
+          <p>In order to pull data from an analytics account, you need to query the management API to get a list of profiles that you user has access to.  We&#39;re going to collapse the differences between accounts and properties, and print them all out in a list directly.  The key variable we are looking for is going to be the profile <em>id</em>.  This is different from the <em>web property id</em>, which is what you use in Javascript to add the tracking code (.e.g <code>UA-56296045-1</code>).  We&#39;ll also show the <em>websiteUrl</em> associated with the account since that&#39;s what people really know.</p>
+          
+          <pre><code class="rb">  def profiles&#x000A;    client.execute(&#x000A;      api_method: api.management.profiles.list,&#x000A;      parameters: { accountId: &quot;~all&quot;, webPropertyId: &quot;~all&quot; } )&#x000A;  end&#x000A;&#x000A;  def print_profiles&#x000A;    profiles.data.items.each do |profile|&#x000A;      printf &quot;%-15d %-15s %s\n&quot;, profile.id, profile.webPropertyId, profile.websiteUrl&#x000A;    end&#x000A;  end&#x000A;end&#x000A;&#x000A;if __FILE__ == $0&#x000A;  AnalyticsClient.new.print_profiles&#x000A;end&#x000A;</code></pre>
+          
+          <h2>Step 5: Querying with <code>ga.get</code></h2>
+          
+          <p>The main end point we are looking at is <code>ga.get</code>.  There&#39;s an <a href="https://ga-dev-tools.appspot.com/explorer/">interactive developer tool</a> that will let you experiment with what is available and how it works.   If you load up that tool now, you&#39;ll see what we&#39;ve written code that will let us find the property id for our query, so we are now ready to start querying.</p>
+          
+          <p>The <em>Query Explorer</em> is really useful because of the dropdowns around <em>dimensions</em> and <em>metrics</em>.  When you hover over any of the fields, documentation comes up which will explain what each of the fields mean.</p>
+          
+          <p><em>Dimensions</em> are different ways of slicing up the data.  These include things like <em>page title</em>, <em>referer</em>, <em>adwords</em>, and other ways of slicing up the people that came to your site.  <em>Metrics</em> are the actual data for these buckets of users, and include things like <em>sessions</em>, <em>user counts</em>, <em>page views</em> and <em>average session duration</em>.</p>
+          
+          <p>In order to make the query we first need to setup the query parameters.  We&#39;ve split that off into its own method called <code>query_template</code>.  The required fields are <em>profile id</em>, <em>start date</em>, and <em>end date</em>.  We&#39;re going to setup some defaults here which we will override in other methods when we use it.</p>
+          
+          <pre><code class="rb">  def query_template( profile_id, start_date = nil, end_date = nil )&#x000A;    today = Time.now.strftime( &quot;%Y-%m-%d&quot; )&#x000A;    {&#x000A;      &quot;ids&quot; =&gt; &quot;ga:#{profile_id}&quot;,&#x000A;      &quot;start-date&quot; =&gt; start_date || today,&#x000A;      &quot;end-date&quot; =&gt; end_date || today,&#x000A;      &quot;sort&quot; =&gt; &quot;-ga:pageviews&quot;,&#x000A;      &quot;dimensions&quot; =&gt; &quot;ga:pageTitle&quot;,&#x000A;      &quot;metrics&quot; =&gt; &quot;ga:pageviews,ga:newUsers,ga:users&quot;&#x000A;    }&#x000A;  end&#x000A;</code></pre>
+          
+          <p>Our default here is that we&#39;re slicing on <code>pageTitle</code>, showing <code>pageviews</code>, <code>newUsers</code>, and <code>users</code> (which include returning users).</p>
+          
+          <p>Let&#39;s do an actual query with the parameters:</p>
+          
+          <pre><code class="rb">  def hotcontent( profile_id, start_date = nil, end_date = nil )&#x000A;    query = query_template( profile_id, start_date, end_date )&#x000A;    client.execute(&#x000A;      api_method: api.data.ga.get,&#x000A;      parameters: query&#x000A;      )&#x000A;  end&#x000A;</code></pre>
+          
+          <p>Now we need a way to print the result.  The result that we get back has two different things, <code>columnHeaders</code> which is a reflection of the <code>query</code> that we passed in, and the data itself is an array of arrays in <code>row</code>.  We&#39;re using <code>Hirb</code> helper method here to format the result.</p>
+          
+          <pre><code class="rb">  def print_query_result( r )&#x000A;    headers = r.data.columnHeaders.collect { |x| x.name }&#x000A;    puts Hirb::Helpers::AutoTable.render(r.data.rows, headers: headers )&#x000A;  end&#x000A;</code></pre>
+          
+          <p>Let&#39;s give it a try:</p>
+          
+          <pre><code class="rb">if __FILE__ == $0&#x000A;  client = AnalyticsClient.new&#x000A;  results = client.hotcontent ARGV[0]&#x000A;  client.print_query_result results&#x000A;end&#x000A;</code></pre>
+          
+          <p>Make sure you&#39;ve made note of your profile id above, and we can see what it looks like now:</p>
+          
+          <pre><code class="sh">$ ruby ga.rb 93249816&#x000A;+--------------------------------------------------+--------------+-------------+----------+&#x000A;| ga:pageTitle                                     | ga:pageviews | ga:newUsers | ga:users |&#x000A;+--------------------------------------------------+--------------+-------------+----------+&#x000A;| Building Sites with Middleman | Will Schenk      | 26           | 11          | 24       |&#x000A;| Bootstrap: Advanced Grid Tricks | Will Schenk    | 11           | 7           | 11       |&#x000A;| Making a command line utility with gems and thor | 9            | 2           | 6        |&#x000A;| Will Schenk | Will Schenk                        | 9            | 2           | 5        |&#x000A;| Making Yosemite Faster | Will Schenk             | 8            | 7           | 8        |&#x000A;| How to track your coworkers | Will Schenk        | 6            | 1           | 6        |&#x000A;| Will Schenk - How to track your coworkers        | 3            | 0           | 1        |&#x000A;+--------------------------------------------------+--------------+-------------+----------+&#x000A;7 rows in set&#x000A;</code></pre>
+          
+          <h2>Step 6: Adding more commands</h2>
+          
+          <p>Lets create a <code>Thor</code> class here for the things that we want to query, and then go through a implement the calls in the <code>AnalyticsClient</code> class.</p>
+          
+          <p>We want to be able to specify the timeframe for when we want the results.  It defaults to the current date, but lets add some more options for <strong>today</strong>, <strong>yesterday</strong>, <strong>recently</strong> (last 7 days), and <strong>month</strong> (last 30 days, which isn&#39;t really a month but close enough.)</p>
+          
+          <p>We also want to have different output options, so we&#39;ll add a <strong>table</strong> switch, like the <code>Hirb</code> output above, and <strong>csv</strong> to make it easier to plug this into other tools.</p>
+          
+          <p>We&#39;re going to create 4 different ways to query the data.</p>
+          
+          <ul>
+          <li>What content is getting traffic</li>
+          <li>Who is linking to your site</li>
+          <li>Who is linking to specific pages on your site</li>
+          <li>A timeline of when content was published and people started linking to it</li>
+          </ul>
+          
+          <pre><code>Commands:&#x000A;  ga.rb profiles                     # List Account Profiles&#x000A;  ga.rb hotcontent PROFILE_ID        # Show hot content for profile id&#x000A;  ga.rb referers PROFILE_ID          # Show hot content for profile id&#x000A;  ga.rb content_referers PROFILE_ID  # Show hot content for profile id&#x000A;  ga.rb timeline PROFILE_ID          # Show a timeline of referers&#x000A;</code></pre>
+          
+          <p>Here&#39;s the CLI code:</p>
+          
+          <pre><code class="rb">class HammerOfTheGods &lt; Thor&#x000A;  desc &quot;profiles&quot;, &quot;List Account Profiles&quot;&#x000A;  def profiles&#x000A;    client.print_profiles&#x000A;  end&#x000A;&#x000A;  desc &quot;hotcontent PROFILE_ID&quot;, &quot;Show hot content for profile id&quot;&#x000A;  options [:today, :yesterday, :recently, :month, :table, :csv]&#x000A;  def hotcontent( profile_id )&#x000A;    result = client.hotcontent( profile_id, start_date, end_date )&#x000A;    print_result result&#x000A;  end&#x000A;&#x000A;  desc &quot;referers PROFILE_ID&quot;, &quot;Show hot content for profile id&quot;&#x000A;  options [:today, :yesterday, :recently, :month, :table, :csv]&#x000A;  def referers( profile_id )&#x000A;    result = client.referers( profile_id, start_date, end_date )&#x000A;    print_result( result )&#x000A;  end&#x000A;&#x000A;  desc &quot;content_referers PROFILE_ID&quot;, &quot;Show hot content for profile id&quot;&#x000A;  options [:today, :yesterday, :recently, :month, :table, :csv]&#x000A;  def content_referers( profile_id )&#x000A;    result = client.content_referers( profile_id, start_date, end_date )&#x000A;    print_result( result )&#x000A;  end&#x000A;&#x000A;  desc &quot;timeline PROFILE_ID&quot;, &quot;Show a timeline of referers&quot;&#x000A;  def timeline( profile_id )&#x000A;    client.timeline( profile_id )&#x000A;  end&#x000A;&#x000A;  private&#x000A;  def client&#x000A;    @client ||= AnalyticsClient.new&#x000A;  end&#x000A;&#x000A;  def start_date&#x000A;    return (Time.now - (24*60*60)).strftime( &quot;%Y-%m-%d&quot; ) if options[:yesterday]&#x000A;    return (Time.now - (7*24*60*60)).strftime( &quot;%Y-%m-%d&quot; ) if options[:recently]&#x000A;    return (Time.now - (30*24*60*60)).strftime( &quot;%Y-%m-%d&quot; ) if options[:month]&#x000A;    nil&#x000A;  end&#x000A;&#x000A;  def end_date&#x000A;    return (Time.now - (24*60*60)).strftime( &quot;%Y-%m-%d&quot; ) if options[:yesterday]&#x000A;    nil&#x000A;  end&#x000A;&#x000A;  def print_result( result )&#x000A;    if options[:csv]&#x000A;      client.print_csv_result( result )&#x000A;    else&#x000A;      client.print_query_result( result )&#x000A;    end&#x000A;  end&#x000A;end&#x000A;&#x000A;if __FILE__ == $0&#x000A;  HammerOfTheGods.start(ARGV)&#x000A;end&#x000A;</code></pre>
+          
+          <h2>Step 7: Let&#39;s implement</h2>
+          
+          <p>We have the <code>profiles</code> command and the <code>hotcontent</code> command, or <strong>what content is getting traffic</strong> working already.  Lets add some code to make the <code>--csv</code> option work, this goes into the <code>AnalyticsClient</code> class:</p>
+          
+          <pre><code class="rb">  def print_csv_result(r)&#x000A;    csv_string = CSV.generate do |csv|&#x000A;      csv &lt;&lt; r.data.columnHeaders.collect { |x| x.name }&#x000A;      r.data.rows.each do |row|&#x000A;        csv &lt;&lt; row&#x000A;      end&#x000A;    end&#x000A;&#x000A;    puts csv_string&#x000A;    csv_string&#x000A;  end&#x000A;</code></pre>
+          
+          <p><strong>Who is linking to your site</strong>?
+          We can find out by looking at <code>ga:source</code> which is basically the domain, <code>ga:referralPath</code> which is the path part of the url if it&#39;s a link referral, and <code>ga:medium</code> which will tell you if it&#39;s linking from a direct url, social media link, email link, or ad traffic.</p>
+          
+          <pre><code class="rb">  def referers( profile_id, start_date = nil, end_date = nil )&#x000A;    query = query_template( profile_id, start_date, end_date )&#x000A;    query[&quot;dimensions&quot;] = &quot;ga:source,ga:referralPath,ga:medium&quot;&#x000A;    client.execute(&#x000A;      api_method: api.data.ga.get,&#x000A;      parameters: query&#x000A;      )&#x000A;  end&#x000A;</code></pre>
+          
+          <p><strong>Who is linking to specific pages on your site</strong> can be dertimined by adding the <code>ga:landingPagePath</code> dimension to the above query.  This now breakdown the source of traffic not to the site as a whole, but to a specific landing page.  We&#39;re also changing the <code>sort</code> query parameter to take this additional dimension into effect.</p>
+          
+          <pre><code class="rb">  def content_referers( profile_id, start_date = nil, end_date = nil )&#x000A;    query = query_template( profile_id, start_date, end_date )&#x000A;    query[&quot;dimensions&quot;] = &quot;ga:landingPagePath,ga:source,ga:referralPath,ga:medium&quot;&#x000A;    query[&quot;sort&quot;] = &quot;ga:landingPagePath,-ga:pageviews&quot;&#x000A;&#x000A;    client.execute(&#x000A;      api_method: api.data.ga.get,&#x000A;      parameters: query&#x000A;      )&#x000A;  end&#x000A;</code></pre>
+          
+          <p>This works, but we can change the way it&#39;s printed out to be visually more useful.  In the <code>HammerOfTheGods</code> we can flesh it out a bit, so it only prints out your local path once while listing the referals indented so you can scan and see what&#39;s going on grouped by page.</p>
+          
+          <pre><code class="rb">  desc &quot;content_referers PROFILE_ID&quot;, &quot;Show hot content for profile id&quot;&#x000A;  options [:today, :yesterday, :recently, :month, :table, :csv, :full]&#x000A;  def content_referers( profile_id )&#x000A;    result = client.content_referers( profile_id, start_date, end_date )&#x000A;&#x000A;    if options[:table] || options[:csv]&#x000A;      print_result( result )&#x000A;    else&#x000A;      last_title = nil&#x000A;&#x000A;      result.data.rows.each do |row|&#x000A;        puts &quot;\n#{row[0]}&quot; if last_title != row[0]&#x000A;        last_title = row[0]&#x000A;        printf( &quot;     %-5s %-8s %s%s\n&quot;, row[4], row[3], row[1], row[2])&#x000A;      end&#x000A;    end&#x000A;  end&#x000A;</code></pre>
+          
+          <h2>Step 8: The timeline</h2>
+          
+          <p><strong>A timeline of when content was published and people started linking to it</strong> can be created by combinding 2 of the methods that we&#39;ve already written, <code>hotcontent</code> and <code>referers</code>, and looping through and querying them one day at a time.</p>
+          
+          <p>We start 30 days ago, and get a list of content for that day.  If we haven&#39;t seen it before, we say that it was posted that day.  We then get a list of referrals for that day.  If we haven&#39;t seen them before, we print it out.  I&#39;m also supressing links that have passed in less that 2 visitors, since they tend to be very noisey.</p>
+          
+          <pre><code class="rb">  def timeline( profile_id )&#x000A;    one_month_ago = Time.now - 30 * 24 * 60 * 60&#x000A;&#x000A;    start_date = one_month_ago&#x000A;&#x000A;    today = Time.now&#x000A;&#x000A;    seen = {}&#x000A;    title = {}&#x000A;    while start_date.to_date &lt;= today.to_date&#x000A;      puts&#x000A;      puts start_date.to_date&#x000A;&#x000A;      contents = hotcontent( profile_id, start_date.strftime( &quot;%Y-%m-%d&quot; ), start_date.strftime( &quot;%Y-%m-%d&quot; ) )&#x000A;      contents.data.rows.each do |content|&#x000A;        unless title[content[0]]&#x000A;          puts &quot;  Posted:  #{content[0]}&quot;&#x000A;        end&#x000A;&#x000A;        title[content[0]] = true&#x000A;      end&#x000A;      puts&#x000A;&#x000A;      result = referers( profile_id, start_date.strftime( &quot;%Y-%m-%d&quot; ), start_date.strftime( &quot;%Y-%m-%d&quot; ) )&#x000A;      result.data.rows.each do |data|&#x000A;        url = data[0]&#x000A;        url = &quot;http://#{data[0]}#{data[1]}&quot; if data[2] == &#39;referral&#39;&#x000A;        printf &quot;  %-10s %5s %s\n&quot;, data[2], data[3],url if !seen[url] &amp;&amp; data[3].to_i &gt; 2&#x000A;        seen[url] = true if data[2] == &#39;referral&#39;&#x000A;      end&#x000A;      start_date = start_date + 24 * 60 * 60&#x000A;    end&#x000A;  end&#x000A;</code></pre>
+          
+          <h2>Code</h2>
+          
+          <p>The <a href="https://gist.github.com/wschenk/d7f8650d619d8f68730a">full code is available to play with</a>.  The mechanism for talking to Google APIs from a script works everywhere, but if you are going to do this on your server you&#39;ll want to get the OAuth2 key using a different process than the <code>InstalledAppFlow</code>.</p>
+        </div>
+      </div>
+      <div class="row article_footer">
+        <div class="comments">
+          December  4, 2014
+          <a href="#" id="comment_shower">
+            <span class="socicon socicon-disqus fgcolor"></span>
+            <span class="disqus-comment-count" data-disqus-identifier="2014-12-04-pulling-data-out-of-google-analytics.html">Be the first to comment.</span>
+          </a>
+        </div>
+        <div class="sharing">
+          <a href="http://www.twitter.com/share?url=http://willschenk.com//pulling-data-out-of-google-analytics/&amp;text=Pulling data out of Google Analytics by @wschenk" title="Share this post on Twitter" data-lang="en" onclick="return !window.open(this.href, 'Twitter', 'width=640,height=300')"><span class="socicon socicon-twitter fgcolor"></span></a>
+      
+          <a target="_blank" onclick="return !window.open(this.href, 'Facebook', 'width=640,height=300')" href="http://www.facebook.com/sharer/sharer.php?u=http://willschenk.com//pulling-data-out-of-google-analytics/" title="Share this post on Facebook"><span class="socicon socicon-facebook fgcolor"></span></a>
+      
+          <a href="http://plus.google.com/share?url=http://willschenk.com//pulling-data-out-of-google-analytics/" target="_blank" onclick="return !window.open(this.href, 'Google +', 'width=640,height=300')" title="Share this post on Google +"><span class="socicon socicon-google fgcolor"></span></a>
+        </div>
+      </div>
+      <div class="row comment_universe">
+        <div id="disqus_thread" class="col-sm-10 col-sm-offset-1"></div>
+      </div>
+      
+      
+        <div class="row navigation">
+          <div class="before">
+              <h3>Earlier posts</h3>
+                <p>Chronological, Ruby: <a href="/new-happyseed-released/">New HappySeed released</a></p>
+                <p>Socialinvestigator: <a href="/scripting-twitter/">Scripting Twitter: Collecting Data and Writing Bots</a></p>
+                <p>Howto: <a href="/building-sites-with-middleman/">Building Sites with Middleman</a></p>
+          </div>
+      
+          <div class="after">
+              <h3>Later posts</h3>
+                <p>Chronological, Howto, Ruby: <a href="/dateslice-writing-rails-extensions/">Dateslice: Writing rails extensions</a></p>
+          </div>
+        </div>
+    </div>
+    <footer class='footer lighter '>
+      <ul class='nav nav-pills header_links'>
+        <li><a href="/">Articles</a></li>
+        <!-- %li= link_to "About", "/about.html" -->
+        <li><a href="/tags/overview/">Compleat</a></li>
+        <li><a href="/tags/howto/">Howto</a></li>
+        <li><a href="/tags/socialinvestigator/">Socialinvestigator</a></li>
+        <li><a href="http://happyfuncorp.com">HappyFunCorp</a></li>
+        <li><a href="/feed.xml">RSS</a></li>
+      </ul>
+      <p>
+        You can also find me on
+        <a href='http://twitter.com/wschenk'>
+          Twitter,
+        </a>
+        <a href='http://sublimeguile.com/'>
+          Tumblr,
+        </a>
+        <a href='http://instagram.com/wschenk'>
+          Instagram,
+        </a>
+        <a href='http://www.linkedin.com/pub/will-schenk/0/266/420/'>
+          Linkedin,
+        </a>
+        <a href='https://github.com/wschenk'>
+          Github,
+        </a>
+        or on
+        <a href='mailto: will@happyfuncorp.com'>Email.</a>
+      </p>
+      <p class='social'>
+        <a href='http://twitter.com/wschenk'>
+          <span class='socicon socicon-twitter bgcolor'></span>
+        </a>
+        <a href='http://sublimeguile.com/'>
+          <span class='socicon socicon-tumblr bgcolor'></span>
+        </a>
+        <a href='http://instagram.com/wschenk'>
+          <span class='socicon socicon-instagram bgcolor'></span>
+        </a>
+        <a href='http://www.linkedin.com/pub/will-schenk/0/266/420/'>
+          <span class='socicon socicon-linkedin bgcolor'></span>
+        </a>
+        <a href='https://github.com/wschenk'>
+          <span class='socicon socicon-github bgcolor'></span>
+        </a>
+      </p>
+    </footer>
+    <script src="../javascripts/application-f8812046.js" type="text/javascript"></script> <!-- #, 'mermaid.full.min' %> -->
+    <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/8.3/highlight.min.js"></script>
+    <script type="text/javascript">
+      hljs.initHighlightingOnLoad();
+    
+      $(".article img").addClass( "img-responsive");
+    
+      $("iframe").map( function(e) {
+        $(this).css( "max-width", $(this).width() );
+        $(this).width( "100%" );
+    
+      });
+    
+      var _gaq=[['_setAccount','UA-56296045-1'],['_trackPageview']];
+      (function(d,t){var g=d.createElement(t),s=d.getElementsByTagName(t)[0];
+      g.src=('https:'==location.protocol?'//ssl':'//www')+'.google-analytics.com/ga.js';
+      s.parentNode.insertBefore(g,s)}(document,'script'));
+    
+      var disqus_shortname = 'willschenk';
+        var disqus_identifier = '2014-12-04-pulling-data-out-of-google-analytics.html';
+            
+      (function() {
+          var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+          dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+          (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+      })();
+    
+      (function () {
+    var s = document.createElement('script'); s.async = true;
+    s.type = 'text/javascript';
+    s.src = 'http://' + disqus_shortname + '.disqus.com/count.js';
+    (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+    }());
+    </script>
+  </body>
+</html>
