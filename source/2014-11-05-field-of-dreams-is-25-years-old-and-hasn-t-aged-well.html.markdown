@@ -2,7 +2,7 @@
 title: Field of Dreams is 25 years old and hasn't aged well
 subtitle: if you build it, will anyone really come?
 date: 2014-11-05 00:00 UTC
-tags: product, startup myths
+tags: product, startupmyths
 header_image: fods.jpg
 ---
 
