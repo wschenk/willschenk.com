@@ -2,7 +2,7 @@
 title: New HappySeed released
 subtitle: new with even more awesome
 date: 2014-11-28 19:05 UTC
-tags: happy_seed, ruby
+tags: happy_seed, ruby, tools
 header_image: seeds.jpg
 ---
 
