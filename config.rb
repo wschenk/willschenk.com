@@ -6,7 +6,7 @@ set :js_dir, 'javascripts'
 set :images_dir, 'images'
 
 # Better markdown support
-set :markdown, :tables => true, :autolink => true, :gh_blockcode => true, :fenced_code_blocks => true
+set :markdown, :tables => true, :autolink => true, :gh_blockcode => true, :fenced_code_blocks => true, with_toc_data: true
 set :markdown_engine, :redcarpet
 
 activate :autometatags
@@ -82,4 +82,16 @@ end
 activate :deploy do |deploy|
   deploy.method = :git
   deploy.build_before = true
+end
+
+helpers do
+  def chapters( post )
+    File.readlines( post.source_file ).collect do |x|
+      if x =~ /^##\s(.*)/
+        $1
+      else
+        nil
+      end
+    end.select { |x| x }
+  end
 end

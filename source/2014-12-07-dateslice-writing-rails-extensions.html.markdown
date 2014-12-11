@@ -239,6 +239,6 @@ ActiveRecord::Migration.create_table :users, :force => true
 
 And then in the regular `before` callback we make sure that the tables are cleared our ready for the next test.
 
-## That's just a bit of ActiveRecord 
+## Just a bit of ActiveRecord 
 
 We've just gone through an ActiveRecord extention and that barely scratches the surface of what else you can do with Rails.  [Crafting Rails 4 Applications](https://pragprog.com/book/jvrails2/crafting-rails-4-applications) is the best resource I've found to get a sense of what is possible, but when I sat down to work on something there was a lot of trial and error.  They through how they created [mail_form](https://github.com/plataformatec/mail_form), or at least a simplified version of it, that lets you use rails validations from ActiveRecord without having to back up the model with a database.  (As you might infer from the name, something that is useful for Contact forms that send out email.)  The book also goes through how Rails Engines work, which are very much like rails plugins but with additional integration points into the rails application lifecycle.
