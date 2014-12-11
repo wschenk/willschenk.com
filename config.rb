@@ -11,6 +11,9 @@ set :markdown_engine, :redcarpet
 
 activate :autometatags
 
+sprockets.append_path File.join root, 'webicons'
+# sprockets.import_asset 'bower_components/modernizr'
+
 # Turn this on if you want to make your url's prettier, without the .html
 # activate :directory_indexes
 
