@@ -13,11 +13,15 @@ I also upgraded to [Airmail 2](http://airmailapp.com).  I get a ton of email and
 
 The only evidence I could find was that the `WindowServer` process was taking up more CPU as time went on.  WindowServer is the part of OSX that is responsible for drawing the display.   There seems to be something wrong with it in the current build, and there's something about Airmail's awesomeness that is [exacerbating the problem](https://airmail.tenderapp.com/help/discussions/airmail-beta-259/46-windowserver-40-cpu-os-x-yosemite-becomes-sluggish).
 
+## Reduce Transparency
+
 There are two things to do to fix this.  First go to _System Preferences > Accessibility_ and select _Reduce Transparency_:
 
 ![Silvrback blog image](https://silvrback.s3.amazonaws.com/uploads/5da49df8-e23d-4236-9890-67bd040eb19e/Accessibility_large.jpg)
 
 Transparency is most noticeable in the menu bar and window titles.  It's a nice effect, but this option will go away.  This matter less than you think, because instead of staring at the pretty pictures while you are waiting switching between windows, you'll just be _doing what you intended to do._
+
+## Displays have separate spaces
 
 Then go to _System Preferences > Mission Control_ and turn off _Displays have separate Spaces_:
 

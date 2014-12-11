@@ -11,6 +11,9 @@ set :markdown_engine, :redcarpet
 
 activate :autometatags
 
+sprockets.append_path File.join root, 'webicons'
+# sprockets.import_asset 'bower_components/modernizr'
+
 # Turn this on if you want to make your url's prettier, without the .html
 # activate :directory_indexes
 
@@ -93,5 +96,36 @@ helpers do
         nil
       end
     end.select { |x| x }
+  end
+
+
+  def tag_nav
+    prev_post = {}
+    next_post = {}
+
+    article_list = blog.articles
+    me = article_list.index current_article
+    if me
+      next_post[:chronological] = article_list[me-1] if me != 0
+      prev_post[:chronological] = article_list[me+1] if me+1 != article_list.length
+      current_article.tags.each do |t| 
+        article_list = blog.tags[t]
+        me = article_list.index current_article
+        next_post[t] = article_list[me-1] if me != 0
+        prev_post[t] = article_list[me+1] if me+1 != article_list.length
+      end
+      prev_spots = {}
+      next_spots = {}
+      prev_post.each do |k,v|
+        prev_spots[v] ||= []
+        prev_spots[v] << k.capitalize
+      end
+      next_post.each do |k,v|
+        next_spots[v] ||= []
+        next_spots[v] << k.capitalize
+      end
+
+      { prev: prev_spots, next: next_spots }
+    end
   end
 end

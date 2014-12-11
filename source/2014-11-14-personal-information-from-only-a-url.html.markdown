@@ -57,7 +57,7 @@ $ socialinvestigator net page_info url
 
 Poking around different urls can give you a sense of the corporate entities behind sites, who is actually involved, and help you track down people when you can't find them otherwise.  It's actually hard to figure out which URL to include on this post since the data seems so personal and yet people put it out there.  This takes the messy HTML that's out there and returns structured information that you can use to explore profiles on other sites in a way that can be totally automated.
 
-## What does it do?
+## What does it do
 
 What this code does is to first search for DNS information to see who owns the domain and if there's any contact information associated with it.  It then looks at who owns the IP address and tries to locate where it is geographically.
 

@@ -8,10 +8,16 @@ $( function() {
     return false;
   } );
 
+  $("#comment_shower_scroll").click( function(e) {
+    $(".comment_universe").slideToggle();
+  } );
+
   if( $(".sidebar").size > 0 ) {
     $(".sidebar ul").attr( "data-offset-top", $(".sidebar").offset().top );
   }
 
+  $("img[alt=\"left_float\"]").addClass( "left_float" );
+  
   $.fn.originalTrigger = $.fn.trigger;
   $.fn.trigger = function(type, data) {
     console.log(typeof(type)=='string' ? type : type.type, data);

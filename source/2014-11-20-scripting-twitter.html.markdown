@@ -126,7 +126,7 @@ _For those keeping score at home, that's 209 tweets a year._
 
 We create a `Twitter::REST::Client`, passing in the variables that we got when we created the twitter app.  Eventually we'll out grow hardcoding them into the script, but for now replace the dummy values I have above with what you have and try it with some screen names.
 
-## Longing for `http://t.co/OA0tQaQiAX`
+## Longing for OA0tQaQiAX
 
 If there's one word that describes URL shorteners, that word is _rude_.  This magical place where anyone can setup shop and link directly to other people now is now infested with middle men, who may indeed be useful but are even less popular than used car salesmen.  URL shorteners are services that _intermediate_ the actual destination of the link in order to better track who clicks on the link.  You create many shortened links and give them out to different people, and when the world at large clicks on one of them you know who they got it from.
 
@@ -164,7 +164,7 @@ So we can update the website `printf` line to be:
   printf t, "Website", lookup_url( u.website.to_s )
 ```
 
-## The basics: tweets, timelines, mentions, retweets
+## Tweets timelines mentions retweets
 
 With read access, you can pull down some basic stuff.
 

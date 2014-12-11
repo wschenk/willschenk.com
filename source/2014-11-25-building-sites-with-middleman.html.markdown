@@ -1,7 +1,7 @@
 ---
 :title: Building Sites with Middleman
 :subtitle: lean publishing
-:tags: middleman, ruby, howto
+:tags: middleman, ruby, howto, tools
 :header_image: books.jpg
 :date: 2014-11-25
 ---
@@ -63,9 +63,9 @@ The first two gems expand the functionality of middleman, one to add tasks to pu
 
 The file two are including `bootstrap-sass` -- the same that we use for rails sites -- and `jquery`.  These get included into the sprockets asset path, so you don't need to maintain them in your project.  (We'll also see below how to integrate `bower` components into your project.)
 
-## Tweaking Middleman: `config.rb`
+## Tweaking Middleman
 
-This is where we configure how middleman itself works.
+`config.rb` is where we configure how middleman itself works.
 
 ```rb
 # For custom domains on github pages
@@ -234,7 +234,7 @@ Middleman has a concept of nested layouts, which lets you have wrap an a layout 
 <% end %>
 ```
 
-## The YAML preable, the preyaml?
+## The YAML preable the preyaml
 Metadata about the template is included in a block of text at the top of the file, which gets pulled off to set things that the templating system can use later.  On the top of this file that I am editing right now, it looks like this
 
 ```
@@ -284,13 +284,13 @@ end
 ```
 Then each entry in the sitemap the file is processed (based upon the extension, so scss -> js, haml -> html, etc.) into the build directory.  Helper methods are available inside of the templates for things like `javascript_include_tag`, `stylesheet_link_tag`, `link_to` and `image_tag` and all of the rest.
 
-## The preview: `middleman server`
+## middleman server
 
 Starting the server in preview mode will start a local server on port `4567` that generates the files on demand.  If you have livereload enabled this will automatically trigger a page refresh for any open browsers, so you can tweak and look at things as you go.
 
 Inside of your templates, `config.environment == :development` when you are in preview mode.  So, if there are some things that you don't want to push to the live site but are useful for development, you can switch them on and off using that mechanism.
 
-## The build: `middleman build`
+## middleman build
 
 This does basically the same thing as the server, but the templates are generally further processed.  Cachebusting can be enabled, and you can include tracking code if `config.environment == :build` is true.  This goes through all of the files in source that look like webfiles and places them in the `build` directory.
 
@@ -302,7 +302,7 @@ $ python -m SimpleHTTPServer
 ```
 And then open a new browser on port `8000`.
 
-## The deploy: `middleman deploy`
+## middleman deploy
 
 In the basic `:git` setting that we have above, middleman deploy will build the site into the `build/` directory, switch that directory to the `gh-pages` branch, and push it to `origin`.  Assuming that you are hosting your repo on github, this will publish the static content on github pages.
 
@@ -349,7 +349,7 @@ $ middleman publish source/drafts/this-is-amazing.html.markdown
 ```
 This lets us keep drafts in git and doesn't force us to commit to a date until we are ready to publish it.  There are `published` and `date` attributes that the default blog extension knows about to turn it on and off, and is a good example of something that you can see in development but not production, but that still leaves to moving files around manually to adjust the date.
 
-## What does it add?
+## What does it add
 
 In addition to the sitemap, we now have a `blog`, `article`, and `tag` concept inside of the middleman app.  Articles are represented as pages (by default using `markdown`) but the `tag` and `calendar` templates are actually more like `proxy` templates than file templates, and when the site is generated middleman will iterate over then to produce many output files from one template.
 
@@ -399,7 +399,7 @@ activate :drafts
 
 This should be enough to get you started, and more [documentation is here](http://middlemanapp.com/basics/blogging/) .  At this point it really becomes a design and development challenge, not figuring out how to use the tool.
 
-## That's the basics.
+## Go get started
 
 Middleman gives you all of the front-end developer benefits of using a system like Rails, but outputs static content than can be served anywhere without any dependancies.  Many sites don't really require all that for them to run, and it's crazy to me that something as read heavy as a blog often can't perform well under load given that it's just serving up the same old stuff over and over again.  You want to have some tooling to make it easier, but it doesn't need to be _run time_ tooling.
 

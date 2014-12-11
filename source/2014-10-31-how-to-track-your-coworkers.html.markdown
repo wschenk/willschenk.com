@@ -10,7 +10,7 @@ How much information do you bleed?
 
 Ever wonder who is else is using your network?  Or,who has actually showed up at the office?
 
-READMORE
+## Networking primer
 
 The simplest thing we can do to make this work is to check to see which devices have registered themselves on the network.  As devices come and go, they connect automatically, so we will have a pretty good idea if people are there or not.  Phones seem to attach and detach quite frequency, probably to conserve battery, so if we are want to answer the question "is so-and-so in the office" we'll need to add additional logic to determine how far spaced the "sighting" events are to mean that the person has left the office, rather than the phone has gone to sleep.
 
@@ -19,6 +19,8 @@ There are a couple of ways to do this. One is to log on you your router and look
 Another thing to consider is `DNS multicast`, also called `Bonjour` or zero-config networking.  This is pretty much the standard now for services announcing themselves on the human-used networks.  (Server rooms have fancier service discovery mechanisms.)  If you want to find a printer, or someone else's iTunes library it works great, but it doesn't do much for phones.
 
 We are going to do this using ping.   This is simple and works everywhere.
+
+## The plan
 
 The code below using `ruby` and `redis` to track which devices have been seen.  You'll need to have `redis` installed and running for this code to work, but it should be easily portable to any Unix system, not just OSX.  So if you have a `RaspberryPI`laying around, it would be run to run it on there.
 
@@ -29,6 +31,8 @@ This code does the following things:
 3. Do a reverse DNS lookup on those IP addresses, and mark them as seen in `redis`.
 4. (Commented out) Look at the arp table to see if any other devices have announced themselves.  This will discover mode devices, but the ARP cache lasts an unknown amount of time, so this will not correctly track leaving events.
 5. The `def seen` method will set a key in `redis` and expire it in `30` seconds.  The scan runs every `10` seconds.  So if we having seen a device in 2 or 3 scans then we assume it has left the network.  We look at each of the keys in the redis set `hosts` to see if it still exists, and if not, assume that the device has left.
+
+## The Code
 
 The only `OSX` ism of this script is that its using `osascript` to push a notification to the desktop that a device name has come on or left.  See below for further things to play with:
 
@@ -116,6 +120,8 @@ while true
   sleep 10
 end
 ```
+
+## Next steps
 
 Other things to play around with:
 

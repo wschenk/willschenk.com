@@ -1,12 +1,12 @@
 ---
 title: New HappySeed released
-subtitle: new with even more awesome
+subtitle: now with even more awesome
 date: 2014-11-28 19:05 UTC
-tags: happy_seed, ruby
+tags: happy_seed, ruby, tools
 header_image: seeds.jpg
 ---
 
-## Make apps faster.
+## Make apps faster
 
 Head on over to the [HappySeed website](http://seed.happyfuncorp.com) to get the latest version of HappyFunCorp's starter application toolkit.
 
@@ -51,7 +51,7 @@ $ happy_seed static_blog static_site
 
 [Read static documentation](http://seed.happyfuncorp.com/docs/middleman.html)
 
-## Get that code!
+## Get that code
 
 Head on over to [github](https://github.com/HappyFunCorp/happy_seed) to check it out!
 

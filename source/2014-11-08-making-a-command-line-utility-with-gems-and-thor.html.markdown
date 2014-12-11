@@ -296,7 +296,7 @@ I wrote a bunch more code and then *[checked it in to github](https://github.com
 
 ---
 
-## Getting the gem out there: Build, install, release
+## Getting the gem out there: Build install release
 
 In order to install the gem, we need to build it:
 

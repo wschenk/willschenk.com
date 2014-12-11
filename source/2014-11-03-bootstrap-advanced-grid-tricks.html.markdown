@@ -2,7 +2,7 @@
 title: "Bootstrap: Advanced Grid Tricks"
 subtitle: You really should be defining your own classes
 date: 2014-11-03 00:00 UTC
-tags: bootstrap, overview
+tags: bootstrap, overview, tools
 ---
 
 We are a big fan of [Bootstrap](http://getbootstrap.com/) here at [HappyFunCorp](http://happyfuncorp.com/).  While there are some arguments to be made if Bootstrap in particular is all that, or if [Foundation](http://foundation.zurb.com/) is better for a given thing, its clear that starting with some sort of CSS framework is smarter than trying to roll everything yourself. [1]
@@ -66,7 +66,7 @@ This will solve two problems:
 
 Let's go a little deeper.
 
-## How `col-*` classes are defined
+## How col- classes are defined
 
 When you load up bootstrap, it uses default variables that you can override to build the the CSS.  There are many different things that you can tweak, more than are listed out on the [bootstrap customization page](http://getbootstrap.com/customize/), so learning how to navigate and read the source files is pretty important.  The key ones for the grid are:
 
@@ -229,7 +229,7 @@ OK, so this is like our first example above, and it looks like this:
 
 So we've managed to clean up the class names, but we still don't have it working.
 
-## Redefining `$grid-columns`
+## Redefining grid-columns
 
 The trick here is to realize that SCSS is actually evaluated top down, and by the time it gets to our code the previous properties have already been generated.  If we change `$grid-columns` to `10` above the `.item` definition and then set it back to `12` immediately below, when the functions are called they will recalculate the column width percentages.  Like so:
 
@@ -262,7 +262,7 @@ Which _finally_ yields:
 
 _It's almost too easy!_
 
-## Ordering `@includes`
+## Ordering includes
 
 The final thing to mention is that if you want to do something like `<div class="col-md-4 col-sm-6">` using semantic CSS, you need to make sure that you order the `@includes` from small to large to make sure that the correct media query gets triggered:
 
@@ -304,7 +304,7 @@ This translates into:
 
 If you reverse the orders of the `@includes`, then the order the of the media queries will be reversed in the CSS, and the `col-md-4` would get shadowed.  That's why the order is important.
 
-## ..and in conclusion.
+## and in conclusion
 
 You need to know how to use your tools.  Bootstrap is really a CSS framework that you can use to build your site, and using the SASS or LESS version lets you do almost anything you want.  If you just use the standard compiled version, your site will look the same as everyone else's (which is largely fine because it looks pretty good by default) and you will be constrained with what you can do (which is largely lame, having your tools dictate your design.)
 

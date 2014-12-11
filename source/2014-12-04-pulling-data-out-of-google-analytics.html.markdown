@@ -11,7 +11,7 @@ Another obsessive/fun thing to do is to see where that spike in inbound traffic 
 
 Lets look at how we can interact with Google Analytics using [google-api-ruby-client](https://github.com/google/google-api-ruby-client).  At the end of this, we are going to be able to see the current traffic stats, top referrals, see a timeline of when the referals first came in, and do what we can from that information to track down who is talking about us.  GA will show us that we are getting a lot of `SOCIAL` traffic, but what else can we figure out?
 
-## Step 1: OAuth: Setting it up to access Google on behalf of the user
+## Step 1 Setting it up to access Google on behalf of the user
 
 We're going to be using OAuth2 to authorize our script.  So head over to the [Google Developers Console](https://console.developers.google.com/project).
 
@@ -23,7 +23,7 @@ We're going to be using OAuth2 to authorize our script.  So head over to the [Go
 
 4. **APIs and auth > Create Client ID**.  Select **Installed Application** with type _Other_.  This will create the keys for you, and then you **Download JSON** and save it in a file.
 
-## Step 2: `Google::APIClient::InstalledAppFlow` Getting an access token and an API file
+## Step 2 Getting an access token and an API file using InstalledAppFlow
 
 Working with the Google API is pretty confusing at first, since there's multiple steps that need to happen before you can even figure out how to make a call.  Twitter's API, which in every other way is a joke compared to Google's way of doing things, has a [handy way to get a single use access token](/scripting-twitter).  With Google you need to do this yourself.  And once that's done, you need to load the API meta data from the API API to be able to access it!
 
@@ -102,7 +102,7 @@ end
 
 When we run this the first time, you should be prompted to grant access to your application.  The second time it should run and exit cleanly -- it has access, but we haven't asked to do anything yet.
 
-## Step 3: Discover the API
+## Step 3 Discover the API
 
 Google takes their software development seriously, and it shows.  Not only are there many different APIs available to use, but they all have different versions.  These endpoints are all different, and rather than have them all hard coded into the client access library, you use the _discover api_ to pull in metadata associated with it.  The following code will load up this data and cache it to the filesystem so the next access will be faster.
 
@@ -126,7 +126,7 @@ Google takes their software development seriously, and it shows.  Not only are t
     @api
   end
 ```
-## Step 4: Finding a web profile
+## Step 4 Finding a web profile
 
 In order to pull data from an analytics account, you need to query the management API to get a list of profiles that you user has access to.  We're going to collapse the differences between accounts and properties, and print them all out in a list directly.  The key variable we are looking for is going to be the profile _id_.  This is different from the _web property id_, which is what you use in Javascript to add the tracking code (.e.g `UA-56296045-1`).  We'll also show the _websiteUrl_ associated with the account since that's what people really know.
 
@@ -150,7 +150,7 @@ if __FILE__ == $0
 end
 ```
 
-## Step 5: Querying with `ga.get`
+## Step 5 Querying with ga.get
 
 The main end point we are looking at is `ga.get`.  There's an [interactive developer tool](https://ga-dev-tools.appspot.com/explorer/) that will let you experiment with what is available and how it works.   If you load up that tool now, you'll see what we've written code that will let us find the property id for our query, so we are now ready to start querying.
 
@@ -223,7 +223,7 @@ $ ruby ga.rb 93249816
 7 rows in set
 ```
 
-## Step 6: Adding more commands
+## Step 6 Adding more commands
 
 Lets create a `Thor` class here for the things that we want to query, and then go through a implement the calls in the `AnalyticsClient` class.
 
@@ -313,7 +313,7 @@ if __FILE__ == $0
 end
 ```
 
-## Step 7: Let's implement
+## Step 7 Lets implement
 
 We have the `profiles` command and the `hotcontent` command, or **what content is getting traffic** working already.  Lets add some code to make the `--csv` option work, this goes into the `AnalyticsClient` class:
 
@@ -382,7 +382,7 @@ This works, but we can change the way it's printed out to be visually more usefu
   end
 ```
   
-## Step 8: The timeline
+## Step 8 The timeline
 
 **A timeline of when content was published and people started linking to it** can be created by combinding 2 of the methods that we've already written, `hotcontent` and `referers`, and looping through and querying them one day at a time.
 

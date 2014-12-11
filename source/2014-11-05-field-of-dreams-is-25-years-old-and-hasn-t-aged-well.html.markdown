@@ -31,7 +31,7 @@ In order to move forward, to make progress in spite of everything, for you to ta
 
 --- 
 
-## Yeah, but what about that baseball field in the middle of a corn field?
+## Yeah, but what about that baseball field in the middle of a corn field
 
 Maybe the whole world thinks you are crazy.  Or delusional.  Maybe no one seems to know what you are talking about.  You have a vision, and if you stick to it, if you actually do build the thing, maybe then all of the doubters, the critics who point out of the doer of deeds could have done it better, don't matter.  Hell, I still think that a 140-character "microblogging platform" makes no sense.  That didn't stop them, and they built it, and people came.
 
@@ -55,7 +55,7 @@ In other words, _if you believe the impossible, you have a problem._  You probab
 
 There's a dark side to this courage-in-the-face-of-adversity.  It's part of being in the grip of an _idée fixe_, where you only hear what you want to hear and filter out everything that is in any way threatening.
 
-## Does the world need your idea?
+## Does the world need your idea
 
 You should sit down with your _idée fixe_ and have a long talk.  What are you actually trying to do with your life?  Do you really have a problem that's worth solving?  Are you actually trying to do anything worth doing?
 
@@ -95,7 +95,7 @@ This is what a lot of startups struggle with.  On the one hand, you need to star
 <iframe width="100%" style="max-width: 560px" height="315" src="//www.youtube.com/embed/APx2yFA0-B4" frameborder="0" allowfullscreen></iframe>
 _Honestly, I just wanted an excuse to embed this video_
 
-## I don't know the answer
+## I dont know the answer
 
 And I don't think that Field of Dreams has it either.  And blindly absorbing the myth of _if you build it, he will come_ is overly simplistic and only works in heart-warming sports memoirs.  Which is too bad because James Earl Jones was great in it, and it was some vintage Kevin Costner.
 

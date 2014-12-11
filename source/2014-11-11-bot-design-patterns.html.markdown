@@ -484,7 +484,7 @@ end
 
 ---
 
-## That's the shape of it
+## Thats the shape of it
 
 _Notifiers_, _Reactors_, _Space Reactors_, _Responders_, _Space Responders_, and _Conversationists_.  Writing _Notifiers_ and _Reactors_ are more playful, and as you get into things later in the list you spend a lot more time dealing with code and logic complexity.
 
@@ -506,24 +506,28 @@ _Notifiers_ are interesting not because of their technology, but because of what
 
 # Agents of Note
 
-## [Hubot from Github](https://hubot.github.com) is a company chat bot, written in Node:
+## Hubot from Github is a company chat bot written in Node
 
-![Silvrback blog image](https://silvrback.s3.amazonaws.com/uploads/5a2b7f44-c37b-4cfc-b0df-16e28a889160/HUBOT_large.jpg)
+![left_float](https://silvrback.s3.amazonaws.com/uploads/5a2b7f44-c37b-4cfc-b0df-16e28a889160/HUBOT_large.jpg)
+
+[Hubot from Github](https://hubot.github.com):
 
 > GitHub, Inc., wrote the first version of Hubot to automate our company chat room. Hubot knew how to deploy the site, automate a lot of tasks, and be a source of fun in the company. Eventually he grew to become a formidable force in GitHub. But he led a private, messy life. So we rewrote him.
 
 _Image from [Hubot site](https://hubot.github.com)_
 
-## [Lita](https://www.lita.io) is similar to Hubot, but written in Ruby:
+## Lita is similar to Hubot but written in Ruby
 
-![Silvrback blog image](https://silvrback.s3.amazonaws.com/uploads/a1895cd0-8429-4a82-9cd7-2b7557d3c0a3/lita-94f070fbb79e8ec62cc7a21ca39f8448_large.png)
+[Lita homepage](https://www.lita.io)
+
+![left_float](https://silvrback.s3.amazonaws.com/uploads/a1895cd0-8429-4a82-9cd7-2b7557d3c0a3/lita-94f070fbb79e8ec62cc7a21ca39f8448_large.png)
 _Image from [Lita](https://www.lita.io)_
 
-## [Huginn](https://github.com/cantino/huginn) is your agent, standing by
+## Huginn is your agent, standing by
 
-![Silvrback blog image sb_float](https://silvrback.s3.amazonaws.com/uploads/4c8d7718-e8a1-4d6f-92b7-e2d1c92cec43/220px-Odin%2C_der_G%C3%B6ttervater_large.jpg)
+![left_float](https://silvrback.s3.amazonaws.com/uploads/4c8d7718-e8a1-4d6f-92b7-e2d1c92cec43/220px-Odin%2C_der_G%C3%B6ttervater_large.jpg)
 
-Huginn takes a bit to install, but it's a full on _software agent_ of the old school.
+[Huginn](https://github.com/cantino/huginn) takes a bit to install, but it's a full on _software agent_ of the old school.
 
 > Huginn is a system for building agents that perform automated tasks for you online. They can read the web, watch for events, and take actions on your behalf. Huginn's Agents create and consume events, propagating them along a directed graph. Think of it as a hackable Yahoo! Pipes plus IFTTT on your own server. You always know who has your data. You do.
 > 
