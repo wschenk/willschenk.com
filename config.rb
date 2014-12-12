@@ -14,9 +14,6 @@ activate :autometatags
 sprockets.append_path File.join root, 'webicons'
 # sprockets.import_asset 'bower_components/modernizr'
 
-# Turn this on if you want to make your url's prettier, without the .html
-# activate :directory_indexes
-
 # Automatic image dimensions on image_tag helper
 # activate :automatic_image_sizes
 
@@ -49,6 +46,9 @@ activate :blog do |blog|
   # blog.per_page = 10
   # blog.page_link = "page/{num}"
 end
+
+# Turn this on if you want to make your url's prettier, without the .html
+activate :directory_indexes
 
 page "/feed.xml", layout: false
 activate :drafts
@@ -126,6 +126,8 @@ helpers do
       end
 
       { prev: prev_spots, next: next_spots }
+    else
+      { prev: [], next: [] }
     end
   end
 end
