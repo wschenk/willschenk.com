@@ -18,10 +18,10 @@ $( function() {
 
   $("img[alt=\"left_float\"]").addClass( "left_float" );
   
-  $.fn.originalTrigger = $.fn.trigger;
-  $.fn.trigger = function(type, data) {
-    console.log(typeof(type)=='string' ? type : type.type, data);
-    return $(this).originalTrigger.apply(this,arguments);
-  }
+  // $.fn.originalTrigger = $.fn.trigger;
+  // $.fn.trigger = function(type, data) {
+  //   console.log(typeof(type)=='string' ? type : type.type, data);
+  //   return $(this).originalTrigger.apply(this,arguments);
+  // }
 
 });
