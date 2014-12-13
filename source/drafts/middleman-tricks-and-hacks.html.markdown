@@ -1,10 +1,10 @@
 ---
 title: 'Middleman Tricks and Hacks'
-subtitle: 'Things I learned rebuilding this site'
+subtitle: 'specific tricks I used to build this site'
 tags: middleman, ruby, howto, tools
 ---
 
-As part of the process of getting this site to work, I learned some more things about how to better build a site with middleman.  Building out off our [foundational article](/building-sites-with-middleman/) here are a few other things that I found very useful.
+As part of the process of getting this site to work, I learned some more things about how to better build a site with middleman.  Building off of our [foundational article](/building-sites-with-middleman/) here are a few other things that I found very useful when using middleman to build a static site with a bunch of dynamically generated content.
 
 ## Partials
 
@@ -16,13 +16,13 @@ On the _index_ page it's called like this, where I'm supressing the date heading
 = partial "post_list", :locals => {:page_articles => blog.articles[1..4], :no_date => true }
 ```
 
-and in the _articles_ I'm including draft posts for my own reference.
+and in the _articles_ I'm including draft posts for my own reference, and since they don't have a published date we need to check for that.
 
 ```haml
 = partial "post_list", :locals => {:page_articles => (drafts + page_articles)}
 ```
 
-The `_post_list.haml` file then has some runtime logic to show what it needs to.
+The `_post_list.haml` file then has some logic to show date headings based upon the published dates of the articles.  (This assumes that the posts are sorted by time, either ascending or descending.) 
 
 ```haml
 - last_date = nil
@@ -50,18 +50,119 @@ The `_post_list.haml` file then has some runtime logic to show what it needs to.
             .tag= link_to tag, tag_path( tag )
 ```
 
-Since I use [semantic CSS classes](/bootstrap-advanced-grid-tricks/) to define my layouts, this works really well if we want to layout things differently on different pages.
+Partials also work better when using [semantic CSS classes](/bootstrap-advanced-grid-tricks/) to define my layouts, since the same class can have different meaning depending upon what it is embedded in.
 
-## Layouts and partials for article layout
+## Layouts and partials for articles
 
-Middleman posts are generally written in markdown, which translates into a series of `<p>` tags that can thrown into a layout file.  In order to create the table of contents on the left, the navigation to other articles on the right, and the unique header and footer, I used a seperate `article_layout`.  Setting up **Scrollspy** and **Affix** means we need to change things on the `<body>` tag that we don't need to do for other pages, so it makes more sense to use a seperate file here rather than a _nested layout_.
+Middleman posts are generally written in markdown, which translates into a series of `<p>` tags that are dumped into a layout file.  In order to create the table of contents on the left, the navigation to other articles on the right, the unique header and footer, I used a seperate `article_layout` for article pages.  Setting up **Scrollspy** and **Affix** means we need to change things on the `<body>` tag that we don't need to do for other pages, so it makes more sense to use a seperate file here rather than a _nested layout_.
 
 This means that all the things that are shared between the two layouts, the main layout for all the meta pages and the article layout for the content pages, should be factored into partials.  I put these partials in the `layouts/` directory.
 
-## Markdown toc_data
+## Communication between partials
+
+The top and the bottom of these pages change together.  If the page has a header image -- something I specify in the YAML preamble of my post -- then both the `article_header` and `footer` partials display slightly different things.  The logic for this check is in the `article_header`, where I set a _instance variable_ that I use in a later partial to add a class.
+
+In `layouts/_article_header.haml`:
+
+```
+- @lighter ||= ""
+- @dark_header = "dark_header" if current_article.data['dark_header']
+- if !current_article.data['header_image'].nil? && current_article.data['header_image'] != ""
+  - @lighter = "lighter"
+  .banner
+    = image_tag current_article.data['header_image'], class: "fadeInDown animated"
+
+%div{ class: "article-header #{@lighter} #{@dark_header}" }
+```
+
+and then in `layouts/_footer.haml` I use the same variable to add a class to the `footer` element which changes the background.
+
+```
+%footer{ class: "footer #{@lighter} #{@dark_header}" }
+```
+
+## Markdown with toc data
+
+Inside of `config.rb` we can add some better markdown processing options.  I switched to redcarpet and enabled `with_toc_data`.  This generates id tags on the `<h1>`, `<h2>` etc elements that we can use as anchors.
+
+```rb
+set :markdown, :tables => true, :autolink => true, :gh_blockcode => true, :fenced_code_blocks => true, with_toc_data: true
+set :markdown_engine, :redcarpet
+```
+
+These ids are generated by sanitizing the text between the tags, but `redcarpet` only makes things lowercase and changes spaces to underscores, and unfortunately it doesn't strip out punctuation characters and will result in ids that aren't valid.  So I had to change my headers, at least until I can take a look at the redcarpet code in more detail.
+
 ## Helpers that parse the source file
 
-## Directory index
+Now that we have the anchors in there, we need to generate the links to those anchors.  This can be done by parsing the source file on the article page with a helper.  It's a poor man's markdown processor, but it does the job.  This code lives in `config.rb`:
+
+```rb
+helpers do
+  def chapters( post )
+    File.readlines( post.source_file ).collect do |x|
+      if x =~ /^##\s(.*)/
+        $1
+      else
+        nil
+      end
+    end.select { |x| x }
+  end
+end
+```
+
+And we can then use it to generate the list of links:
+
+```haml
+%ul.nav.toc
+  %li= link_to current_article.title, "#top"
+  - chapters( current_article ).each do |chapter|
+    %li= link_to chapter, "##{chapter.downcase.gsub( /\s/, "-" )}"
+```
+
+## Helper methods to do query-ish things
+
+The logic to calculate the _next_ and _previous_ articles in the series work using the tag system, and it cycles though all of the tags of the current article to find articles with corresponding tags.  Rather than showing the same article for multiple tags, I wanted to group the tags together if they all pointed to the same article.
+
+This is the type of logic that would normally be in a rails Model.  Either you'd do it directly out of the database, or you would process the results somehow and return something that was easy to iterate over in the view.
+
+Moving this code into helper method isolated all of that logic out of the views themselves.
+
 ## Site data as database
-## url_for in bootstrap-navbar
-## Helpers to do databasey things
+
+The other thing I wanted to do was to associate additional data with specific tags.  If this was an article, you could put it in the preamble, but since tags are generated dynamically from the article files we need to put them somewhere else.  That place is `data/topics.yml`
+
+```yml
+---
+:howto:
+  :title: Howtos
+  :desc: In which we go through step by step to achieve a particular goal.
+:overview:
+  :title: Overviews
+  :desc: In which we cover a topic in depth to orient ourselves with the technology.
+```
+
+This is referenced in views like:
+
+```haml
+- data['topics'].each do |k,d|
+  .track
+    %h2= link_to d[:title], "/tags/#{k}.html"
+```
+
+This data is also referenced in the tag page as well as the main header.  It's only stored in one place, which is nice and DRY.  If it got any more complicated than this, where we wanted to filter or sort it in some dynamic way then we implement that code in a helper so it could be shared across the site.
+
+## Directory index and url_for
+
+To make pretty urls work in the blog, you need to have `activate :directory_indexes` _after_ `activate :blog` in your `config.rb` file.  _The order of middleman extensions in the config file matter._
+
+The plugin works by changing the way that the `link_to` helper works.  If you have a link that's generated in another way, you should use the `url_for` method to make sure that it get's rewritten.  For example
+
+```rb
+= navbar_item d['title'], url_for( "/tags/#{topic}.html" )
+```
+
+## Not a lot of tradeoffs
+
+Other than the one issue with redcarpet where I couldn't control the way that the ids were being generated, there hasn't been much that I haven't be able to achieve with a statically generated site.  The implementation is different, but overall most of the time was spent fiddling with the CSS rather than fighting the build system.
+
+Which is how it should be.
