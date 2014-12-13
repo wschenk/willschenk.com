@@ -1,14 +1,176 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
-  <title>Will Schenk</title>
+  <title>Blank Page Tech</title>
   <subtitle>Lets build things</subtitle>
   <id>http://willschenk.com/</id>
   <link href="http://willschenk.com/"/>
   <link href="http://willschenk.com/feed.xml" rel="self"/>
-  <updated>2014-12-07T21:57:01-05:00</updated>
+  <updated>2014-12-12T23:28:05-05:00</updated>
   <author>
     <name>Will Schenk</name>
   </author>
+  <entry>
+    <title>Middleman Tricks and Hacks</title>
+    <link rel="alternate" href="http://willschenk.com/middleman-tricks-and-hacks/"/>
+    <id>http://willschenk.com/middleman-tricks-and-hacks/</id>
+    <published>2014-12-12T19:00:00-05:00</published>
+    <updated>2014-12-12T19:00:00-05:00</updated>
+    <author>
+      <name>Will Schenk</name>
+    </author>
+    <content type="html">&lt;p&gt;As part of the process of getting this site to work, I learned some more things about how to better build a site with middleman.  Building off of our &lt;a href="/building-sites-with-middleman/"&gt;foundational article&lt;/a&gt; here are a few other things that I found very useful when using middleman to build a static site with a bunch of dynamically generated content.&lt;/p&gt;
+
+&lt;h2 id="partials"&gt;Partials&lt;/h2&gt;
+
+&lt;p&gt;The &lt;code&gt;index.html.haml&lt;/code&gt;, &lt;code&gt;articles.html.haml&lt;/code&gt;, &lt;code&gt;tag.html.haml&lt;/code&gt; and &lt;code&gt;calendar.html.haml&lt;/code&gt; pages all use the same partial to list out the post archives, which are mostly the same.&lt;/p&gt;
+
+&lt;p&gt;On the &lt;em&gt;index&lt;/em&gt; page it&amp;#39;s called like this, where I&amp;#39;m supressing the date heading:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="haml"&gt;= partial &amp;quot;post_list&amp;quot;, :locals =&amp;gt; {:page_articles =&amp;gt; blog.articles[1..4], :no_date =&amp;gt; true }
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;and in the &lt;em&gt;articles&lt;/em&gt; I&amp;#39;m including draft posts for my own reference, and since they don&amp;#39;t have a published date we need to check for that.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="haml"&gt;= partial &amp;quot;post_list&amp;quot;, :locals =&amp;gt; {:page_articles =&amp;gt; (drafts + page_articles)}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;The &lt;code&gt;_post_list.haml&lt;/code&gt; file then has some logic to show date headings based upon the published dates of the articles.  (This assumes that the posts are sorted by time, either ascending or descending.) &lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="haml"&gt;- last_date = nil
+- no_date = !!no_date
+%ul
+  - page_articles.each do |current_post|
+    - if !no_date &amp;amp;&amp;amp; current_post.date
+      - date_string = current_post.date.strftime(&amp;#39;%b %Y&amp;#39;)
+      - if last_date != date_string
+        %li.date
+          %h2= date_string
+      - last_date = date_string
+    %li
+      .more
+        - unless current_post.is_a? ::Middleman::Blog::Drafts::DraftArticle
+          = current_post.date.strftime( &amp;#39;%b %e&amp;#39; )
+        - else
+          Draft
+      %div= link_to current_post.title, current_post
+      %div
+        = current_post.data[&amp;#39;subtitle&amp;#39;]
+
+        .tags
+          - current_post.tags.sort.each do |tag|
+            .tag= link_to tag, tag_path( tag )
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Partials also work better when using &lt;a href="/bootstrap-advanced-grid-tricks/"&gt;semantic CSS classes&lt;/a&gt; to define my layouts, since the same class can have different meaning depending upon what it is embedded in.&lt;/p&gt;
+
+&lt;h2 id="layouts-and-partials-for-articles"&gt;Layouts and partials for articles&lt;/h2&gt;
+
+&lt;p&gt;Middleman posts are generally written in markdown, which translates into a series of &lt;code&gt;&amp;lt;p&amp;gt;&lt;/code&gt; tags that are dumped into a layout file.  In order to create the table of contents on the left, the navigation to other articles on the right, the unique header and footer, I used a seperate &lt;code&gt;article_layout&lt;/code&gt; for article pages.  Setting up &lt;strong&gt;Scrollspy&lt;/strong&gt; and &lt;strong&gt;Affix&lt;/strong&gt; means we need to change things on the &lt;code&gt;&amp;lt;body&amp;gt;&lt;/code&gt; tag that we don&amp;#39;t need to do for other pages, so it makes more sense to use a seperate file here rather than a &lt;em&gt;nested layout&lt;/em&gt;.&lt;/p&gt;
+
+&lt;p&gt;This means that all the things that are shared between the two layouts, the main layout for all the meta pages and the article layout for the content pages, should be factored into partials.  I put these partials in the &lt;code&gt;layouts/&lt;/code&gt; directory.&lt;/p&gt;
+
+&lt;h2 id="communication-between-partials"&gt;Communication between partials&lt;/h2&gt;
+
+&lt;p&gt;The top and the bottom of these pages change together.  If the page has a header image -- something I specify in the YAML preamble of my post -- then both the &lt;code&gt;article_header&lt;/code&gt; and &lt;code&gt;footer&lt;/code&gt; partials display slightly different things.  The logic for this check is in the &lt;code&gt;article_header&lt;/code&gt;, where I set a &lt;em&gt;instance variable&lt;/em&gt; that I use in a later partial to add a class.&lt;/p&gt;
+
+&lt;p&gt;In &lt;code&gt;layouts/_article_header.haml&lt;/code&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;- @lighter ||= &amp;quot;&amp;quot;
+- @dark_header = &amp;quot;dark_header&amp;quot; if current_article.data[&amp;#39;dark_header&amp;#39;]
+- if !current_article.data[&amp;#39;header_image&amp;#39;].nil? &amp;amp;&amp;amp; current_article.data[&amp;#39;header_image&amp;#39;] != &amp;quot;&amp;quot;
+  - @lighter = &amp;quot;lighter&amp;quot;
+  .banner
+    = image_tag current_article.data[&amp;#39;header_image&amp;#39;], class: &amp;quot;fadeInDown animated&amp;quot;
+
+%div{ class: &amp;quot;article-header #{@lighter} #{@dark_header}&amp;quot; }
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;and then in &lt;code&gt;layouts/_footer.haml&lt;/code&gt; I use the same variable to add a class to the &lt;code&gt;footer&lt;/code&gt; element which changes the background.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;%footer{ class: &amp;quot;footer #{@lighter} #{@dark_header}&amp;quot; }
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id="markdown-with-toc-data"&gt;Markdown with toc data&lt;/h2&gt;
+
+&lt;p&gt;Inside of &lt;code&gt;config.rb&lt;/code&gt; we can add some better markdown processing options.  I switched to redcarpet and enabled &lt;code&gt;with_toc_data&lt;/code&gt;.  This generates id tags on the &lt;code&gt;&amp;lt;h1&amp;gt;&lt;/code&gt;, &lt;code&gt;&amp;lt;h2&amp;gt;&lt;/code&gt; etc elements that we can use as anchors.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;set :markdown, :tables =&amp;gt; true, :autolink =&amp;gt; true, :gh_blockcode =&amp;gt; true, :fenced_code_blocks =&amp;gt; true, with_toc_data: true
+set :markdown_engine, :redcarpet
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;These ids are generated by sanitizing the text between the tags, but &lt;code&gt;redcarpet&lt;/code&gt; only makes things lowercase and changes spaces to underscores, and unfortunately it doesn&amp;#39;t strip out punctuation characters and will result in ids that aren&amp;#39;t valid.  So I had to change my headers, at least until I can take a look at the redcarpet code in more detail.&lt;/p&gt;
+
+&lt;h2 id="helpers-that-parse-the-source-file"&gt;Helpers that parse the source file&lt;/h2&gt;
+
+&lt;p&gt;Now that we have the anchors in there, we need to generate the links to those anchors.  This can be done by parsing the source file on the article page with a helper.  It&amp;#39;s a poor man&amp;#39;s markdown processor, but it does the job.  This code lives in &lt;code&gt;config.rb&lt;/code&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;helpers do
+  def chapters( post )
+    File.readlines( post.source_file ).collect do |x|
+      if x =~ /^##\s(.*)/
+        $1
+      else
+        nil
+      end
+    end.select { |x| x }
+  end
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;And we can then use it to generate the list of links:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="haml"&gt;%ul.nav.toc
+  %li= link_to current_article.title, &amp;quot;#top&amp;quot;
+  - chapters( current_article ).each do |chapter|
+    %li= link_to chapter, &amp;quot;##{chapter.downcase.gsub( /\s/, &amp;quot;-&amp;quot; )}&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id="helper-methods-to-do-query-ish-things"&gt;Helper methods to do query-ish things&lt;/h2&gt;
+
+&lt;p&gt;The logic to calculate the &lt;em&gt;next&lt;/em&gt; and &lt;em&gt;previous&lt;/em&gt; articles in the series work using the tag system, and it cycles though all of the tags of the current article to find articles with corresponding tags.  Rather than showing the same article for multiple tags, I wanted to group the tags together if they all pointed to the same article.&lt;/p&gt;
+
+&lt;p&gt;This is the type of logic that would normally be in a rails Model.  Either you&amp;#39;d do it directly out of the database, or you would process the results somehow and return something that was easy to iterate over in the view.&lt;/p&gt;
+
+&lt;p&gt;Moving this code into helper method isolated all of that logic out of the views themselves.&lt;/p&gt;
+
+&lt;h2 id="site-data-as-database"&gt;Site data as database&lt;/h2&gt;
+
+&lt;p&gt;The other thing I wanted to do was to associate additional data with specific tags.  If this was an article, you could put it in the preamble, but since tags are generated dynamically from the article files we need to put them somewhere else.  That place is &lt;code&gt;data/topics.yml&lt;/code&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="yml"&gt;---
+:howto:
+  :title: Howtos
+  :desc: In which we go through step by step to achieve a particular goal.
+:overview:
+  :title: Overviews
+  :desc: In which we cover a topic in depth to orient ourselves with the technology.
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;This is referenced in views like:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="haml"&gt;- data[&amp;#39;topics&amp;#39;].each do |k,d|
+  .track
+    %h2= link_to d[:title], &amp;quot;/tags/#{k}.html&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;This data is also referenced in the tag page as well as the main header.  It&amp;#39;s only stored in one place, which is nice and DRY.  If it got any more complicated than this, where we wanted to filter or sort it in some dynamic way then we implement that code in a helper so it could be shared across the site.&lt;/p&gt;
+
+&lt;h2 id="directory-index-and-url_for"&gt;Directory index and url_for&lt;/h2&gt;
+
+&lt;p&gt;To make pretty urls work in the blog, you need to have &lt;code&gt;activate :directory_indexes&lt;/code&gt; &lt;em&gt;after&lt;/em&gt; &lt;code&gt;activate :blog&lt;/code&gt; in your &lt;code&gt;config.rb&lt;/code&gt; file.  &lt;em&gt;The order of middleman extensions in the config file matter.&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;The plugin works by changing the way that the &lt;code&gt;link_to&lt;/code&gt; helper works.  If you have a link that&amp;#39;s generated in another way, you should use the &lt;code&gt;url_for&lt;/code&gt; method to make sure that it get&amp;#39;s rewritten.  For example&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;= navbar_item d[&amp;#39;title&amp;#39;], url_for( &amp;quot;/tags/#{topic}.html&amp;quot; )
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id="not-a-lot-of-tradeoffs"&gt;Not a lot of tradeoffs&lt;/h2&gt;
+
+&lt;p&gt;Other than the one issue with redcarpet where I couldn&amp;#39;t control the way that the ids were being generated, there hasn&amp;#39;t been much that I haven&amp;#39;t be able to achieve with a statically generated site.  The implementation is different, but overall most of the time was spent fiddling with the CSS rather than fighting the build system.&lt;/p&gt;
+
+&lt;p&gt;Which is how it should be.&lt;/p&gt;
+</content>
+  </entry>
   <entry>
     <title>Dateslice: Writing rails extensions</title>
     <link rel="alternate" href="http://willschenk.com/dateslice-writing-rails-extensions/"/>
@@ -22,11 +184,11 @@
 
 &lt;p&gt;Let&amp;#39;s go through the &lt;a href="https://github.com/HappyFunCorp/dateslices"&gt;&lt;code&gt;dateslices&lt;/code&gt; gem&lt;/a&gt; which I wrote to extend active record so that we could better interact with the &lt;code&gt;group by&lt;/code&gt; sql command when dealing with dates.  Thanks to &lt;a href="https://github.com/mbrookes"&gt;mbrookes&lt;/a&gt; this command now outputs in a format compatible with &lt;a href="http://ankane.github.io/chartkick/"&gt;Chartkick&lt;/a&gt; making it a good tool to use when graphing date related things, say user signups, on an admin panel for your application.&lt;/p&gt;
 
-&lt;h2&gt;Databases&lt;/h2&gt;
+&lt;h2 id="databases"&gt;Databases&lt;/h2&gt;
 
 &lt;p&gt;&lt;a href="http://guides.rubyonrails.org/active_record_basics.html"&gt;ActiveRecord&lt;/a&gt; is how Rails interacts with the database, this includes both SQL generation, validations, and a whole bunch more.  It creates a startardized interface over the many subtle differences between SQL implementations on different databases.  Date handling and grouping on dymanic terms is one area where databases differer greatly from one another, and when we want to find counts and sums grouped by different dates we need to tune our SQL for the vagaries of switching to different databases.&lt;/p&gt;
 
-&lt;h2&gt;Keeping development the same as production&lt;/h2&gt;
+&lt;h2 id="keeping-development-the-same-as-production"&gt;Keeping development the same as production&lt;/h2&gt;
 
 &lt;p&gt;I tend to develop locally on Sqlite3 and deploy on Postgres.  When we get into something fancy where we want to use some of the amazing features that Postgres has, like &lt;a href="http://www.postgresql.org/docs/9.2/static/libpq-notify.html"&gt;LISTEN/NOTIFY&lt;/a&gt; or &lt;a href="http://postgresguide.com/sexy/hstore.html"&gt;hstore&lt;/a&gt; , then it makes sense to run a Postgres instance locally.  But most of the time it&amp;#39;s overkill, and I prefer running with Sqlite3 since I just need to checkout the project, run bundle, and I&amp;#39;m in a self contained environment.&lt;/p&gt;
 
@@ -34,7 +196,7 @@
 
 &lt;p&gt;If you do already have a Postgres instance running locally, then you should check out the &lt;a href="https://github.com/ankane/groupdate"&gt;&lt;code&gt;groupdate&lt;/code&gt; gem&lt;/a&gt;, which is better and worse than &lt;code&gt;dateslice&lt;/code&gt;: better because it supports Timezones which is awesome and difficult to solve well and worse because it doesn&amp;#39;t support Sqlite3.&lt;/p&gt;
 
-&lt;h2&gt;Enter dataslice&lt;/h2&gt;
+&lt;h2 id="enter-dataslice"&gt;Enter dataslice&lt;/h2&gt;
 
 &lt;p&gt;Lets first take a look at how the SQL differs between the different databases.  The basic structure is&lt;/p&gt;
 
@@ -58,7 +220,7 @@
 
 &lt;p&gt;The different variants can be found in the sourecode for &lt;a href="https://github.com/HappyFunCorp/dateslices/blob/master/lib/dateslices/mysql.rb"&gt;mysql&lt;/a&gt;, &lt;a href="https://github.com/HappyFunCorp/dateslices/blob/master/lib/dateslices/sqlite.rb"&gt;sqlite&lt;/a&gt;, and &lt;a href="https://github.com/HappyFunCorp/dateslices/blob/master/lib/dateslices/postgresql.rb"&gt;Postgres&lt;/a&gt;.  (Notice how Postgres is better here too!)&lt;/p&gt;
 
-&lt;h2&gt;Our api&lt;/h2&gt;
+&lt;h2 id="our-api"&gt;Our api&lt;/h2&gt;
 
 &lt;p&gt;We want to add &lt;code&gt;group_by_second&lt;/code&gt;, &lt;code&gt;group_by_minute&lt;/code&gt;, &lt;code&gt;group_by_hour&lt;/code&gt;, &lt;code&gt;group_by_day&lt;/code&gt;, &lt;code&gt;group_by_week&lt;/code&gt;, &lt;code&gt;group_by_day_of_week&lt;/code&gt;, &lt;code&gt;group_by_month&lt;/code&gt;, &lt;code&gt;group_by_year&lt;/code&gt; to ActiveRecord classes that we can use either on the model itself:&lt;/p&gt;
 
@@ -102,7 +264,7 @@
   end
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2&gt;Building the Rails Extension&lt;/h2&gt;
+&lt;h2 id="building-the-rails-extension"&gt;Building the Rails Extension&lt;/h2&gt;
 
 &lt;p&gt;Now that we have an idea of what we want to generate, lets take a look at how we build a rails extension.  This is done with the &lt;code&gt;rails plugin new&lt;/code&gt; command.  We saw the &lt;code&gt;bundle gem&lt;/code&gt; command before back in the &lt;a href="/making-a-command-line-utility-with-gems-and-thor/"&gt;making a command line utility with gems and thor&lt;/a&gt; post, and in many ways they are similar.  But the &lt;code&gt;rails plugin new&lt;/code&gt; command creates a gem setup for a rails environment for testing and developing your app.&lt;/p&gt;
 
@@ -117,7 +279,7 @@
 
 &lt;p&gt;This will mixin our methods into all of the classes that extend &lt;code&gt;ActiveRecord::Base&lt;/code&gt;.&lt;/p&gt;
 
-&lt;h2&gt;Metaprogramming with Ruby&lt;/h2&gt;
+&lt;h2 id="metaprogramming-with-ruby"&gt;Metaprogramming with Ruby&lt;/h2&gt;
 
 &lt;p&gt;Inside of &lt;code&gt;lib/dateslices.rb&lt;/code&gt; lets define all of the fields that we want to define.&lt;/p&gt;
 
@@ -145,7 +307,7 @@ end
 
 &lt;p&gt;We are writing code which generates code, and some of the variables are part of our desire &amp;quot;not to write 15 of the basically the same methods&amp;quot; and some of the variables are there to tweak the functionality of the API.&lt;/p&gt;
 
-&lt;h2&gt;The SQL Bit&lt;/h2&gt;
+&lt;h2 id="the-sql-bit"&gt;The SQL Bit&lt;/h2&gt;
 
 &lt;p&gt;The full details can be found in &lt;a href="https://github.com/HappyFunCorp/dateslices/blob/master/lib/dateslices/scopes.rb"&gt;the repo&lt;/a&gt; but here&amp;#39;s the bit that actually generates the query switching out to the various classes that know how to deal with each of the databases that we saw before.&lt;/p&gt;
 
@@ -175,7 +337,7 @@ slices = select( sql.join(&amp;#39;, &amp;#39;)).where.not(column =&amp;gt; nil)
 
 &lt;p&gt;The full code does a bit more to figure out how you want to see the data, but that&amp;#39;s the tricky stuff.&lt;/p&gt;
 
-&lt;h2&gt;Testing a rails plugin that talks to many databases&lt;/h2&gt;
+&lt;h2 id="testing-a-rails-plugin-that-talks-to-many-databases"&gt;Testing a rails plugin that talks to many databases&lt;/h2&gt;
 
 &lt;p&gt;The first thing that&amp;#39;s a little strange when testing a plugin is that you can test your gem in two different contexts: one in a basic ruby context, and your tests go into &lt;code&gt;spec/&lt;/code&gt;, and the other in a rails context.  The plugin generator will create a sample rails app inside of &lt;code&gt;spec/dummy&lt;/code&gt; (or &lt;code&gt;test/dummy&lt;/code&gt; if you are using &lt;code&gt;rails plugin new&lt;/code&gt; without our fancy rspec stuff).  &lt;/p&gt;
 
@@ -241,7 +403,7 @@ end
 
 &lt;p&gt;And then in the regular &lt;code&gt;before&lt;/code&gt; callback we make sure that the tables are cleared our ready for the next test.&lt;/p&gt;
 
-&lt;h2&gt;That&amp;#39;s just a bit of ActiveRecord&lt;/h2&gt;
+&lt;h2 id="just-a-bit-of-activerecord"&gt;Just a bit of ActiveRecord&lt;/h2&gt;
 
 &lt;p&gt;We&amp;#39;ve just gone through an ActiveRecord extention and that barely scratches the surface of what else you can do with Rails.  &lt;a href="https://pragprog.com/book/jvrails2/crafting-rails-4-applications"&gt;Crafting Rails 4 Applications&lt;/a&gt; is the best resource I&amp;#39;ve found to get a sense of what is possible, but when I sat down to work on something there was a lot of trial and error.  They through how they created &lt;a href="https://github.com/plataformatec/mail_form"&gt;mail_form&lt;/a&gt;, or at least a simplified version of it, that lets you use rails validations from ActiveRecord without having to back up the model with a database.  (As you might infer from the name, something that is useful for Contact forms that send out email.)  The book also goes through how Rails Engines work, which are very much like rails plugins but with additional integration points into the rails application lifecycle.&lt;/p&gt;
 </content>
@@ -261,7 +423,7 @@ end
 
 &lt;p&gt;Lets look at how we can interact with Google Analytics using &lt;a href="https://github.com/google/google-api-ruby-client"&gt;google-api-ruby-client&lt;/a&gt;.  At the end of this, we are going to be able to see the current traffic stats, top referrals, see a timeline of when the referals first came in, and do what we can from that information to track down who is talking about us.  GA will show us that we are getting a lot of &lt;code&gt;SOCIAL&lt;/code&gt; traffic, but what else can we figure out?&lt;/p&gt;
 
-&lt;h2&gt;Step 1: OAuth: Setting it up to access Google on behalf of the user&lt;/h2&gt;
+&lt;h2 id="step-1-setting-it-up-to-access-google-on-behalf-of-the-user"&gt;Step 1 Setting it up to access Google on behalf of the user&lt;/h2&gt;
 
 &lt;p&gt;We&amp;#39;re going to be using OAuth2 to authorize our script.  So head over to the &lt;a href="https://console.developers.google.com/project"&gt;Google Developers Console&lt;/a&gt;.&lt;/p&gt;
 
@@ -272,7 +434,7 @@ end
 &lt;li&gt;&lt;p&gt;&lt;strong&gt;APIs and auth &amp;gt; Create Client ID&lt;/strong&gt;.  Select &lt;strong&gt;Installed Application&lt;/strong&gt; with type &lt;em&gt;Other&lt;/em&gt;.  This will create the keys for you, and then you &lt;strong&gt;Download JSON&lt;/strong&gt; and save it in a file.&lt;/p&gt;&lt;/li&gt;
 &lt;/ol&gt;
 
-&lt;h2&gt;Step 2: &lt;code&gt;Google::APIClient::InstalledAppFlow&lt;/code&gt; Getting an access token and an API file&lt;/h2&gt;
+&lt;h2 id="step-2-getting-an-access-token-and-an-api-file-using-installedappflow"&gt;Step 2 Getting an access token and an API file using InstalledAppFlow&lt;/h2&gt;
 
 &lt;p&gt;Working with the Google API is pretty confusing at first, since there&amp;#39;s multiple steps that need to happen before you can even figure out how to make a call.  Twitter&amp;#39;s API, which in every other way is a joke compared to Google&amp;#39;s way of doing things, has a &lt;a href="/scripting-twitter"&gt;handy way to get a single use access token&lt;/a&gt;.  With Google you need to do this yourself.  And once that&amp;#39;s done, you need to load the API meta data from the API API to be able to access it!&lt;/p&gt;
 
@@ -349,7 +511,7 @@ end
 
 &lt;p&gt;When we run this the first time, you should be prompted to grant access to your application.  The second time it should run and exit cleanly -- it has access, but we haven&amp;#39;t asked to do anything yet.&lt;/p&gt;
 
-&lt;h2&gt;Step 3: Discover the API&lt;/h2&gt;
+&lt;h2 id="step-3-discover-the-api"&gt;Step 3 Discover the API&lt;/h2&gt;
 
 &lt;p&gt;Google takes their software development seriously, and it shows.  Not only are there many different APIs available to use, but they all have different versions.  These endpoints are all different, and rather than have them all hard coded into the client access library, you use the &lt;em&gt;discover api&lt;/em&gt; to pull in metadata associated with it.  The following code will load up this data and cache it to the filesystem so the next access will be faster.&lt;/p&gt;
 
@@ -373,7 +535,7 @@ end
   end
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2&gt;Step 4: Finding a web profile&lt;/h2&gt;
+&lt;h2 id="step-4-finding-a-web-profile"&gt;Step 4 Finding a web profile&lt;/h2&gt;
 
 &lt;p&gt;In order to pull data from an analytics account, you need to query the management API to get a list of profiles that you user has access to.  We&amp;#39;re going to collapse the differences between accounts and properties, and print them all out in a list directly.  The key variable we are looking for is going to be the profile &lt;em&gt;id&lt;/em&gt;.  This is different from the &lt;em&gt;web property id&lt;/em&gt;, which is what you use in Javascript to add the tracking code (.e.g &lt;code&gt;UA-56296045-1&lt;/code&gt;).  We&amp;#39;ll also show the &lt;em&gt;websiteUrl&lt;/em&gt; associated with the account since that&amp;#39;s what people really know.&lt;/p&gt;
 
@@ -395,7 +557,7 @@ if __FILE__ == $0
 end
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2&gt;Step 5: Querying with &lt;code&gt;ga.get&lt;/code&gt;&lt;/h2&gt;
+&lt;h2 id="step-5-querying-with-ga.get"&gt;Step 5 Querying with ga.get&lt;/h2&gt;
 
 &lt;p&gt;The main end point we are looking at is &lt;code&gt;ga.get&lt;/code&gt;.  There&amp;#39;s an &lt;a href="https://ga-dev-tools.appspot.com/explorer/"&gt;interactive developer tool&lt;/a&gt; that will let you experiment with what is available and how it works.   If you load up that tool now, you&amp;#39;ll see what we&amp;#39;ve written code that will let us find the property id for our query, so we are now ready to start querying.&lt;/p&gt;
 
@@ -465,7 +627,7 @@ end
 7 rows in set
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2&gt;Step 6: Adding more commands&lt;/h2&gt;
+&lt;h2 id="step-6-adding-more-commands"&gt;Step 6 Adding more commands&lt;/h2&gt;
 
 &lt;p&gt;Lets create a &lt;code&gt;Thor&lt;/code&gt; class here for the things that we want to query, and then go through a implement the calls in the &lt;code&gt;AnalyticsClient&lt;/code&gt; class.&lt;/p&gt;
 
@@ -555,7 +717,7 @@ if __FILE__ == $0
 end
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2&gt;Step 7: Let&amp;#39;s implement&lt;/h2&gt;
+&lt;h2 id="step-7-lets-implement"&gt;Step 7 Lets implement&lt;/h2&gt;
 
 &lt;p&gt;We have the &lt;code&gt;profiles&lt;/code&gt; command and the &lt;code&gt;hotcontent&lt;/code&gt; command, or &lt;strong&gt;what content is getting traffic&lt;/strong&gt; working already.  Lets add some code to make the &lt;code&gt;--csv&lt;/code&gt; option work, this goes into the &lt;code&gt;AnalyticsClient&lt;/code&gt; class:&lt;/p&gt;
 
@@ -620,7 +782,7 @@ We can find out by looking at &lt;code&gt;ga:source&lt;/code&gt; which is basica
   end
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2&gt;Step 8: The timeline&lt;/h2&gt;
+&lt;h2 id="step-8-the-timeline"&gt;Step 8 The timeline&lt;/h2&gt;
 
 &lt;p&gt;&lt;strong&gt;A timeline of when content was published and people started linking to it&lt;/strong&gt; can be created by combinding 2 of the methods that we&amp;#39;ve already written, &lt;code&gt;hotcontent&lt;/code&gt; and &lt;code&gt;referers&lt;/code&gt;, and looping through and querying them one day at a time.&lt;/p&gt;
 
@@ -661,7 +823,7 @@ We can find out by looking at &lt;code&gt;ga:source&lt;/code&gt; which is basica
   end
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2&gt;Code&lt;/h2&gt;
+&lt;h2 id="code"&gt;Code&lt;/h2&gt;
 
 &lt;p&gt;The &lt;a href="https://gist.github.com/wschenk/d7f8650d619d8f68730a"&gt;full code is available to play with&lt;/a&gt;.  The mechanism for talking to Google APIs from a script works everywhere, but if you are going to do this on your server you&amp;#39;ll want to get the OAuth2 key using a different process than the &lt;code&gt;InstalledAppFlow&lt;/code&gt;.&lt;/p&gt;
 </content>
@@ -675,7 +837,7 @@ We can find out by looking at &lt;code&gt;ga:source&lt;/code&gt; which is basica
     <author>
       <name>Will Schenk</name>
     </author>
-    <content type="html">&lt;h2&gt;Make apps faster.&lt;/h2&gt;
+    <content type="html">&lt;h2 id="make-apps-faster"&gt;Make apps faster&lt;/h2&gt;
 
 &lt;p&gt;Head on over to the &lt;a href="http://seed.happyfuncorp.com"&gt;HappySeed website&lt;/a&gt; to get the latest version of HappyFunCorp&amp;#39;s starter application toolkit.&lt;/p&gt;
 
@@ -688,28 +850,28 @@ We can find out by looking at &lt;code&gt;ga:source&lt;/code&gt; which is basica
 
 &lt;p&gt;And then create rails apps, plugins, engines, and middleman static sites using the new &lt;code&gt;happy_seed&lt;/code&gt; tool.&lt;/p&gt;
 
-&lt;h2&gt;Rails sites&lt;/h2&gt;
+&lt;h2 id="rails-sites"&gt;Rails sites&lt;/h2&gt;
 
 &lt;pre&gt;&lt;code class="sh"&gt;$ happy_seed rails app_name
 &lt;/code&gt;&lt;/pre&gt;
 
 &lt;p&gt;&lt;a href="http://seed.happyfuncorp.com/docs/rails.html"&gt;Read rails documentation&lt;/a&gt;&lt;/p&gt;
 
-&lt;h2&gt;Rails Plugins&lt;/h2&gt;
+&lt;h2 id="rails-plugins"&gt;Rails Plugins&lt;/h2&gt;
 
 &lt;pre&gt;&lt;code class="sh"&gt;$ happy_seed plugin plugin_name
 &lt;/code&gt;&lt;/pre&gt;
 
 &lt;p&gt;&lt;a href="http://seed.happyfuncorp.com/docs/plugin.html"&gt;Read plug-in documentation&lt;/a&gt;&lt;/p&gt;
 
-&lt;h2&gt;Rails Engines&lt;/h2&gt;
+&lt;h2 id="rails-engines"&gt;Rails Engines&lt;/h2&gt;
 
 &lt;pre&gt;&lt;code class="sh"&gt;$ happy_seed engine engine_name
 &lt;/code&gt;&lt;/pre&gt;
 
 &lt;p&gt;&lt;a href="http://seed.happyfuncorp.com/docs/plugin.html"&gt;Read engine documentation&lt;/a&gt;&lt;/p&gt;
 
-&lt;h2&gt;Middleman Static Sites&lt;/h2&gt;
+&lt;h2 id="middleman-static-sites"&gt;Middleman Static Sites&lt;/h2&gt;
 
 &lt;pre&gt;&lt;code class="sh"&gt;$ happy_seed static static_site
 [...]
@@ -718,7 +880,7 @@ $ happy_seed static_blog static_site
 
 &lt;p&gt;&lt;a href="http://seed.happyfuncorp.com/docs/middleman.html"&gt;Read static documentation&lt;/a&gt;&lt;/p&gt;
 
-&lt;h2&gt;Get that code!&lt;/h2&gt;
+&lt;h2 id="get-that-code"&gt;Get that code&lt;/h2&gt;
 
 &lt;p&gt;Head on over to &lt;a href="https://github.com/HappyFunCorp/happy_seed"&gt;github&lt;/a&gt; to check it out!&lt;/p&gt;
 
@@ -750,7 +912,7 @@ $ happy_seed static_blog static_site
 
 &lt;p&gt;In the node world &lt;a href="http://yeoman.io"&gt;Yeoman&lt;/a&gt; does something similar, but I personally have had poor luck getting &lt;a href="http://gruntjs.com"&gt;Grunt&lt;/a&gt; to work reliably in practice.&lt;/p&gt;
 
-&lt;h2&gt;Setting up a simple static site with Middleman&lt;/h2&gt;
+&lt;h2 id="setting-up-a-simple-static-site-with-middleman"&gt;Setting up a simple static site with Middleman&lt;/h2&gt;
 
 &lt;p&gt;One of the problems with starting with Middleman is that there are so many places to start.  Lets look at how to setup a basic middleman site with bootstrap-sass, haml, and bower.  First thing is to install middleman:&lt;/p&gt;
 
@@ -777,7 +939,7 @@ $ happy_seed static_blog static_site
 
 &lt;p&gt;This creates 4 files in the main directory, &lt;code&gt;Gemfile&lt;/code&gt; and &lt;code&gt;Gemfile.lock&lt;/code&gt;, which we know and love, &lt;code&gt;config.rb&lt;/code&gt; which configures how middleman generates the site, and &lt;code&gt;source&lt;/code&gt; which are the sourcefiles of the site.&lt;/p&gt;
 
-&lt;h2&gt;Gemfile&lt;/h2&gt;
+&lt;h2 id="gemfile"&gt;Gemfile&lt;/h2&gt;
 
 &lt;p&gt;By default, &lt;code&gt;middleman&lt;/code&gt; installs the &lt;code&gt;middleman-livereload&lt;/code&gt; plugin, so in development mode any browers that have a page open with refresh when you save a file.  This makes testing a lot easier.  We can install other gems here to add different functionality.  Let&amp;#39;s add a few of these now:&lt;/p&gt;
 
@@ -791,9 +953,9 @@ gem &amp;quot;jquery-middleman&amp;quot;
 
 &lt;p&gt;The file two are including &lt;code&gt;bootstrap-sass&lt;/code&gt; -- the same that we use for rails sites -- and &lt;code&gt;jquery&lt;/code&gt;.  These get included into the sprockets asset path, so you don&amp;#39;t need to maintain them in your project.  (We&amp;#39;ll also see below how to integrate &lt;code&gt;bower&lt;/code&gt; components into your project.)&lt;/p&gt;
 
-&lt;h2&gt;Tweaking Middleman: &lt;code&gt;config.rb&lt;/code&gt;&lt;/h2&gt;
+&lt;h2 id="tweaking-middleman"&gt;Tweaking Middleman&lt;/h2&gt;
 
-&lt;p&gt;This is where we configure how middleman itself works.&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;config.rb&lt;/code&gt; is where we configure how middleman itself works.&lt;/p&gt;
 
 &lt;pre&gt;&lt;code class="rb"&gt;# For custom domains on github pages
 page &amp;quot;CNAME&amp;quot;, layout: false
@@ -894,7 +1056,7 @@ configure :build do
 end
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2&gt;Using bower&lt;/h2&gt;
+&lt;h2 id="using-bower"&gt;Using bower&lt;/h2&gt;
 
 &lt;p&gt;The basic way to use bower is to put this in &lt;code&gt;config.rb&lt;/code&gt;:&lt;/p&gt;
 
@@ -913,7 +1075,7 @@ end
 
 &lt;p&gt;More information on the &lt;a href="http://middlemanapp.com/basics/asset-pipeline/"&gt;Middleman Asset Pipline documentation&lt;/a&gt;&lt;/p&gt;
 
-&lt;h2&gt;Using layouts and partials&lt;/h2&gt;
+&lt;h2 id="using-layouts-and-partials"&gt;Using layouts and partials&lt;/h2&gt;
 
 &lt;p&gt;The &lt;code&gt;source&lt;/code&gt; directory is where the actual code for your site lives.  Here is an example &lt;code&gt;layouts/layout.haml&lt;/code&gt; file to give you a sense of how to use layouts and include partials:&lt;/p&gt;
 
@@ -953,7 +1115,7 @@ end
 &amp;lt;% end %&amp;gt;
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2&gt;The YAML preable, the preyaml?&lt;/h2&gt;
+&lt;h2 id="the-yaml-preable-the-preyaml"&gt;The YAML preable the preyaml&lt;/h2&gt;
 
 &lt;p&gt;Metadata about the template is included in a block of text at the top of the file, which gets pulled off to set things that the templating system can use later.  On the top of this file that I am editing right now, it looks like this&lt;/p&gt;
 
@@ -975,7 +1137,7 @@ I make a lot of websites, and I have a certain toolkit that I use to build...
 
 &lt;p&gt;&lt;em&gt;title&lt;/em&gt; is built into middleman, &lt;em&gt;subtitle&lt;/em&gt; and &lt;em&gt;header image&lt;/em&gt; are just some random things I made up.  The &lt;code&gt;tags&lt;/code&gt; attribute is part of the &lt;code&gt;middleman-blog&lt;/code&gt; extension which we will cover below.&lt;/p&gt;
 
-&lt;h2&gt;How the build works&lt;/h2&gt;
+&lt;h2 id="how-the-build-works"&gt;How the build works&lt;/h2&gt;
 
 &lt;p&gt;When you run &lt;code&gt;middleman server&lt;/code&gt; or &lt;code&gt;middleman build&lt;/code&gt;, middleman loads up the configuration file in &lt;code&gt;config.rb&lt;/code&gt;.  It creates a sitemap based upon the files in the &lt;code&gt;source&lt;/code&gt; directory as well as other directives inside of the config.rb file. &lt;/p&gt;
 
@@ -1003,13 +1165,13 @@ end
 
 &lt;p&gt;Then each entry in the sitemap the file is processed (based upon the extension, so scss -&amp;gt; js, haml -&amp;gt; html, etc.) into the build directory.  Helper methods are available inside of the templates for things like &lt;code&gt;javascript_include_tag&lt;/code&gt;, &lt;code&gt;stylesheet_link_tag&lt;/code&gt;, &lt;code&gt;link_to&lt;/code&gt; and &lt;code&gt;image_tag&lt;/code&gt; and all of the rest.&lt;/p&gt;
 
-&lt;h2&gt;The preview: &lt;code&gt;middleman server&lt;/code&gt;&lt;/h2&gt;
+&lt;h2 id="middleman-server"&gt;middleman server&lt;/h2&gt;
 
 &lt;p&gt;Starting the server in preview mode will start a local server on port &lt;code&gt;4567&lt;/code&gt; that generates the files on demand.  If you have livereload enabled this will automatically trigger a page refresh for any open browsers, so you can tweak and look at things as you go.&lt;/p&gt;
 
 &lt;p&gt;Inside of your templates, &lt;code&gt;config.environment == :development&lt;/code&gt; when you are in preview mode.  So, if there are some things that you don&amp;#39;t want to push to the live site but are useful for development, you can switch them on and off using that mechanism.&lt;/p&gt;
 
-&lt;h2&gt;The build: &lt;code&gt;middleman build&lt;/code&gt;&lt;/h2&gt;
+&lt;h2 id="middleman-build"&gt;middleman build&lt;/h2&gt;
 
 &lt;p&gt;This does basically the same thing as the server, but the templates are generally further processed.  Cachebusting can be enabled, and you can include tracking code if &lt;code&gt;config.environment == :build&lt;/code&gt; is true.  This goes through all of the files in source that look like webfiles and places them in the &lt;code&gt;build&lt;/code&gt; directory.&lt;/p&gt;
 
@@ -1021,7 +1183,7 @@ $ python -m SimpleHTTPServer
 
 &lt;p&gt;And then open a new browser on port &lt;code&gt;8000&lt;/code&gt;.&lt;/p&gt;
 
-&lt;h2&gt;The deploy: &lt;code&gt;middleman deploy&lt;/code&gt;&lt;/h2&gt;
+&lt;h2 id="middleman-deploy"&gt;middleman deploy&lt;/h2&gt;
 
 &lt;p&gt;In the basic &lt;code&gt;:git&lt;/code&gt; setting that we have above, middleman deploy will build the site into the &lt;code&gt;build/&lt;/code&gt; directory, switch that directory to the &lt;code&gt;gh-pages&lt;/code&gt; branch, and push it to &lt;code&gt;origin&lt;/code&gt;.  Assuming that you are hosting your repo on github, this will publish the static content on github pages.&lt;/p&gt;
 
@@ -1031,7 +1193,7 @@ $ python -m SimpleHTTPServer
 
 &lt;p&gt;More information on &lt;a href="https://github.com/karlfreeman/middleman-deploy"&gt;middleman-deploy&lt;/a&gt;.&lt;/p&gt;
 
-&lt;h2&gt;Building a blog&lt;/h2&gt;
+&lt;h2 id="building-a-blog"&gt;Building a blog&lt;/h2&gt;
 
 &lt;p&gt;There are two good extensions for building a blog with middleman.  The default template for blog is sort of confusing in the way that it&amp;#39;s laid out, mainly because it gets rid of the &lt;code&gt;layouts/&lt;/code&gt; directory, but let&amp;#39;s go through it and see how it&amp;#39;s supposed to work:&lt;/p&gt;
 
@@ -1067,7 +1229,7 @@ $ middleman publish source/drafts/this-is-amazing.html.markdown
 
 &lt;p&gt;This lets us keep drafts in git and doesn&amp;#39;t force us to commit to a date until we are ready to publish it.  There are &lt;code&gt;published&lt;/code&gt; and &lt;code&gt;date&lt;/code&gt; attributes that the default blog extension knows about to turn it on and off, and is a good example of something that you can see in development but not production, but that still leaves to moving files around manually to adjust the date.&lt;/p&gt;
 
-&lt;h2&gt;What does it add?&lt;/h2&gt;
+&lt;h2 id="what-does-it-add"&gt;What does it add&lt;/h2&gt;
 
 &lt;p&gt;In addition to the sitemap, we now have a &lt;code&gt;blog&lt;/code&gt;, &lt;code&gt;article&lt;/code&gt;, and &lt;code&gt;tag&lt;/code&gt; concept inside of the middleman app.  Articles are represented as pages (by default using &lt;code&gt;markdown&lt;/code&gt;) but the &lt;code&gt;tag&lt;/code&gt; and &lt;code&gt;calendar&lt;/code&gt; templates are actually more like &lt;code&gt;proxy&lt;/code&gt; templates than file templates, and when the site is generated middleman will iterate over then to produce many output files from one template.&lt;/p&gt;
 
@@ -1116,7 +1278,7 @@ activate :drafts
 
 &lt;p&gt;This should be enough to get you started, and more &lt;a href="http://middlemanapp.com/basics/blogging/"&gt;documentation is here&lt;/a&gt; .  At this point it really becomes a design and development challenge, not figuring out how to use the tool.&lt;/p&gt;
 
-&lt;h2&gt;That&amp;#39;s the basics.&lt;/h2&gt;
+&lt;h2 id="go-get-started"&gt;Go get started&lt;/h2&gt;
 
 &lt;p&gt;Middleman gives you all of the front-end developer benefits of using a system like Rails, but outputs static content than can be served anywhere without any dependancies.  Many sites don&amp;#39;t really require all that for them to run, and it&amp;#39;s crazy to me that something as read heavy as a blog often can&amp;#39;t perform well under load given that it&amp;#39;s just serving up the same old stuff over and over again.  You want to have some tooling to make it easier, but it doesn&amp;#39;t need to be &lt;em&gt;run time&lt;/em&gt; tooling.&lt;/p&gt;
 
@@ -1147,7 +1309,7 @@ activate :drafts
 
 &lt;p&gt;Luckily for you twitter has a work around.&lt;/p&gt;
 
-&lt;h2&gt;Firstly, we create the Twitter App&lt;/h2&gt;
+&lt;h2 id="firstly,-we-create-the-twitter-app"&gt;Firstly, we create the Twitter App&lt;/h2&gt;
 
 &lt;ol&gt;
 &lt;li&gt;&lt;p&gt;Go to &lt;a href="https://apps.twitter.com/app/new"&gt;Create new Twitter App&lt;/a&gt; and fill out the required fields.  Specifically, leave &lt;em&gt;callback URL&lt;/em&gt; blank for now.&lt;/p&gt;&lt;/li&gt;
@@ -1165,7 +1327,7 @@ activate :drafts
 
 &lt;p&gt;Make note of these variables.&lt;/p&gt;
 
-&lt;h2&gt;Then, we code with the REST API&lt;/h2&gt;
+&lt;h2 id="then,-we-code-with-the-rest-api"&gt;Then, we code with the REST API&lt;/h2&gt;
 
 &lt;p&gt;Make sure you have the twitter gem installed by typing:&lt;/p&gt;
 
@@ -1248,7 +1410,7 @@ Favorites count     : 17
 
 &lt;p&gt;We create a &lt;code&gt;Twitter::REST::Client&lt;/code&gt;, passing in the variables that we got when we created the twitter app.  Eventually we&amp;#39;ll out grow hardcoding them into the script, but for now replace the dummy values I have above with what you have and try it with some screen names.&lt;/p&gt;
 
-&lt;h2&gt;Longing for &lt;code&gt;http://t.co/OA0tQaQiAX&lt;/code&gt;&lt;/h2&gt;
+&lt;h2 id="longing-for-oa0tqaqiax"&gt;Longing for OA0tQaQiAX&lt;/h2&gt;
 
 &lt;p&gt;If there&amp;#39;s one word that describes URL shorteners, that word is &lt;em&gt;rude&lt;/em&gt;.  This magical place where anyone can setup shop and link directly to other people now is now infested with middle men, who may indeed be useful but are even less popular than used car salesmen.  URL shorteners are services that &lt;em&gt;intermediate&lt;/em&gt; the actual destination of the link in order to better track who clicks on the link.  You create many shortened links and give them out to different people, and when the world at large clicks on one of them you know who they got it from.&lt;/p&gt;
 
@@ -1282,7 +1444,7 @@ http://happyfuncorp.com
 &lt;pre&gt;&lt;code class="rb"&gt;  printf t, &amp;quot;Website&amp;quot;, lookup_url( u.website.to_s )
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2&gt;The basics: tweets, timelines, mentions, retweets&lt;/h2&gt;
+&lt;h2 id="tweets-timelines-mentions-retweets"&gt;Tweets timelines mentions retweets&lt;/h2&gt;
 
 &lt;p&gt;With read access, you can pull down some basic stuff.&lt;/p&gt;
 
@@ -1328,7 +1490,7 @@ http://happyfuncorp.com
 
 &lt;p&gt;If you are building a bot, for example, that you wanted to respond when someone tweets at it, you could use the &lt;code&gt;client.mentions&lt;/code&gt; method to get those tweets in particular.  You&amp;#39;d need a way to make sure you don&amp;#39;t double respond to people each time the bot was run.  If you wanted to always have the bot running, look at the Streaming API below.  If you want to know how to post to twitter, read on.&lt;/p&gt;
 
-&lt;h2&gt;Rate Limits on the REST interface&lt;/h2&gt;
+&lt;h2 id="rate-limits-on-the-rest-interface"&gt;Rate Limits on the REST interface&lt;/h2&gt;
 
 &lt;p&gt;Unlike Google, who casually has enough computer power to do personalized type ahead search of the &lt;em&gt;entire internet&lt;/em&gt; at &lt;em&gt;a global scale&lt;/em&gt;, Twitter is prickly about &lt;a href="https://dev.twitter.com/rest/public/rate-limiting"&gt;you hammering their site&lt;/a&gt;.  Personally, I thought that &lt;a href="http://readwrite.com/2008/07/17/the_story_of_the_fail_whale"&gt;the fail whale&lt;/a&gt; was really fun.  Let&amp;#39;s add a another &lt;code&gt;CLI&lt;/code&gt; command to print out the current rate limit status, how many calls you have left, and when your counter for that resource will reset:&lt;/p&gt;
 
@@ -1370,7 +1532,7 @@ rescue Twitter::Error::TooManyRequests =&amp;gt; error
 end
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2&gt;Listing followers&lt;/h2&gt;
+&lt;h2 id="listing-followers"&gt;Listing followers&lt;/h2&gt;
 
 &lt;p&gt;To see what that looks like, lets add another &lt;code&gt;CLI&lt;/code&gt; command for listing a person&amp;#39;s followers:&lt;/p&gt;
 
@@ -1388,7 +1550,7 @@ end
    /followers/list        0 remaining, resets in 288 seconds
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2&gt;Searching for URLs&lt;/h2&gt;
+&lt;h2 id="searching-for-urls"&gt;Searching for URLs&lt;/h2&gt;
 
 &lt;p&gt;There are different types of URLs on twitter.  Lets look at a specific tweet of mine, 529342690476179456, to see what there is:&lt;/p&gt;
 
@@ -1433,7 +1595,7 @@ end
 
 &lt;p&gt;Twitter search only returns results from the previous 6-9 days, so better act fast!&lt;/p&gt;
 
-&lt;h2&gt;The Streaming API: Filters&lt;/h2&gt;
+&lt;h2 id="the-streaming-api:-filters"&gt;The Streaming API: Filters&lt;/h2&gt;
 
 &lt;p&gt;So far we have been looking at the REST API, which lets us interact with the Twitter services much like a user would: in response to something that the user requests.  The other API type is called the &lt;a href="https://dev.twitter.com/streaming/userstreams"&gt;streaming api&lt;/a&gt;, which lets us open up a single connection and receive information when Twitter has something new.  This is useful for a few things:&lt;/p&gt;
 
@@ -1467,7 +1629,7 @@ end
   end
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2&gt;The Streaming API: Reacting to the timeline&lt;/h2&gt;
+&lt;h2 id="the-streaming-api:-reacting-to-the-timeline"&gt;The Streaming API: Reacting to the timeline&lt;/h2&gt;
 
 &lt;p&gt;We can also watch the timeline come through for the registered user, and do something with it.  The pattern is the same as the &lt;code&gt;filter&lt;/code&gt; method, but it passes an Object of one of the following types:&lt;/p&gt;
 
@@ -1504,7 +1666,7 @@ end
 
 &lt;p&gt;Only, you&amp;#39;re not going to get any direct messages, nor are you going to be able to reply, unless you change your application permission settings.&lt;/p&gt;
 
-&lt;h2&gt;Upgrading to the All Access Pass&lt;/h2&gt;
+&lt;h2 id="upgrading-to-the-all-access-pass"&gt;Upgrading to the All Access Pass&lt;/h2&gt;
 
 &lt;p&gt;In order to&lt;/p&gt;
 
@@ -1543,37 +1705,11 @@ end
 &lt;pre&gt;&lt;code class="rb"&gt;client.create_direct_message &amp;quot;wschenk&amp;quot;, &amp;quot;Hi there&amp;quot;
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2&gt;The Code&lt;/h2&gt;
+&lt;h2 id="the-code"&gt;The Code&lt;/h2&gt;
 
 &lt;p&gt;Here is the &lt;a href="https://gist.github.com/wschenk/86e1e87772e7d589e963"&gt;code written for this article&lt;/a&gt;.  The github for &lt;a href="https://github.com/sublimeguile/socialinvestigator"&gt;socialinvestigator&lt;/a&gt; has a more complete sample that loads and stores the credentials in a file.&lt;/p&gt;
 
 &lt;p&gt;&lt;em&gt;Image Credit &lt;a href="https://www.flickr.com/photos/jurvetson/7408451314/in/photolist-bvcbis-7DN6Sk-7DRVeq-7DRUVq-jB3M44-dhZrKM-atAnS1-bi4yL6-atHJJo-85tMTG-cp5WgS-asg29e-chEftd-6Zex9h-djkSiW-acqro-c7PG79-72SJuQ-7fPiox-avgwDx-bEWnc2-4FAqy9-9mvMsP-8fp27H-chEjh3-66UgvR-6oqRAV-6oqUMD-5zWDAn-9mqRC4-6ov3Mw-6oqRQZ-6ov4bh-avgxEZ-6VXNYF-avgwMM-avjcLf-avjcQ1-avjcLS-avjcPd-avjcTW-avjduE-avgwZK-avjdMm-avjcVy-avjcSU-avgwRt-avjcY1-avjd2d-avgwTv"&gt;Steve Jurvetson&lt;/a&gt;&lt;/em&gt;&lt;/p&gt;
-</content>
-  </entry>
-  <entry>
-    <title>Embedding 3d models on your page</title>
-    <link rel="alternate" href="http://willschenk.com/embedding-3d-models-on-your-page/"/>
-    <id>http://willschenk.com/embedding-3d-models-on-your-page/</id>
-    <published>2014-11-15T19:00:00-05:00</published>
-    <updated>2014-11-15T19:00:00-05:00</updated>
-    <author>
-      <name>Will Schenk</name>
-    </author>
-    <content type="html">&lt;p&gt;Github has an &lt;a href="https://help.github.com/articles/3d-file-viewer/"&gt;embeddable 3d model viewer&lt;/a&gt; that you can use to display a model on your site.  The model needs to be hosted in a github repo, and the format is&lt;/p&gt;
-
-&lt;p&gt;&lt;code&gt;&amp;lt;script src=&amp;quot;https://embed.github.com/view/3d/&amp;lt;username&amp;gt;/&amp;lt;repo&amp;gt;/&amp;lt;ref&amp;gt;/&amp;lt;path_to_file&amp;gt;&amp;quot;&amp;gt;&amp;lt;/script&amp;gt;&lt;/code&gt;&lt;/p&gt;
-
-&lt;p&gt;Here&amp;#39;s a model of me that we made using the (Structure 3d scanner)[&lt;a href="http://structure.io"&gt;http://structure.io&lt;/a&gt;], which is a fun device that plugs into your iPhone or iPad.&lt;/p&gt;
-
-&lt;p&gt;&lt;script src="https://embed.github.com/view/3d/sublimeguile/model_army/master/will%20clean.stl"&gt;&lt;/script&gt;&lt;/p&gt;
-
-&lt;p&gt;Pretty fun right?&lt;/p&gt;
-
-&lt;p&gt;The next thing you need to do is to get a 3d printer, so you can create action figures for your office.&lt;/p&gt;
-
-&lt;p&gt;&lt;img alt="Silvrback blog image" src="https://silvrback.s3.amazonaws.com/uploads/f685deb9-2974-425c-bb5b-6d6727b33159/10514107_312439818930875_824765904_n_large.jpg" /&gt;&lt;/p&gt;
-
-&lt;p&gt;End.&lt;/p&gt;
 </content>
   </entry>
 </feed>
