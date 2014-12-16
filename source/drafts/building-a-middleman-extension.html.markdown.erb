@@ -1,0 +1,202 @@
+---
+title: 'Building a Middleman Extension'
+subtitle: 'make middleman more awesome'
+tags: middleman, howto, ruby
+---
+
+Middleman extensions, like rails plugins, are packaged as gems.  There are three main ways to extend middleman.  You can add helpers, add middleman commands, or extend the sitemap generation in someway.  Lets go through those in detail.
+
+## Creating the extension
+
+Create a gem using `bundle gem _name_`
+
+```sh
+$ bundle gem middleman-graphviz
+```
+
+Add `middleman-core` to your gem dependancies in the `.gemspec` file:
+
+```rb
+  spec.add_runtime_dependency     'middleman-core', ['>= 3.0.0']
+```
+
+Register your extension into middleman.  Our gem will be activated in the sites `config.rb` using `activate :graphviz` and this is how middleman knows what to load.  `lib/middleman/graphviz.rb`:
+
+```rb
+require 'middleman-core'
+require "middleman/graphviz/version"
+require "middleman/graphviz/extension"
+
+::Middleman::Extensions.register(:graphviz, ::Middleman::Graphviz::Extension )
+```
+
+_Replace with your gem name!_
+
+Write the code that actually plugs into middleman.  The we are going to add some helpers to the site, so let's register them here.  Create `lib/middleman/graphviz/extension.rb`
+
+```rb
+require 'middleman/graphviz/helpers'
+
+module Middleman
+  module Graphviz
+    class Extension < Middleman::Extension
+      def initialize( app, options_hash = {}, &block)
+        super
+
+        app.helpers Middleman::Graphviz::Helpers
+      end
+    end
+  end
+end
+```
+
+_Replace with your gem name!_
+
+## Writing helpers
+
+Lets create a basic helper method now in the file `lib/middleman/graphviz/helpers.rb`. This is going to accept one parameter and a block. We are going to get the content of that block and then spit it back directly for now.
+
+```rb
+module Middleman
+  module Graphviz
+    module Helpers
+      def basic_helper_example( param )
+        "<h1>#{param}</h1>".html_safe
+      end
+
+      def block_helper_example( type, &block )
+        if block_given?
+          data = capture_html(&block)
+
+          data = data.upcase
+
+          concat_content(data.html_safe)
+        end
+      end
+    end
+  end
+end
+```
+
+These can be used like
+
+```erb
+<%%= basic_helper_example( "My Title") %>
+```
+
+or as a block
+
+```erb
+<%% block_helper( "My Title") do %>
+  This is going to be in upcase
+<%% end %%>
+```
+
+## Add it to an active middleman project
+
+Have bundler reference this new gem inside of an existing middleman project.  `Gemfile`:
+
+```rb
+gem "middleman-graphviz", path: "../middleman-graphviz"
+```
+
+Inside of the middleman project's `config.rb` activate it:
+
+```rb
+activate :graphviz
+```
+
+Now startup the middleman server, and use your helper in the page!  Note that, just like when you use a helper defined in `config.rb` you need to restart `middleman server` to see your change take effect.
+
+## Adding configuration to your extension
+
+If you want to include configurable options in your extension, here's some skeleton code for `extension.rb`:
+
+```rb
+require 'middleman/graphviz/helpers'
+
+module Middleman
+  module Graphviz
+    cattr_accessor :options
+    
+    class Extension < Middleman::Extension
+      def initialize( app, options_hash = {}, &block)
+        super
+
+        app.helpers Middleman::Graphviz::Helpers
+      end
+
+      def registered(app, options_hash = {}, &block)
+        options = Options.new(options_hash)
+        yield options if block_given?
+
+        # Default options for the rsync method.
+        options.theme ||= "default"
+        options.generate_file ||= false
+
+        ::Middleman::Graphviz.options = options
+
+        app.helpers Middleman::Graphviz::Helpers
+      end
+
+      def after_configuration
+        puts "After configuration"
+      end
+    end
+
+    module Helpers
+      def options
+        ::Middleman::Graphviz.options
+      end
+    end
+  end
+end
+```
+
+## Adding additional middleman commands
+
+The middleman command is built on [thor](/making-a-command-line-utility-with-gems-and-thor), which as we know is awesome.  To add a command to the middleman, use the following template for each `command.rb`:
+
+```rb
+require 'middleman-core/cli'
+
+module Middleman
+  module Cli
+    # This class provides a "deploy" command for the middleman CLI.
+    class Graphviz < Thor
+      include Thor::Actions
+
+      check_unknown_options!
+
+      namespace :graphviz
+
+      # Tell Thor to exit with a nonzero exit code on failure
+      def self.exit_on_failure?
+        true
+      end
+
+      desc 'graphviz [options]', 'Run this amazing command'
+      method_option 'clean',
+        type: :boolean,
+        aliases: '-c',
+        desc: 'Clean all the build files'
+      def graphviz
+        @shared_instance = ::Middleman::Application.server.inst
+
+        puts "Running my command"
+      end
+    end
+  end
+end
+```
+
+Then, inside of `middleman/graphviz.rb` simply `require 'middleman/graphviz/command'`.
+
+The [`Thor::Actions`](http://www.rubydoc.info/github/wycats/thor/Thor/Actions) class gives you access to many different helper commands that make it easy to move, filter, template, and otherwise mangle files, and of course you have access to the full middleman app.
+
+## Manipulating the sitemap
+
+The most awesomest way to extend middleman is by modifying the sitemap.  This lets us create whole new URLs that are derived and generated from other sources.  This is how the [middleman-blog](https://github.com/middleman/middleman-blog) extension really works, and if you want to start an indepth exploration that's a good place to start spelunking.
+
+Lets build an extesion that creates pages from an external datasource.  In this case, a CSV file, but you could imagine having this come out of a database instead.
+
