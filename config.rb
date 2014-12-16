@@ -12,13 +12,15 @@ set :markdown_engine, :redcarpet
 activate :autometatags
 
 sprockets.append_path File.join root, 'webicons'
-# sprockets.import_asset 'bower_components/modernizr'
+# sprockets.append_path File.join root, 'bower_components'
+# sprockets.import_asset 'mermaid'
 
 # Automatic image dimensions on image_tag helper
 # activate :automatic_image_sizes
 
 # Easier bootstrap navbars
 activate :bootstrap_navbar
+activate :graphviz
 
 activate :blog do |blog|
   # This will add a prefix to all links, template references and source paths

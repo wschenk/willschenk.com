@@ -21,3 +21,5 @@ gem "tzinfo-data", platforms: [:mswin, :mingw]
 
 gem "builder", "~> 3.0"
 gem "redcarpet"
+
+gem "middleman-graphviz", path: "../middleman-graphviz"
