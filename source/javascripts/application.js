@@ -12,9 +12,9 @@ $( function() {
     $(".comment_universe").slideToggle();
   } );
 
-  if( $(".sidebar").size > 0 ) {
-    $(".sidebar ul").attr( "data-offset-top", $(".sidebar").offset().top );
-  }
+  // if( $(".sidebar").size() > 0 ) {
+  //   $("[data-offset-top]").attr( "data-offset-top", $(".sidebar").offset().top );
+  // }
 
   $("img[alt=\"left_float\"]").addClass( "left_float" );
   
