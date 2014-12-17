@@ -1,7 +1,7 @@
 ---
 :title: Middleman Tricks and Hacks
 :subtitle: specific tricks I used to build this site
-:tags: middleman, ruby, howto, tools
+:tags: middleman, ruby, howto, tools, staticsites
 :date: 2014-12-13
 ---
 As part of the process of getting this site to work, I learned some more things about how to better build a site with middleman.  Building off of our [foundational article](/building-sites-with-middleman/) here are a few other things that I found very useful when using middleman to build a static site with a bunch of dynamically generated content.

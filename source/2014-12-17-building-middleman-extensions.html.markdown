@@ -1,7 +1,7 @@
 ---
 :title: Building Middleman Extensions
 :subtitle: make middleman more awesome
-:tags: middleman, howto, ruby
+:tags: middleman, howto, ruby, staticsites
 :date: 2014-12-17
 ---
 Middleman extensions, like rails plugins, are packaged as gems.  There are three main ways to extend middleman.  You can add helpers, add middleman commands, or extend the sitemap generation in someway.  Lets go through those in detail.

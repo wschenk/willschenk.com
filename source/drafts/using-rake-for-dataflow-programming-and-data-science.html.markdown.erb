@@ -1,0 +1,114 @@
+---
+title: 'Using rake for dataflow programming and data science'
+subtitle: "Rake it like's hot"
+# date: TBD When publishing
+tags: ruby, tools, howto, rake
+---
+
+I've been using Rake more and more for data collection and processing tasks.  Rake is pretty pretty powerful.  Most people know it as way to ass external tasks to a Rails app, but it's actually very powerful build system.  We're going to take advantage of that to build out a [framework](https://github.com/HappyFunCorp/rake-data) that will make it easy to collect, process, and interpret data while keeping it all in sync.
+
+## Tasks and dependancies
+
+Rake is a a Make-like Ruby program that people know mostly in terms of rails apps.  We can define a few tasks and define their interdependancies:
+
+```rb
+task :mail_daily_leader_boards => :update_leader_boards do
+  User.mail_leader_boards!
+end
+
+task :flush_data => :environment do
+  Leaderboard.flush!
+end
+
+task :update_leader_boards => :environment do
+  Leaderboard.update!
+end
+
+task :environment
+```
+
+This looks like this:
+
+<% graphviz do %>
+  digraph {
+    maildailyleaderboards -> updateleaderboards
+    updateleaderboards -> environment
+    flushdata -> environment
+  }
+<% end %>
+
+If we were to run
+
+```sh
+$ rake mail_daily_leaderboards --dry-run
+** Invoke mail_daily_leader_boards (first_time)
+** Invoke update_leader_boards (first_time)
+** Invoke environment (first_time)
+** Execute (dry run) environment
+** Execute (dry run) update_leader_boards
+** Execute (dry run) mail_daily_leader_boards
+```
+
+Rake would look at the dependancies of `mail_daily_leaderboards` and see that it needs to run `update_leader_boards`, which in turn can't run until `environment` is run.  And as you can see it executes the tasks in the order of `environment`, `update_leader_boards` and then, when everything is ready, `mail_daily_leaderboards`.
+
+Rake is also smart enough to only run a task once.  Lets look at what happens when we try to run two tasks:
+
+```sh
+$ rake flush_data mail_daily_leader_boards --dry-run
+** Invoke flush_data (first_time)
+** Invoke environment (first_time)
+** Execute (dry run) environment
+** Execute (dry run) flush_data
+** Invoke mail_daily_leader_boards (first_time)
+** Invoke update_leader_boards (first_time)
+** Invoke environment 
+** Execute (dry run) update_leader_boards
+** Execute (dry run) mail_daily_leader_boards
+```
+
+Notice here that even though `update_leader_boards` and `flush_data` both depend on `environment`, that is only invoked once.
+
+So far so good.
+
+## Dataflow programming
+
+<table class="table table-bordered">
+  <tr>
+    <th style="text-align: center">Top Down</th>
+    <th style="text-align: center">Bottom Up</th>
+  </tr>
+
+  <tr>
+    <td style="text-align: center">
+<% graphviz do %>
+  digraph {
+    A -> B
+    A -> C
+    B -> D
+    C -> D
+    C -> E
+  }
+<% end %>
+    </td>
+
+    <td style="text-align: center">
+<% graphviz do %>
+  digraph {
+  E -> C
+  D -> C
+  D -> B
+  C -> A
+  B -> A
+  }
+<% end %>
+    </td>
+  </tr>
+</table>
+
+## rake and bake
+
+## rake me up before you go-go
+
+## let them eat rake
+
+## rake it until you make it
