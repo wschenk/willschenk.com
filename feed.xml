@@ -5,10 +5,283 @@
   <id>http://willschenk.com/</id>
   <link href="http://willschenk.com/"/>
   <link href="http://willschenk.com/feed.xml" rel="self"/>
-  <updated>2014-12-15T22:52:59-05:00</updated>
+  <updated>2014-12-17T06:49:38-05:00</updated>
   <author>
     <name>Will Schenk</name>
   </author>
+  <entry>
+    <title>Building Middleman Extensions</title>
+    <link rel="alternate" href="http://willschenk.com/building-middleman-extensions/"/>
+    <id>http://willschenk.com/building-middleman-extensions/</id>
+    <published>2014-12-16T19:00:00-05:00</published>
+    <updated>2014-12-16T19:00:00-05:00</updated>
+    <author>
+      <name>Will Schenk</name>
+    </author>
+    <content type="html">&lt;p&gt;Middleman extensions, like rails plugins, are packaged as gems.  There are three main ways to extend middleman.  You can add helpers, add middleman commands, or extend the sitemap generation in someway.  Lets go through those in detail.&lt;/p&gt;
+
+&lt;h2 id="creating-the-extension"&gt;Creating the extension&lt;/h2&gt;
+
+&lt;p&gt;Create a gem using &lt;code&gt;bundle gem _name_&lt;/code&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="sh"&gt;$ bundle gem middleman-graphviz
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Add &lt;code&gt;middleman-core&lt;/code&gt; to your gem dependancies in the &lt;code&gt;.gemspec&lt;/code&gt; file:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;  spec.add_runtime_dependency     &amp;#39;middleman-core&amp;#39;, [&amp;#39;&amp;gt;= 3.0.0&amp;#39;]
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Register your extension into middleman.  Our gem will be activated in the sites &lt;code&gt;config.rb&lt;/code&gt; using &lt;code&gt;activate :graphviz&lt;/code&gt; and this is how middleman knows what to load.  &lt;code&gt;lib/middleman/graphviz.rb&lt;/code&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;require &amp;#39;middleman-core&amp;#39;
+require &amp;quot;middleman/graphviz/version&amp;quot;
+require &amp;quot;middleman/graphviz/extension&amp;quot;
+
+::Middleman::Extensions.register(:graphviz, ::Middleman::Graphviz::Extension )
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;em&gt;Replace with your gem name!&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;Write the code that actually plugs into middleman.  The we are going to add some helpers to the site, so let&amp;#39;s register them here.  Create &lt;code&gt;lib/middleman/graphviz/extension.rb&lt;/code&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;require &amp;#39;middleman/graphviz/helpers&amp;#39;
+
+module Middleman
+  module Graphviz
+    class Extension &amp;lt; Middleman::Extension
+      def initialize( app, options_hash = {}, &amp;amp;block)
+        super
+
+        app.helpers Middleman::Graphviz::Helpers
+      end
+    end
+  end
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;em&gt;Replace with your gem name!&lt;/em&gt;&lt;/p&gt;
+
+&lt;h2 id="writing-helpers"&gt;Writing helpers&lt;/h2&gt;
+
+&lt;p&gt;Lets create a basic helper method now in the file &lt;code&gt;lib/middleman/graphviz/helpers.rb&lt;/code&gt;. This is going to accept one parameter and a block. We are going to get the content of that block and then spit it back directly for now.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;module Middleman
+  module Graphviz
+    module Helpers
+      def basic_helper_example( param )
+        &amp;quot;&amp;lt;h1&amp;gt;#{param}&amp;lt;/h1&amp;gt;&amp;quot;.html_safe
+      end
+
+      def block_helper_example( type, &amp;amp;block )
+        if block_given?
+          data = capture_html(&amp;amp;block)
+
+          data = data.upcase
+
+          concat_content(data.html_safe)
+        end
+      end
+    end
+  end
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;These can be used like&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="erb"&gt;&amp;lt;%%= basic_helper_example( &amp;quot;My Title&amp;quot;) %&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;or as a block&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="erb"&gt;&amp;lt;%% block_helper( &amp;quot;My Title&amp;quot;) do %&amp;gt;
+  This is going to be in upcase
+&amp;lt;%% end %%&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id="add-it-to-an-active-middleman-project"&gt;Add it to an active middleman project&lt;/h2&gt;
+
+&lt;p&gt;Have bundler reference this new gem inside of an existing middleman project.  &lt;code&gt;Gemfile&lt;/code&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;gem &amp;quot;middleman-graphviz&amp;quot;, path: &amp;quot;../middleman-graphviz&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Inside of the middleman project&amp;#39;s &lt;code&gt;config.rb&lt;/code&gt; activate it:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;activate :graphviz
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now startup the middleman server, and use your helper in the page!  Note that, just like when you use a helper defined in &lt;code&gt;config.rb&lt;/code&gt; you need to restart &lt;code&gt;middleman server&lt;/code&gt; to see your change take effect.&lt;/p&gt;
+
+&lt;h2 id="adding-configuration-to-your-extension"&gt;Adding configuration to your extension&lt;/h2&gt;
+
+&lt;p&gt;If you want to include configurable options in your extension, here&amp;#39;s some skeleton code for &lt;code&gt;extension.rb&lt;/code&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;require &amp;#39;middleman/graphviz/helpers&amp;#39;
+
+module Middleman
+  module Graphviz
+    cattr_accessor :options
+
+    class Extension &amp;lt; Middleman::Extension
+      def initialize( app, options_hash = {}, &amp;amp;block)
+        super
+
+        app.helpers Middleman::Graphviz::Helpers
+      end
+
+      def registered(app, options_hash = {}, &amp;amp;block)
+        options = Options.new(options_hash)
+        yield options if block_given?
+
+        # Default options for the rsync method.
+        options.theme ||= &amp;quot;default&amp;quot;
+        options.generate_file ||= false
+
+        ::Middleman::Graphviz.options = options
+
+        app.helpers Middleman::Graphviz::Helpers
+      end
+
+      def after_configuration
+        puts &amp;quot;After configuration&amp;quot;
+      end
+    end
+
+    module Helpers
+      def options
+        ::Middleman::Graphviz.options
+      end
+    end
+  end
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id="adding-additional-middleman-commands"&gt;Adding additional middleman commands&lt;/h2&gt;
+
+&lt;p&gt;The middleman command is built on &lt;a href="/making-a-command-line-utility-with-gems-and-thor"&gt;thor&lt;/a&gt;, which as we know is awesome.  To add a command to the middleman, use the following template for each &lt;code&gt;command.rb&lt;/code&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;require &amp;#39;middleman-core/cli&amp;#39;
+
+module Middleman
+  module Cli
+    # This class provides a &amp;quot;deploy&amp;quot; command for the middleman CLI.
+    class Graphviz &amp;lt; Thor
+      include Thor::Actions
+
+      check_unknown_options!
+
+      namespace :graphviz
+
+      # Tell Thor to exit with a nonzero exit code on failure
+      def self.exit_on_failure?
+        true
+      end
+
+      desc &amp;#39;graphviz [options]&amp;#39;, &amp;#39;Run this amazing command&amp;#39;
+      method_option &amp;#39;clean&amp;#39;,
+        type: :boolean,
+        aliases: &amp;#39;-c&amp;#39;,
+        desc: &amp;#39;Clean all the build files&amp;#39;
+      def graphviz
+        @shared_instance = ::Middleman::Application.server.inst
+
+        puts &amp;quot;Running my command&amp;quot;
+      end
+    end
+  end
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Then, inside of &lt;code&gt;middleman/graphviz.rb&lt;/code&gt; simply &lt;code&gt;require &amp;#39;middleman/graphviz/command&amp;#39;&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;The &lt;a href="http://www.rubydoc.info/github/wycats/thor/Thor/Actions"&gt;&lt;code&gt;Thor::Actions&lt;/code&gt;&lt;/a&gt; class gives you access to many different helper commands that make it easy to move, filter, template, and otherwise mangle files, and of course you have access to the full middleman app.&lt;/p&gt;
+
+&lt;h2 id="manipulating-the-sitemap"&gt;Manipulating the sitemap&lt;/h2&gt;
+
+&lt;p&gt;The most awesomest way to extend middleman is by modifying the sitemap.  This lets us create whole new URLs that are derived and generated from other sources.  This is how the &lt;a href="https://github.com/middleman/middleman-blog"&gt;middleman-blog&lt;/a&gt; extension really works, and if you want to start an indepth exploration that&amp;#39;s a good place to start spelunking.&lt;/p&gt;
+
+&lt;p&gt;Lets build an extesion that creates pages from an external datasource.  In this case, a CSV file, but you could imagine having this come out of a database instead.  This lets us manipulate the sitemap of the site it&amp;#39;s been created, and will let us add and remove different pages based upon what middleman knows about the site.&lt;/p&gt;
+
+&lt;p&gt;First we add an &lt;code&gt;after_configuration&lt;/code&gt; handler to &lt;code&gt;Middleman::Graphviz::Extension&lt;/code&gt; to register our class as a &lt;code&gt;resource_list_manipulator&lt;/code&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;  def after_configuration
+    @csv_pages = Middleman::CSV::Page.new( @app, self )
+    @app.sitemap.register_resource_list_manipulator(:&amp;quot;csv_pages&amp;quot;, @csv_pages, false)
+  end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Then we create &lt;code&gt;lib/middleman/csv/page.rb&lt;/code&gt;.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;require &amp;#39;csv&amp;#39;
+
+module Middleman
+  module CSV
+    class Page
+      # include UriTemplates
+
+      def initialize(app, controller)
+        @sitemap = app.sitemap
+        @page_link_template = &amp;quot;pages/{page}.html&amp;quot;
+        @page_template = &amp;quot;page.html&amp;quot;
+        app.ignore @page_template
+      end
+
+      # Update the main sitemap resource list
+      # @return [void]
+      def manipulate_resource_list(resources)
+        resources + ::CSV.open( &amp;quot;pages.csv&amp;quot; ).collect do |row|
+          create_page_resource( row[0], row )
+        end
+      end
+
+      private
+
+      def link(page)
+        ::Middleman::Util.normalize_path @page_link_template.gsub( /\{page\}/, page )
+      end
+
+      def create_page_resource( page, row )
+        Sitemap::Resource.new(@sitemap, link(page)).tap do |p|
+          p.proxy_to( @page_template )
+
+          p.add_metadata locals: {
+            row: row
+          }
+        end
+      end
+    end
+  end
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;When &lt;code&gt;initialized&lt;/code&gt; is called, we are grabbing references to the middleman app.  We&amp;#39;ve hard coded two things in this example that should be from the options, the page name template, and the page template itself.  Since the &lt;code&gt;page.html&lt;/code&gt; isn&amp;#39;t meant to be standalone, we tell middleman to ignore it in the sitemap with &lt;code&gt;app.ignore @page_template&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;When &lt;code&gt;manipulate_resource_list&lt;/code&gt; is called it is passed a list of resources that middleman currently knows about.  We return a new list of resources based on that list.  What we are doing in this example is loading up the list of pages from a file called &lt;code&gt;pages.csv&lt;/code&gt;, creating new pages based on that, and then returning the new list.&lt;/p&gt;
+
+&lt;p&gt;This example is contrived and we are loading in the list of pages from the filesystem.  At this point in the rendering process we do have access to all of the pages, instead of loading up a file you could inspect the site map, go through all of the pages and make additional pages for subsets of those.  The &lt;code&gt;middleman-blog&lt;/code&gt; does this for both &lt;code&gt;tag&lt;/code&gt; pages and &lt;code&gt;calendar&lt;/code&gt; pages.  Instead of calling &lt;code&gt;::CSV.open&lt;/code&gt; it goes through all of the pages on the site and collects a dynamic list of pages based upon the metatag, either &lt;code&gt;tag&lt;/code&gt; or published dates.&lt;/p&gt;
+
+&lt;p&gt;Then we create the entries in the sitemap themselves. These first get proxied to our page template.  Then we set the metadata of the particular page to be what we loaded in from the file.&lt;/p&gt;
+
+&lt;p&gt;Here&amp;#39;s an example template &lt;code&gt;page.html.haml&lt;/code&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="haml"&gt;%h1= row[1]
+= row[0] 
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;This example is equivelent to looping over a file in &lt;code&gt;config.rb&lt;/code&gt; and setting up page proxies there.  However in that case we don&amp;#39;t have access to the sitemap overall, so we couldn&amp;#39;t generate a dynamic list of new pages based upon existing pages.  With this extension we can insert ourselves into the rendering process and add the &lt;em&gt;awesome&lt;/em&gt;.&lt;/p&gt;
+
+&lt;h2 id="conclusion"&gt;Conclusion&lt;/h2&gt;
+
+&lt;p&gt;Building these extensions is a very complicated way to achive things that would be simplier if you just build the site in rails and had a database with you at runtime.  But it works, and you can achieve plug into the rendering process to create a more &lt;em&gt;dynamic&lt;/em&gt; static site.  Helpers are by far the easiest way to package things together, and as you can see from the example I&amp;#39;m working through I&amp;#39;m working on an easy way to integrate Graphviz images in middleman documents without a seperate workflow.  (&lt;em&gt;Coming soon.&lt;/em&gt;)&lt;/p&gt;
+
+&lt;p&gt;Middleman CLI commands are also easy to build, though here you do start to need to know more about how the internals of how middleman is setup.  Things like the &lt;code&gt;middleman-deploy&lt;/code&gt; gem are pretty amazing and can really help with the overall publishing workflow.&lt;/p&gt;
+
+&lt;p&gt;And sitemap manipulation is the most powerful, which lets you recreate pages based upon site and page metadata that is collected throughout the process.  The entire &lt;code&gt;middleman-blog&lt;/code&gt; extention is build using this functionality.&lt;/p&gt;
+
+&lt;p&gt;Happy building!&lt;/p&gt;
+</content>
+  </entry>
   <entry>
     <title>Middleman Tricks and Hacks</title>
     <link rel="alternate" href="http://willschenk.com/middleman-tricks-and-hacks/"/>
@@ -1285,433 +1558,6 @@ activate :drafts
 &lt;p&gt;Middleman gives you all of the front-end developer benefits of using a system like Rails, but outputs static content than can be served anywhere without any dependancies.  Many sites don&amp;#39;t really require all that for them to run, and it&amp;#39;s crazy to me that something as read heavy as a blog often can&amp;#39;t perform well under load given that it&amp;#39;s just serving up the same old stuff over and over again.  You want to have some tooling to make it easier, but it doesn&amp;#39;t need to be &lt;em&gt;run time&lt;/em&gt; tooling.&lt;/p&gt;
 
 &lt;p&gt;&lt;em&gt;Image Credit: &lt;a href="https://www.flickr.com/photos/aigle_dore/6365101775/in/photolist-aGsP14-7PozJp-84P71r-dphot9-5qz3ks-eqHuv-6NP8d6-HdurS-aibaen-ix8Rbz-6buevW-7acJMF-8DFBf3-MLnGM-dGa2xi-f4HeM7-zXqL6-88og6h-r7w3U-2qKgwi-mcp7h-4eXcGM-9uv3gC-7BAEiV-5RzRtp-7JKRHh-6iUdMZ-2bUDT-8s4PDi-8pvSWc-dynb6k-zV2x5-4xWMzG-dsxGqc-7Cby3b-9t3zWm-b4jsc2-8YyqSQ-9ggca5-aGsPSg-68SVDi-4PNHrt-7JGpz4-aL22G2-q1ic-sZMVW-84NAEC-8JBSSW-9k6cM-89NBaJ"&gt;Moyan Brenn&lt;/a&gt;&lt;/em&gt;&lt;/p&gt;
-</content>
-  </entry>
-  <entry>
-    <title>Scripting Twitter: Collecting Data and Writing Bots</title>
-    <link rel="alternate" href="http://willschenk.com/scripting-twitter/"/>
-    <id>http://willschenk.com/scripting-twitter/</id>
-    <published>2014-11-19T19:00:00-05:00</published>
-    <updated>2014-11-19T19:00:00-05:00</updated>
-    <author>
-      <name>Will Schenk</name>
-    </author>
-    <content type="html">&lt;p&gt;Lets build on our &lt;a href="http://willschenk.com/making-a-command-line-utility-with-gems-and-thor"&gt;command line url exploring tool&lt;/a&gt; to look at how we can interact with Twitter.  We are going to cover how to make a script that will pull information out of twitter, how to deal with its rate limiting, and how to interact with users on Twitter itself.&lt;/p&gt;
-
-&lt;p&gt;Twitter uses &lt;a href="https://dev.twitter.com/oauth/overview/faq"&gt;OAuth 1.0A&lt;/a&gt; as a way to authenticate requests.  As a script writer, this is super annoying, because you can&amp;#39;t just stick a username and password in the environment and go from there.  You need to:&lt;/p&gt;
-
-&lt;ol&gt;
-&lt;li&gt;&lt;p&gt;&lt;a href="https://apps.twitter.com"&gt;Register you application with twitter&lt;/a&gt;.&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;Store the &amp;quot;client key&amp;quot; for your application.&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;Get a user to grant your application access to twitter, and then use that &amp;quot;authorization key&amp;quot; to access the API.&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;Then figure out how to use the API.&lt;/p&gt;&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;This is a bit overkill for building a simple script, especially since the 3 way process of having your application request access on behalf of a specific user on the twitters servers is a pain for a command line interface.  And when you configure your application on twitter you need to specify a &amp;quot;callback URL&amp;quot;, which a) is different on development, staging and production webapp environments and b) you don&amp;#39;t have a web app.&lt;/p&gt;
-
-&lt;p&gt;Luckily for you twitter has a work around.&lt;/p&gt;
-
-&lt;h2 id="firstly-we-create-the-twitter-app"&gt;Firstly, we create the Twitter App&lt;/h2&gt;
-
-&lt;ol&gt;
-&lt;li&gt;&lt;p&gt;Go to &lt;a href="https://apps.twitter.com/app/new"&gt;Create new Twitter App&lt;/a&gt; and fill out the required fields.  Specifically, leave &lt;em&gt;callback URL&lt;/em&gt; blank for now.&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;Select &lt;em&gt;Keys and Access Tokens&lt;/em&gt;.  On this page, create an access token for your user with the &lt;em&gt;Generate Access Token&lt;/em&gt; on the bottom of the page.&lt;/p&gt;&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;Now we have four variables that our script needs to access twitter on behalf of your user.  &lt;/p&gt;
-
-&lt;ol&gt;
-&lt;li&gt;&lt;p&gt;The consumer key represents your application.&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;The consumer secret represents your application&amp;#39;s &amp;quot;password&amp;quot;.&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;The access token represents an authorization that a user has accepted.&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;The access token secret is there to make sure that access token is valid.&lt;/p&gt;&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;Make note of these variables.&lt;/p&gt;
-
-&lt;h2 id="then-we-code-with-the-rest-api"&gt;Then, we code with the REST API&lt;/h2&gt;
-
-&lt;p&gt;Make sure you have the twitter gem installed by typing:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;$ gem install twitter
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;We&amp;#39;re eventually going to add this code our CLI gem, and that dependency will be created by adding the line&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;  spec.add_dependency &amp;#39;twitter&amp;#39;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;OK, lets put this in and see what we get:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;require &amp;#39;thor&amp;#39;
-require &amp;#39;twitter&amp;#39;
-require &amp;#39;httparty&amp;#39;
-
-TWITTER_APP_KEY=&amp;quot;rzlJXhI8...&amp;quot;
-TWITTER_APP_SECRET=&amp;quot;euF5bItp9w...&amp;quot;
-TWITTER_ACCESS_TOKEN=&amp;quot;17827...&amp;quot;
-TWITTER_ACCESS_TOKEN_SECRET=&amp;quot;7NSX...&amp;quot;
-
-def print_user_info( u )
-  t = &amp;quot;%-20s: %s\n&amp;quot;
-  printf t, &amp;quot;Screenname&amp;quot;, u.user_name
-  printf t, &amp;quot;Full Name&amp;quot;, u.name
-  printf t, &amp;quot;Bio&amp;quot;, u.description
-  printf t, &amp;quot;Website&amp;quot;, u.website.to_s
-  printf t, &amp;quot;Joined&amp;quot;, u.created_at.strftime( &amp;quot;%Y-%m-%d&amp;quot; )
-  printf t, &amp;quot;Location&amp;quot;, u.location
-  printf t, &amp;quot;Verified&amp;quot;, u.verified?
-  printf t, &amp;quot;Tweets&amp;quot;, u.tweets_count
-  printf t, &amp;quot;Followers&amp;quot;, u.followers_count
-  printf t, &amp;quot;Following&amp;quot;, u.friends_count
-  printf t, &amp;quot;Favorites count&amp;quot;, u.favorites_count
-end
-
-class CLI &amp;lt; Thor
-  desc &amp;quot;user SCREENAME&amp;quot;, &amp;quot;Look up info for a specific user.&amp;quot;
-  def user( username )
-    print_user_info client.user( &amp;quot;wschenk&amp;quot; )
-  end
-
-# We will add more methods here
-
-  private
-  def client
-    @client ||= Twitter::REST::Client.new do |config|
-      config.consumer_key        = TWITTER_APP_KEY
-      config.consumer_secret     = TWITTER_APP_SECRET
-      config.access_token        = TWITTER_ACCESS_TOKEN
-      config.access_token_secret = TWITTER_ACCESS_TOKEN_SECRET
-    end
-  end
-end
-
-# Only run if the script is called directly
-if __FILE__ == $0
-  CLI.start( ARGV )
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;When we run this, we get:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ ruby lib/socialinvestigator/client/twitter.rb wschenk
-Screenname          : wschenk
-Full Name           : Will Schenk
-Bio                 : Co-Founder of HappyFunCorp.
-Website             : http://t.co/OA0tQaQiAX
-Joined              : 2006-12-22
-Location            : Brooklyn NY
-Verified            : false
-Tweets              : 1674
-Followers           : 330
-Following           : 418
-Favorites count     : 17
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;&lt;em&gt;For those keeping score at home, that&amp;#39;s 209 tweets a year.&lt;/em&gt;&lt;/p&gt;
-
-&lt;p&gt;We create a &lt;code&gt;Twitter::REST::Client&lt;/code&gt;, passing in the variables that we got when we created the twitter app.  Eventually we&amp;#39;ll out grow hardcoding them into the script, but for now replace the dummy values I have above with what you have and try it with some screen names.&lt;/p&gt;
-
-&lt;h2 id="longing-for-oa0tqaqiax"&gt;Longing for OA0tQaQiAX&lt;/h2&gt;
-
-&lt;p&gt;If there&amp;#39;s one word that describes URL shorteners, that word is &lt;em&gt;rude&lt;/em&gt;.  This magical place where anyone can setup shop and link directly to other people now is now infested with middle men, who may indeed be useful but are even less popular than used car salesmen.  URL shorteners are services that &lt;em&gt;intermediate&lt;/em&gt; the actual destination of the link in order to better track who clicks on the link.  You create many shortened links and give them out to different people, and when the world at large clicks on one of them you know who they got it from.&lt;/p&gt;
-
-&lt;p&gt;The easiest way to resolve the link is to make a &lt;code&gt;HEAD&lt;/code&gt; HTTP request to the shortening service and print where they redirect you to.  If there&amp;#39;s no location in the response, we&amp;#39;ll just return the url that was passed in.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;def lookup_url( url )
-  return url if url.nil? || url == &amp;quot;&amp;quot;
-  r = HTTParty.head url, { follow_redirects: false }
-  r[&amp;#39;location&amp;#39;] || url
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;and lets add a Thor command for it too, in the &lt;code&gt;CLI&lt;/code&gt; class, why not:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;  desc &amp;quot;lookup URL&amp;quot;, &amp;quot;Resolve a link&amp;quot;
-  def lookup( url )
-    puts lookup_url( url )
-  end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Now we can see that&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ ruby twitter.rb lookup  http://t.co/OA0tQaQiAX
-http://happyfuncorp.com
-$ ruby twitter.rb lookup  http://happyfuncorp.com
-http://happyfuncorp.com
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;So we can update the website &lt;code&gt;printf&lt;/code&gt; line to be:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;  printf t, &amp;quot;Website&amp;quot;, lookup_url( u.website.to_s )
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id="tweets-timelines-mentions-retweets"&gt;Tweets timelines mentions retweets&lt;/h2&gt;
-
-&lt;p&gt;With read access, you can pull down some basic stuff.&lt;/p&gt;
-
-&lt;p&gt;Load the recent tweets this user has made:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;  desc &amp;quot;user_timeline&amp;quot;, &amp;quot;Show the authenticated user&amp;#39;s tweets&amp;quot;
-  def user_timeline
-    client.user_timeline.each do |tweet|
-      puts &amp;quot;@#{tweet.user.user_name}:#{tweet.text}&amp;quot;
-    end
-  end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Show the tweets of people who they are following:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;  desc &amp;quot;home_timeline&amp;quot;, &amp;quot;Show the authenticated user&amp;#39;s timeline&amp;quot;
-  def home_timeline
-    client.home_timeline.each do |tweet|
-      puts &amp;quot;@#{tweet.user.user_name}:#{tweet.text}&amp;quot;
-    end
-  end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Show which of their tweets have been retweeted:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;  desc &amp;quot;retweets&amp;quot;, &amp;quot;Show the authenticated user&amp;#39;s retweets&amp;quot;
-  def retweets
-    client.retweets_of_me.each do |tweet|
-      puts &amp;quot;@#{tweet.user.user_name}:#{tweet.text}&amp;quot;
-    end
-  end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Pull down only the tweets that mention the authentication user:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;  desc &amp;quot;mentions&amp;quot;, &amp;quot;Show the authenticated user&amp;#39;s mentions&amp;quot;
-  def mentions
-    client.mentions.each do |tweet|
-      puts &amp;quot;@#{tweet.user.user_name}:#{tweet.text}&amp;quot;
-    end
-  end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;If you are building a bot, for example, that you wanted to respond when someone tweets at it, you could use the &lt;code&gt;client.mentions&lt;/code&gt; method to get those tweets in particular.  You&amp;#39;d need a way to make sure you don&amp;#39;t double respond to people each time the bot was run.  If you wanted to always have the bot running, look at the Streaming API below.  If you want to know how to post to twitter, read on.&lt;/p&gt;
-
-&lt;h2 id="rate-limits-on-the-rest-interface"&gt;Rate Limits on the REST interface&lt;/h2&gt;
-
-&lt;p&gt;Unlike Google, who casually has enough computer power to do personalized type ahead search of the &lt;em&gt;entire internet&lt;/em&gt; at &lt;em&gt;a global scale&lt;/em&gt;, Twitter is prickly about &lt;a href="https://dev.twitter.com/rest/public/rate-limiting"&gt;you hammering their site&lt;/a&gt;.  Personally, I thought that &lt;a href="http://readwrite.com/2008/07/17/the_story_of_the_fail_whale"&gt;the fail whale&lt;/a&gt; was really fun.  Let&amp;#39;s add a another &lt;code&gt;CLI&lt;/code&gt; command to print out the current rate limit status, how many calls you have left, and when your counter for that resource will reset:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;  desc &amp;quot;limits&amp;quot;, &amp;quot;Print out the current rate limits&amp;quot;
-  def limits
-    resp = client.get( &amp;quot;/1.1/application/rate_limit_status.json&amp;quot; )
-    current_time = Time.now.to_i
-    template = &amp;quot;   %-40s %5d remaining, resets in %3d seconds\n&amp;quot;
-    resp.body[:resources].each do |category,resources|
-      puts category.to_s
-      resources.each do |resource,info|
-        printf template, resource.to_s, info[:remaining], info[:reset] - current_time
-      end
-    end
-  end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Note that I&amp;#39;m making the request using &lt;code&gt;client.get&lt;/code&gt; which will make an arbitrary authenticated request to the Twitter api.  This &lt;a href="https://dev.twitter.com/rest/reference/get/application/rate_limit_status"&gt;particular api call&lt;/a&gt; isn&amp;#39;t in the Twitter gem, though the gem is aware of the limits and will throw specific exceptions when you hit those limits.&lt;/p&gt;
-
-&lt;p&gt;The gem provides methods on top of this &lt;code&gt;client.get&lt;/code&gt; interface, which may use more API calls then you expect.  Methods like &lt;code&gt;client.user_timeline&lt;/code&gt; and &lt;code&gt;client.followers&lt;/code&gt; return &lt;code&gt;Twitter::Cursor&lt;/code&gt; objects, which you can iterate over in ruby as you&amp;#39;d expect, but may trigger multiple API calls throughout the process which you might not expect.  You&amp;#39;ll potentially get an exception in the middle of things, and you&amp;#39;ll need to figure a way around this.  In a later post we will get into caching and retry strategies, but since it will dramatically increase the complexity we&amp;#39;ll keep things simple for now.  &lt;em&gt;Punt!&lt;/em&gt;&lt;/p&gt;
-
-&lt;p&gt;This basic code will catch the &lt;code&gt;TooManyRequests&lt;/code&gt; exception and sleep the process until it&amp;#39;s ready to go again.  This could take a very very long time.
-&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt; HEAD:source/2014-11-20-scripting-twitter.html.markdown&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;follower_ids = client.follower_ids(&amp;#39;justinbieber&amp;#39;)
-=======
-
-```rb
-follower_ids = client.follower_ids( &amp;#39;justinbieber)
-&amp;gt;&amp;gt;&amp;gt;&amp;gt;&amp;gt;&amp;gt;&amp;gt; 67530e9afbddd730c4fe8e19235236777450322a:source/drafts/scripting-twitter.html.markdown
-
-begin
-  follower_ids.to_a
-rescue Twitter::Error::TooManyRequests =&amp;gt; error
-  # NOTE: Your process could go to sleep for up to 15 minutes but if you
-  # retry any sooner, it will almost certainly fail with the same exception.
-  sleep error.rate_limit.reset_in + 1
-  retry
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id="listing-followers"&gt;Listing followers&lt;/h2&gt;
-
-&lt;p&gt;To see what that looks like, lets add another &lt;code&gt;CLI&lt;/code&gt; command for listing a person&amp;#39;s followers:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;  desc &amp;quot;followers SCREENNAME&amp;quot;, &amp;quot;Prints out all of the users followers&amp;quot;
-  def followers( screenname )
-    client.followers( screenname ).each do |u|
-      printf( &amp;quot;@%-15s %-20s %s\n&amp;quot;, u.user_name, u.name, u.description )
-    end
-  end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;And if we run this on someone will a lot of followers, you&amp;#39;ll see the &lt;code&gt;Twitter::Error::TooManyRequests&lt;/code&gt; thrown.  We can look use our limits command above to see how long we have to wait until it resets.  Though, since we don&amp;#39;t have any smart retrying logic in place, chances are it will still fail when we try it again.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ ruby twitter.rb limits | grep /followers/list
-   /followers/list        0 remaining, resets in 288 seconds
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id="searching-for-urls"&gt;Searching for URLs&lt;/h2&gt;
-
-&lt;p&gt;There are different types of URLs on twitter.  Lets look at a specific tweet of mine, 529342690476179456, to see what there is:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;&amp;gt; tweet = client.status( 529342690476179456 )
- =&amp;gt; #&amp;lt;Twitter::Tweet id=529342690476179456&amp;gt; 
-&amp;gt; tweet.uris
- =&amp;gt; [#&amp;lt;Twitter::Entity::URI:0x007ff614b0fce0 @attrs={:url=&amp;gt;&amp;quot;http://t.co/frfwwIqrYB&amp;quot;, :expanded_url=&amp;gt;&amp;quot;http://willschenk.com/bootstrap-advanced-grid-tricks&amp;quot;, :display_url=&amp;gt;&amp;quot;willschenk.com/bootstrap-adva…&amp;quot;, :indices=&amp;gt;[67, 89]}&amp;gt;] 
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;&lt;code&gt;:url&lt;/code&gt; is the actual link that get&amp;#39;s clicked, and in your logs, the one that will show up as the referer.&lt;/p&gt;
-
-&lt;p&gt;&lt;code&gt;:expanded_url&lt;/code&gt; is the end link.&lt;/p&gt;
-
-&lt;p&gt;&lt;code&gt;:display_url&lt;/code&gt; is a shortened version of the end link.&lt;/p&gt;
-
-&lt;p&gt;In the twitter search box we can type in &lt;code&gt;http://willschenk.com/bootstrap-advanced-grid-tricks&lt;/code&gt; and that will match all tweets that go to this URL, regardless of which URL shortening service they use.  (To clarify, all those services which Twitter has support for, which for our purposes is all.)  If we type in &lt;code&gt;http://t.co/frfwwIqrYB&lt;/code&gt; to the twitter search it won&amp;#39;t match the tweet, but if we do &lt;em&gt;an exact search&lt;/em&gt;, with quotes around it like so: &lt;code&gt;&amp;quot;http://t.co/frfwwIqrYB&amp;quot;&lt;/code&gt; we will match the tweet.&lt;/p&gt;
-
-&lt;p&gt;Let&amp;#39;s write some code:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;  desc &amp;quot;search STRING&amp;quot;, &amp;quot;Shows all the tweets that match the string&amp;quot;
-  options [:exact, :user_info]
-  def search( string )
-    string = &amp;quot;\&amp;quot;#{string}\&amp;quot;&amp;quot; if options[:exact]
-    reach = 0
-    client.search( string, count: 100 ).each do |t|
-      puts &amp;quot;#{t.id}:#{t.created_at}:@#{t.user.user_name}:#{t.user.followers_count}:#{t.retweet_count}:#{t.text}&amp;quot;
-      reach += t.user.followers_count
-      if options[:user_info]
-        print_user_info t.user if options[:user_info]
-        puts
-      end
-    end
-    puts &amp;quot;#{string} reached #{reach} people.&amp;quot;
-  end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;This will print out the tweet id, when it was created, who tweeted it, how many followers they had, how many times it was retweeted, and the text of the tweet.  &lt;em&gt;Whew!&lt;/em&gt; Since there&amp;#39;s so much stuff here we made it &lt;code&gt;:&lt;/code&gt; separated on one line, in case you want to parse it with something else.&lt;/p&gt;
-
-&lt;p&gt;The option &lt;code&gt;--exact&lt;/code&gt; will put quotes around the search string, so if you are looking up a tweet from your referrers you can find which tweet sent people to your site.&lt;/p&gt;
-
-&lt;p&gt;The option &lt;code&gt;--user_info&lt;/code&gt; will print out the full information about the user who tweeted.&lt;/p&gt;
-
-&lt;p&gt;Twitter search only returns results from the previous 6-9 days, so better act fast!&lt;/p&gt;
-
-&lt;h2 id="the-streaming-api-filters"&gt;The Streaming API: Filters&lt;/h2&gt;
-
-&lt;p&gt;So far we have been looking at the REST API, which lets us interact with the Twitter services much like a user would: in response to something that the user requests.  The other API type is called the &lt;a href="https://dev.twitter.com/streaming/userstreams"&gt;streaming api&lt;/a&gt;, which lets us open up a single connection and receive information when Twitter has something new.  This is useful for a few things:&lt;/p&gt;
-
-&lt;ol&gt;
-&lt;li&gt;&lt;p&gt;We can get notified immediately when our search term is seen&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;We can get notified if someone mentions us, either with an @reply or, when we have more permissions, with Direct Messages.&lt;/p&gt;&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;Here&amp;#39;s how you can watch twitter for different terms, they can be comma separated.  Notice that we&amp;#39;ve added another private method, &lt;code&gt;streaming_client&lt;/code&gt; which uses a different interface, and we&amp;#39;ll need to &lt;code&gt;^C&lt;/code&gt; the script to start it.&lt;/p&gt;
-
-&lt;p&gt;The method &lt;code&gt;filter&lt;/code&gt; takes a block, and will call that block every time it gets a response from twitter.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;  desc &amp;quot;filter TERMS&amp;quot;, &amp;quot;Print out tweets that match the terms&amp;quot;
-  def filter( terms )
-    streaming_client.filter(track: terms) do |object|
-      puts &amp;quot;@#{object.user.user_name}:#{object.text}&amp;quot; if object.is_a?(Twitter::Tweet)
-    end
-  end
-
-
-  private
-  [...]
-
-  def streaming_client
-    @streaming_client ||= Twitter::Streaming::Client.new do |config|
-      config.consumer_key        = TWITTER_APP_KEY
-      config.consumer_secret     = TWITTER_APP_SECRET
-      config.access_token        = TWITTER_ACCESS_TOKEN
-      config.access_token_secret = TWITTER_ACCESS_TOKEN_SECRET
-    end
-  end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id="the-streaming-api-reacting-to-the-timeline"&gt;The Streaming API: Reacting to the timeline&lt;/h2&gt;
-
-&lt;p&gt;We can also watch the timeline come through for the registered user, and do something with it.  The pattern is the same as the &lt;code&gt;filter&lt;/code&gt; method, but it passes an Object of one of the following types:&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;&lt;p&gt;&lt;code&gt;Twitter::Tweet&lt;/code&gt;&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;&lt;code&gt;Twitter::DirectMessage&lt;/code&gt;&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;&lt;code&gt;Twitter::Streaming::DeletedTweet&lt;/code&gt;&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;&lt;code&gt;Twitter::Streaming::Event&lt;/code&gt;&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;&lt;code&gt;Twitter::Streaming::FriendList&lt;/code&gt;&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;&lt;code&gt;Twitter::Streaming::StallWarning&lt;/code&gt;&lt;/p&gt;&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;We&amp;#39;ll be ignoring most of them:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;  desc &amp;quot;listen&amp;quot;, &amp;quot;Prints our the authenticated user&amp;#39;s stream as it happens&amp;quot;
-  def listen
-    streaming_client.user do |object|
-      case object
-      when Twitter::Tweet
-        puts &amp;quot;Tweet:@#{object.user.user_name}:#{object.text}&amp;quot;
-      when Twitter::DirectMessage
-        puts &amp;quot;DM:@#{object.sender.user_name}:#{object.text}&amp;quot;
-      when Twitter::Streaming::StallWarning
-        warn &amp;quot;Falling behind!&amp;quot;
-      end
-    end
-  end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Running this command will print out tweets and messages as they come in.  If you wanted to make an interactive bot, you&amp;#39;d put logic in here to respond to the tweets coming in, calling something like&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;client.update( &amp;quot;@#{object.user.user_name} my reply&amp;quot;, { in_reply_to_status: object.id } )
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Only, you&amp;#39;re not going to get any direct messages, nor are you going to be able to reply, unless you change your application permission settings.&lt;/p&gt;
-
-&lt;h2 id="upgrading-to-the-all-access-pass"&gt;Upgrading to the All Access Pass&lt;/h2&gt;
-
-&lt;p&gt;In order to&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;&lt;p&gt;Update a status&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;Read direct messages&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;Send direct messages&lt;/p&gt;&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;You need to change the application permission level.  There are three different levels.  Read will let you pull things on behalf of the user.  If they have a private account, or they have access to a private account, your script will be able to see those things.  You will not be able to access or receive direct messages&lt;/p&gt;
-
-&lt;p&gt;Write will let you post public status updates, but not Direct Messages.&lt;/p&gt;
-
-&lt;p&gt;Access direct messages is the third.&lt;/p&gt;
-
-&lt;ol&gt;
-&lt;li&gt;&lt;p&gt;Go to the &lt;a href="https://apps.twitter.com"&gt;twitter app console&lt;/a&gt; and find your application.&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;Go to the &amp;quot;Permissions Tab&amp;quot;&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;Change the settings to &amp;quot;Read, Write&amp;quot; or &amp;quot;Read, Write and Access direct messages&amp;quot;&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;Go to &amp;quot;Keys and Access Settings&amp;quot;&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;Scroll down and &amp;quot;Regenerate My Access Token and Token Secret&amp;quot;&lt;/p&gt;&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;Depending upon what you chose, you can now post on behalf of the user:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;client.update( &amp;quot;Hello, World&amp;quot; )
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Read their direct messages:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;client.direct_messages
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Or send a direct message:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;client.create_direct_message &amp;quot;wschenk&amp;quot;, &amp;quot;Hi there&amp;quot;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id="the-code"&gt;The Code&lt;/h2&gt;
-
-&lt;p&gt;Here is the &lt;a href="https://gist.github.com/wschenk/86e1e87772e7d589e963"&gt;code written for this article&lt;/a&gt;.  The github for &lt;a href="https://github.com/sublimeguile/socialinvestigator"&gt;socialinvestigator&lt;/a&gt; has a more complete sample that loads and stores the credentials in a file.&lt;/p&gt;
-
-&lt;p&gt;&lt;em&gt;Image Credit &lt;a href="https://www.flickr.com/photos/jurvetson/7408451314/in/photolist-bvcbis-7DN6Sk-7DRVeq-7DRUVq-jB3M44-dhZrKM-atAnS1-bi4yL6-atHJJo-85tMTG-cp5WgS-asg29e-chEftd-6Zex9h-djkSiW-acqro-c7PG79-72SJuQ-7fPiox-avgwDx-bEWnc2-4FAqy9-9mvMsP-8fp27H-chEjh3-66UgvR-6oqRAV-6oqUMD-5zWDAn-9mqRC4-6ov3Mw-6oqRQZ-6ov4bh-avgxEZ-6VXNYF-avgwMM-avjcLf-avjcQ1-avjcLS-avjcPd-avjcTW-avjduE-avgwZK-avjdMm-avjcVy-avjcSU-avgwRt-avjcY1-avjd2d-avgwTv"&gt;Steve Jurvetson&lt;/a&gt;&lt;/em&gt;&lt;/p&gt;
 </content>
   </entry>
 </feed>
