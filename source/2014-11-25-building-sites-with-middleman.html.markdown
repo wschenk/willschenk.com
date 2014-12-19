@@ -1,7 +1,7 @@
 ---
 :title: Building Sites with Middleman
 :subtitle: lean publishing
-:tags: middleman, ruby, howto, tools, staticsites
+:tags: middleman, ruby, howto, tools
 :header_image: books.jpg
 :date: 2014-11-25
 ---
