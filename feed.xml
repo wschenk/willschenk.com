@@ -5,10 +5,710 @@
   <id>http://willschenk.com/</id>
   <link href="http://willschenk.com/"/>
   <link href="http://willschenk.com/feed.xml" rel="self"/>
-  <updated>2014-12-17T06:49:38-05:00</updated>
+  <updated>2015-01-16T14:37:55-05:00</updated>
   <author>
     <name>Will Schenk</name>
   </author>
+  <entry>
+    <title>Setting up Devise with Twitter and Facebook and other Omniauth schemes without email addresses</title>
+    <link rel="alternate" href="http://willschenk.com/setting-up-devise-with-twitter-and-facebook-and-other-omniauth-schemes-without-email-addresses/"/>
+    <id>http://willschenk.com/setting-up-devise-with-twitter-and-facebook-and-other-omniauth-schemes-without-email-addresses/</id>
+    <published>2015-01-15T19:00:00-05:00</published>
+    <updated>2015-01-15T19:00:00-05:00</updated>
+    <author>
+      <name>Will Schenk</name>
+    </author>
+    <content type="html">&lt;p&gt;Adding social login to your sites really makes it easier to get users onboard.  Devise is great to help get an authentication system up and running, but there are a few tricky things to get right.  The first challenge is that you don&amp;#39;t always get the user&amp;#39;s email address when the first connect.  The second challenge is that we want to request the minimum permissions first so that the user is more likely to sign up, and gradually ask more as the time arrises.&lt;/p&gt;
+
+&lt;p&gt;This post is going to go through the strategy that &lt;a href="http://seed.happyfuncorp.com"&gt;happy_seed&lt;/a&gt; uses to support these use cases.  The easiest way to get started is to use seed to get things up and running, but we&amp;#39;ll walk through how to do it all in detail below.&lt;/p&gt;
+
+&lt;h2 id="install-devise-and-omniauth"&gt;Install devise and omniauth&lt;/h2&gt;
+
+&lt;p&gt;Let&amp;#39;s install a few gems.  We&amp;#39;ll go through how to install twitter, facebook, and google.&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;Gemfile&lt;/code&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;gem &amp;#39;devise&amp;#39;, &amp;#39;~&amp;gt; 3.4&amp;#39;
+gem &amp;#39;omniauth&amp;#39;
+gem &amp;#39;omniauth-twitter&amp;#39;
+gem &amp;#39;omniauth-facebook&amp;#39;
+gem &amp;#39;omniauth-instagram&amp;#39;
+gem &amp;#39;twitter&amp;#39;
+gem &amp;#39;instagram&amp;#39;
+gem &amp;#39;omniauth-google-oauth2&amp;#39;
+gem &amp;#39;google-api-client&amp;#39;, require: &amp;#39;google/api_client&amp;#39;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now we need to run the &lt;code&gt;devise&lt;/code&gt; generators.  I like to copy over the views so that I can fix them up to look like the rest of my app.  If you are using seed, these views will be generated with &lt;code&gt;HAML&lt;/code&gt; and the &lt;code&gt;bootstrap helpers&lt;/code&gt; gem.&lt;/p&gt;
+
+&lt;p&gt;First install devise:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="sh"&gt;$ rails generate devise:install
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;devise:install&lt;/code&gt; copies over &lt;code&gt;config/initializers/devise.rb&lt;/code&gt; and a localized message file.  We will configure devise here.  &lt;em&gt;Follow the outputed instuctions to setup flashes and mailer configs.&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;Now create a model, call it user:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="sh"&gt;$ rails generate devise User
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;This creates a &lt;code&gt;User&lt;/code&gt; model and configures devise routes to use it.  We will edit both of these.&lt;/p&gt;
+
+&lt;p&gt;Finally, copy over the views so you can style them as you need:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="sh"&gt;$ rails generate devise:views
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id="make-sure-regular-login-in-works"&gt;Make sure regular login in works&lt;/h2&gt;
+
+&lt;p&gt;Lets create a basic controller to see if our login works:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="sh"&gt;$ rails g controller welcome index
+$ rake db:migrate
+$ rails s
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Edit &lt;code&gt;routes.rb&lt;/code&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;  get &amp;#39;welcome/index&amp;#39;
+  root &amp;#39;welcome#index&amp;#39;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;And change your &lt;code&gt;WeclomeController&lt;/code&gt; to require user authentication:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;class WelcomeController
+  before_action :authenticate_user!
+
+  def index
+  end
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now if you go to &lt;a href="http://localhost:3000/"&gt;http://localhost:3000/&lt;/a&gt; you should get redirected to a login page.  If you create a user you should be able to then see the protected page.&lt;/p&gt;
+
+&lt;p&gt;Let&amp;#39;s add a logout button to the index page for testing: &lt;code&gt;app/views/welcome/index.html.erb&lt;/code&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="erb"&gt;&amp;lt;%= link_to &amp;quot;Signout&amp;quot;, destroy_user_session_path, method: :delete %&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now we can go back and forth.  The &lt;code&gt;method: :delete&lt;/code&gt; part is something that I often forget about.&lt;/p&gt;
+
+&lt;h2 id="configure-omniauth"&gt;Configure Omniauth&lt;/h2&gt;
+
+&lt;p&gt;We need to tell devise and omniauth how to talk to the various outside services.  The first thing you&amp;#39;ll need to do is configure those services and collect their app ids and app secrets.  Then you put that information inside of &lt;code&gt;config/initializers/devise.rb&lt;/code&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;    config.omniauth :google_oauth2, ENV[&amp;#39;GOOGLE_OAUTH2_APP_ID&amp;#39;], ENV[&amp;#39;GOOGLE_OAUTH2_APP_SECRET&amp;#39;], scope: &amp;quot;email,profile,offline&amp;quot;, prompt: &amp;quot;consent&amp;quot;
+    config.omniauth :instagram, ENV[&amp;#39;INSTAGRAM_APP_ID&amp;#39;], ENV[&amp;#39;INSTAGRAM_APP_SECRET&amp;#39;]
+    config.omniauth :facebook, ENV[&amp;#39;FACEBOOK_APP_ID&amp;#39;], ENV[&amp;#39;FACEBOOK_APP_SECRET&amp;#39;], scope: &amp;quot;email&amp;quot;
+    config.omniauth :twitter, ENV[&amp;#39;TWITTER_APP_ID&amp;#39;], ENV[&amp;#39;TWITTER_APP_SECRET&amp;#39;]
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Since we are building nice &lt;a href="http://12factor.net"&gt;12 Factor Apps&lt;/a&gt; we pull the config from the environment.  seed uses the &lt;a href="https://github.com/bkeepers/dotenv"&gt;dotenv gem&lt;/a&gt; to keep track of these things in a &lt;code&gt;.env&lt;/code&gt; file, and when you deploy to heroku you will use heroku config variables.&lt;/p&gt;
+
+&lt;p&gt;We also pass in &lt;code&gt;scope&lt;/code&gt;s to a few strategies, which is where we can configure omniauth to request specific permissions.  Sometimes you need to enable them on the remote side before you can request things (&lt;em&gt;e.g.&lt;/em&gt; google, twitter) so make sure that things are setup there.&lt;/p&gt;
+
+&lt;p&gt;We&amp;#39;ll go into how to dynamically set that scope later on.&lt;/p&gt;
+
+&lt;h2 id="tell-devise-about-omniauthable"&gt;Tell Devise about omniauthable&lt;/h2&gt;
+
+&lt;p&gt;Open up &lt;code&gt;app/models/user.rb&lt;/code&gt; and add &lt;code&gt;:omniauthable&lt;/code&gt; to your &lt;code&gt;devise&lt;/code&gt; line and remove &lt;code&gt;:validatable&lt;/code&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;  devise :omniauthable, :database_authenticatable, :registerable,
+         :recoverable, :rememberable, :trackable
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now you should see that there are a list of connect with our services when you go to your sign in or login pages.&lt;/p&gt;
+
+&lt;h2 id="create-a-formuser-to-handle-validations"&gt;Create a FormUser to handle validations&lt;/h2&gt;
+
+&lt;p&gt;Not all services return email addresses, and by default the devise validations expect them.  Let&amp;#39;s move those validations out of the base &lt;code&gt;User&lt;/code&gt; class into a &lt;code&gt;FormUser&lt;/code&gt; class.&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;Remove &lt;code&gt;:validatable&lt;/code&gt; from &lt;code&gt;app/models/user.rb&lt;/code&gt; (which you&amp;#39;ve done above)&lt;/li&gt;
+&lt;li&gt;Tell devise to use our new model.&lt;/li&gt;
+&lt;li&gt;Create the forms_user.rb class.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;Inside of &lt;code&gt;config/routes.rb&lt;/code&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;devise_for :users, class_name: &amp;#39;FormUser&amp;#39;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;And &lt;code&gt;app/models/form_user.rb&lt;/code&gt; should look like:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;class FormUser &amp;lt; User
+  attr_accessor :current_password
+
+  validates_presence_of   :email, if: :email_required?
+  validates_uniqueness_of :email, allow_blank: true, if: :email_changed?
+  validates_format_of     :email, with: Devise.email_regexp, allow_blank: true, if: :email_changed?
+
+  validates_presence_of     :password, if: :password_required?
+  validates_confirmation_of :password, if: :password_required?
+  validates_length_of       :password, within: Devise.password_length, allow_blank: true
+
+  def password_required?
+    return false if email.blank?
+    !persisted? || !password.nil? || !password_confirmation.nil?
+  end
+
+  def email_required?
+    true
+  end
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;The &lt;code&gt;class_name&lt;/code&gt; inside of the devise config will tell it to use this class for building forms, and we have the validations on this class so our error messages will work on the site, but we&amp;#39;ll be able to save objects without it.&lt;/p&gt;
+
+&lt;h2 id="create-identity-model-to-store-access_keys-and-metadata"&gt;Create Identity model to store access_keys and metadata&lt;/h2&gt;
+
+&lt;p&gt;Now we are ready to plug in oauth authentications.  The flow is:&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;User requests &lt;code&gt;/users/auth/:provider&lt;/code&gt;, where provider one of the strategies that you defined above.&lt;/li&gt;
+&lt;li&gt;Omniauth does magic and directs the user to the remote service.&lt;/li&gt;
+&lt;li&gt;The user grants us access and is redirected to the callback path.&lt;/li&gt;
+&lt;li&gt;The OmniauthCallbacks controller is called on our application with the relavent info.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;We will use this info to create the user.  We are also going to store it to be able to access the service on behalf of the user, and we&amp;#39;ll need to store the &lt;code&gt;access_token&lt;/code&gt; in order to do so.&lt;/p&gt;
+
+&lt;p&gt;Google is slightly more complicated and we&amp;#39;ll need to store a &lt;code&gt;refresh_token&lt;/code&gt; as well.&lt;/p&gt;
+
+&lt;p&gt;Lets create that model now:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="sh"&gt;$ rails model identity user:references provider:string accesstoken:string refreshtoken:string uid:string name:string email:string nickname:string image:string phone:string urls:string
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;And flesh out &lt;code&gt;app/models/identity.rb&lt;/code&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;class Identity &amp;lt; ActiveRecord::Base
+  belongs_to :user
+  validates_presence_of :uid, :provider
+  validates_uniqueness_of :uid, :scope =&amp;gt; :provider
+
+  def self.find_for_oauth(auth)
+    identity = find_by(provider: auth.provider, uid: auth.uid)
+    identity = create(uid: auth.uid, provider: auth.provider) if identity.nil?
+    identity.accesstoken = auth.credentials.token
+    identity.refreshtoken = auth.credentials.refresh_token
+    identity.name = auth.info.name
+    identity.email = auth.info.email
+    identity.nickname = auth.info.nickname
+    identity.image = auth.info.image
+    identity.phone = auth.info.phone
+    identity.urls = (auth.info.urls || &amp;quot;&amp;quot;).to_json
+    identity.save
+    identity
+  end
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now we need to tell devise to use this model.&lt;/p&gt;
+
+&lt;h2 id="create-omniauthcallbackscontroller-to-pull-in-data"&gt;Create OmniauthCallbacksController to pull in data&lt;/h2&gt;
+
+&lt;p&gt;We&amp;#39;re going to build one method to handle the different authentication callbacks, called &lt;code&gt;generic_callback&lt;/code&gt;.  The logic of this controller is:&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;Find or create an &lt;code&gt;Identity&lt;/code&gt; object for the incoming oauth data.  Update it with the latest info.&lt;/li&gt;
+&lt;li&gt;If there is no user associated with the Identity, associate it with the current_user.&lt;/li&gt;
+&lt;li&gt;If there is no current_user, create a new User object.&lt;/li&gt;
+&lt;li&gt;If the User object doesn&amp;#39;t have an email address set yet, but we do have one from the remote service, set the email address to that.&lt;/li&gt;
+&lt;li&gt;Log the user in and let the continue on their way.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;First we need to tell devise about our controller in &lt;code&gt;routes.rb&lt;/code&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;devise_for :users, class_name: &amp;#39;FormUser&amp;#39;, :controllers =&amp;gt; { omniauth_callbacks: &amp;#39;omniauth_callbacks&amp;#39; }
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Create &lt;code&gt;app/controllers/omniauth_callback_controller.rb&lt;/code&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;class OmniauthCallbacksController &amp;lt; Devise::OmniauthCallbacksController
+  def instagram
+    generic_callback( &amp;#39;instagram&amp;#39; )
+  end
+
+  def facebook
+    generic_callback( &amp;#39;facebook&amp;#39; )
+  end
+
+  def twitter
+    generic_callback( &amp;#39;twitter&amp;#39; )
+  end
+
+  def google_oauth2
+    generic_callback( &amp;#39;google_oauth2&amp;#39; )
+  end
+
+  def generic_callback( provider )
+    @identity = Identity.find_for_oauth env[&amp;quot;omniauth.auth&amp;quot;]
+
+    @user = @identity.user || current_user
+    if @user.nil?
+      @user = User.create( email: @identity.email || &amp;quot;&amp;quot; )
+      @identity.update_attribute( :user_id, @user.id )
+    end
+
+    if @user.email.blank? &amp;amp;&amp;amp; @identity.email
+      @user.update_attribute( :email, @identity.email)
+    end
+
+    if @user.persisted?
+      @identity.update_attribute( :user_id, @user.id )
+      # This is because we&amp;#39;ve created the user manually, and Device expects a
+      # FormUser class (with the validations)
+      @user = FormUser.find @user.id
+      sign_in_and_redirect @user, event: :authentication
+      set_flash_message(:notice, :success, kind: provider.capitalize) if is_navigational_format?
+    else
+      session[&amp;quot;devise.#{provider}_data&amp;quot;] = env[&amp;quot;omniauth.auth&amp;quot;]
+      redirect_to new_user_registration_url
+    end
+  end
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id="override-registrationscontroller-to-handle-adding-email-address-and-password"&gt;Override RegistrationsController to handle adding email address and password&lt;/h2&gt;
+
+&lt;p&gt;We want to let the user add an email address if they haven&amp;#39;t already, and also let them set a password if they haven&amp;#39;t already set one.  (Otherwise it requires the user to enter in &lt;code&gt;current_password&lt;/code&gt;.)  Lets first tell devise about our new controller:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;devise_for :users, class_name: &amp;#39;FormUser&amp;#39;, :controllers =&amp;gt; { omniauth_callbacks: &amp;#39;omniauth_callbacks&amp;#39;, registrations: &amp;#39;registrations&amp;#39;}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;And then create that controller:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;class RegistrationsController &amp;lt; Devise::RegistrationsController
+  def update_resource(resource, params)
+    if resource.encrypted_password.blank? # || params[:password].blank?
+      resource.email = params[:email] if params[:email]
+      if !params[:password].blank? &amp;amp;&amp;amp; params[:password] == params[:password_confirmation]
+        logger.info &amp;quot;Updating password&amp;quot;
+        resource.password = params[:password]
+        resource.save
+      end
+      if resource.valid?
+        resource.update_without_password(params)
+      end
+    else
+      resource.update_with_password(params)
+    end
+  end
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;And now we should be good!  Give it a go and see how it looks!&lt;/p&gt;
+
+&lt;h2 id="adding-methods-to-user-to-get-to-the-clients"&gt;Adding methods to User to get to the clients&lt;/h2&gt;
+
+&lt;p&gt;This goes into &lt;code&gt;app/models/users.rb&lt;/code&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;  has_many :identities
+
+  def twitter
+    identities.where( :provider =&amp;gt; &amp;quot;twitter&amp;quot; ).first
+  end
+
+  def twitter_client
+    @twitter_client ||= Twitter.client( access_token: twitter.accesstoken )
+  end
+
+  def facebook
+    identities.where( :provider =&amp;gt; &amp;quot;facebook&amp;quot; ).first
+  end
+
+  def facebook_client
+    @facebook_client ||= Facebook.client( access_token: facebook.accesstoken )
+  end
+
+  def instagram
+    identities.where( :provider =&amp;gt; &amp;quot;instagram&amp;quot; ).first
+  end
+
+  def instagram_client
+    @instagram_client ||= Instagram.client( access_token: instagram.accesstoken )
+  end
+
+  def google_oauth2
+    identities.where( :provider =&amp;gt; &amp;quot;google_oauth2&amp;quot; ).first
+  end
+
+  def google_oauth2_client
+    if !@google_oauth2_client
+      @google_oauth2_client = Google::APIClient.new(:application_name =&amp;gt; &amp;#39;HappySeed App&amp;#39;, :application_version =&amp;gt; &amp;quot;1.0.0&amp;quot; )
+      @google_oauth2_client.authorization.update_token!({:access_token =&amp;gt; google_oauth2.accesstoken, :refresh_token =&amp;gt; google_oauth2.refreshtoken})
+    end
+    @google_oauth2_client
+  end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now you can access a configured API client using things like &lt;code&gt;current_user.twitter&lt;/code&gt;.&lt;/p&gt;
+
+&lt;h2 id="passing-dynamic-scopes-to-omniauth"&gt;Passing dynamic scopes to omniauth&lt;/h2&gt;
+
+&lt;p&gt;In the current scheme above, you have to hard code the scopes that you want to request for the user which doesn&amp;#39;t always work.  It would be better to only request write access if the user really needs to have it, and by default only get read-only access.  In order to do this we can leverage the &lt;code&gt;Omniauth&lt;/code&gt; setup property.  Inside of &lt;code&gt;devise.rb&lt;/code&gt; add &lt;code&gt;setup: true&lt;/code&gt; to each of the services you want to be able to upgrade.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;    config.omniauth :google_oauth2, ENV[&amp;#39;GOOGLE_OAUTH2_APP_ID&amp;#39;], ENV[&amp;#39;GOOGLE_OAUTH2_APP_SECRET&amp;#39;], scope: &amp;quot;email,profile,offline&amp;quot;, prompt: &amp;quot;consent&amp;quot;, setup: true
+    config.omniauth :instagram, ENV[&amp;#39;INSTAGRAM_APP_ID&amp;#39;], ENV[&amp;#39;INSTAGRAM_APP_SECRET&amp;#39;], setup: true
+    config.omniauth :facebook, ENV[&amp;#39;FACEBOOK_APP_ID&amp;#39;], ENV[&amp;#39;FACEBOOK_APP_SECRET&amp;#39;], scope: &amp;quot;email&amp;quot;, setup: true
+    config.omniauth :twitter, ENV[&amp;#39;TWITTER_APP_ID&amp;#39;], ENV[&amp;#39;TWITTER_APP_SECRET&amp;#39;], setup: true
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Let&amp;#39;s add a few routes in &lt;code&gt;routes.rb&lt;/code&gt; that we can have the user link to:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;  devise_scope :user do
+    get &amp;#39;/users/auth/:provider/upgrade&amp;#39; =&amp;gt; &amp;#39;omniauth_callbacks#upgrade&amp;#39;, as: :user_omniauth_upgrade
+    get &amp;#39;/users/auth/:provider/setup&amp;#39;, :to =&amp;gt; &amp;#39;omniauth_callbacks#setup&amp;#39;
+  end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;The first route is something that we&amp;#39;ll have the user link to, using &lt;code&gt;user_omniauth_upgrade_path( :google_oauth2 )&lt;/code&gt; for example.  The second &lt;code&gt;setup&lt;/code&gt; route is what omniauth will call internally that we can use to change the &lt;code&gt;scope&lt;/code&gt; parameter.  These go into &lt;code&gt;omniauth_callbacks_controller.rb&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;The first &lt;code&gt;upgrade&lt;/code&gt; method looks at the provider and sets a &lt;code&gt;flash&lt;/code&gt; variable for the additional access.  In this case, we are asking for the &lt;code&gt;https://www.googleapis.com/auth/admin.directory.user&lt;/code&gt; also.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;  def upgrade
+    scope = nil
+    if params[:provider] == &amp;quot;google_oauth2&amp;quot;
+      scope = &amp;quot;email,profile,offline,https://www.googleapis.com/auth/admin.directory.user&amp;quot;
+    end
+
+    redirect_to user_omniauth_authorize_path( params[:provider] ), flash: { scope: scope }
+  end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Then it directs the user back to the normal flow.&lt;/p&gt;
+
+&lt;p&gt;When you specify &lt;code&gt;setup: true&lt;/code&gt; inside of the omniauth configuration, there is magic that calls the &lt;code&gt;setup_path&lt;/code&gt; by default, and this is the method where we change the scope from the default in the strategy:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;  def setup
+    request.env[&amp;#39;omniauth.strategy&amp;#39;].options[&amp;#39;scope&amp;#39;] = flash[:scope] || request.env[&amp;#39;omniauth.strategy&amp;#39;].options[&amp;#39;scope&amp;#39;]
+    render :text =&amp;gt; &amp;quot;Setup complete.&amp;quot;, :status =&amp;gt; 404
+  end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now in your views, you can do&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="erb"&gt;&amp;lt;%= link_to &amp;quot;Upgrade Access&amp;quot;, user_omniauth_upgrade_path( :google_oauth2 ) %&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;And the user will go through the oauth flow again requesting the additional access.&lt;/p&gt;
+
+&lt;h2 id="conclusion"&gt;Conclusion&lt;/h2&gt;
+
+&lt;p&gt;Making all of this work is possible, but there are a lot of fiddly little bits to make it work.  Both devise and all of the many omniauth strategies out there make it easy to add this functionality to your application.&lt;/p&gt;
+
+&lt;p&gt;Check out &lt;a href="http://seed.happyfuncorp.com"&gt;seed&lt;/a&gt; to quickly create an application will all of this stuff done for you!&lt;/p&gt;
+</content>
+  </entry>
+  <entry>
+    <title>Using rake for dataflow programming and data science</title>
+    <link rel="alternate" href="http://willschenk.com/using-rake-for-dataflow-programming-and-data-science/"/>
+    <id>http://willschenk.com/using-rake-for-dataflow-programming-and-data-science/</id>
+    <published>2014-12-18T19:00:00-05:00</published>
+    <updated>2014-12-18T19:00:00-05:00</updated>
+    <author>
+      <name>Will Schenk</name>
+    </author>
+    <content type="html">&lt;p&gt;I&amp;#39;ve been using Rake more and more for data collection and processing tasks.  Rake is pretty pretty powerful.  Most people know it as way to add external tasks to a Rails app, but it&amp;#39;s actually very powerful build system.  We&amp;#39;re going to take advantage of that to build out a &lt;a href="https://github.com/HappyFunCorp/rake-data"&gt;framework&lt;/a&gt; that will make it easy to collect, process, and interpret data while keeping it all in sync.&lt;/p&gt;
+
+&lt;p&gt;In fact, if you just want to start playing with stuff now, head over to the &lt;a href="https://github.com/HappyFunCorp/rake-data"&gt;rake-data&lt;/a&gt; site to go through some walk throughs.  Read on to setup a fun world of your own!&lt;/p&gt;
+
+&lt;h2 id="rejected-titles-of-this-post"&gt;Rejected titles of this post&lt;/h2&gt;
+
+&lt;ul&gt;
+&lt;li&gt;rake and bake&lt;/li&gt;
+&lt;li&gt;rake me up before you go-go&lt;/li&gt;
+&lt;li&gt;let them eat rake&lt;/li&gt;
+&lt;li&gt;rake it until you make it&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id="tasks-and-dependancies"&gt;Tasks and Dependancies&lt;/h2&gt;
+
+&lt;p&gt;Rake is a a Make-like Ruby program that people know mostly in terms of rails apps.  We can define a few tasks and define their interdependancies:&lt;/p&gt;
+
+&lt;div class="diagram_right"&gt;
+&lt;svg width="291pt" height="188pt" viewBox="0.00 0.00 291.36 188.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"&gt;&lt;g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 184)"&gt;&lt;title&gt;G&lt;/title&gt;&lt;polygon fill="white" stroke="none" points="-4,4 -4,-184 287.355,-184 287.355,4 -4,4"/&gt;&lt;!-- a --&gt;&lt;g id="node1" class="node"&gt;&lt;title&gt;a&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="93.105" cy="-162" rx="93.2101" ry="18"/&gt;&lt;text text-anchor="middle" x="93.105" y="-157.8" font-family="Times,serif" font-size="14.00"&gt;mail daily leaderboards&lt;/text&gt;&lt;/g&gt;&lt;!-- b --&gt;&lt;g id="node2" class="node"&gt;&lt;title&gt;b&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="93.105" cy="-90" rx="83.0546" ry="18"/&gt;&lt;text text-anchor="middle" x="93.105" y="-85.8" font-family="Times,serif" font-size="14.00"&gt;update leader boards&lt;/text&gt;&lt;/g&gt;&lt;!-- a&amp;#45;&amp;gt;b --&gt;&lt;g id="edge1" class="edge"&gt;&lt;title&gt;a&amp;#45;&amp;gt;b&lt;/title&gt;&lt;path fill="none" stroke="black" d="M93.105,-143.697C93.105,-135.983 93.105,-126.712 93.105,-118.112"/&gt;&lt;polygon fill="black" stroke="black" points="96.6051,-118.104 93.105,-108.104 89.6051,-118.104 96.6051,-118.104"/&gt;&lt;/g&gt;&lt;!-- c --&gt;&lt;g id="node3" class="node"&gt;&lt;title&gt;c&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="166.105" cy="-18" rx="54.6076" ry="18"/&gt;&lt;text text-anchor="middle" x="166.105" y="-13.8" font-family="Times,serif" font-size="14.00"&gt;environment&lt;/text&gt;&lt;/g&gt;&lt;!-- b&amp;#45;&amp;gt;c --&gt;&lt;g id="edge2" class="edge"&gt;&lt;title&gt;b&amp;#45;&amp;gt;c&lt;/title&gt;&lt;path fill="none" stroke="black" d="M110.776,-72.055C120.057,-63.1558 131.574,-52.1121 141.693,-42.4085"/&gt;&lt;polygon fill="black" stroke="black" points="144.304,-44.7545 149.099,-35.307 139.459,-39.702 144.304,-44.7545"/&gt;&lt;/g&gt;&lt;!-- d --&gt;&lt;g id="node4" class="node"&gt;&lt;title&gt;d&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="239.105" cy="-90" rx="44.0015" ry="18"/&gt;&lt;text text-anchor="middle" x="239.105" y="-85.8" font-family="Times,serif" font-size="14.00"&gt;flush data&lt;/text&gt;&lt;/g&gt;&lt;!-- d&amp;#45;&amp;gt;c --&gt;&lt;g id="edge3" class="edge"&gt;&lt;title&gt;d&amp;#45;&amp;gt;c&lt;/title&gt;&lt;path fill="none" stroke="black" d="M222.54,-73.1159C213.062,-64.0273 200.997,-52.458 190.457,-42.3513"/&gt;&lt;polygon fill="black" stroke="black" points="192.751,-39.702 183.111,-35.307 187.906,-44.7545 192.751,-39.702"/&gt;&lt;/g&gt;&lt;/g&gt;&lt;/svg&gt;&lt;/div&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;task :mail_daily_leader_boards =&amp;gt; :update_leader_boards do
+  User.mail_leader_boards!
+end
+
+task :flush_data =&amp;gt; :environment do
+  Leaderboard.flush!
+end
+
+task :update_leader_boards =&amp;gt; :environment do
+  Leaderboard.update!
+end
+
+task :environment
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;When we run &lt;code&gt;mail_daily_leaderboards&lt;/code&gt; it makes sure that &lt;code&gt;update_leader_boards&lt;/code&gt; is run first.  This in turn depends upon &lt;code&gt;environment&lt;/code&gt;, and Rake makes sure that all dependancies are met before executing the task.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="sh"&gt;$ rake mail_daily_leaderboards --dry-run
+** Invoke mail_daily_leader_boards (first_time)
+** Invoke update_leader_boards (first_time)
+** Invoke environment (first_time)
+** Execute (dry run) environment
+** Execute (dry run) update_leader_boards
+** Execute (dry run) mail_daily_leader_boards
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Rake is also smart enough to only run a task once.  Lets look at what happens when we try to run two tasks:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="sh"&gt;$ rake flush_data mail_daily_leader_boards --dry-run
+** Invoke flush_data (first_time)
+** Invoke environment (first_time)
+** Execute (dry run) environment
+** Execute (dry run) flush_data
+** Invoke mail_daily_leader_boards (first_time)
+** Invoke update_leader_boards (first_time)
+** Invoke environment 
+** Execute (dry run) update_leader_boards
+** Execute (dry run) mail_daily_leader_boards
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Notice here that even though &lt;code&gt;update_leader_boards&lt;/code&gt; and &lt;code&gt;flush_data&lt;/code&gt; both depend on &lt;code&gt;environment&lt;/code&gt;, so it needs to be run for either of the dependant tasks to run, and it is only invoked once.&lt;/p&gt;
+
+&lt;p&gt;So far so good.&lt;/p&gt;
+
+&lt;h2 id="dataflow-programming"&gt;Dataflow programming&lt;/h2&gt;
+
+&lt;p&gt;So Rake gives us a dependancy specification and resolution process.  We can visualize this in two ways.  One way is where the arrows are pointing to sub tasks, top down, where the arrow direction represents the control flow control of the process.  When you want A, it makes sure that B and C are there, which in turn have their own dependancies.&lt;/p&gt;
+
+&lt;p&gt;What does it mean if we were to reverse the arrows on the graph?&lt;/p&gt;
+
+&lt;table class="table table-bordered"&gt;
+  &lt;tr&gt;
+    &lt;th style="text-align: center"&gt;Top Down&lt;/th&gt;
+    &lt;th style="text-align: center"&gt;Bottom Up&lt;/th&gt;
+  &lt;/tr&gt;
+
+  &lt;tr&gt;
+    &lt;td style="text-align: center"&gt;
+&lt;svg width="134pt" height="188pt" viewBox="0.00 0.00 134.00 188.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"&gt;&lt;g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 184)"&gt;&lt;title&gt;%3&lt;/title&gt;&lt;polygon fill="white" stroke="none" points="-4,4 -4,-184 130,-184 130,4 -4,4"/&gt;&lt;!-- A --&gt;&lt;g id="node1" class="node"&gt;&lt;title&gt;A&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="63" cy="-162" rx="27" ry="18"/&gt;&lt;text text-anchor="middle" x="63" y="-157.8" font-family="Times,serif" font-size="14.00"&gt;A&lt;/text&gt;&lt;/g&gt;&lt;!-- B --&gt;&lt;g id="node2" class="node"&gt;&lt;title&gt;B&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="27" cy="-90" rx="27" ry="18"/&gt;&lt;text text-anchor="middle" x="27" y="-85.8" font-family="Times,serif" font-size="14.00"&gt;B&lt;/text&gt;&lt;/g&gt;&lt;!-- A&amp;#45;&amp;gt;B --&gt;&lt;g id="edge1" class="edge"&gt;&lt;title&gt;A&amp;#45;&amp;gt;B&lt;/title&gt;&lt;path fill="none" stroke="black" d="M54.6504,-144.765C50.2885,-136.283 44.8531,-125.714 39.9587,-116.197"/&gt;&lt;polygon fill="black" stroke="black" points="42.9904,-114.439 35.3043,-107.147 36.7654,-117.641 42.9904,-114.439"/&gt;&lt;/g&gt;&lt;!-- C --&gt;&lt;g id="node3" class="node"&gt;&lt;title&gt;C&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="99" cy="-90" rx="27" ry="18"/&gt;&lt;text text-anchor="middle" x="99" y="-85.8" font-family="Times,serif" font-size="14.00"&gt;C&lt;/text&gt;&lt;/g&gt;&lt;!-- A&amp;#45;&amp;gt;C --&gt;&lt;g id="edge2" class="edge"&gt;&lt;title&gt;A&amp;#45;&amp;gt;C&lt;/title&gt;&lt;path fill="none" stroke="black" d="M71.3496,-144.765C75.7115,-136.283 81.1469,-125.714 86.0413,-116.197"/&gt;&lt;polygon fill="black" stroke="black" points="89.2346,-117.641 90.6957,-107.147 83.0096,-114.439 89.2346,-117.641"/&gt;&lt;/g&gt;&lt;!-- D --&gt;&lt;g id="node4" class="node"&gt;&lt;title&gt;D&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="27" cy="-18" rx="27" ry="18"/&gt;&lt;text text-anchor="middle" x="27" y="-13.8" font-family="Times,serif" font-size="14.00"&gt;D&lt;/text&gt;&lt;/g&gt;&lt;!-- B&amp;#45;&amp;gt;D --&gt;&lt;g id="edge3" class="edge"&gt;&lt;title&gt;B&amp;#45;&amp;gt;D&lt;/title&gt;&lt;path fill="none" stroke="black" d="M27,-71.6966C27,-63.9827 27,-54.7125 27,-46.1124"/&gt;&lt;polygon fill="black" stroke="black" points="30.5001,-46.1043 27,-36.1043 23.5001,-46.1044 30.5001,-46.1043"/&gt;&lt;/g&gt;&lt;!-- C&amp;#45;&amp;gt;D --&gt;&lt;g id="edge4" class="edge"&gt;&lt;title&gt;C&amp;#45;&amp;gt;D&lt;/title&gt;&lt;path fill="none" stroke="black" d="M84.4297,-74.8345C74.2501,-64.9376 60.4761,-51.5462 48.9694,-40.3591"/&gt;&lt;polygon fill="black" stroke="black" points="51.4055,-37.8461 41.7957,-33.3847 46.5259,-42.865 51.4055,-37.8461"/&gt;&lt;/g&gt;&lt;!-- E --&gt;&lt;g id="node5" class="node"&gt;&lt;title&gt;E&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="99" cy="-18" rx="27" ry="18"/&gt;&lt;text text-anchor="middle" x="99" y="-13.8" font-family="Times,serif" font-size="14.00"&gt;E&lt;/text&gt;&lt;/g&gt;&lt;!-- C&amp;#45;&amp;gt;E --&gt;&lt;g id="edge5" class="edge"&gt;&lt;title&gt;C&amp;#45;&amp;gt;E&lt;/title&gt;&lt;path fill="none" stroke="black" d="M99,-71.6966C99,-63.9827 99,-54.7125 99,-46.1124"/&gt;&lt;polygon fill="black" stroke="black" points="102.5,-46.1043 99,-36.1043 95.5001,-46.1044 102.5,-46.1043"/&gt;&lt;/g&gt;&lt;/g&gt;&lt;/svg&gt;    &lt;/td&gt;
+
+    &lt;td style="text-align: center"&gt;
+&lt;svg width="134pt" height="188pt" viewBox="0.00 0.00 134.00 188.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"&gt;&lt;g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 184)"&gt;&lt;title&gt;%3&lt;/title&gt;&lt;polygon fill="white" stroke="none" points="-4,4 -4,-184 130,-184 130,4 -4,4"/&gt;&lt;!-- E --&gt;&lt;g id="node1" class="node"&gt;&lt;title&gt;E&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="27" cy="-162" rx="27" ry="18"/&gt;&lt;text text-anchor="middle" x="27" y="-157.8" font-family="Times,serif" font-size="14.00"&gt;E&lt;/text&gt;&lt;/g&gt;&lt;!-- C --&gt;&lt;g id="node2" class="node"&gt;&lt;title&gt;C&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="27" cy="-90" rx="27" ry="18"/&gt;&lt;text text-anchor="middle" x="27" y="-85.8" font-family="Times,serif" font-size="14.00"&gt;C&lt;/text&gt;&lt;/g&gt;&lt;!-- E&amp;#45;&amp;gt;C --&gt;&lt;g id="edge1" class="edge"&gt;&lt;title&gt;E&amp;#45;&amp;gt;C&lt;/title&gt;&lt;path fill="none" stroke="black" d="M27,-143.697C27,-135.983 27,-126.712 27,-118.112"/&gt;&lt;polygon fill="black" stroke="black" points="30.5001,-118.104 27,-108.104 23.5001,-118.104 30.5001,-118.104"/&gt;&lt;/g&gt;&lt;!-- A --&gt;&lt;g id="node5" class="node"&gt;&lt;title&gt;A&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="63" cy="-18" rx="27" ry="18"/&gt;&lt;text text-anchor="middle" x="63" y="-13.8" font-family="Times,serif" font-size="14.00"&gt;A&lt;/text&gt;&lt;/g&gt;&lt;!-- C&amp;#45;&amp;gt;A --&gt;&lt;g id="edge4" class="edge"&gt;&lt;title&gt;C&amp;#45;&amp;gt;A&lt;/title&gt;&lt;path fill="none" stroke="black" d="M35.3496,-72.7646C39.7115,-64.2831 45.1469,-53.7144 50.0413,-44.1974"/&gt;&lt;polygon fill="black" stroke="black" points="53.2346,-45.6409 54.6957,-35.1473 47.0096,-42.4395 53.2346,-45.6409"/&gt;&lt;/g&gt;&lt;!-- D --&gt;&lt;g id="node3" class="node"&gt;&lt;title&gt;D&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="99" cy="-162" rx="27" ry="18"/&gt;&lt;text text-anchor="middle" x="99" y="-157.8" font-family="Times,serif" font-size="14.00"&gt;D&lt;/text&gt;&lt;/g&gt;&lt;!-- D&amp;#45;&amp;gt;C --&gt;&lt;g id="edge2" class="edge"&gt;&lt;title&gt;D&amp;#45;&amp;gt;C&lt;/title&gt;&lt;path fill="none" stroke="black" d="M84.4297,-146.834C74.2501,-136.938 60.4761,-123.546 48.9694,-112.359"/&gt;&lt;polygon fill="black" stroke="black" points="51.4055,-109.846 41.7957,-105.385 46.5259,-114.865 51.4055,-109.846"/&gt;&lt;/g&gt;&lt;!-- B --&gt;&lt;g id="node4" class="node"&gt;&lt;title&gt;B&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="99" cy="-90" rx="27" ry="18"/&gt;&lt;text text-anchor="middle" x="99" y="-85.8" font-family="Times,serif" font-size="14.00"&gt;B&lt;/text&gt;&lt;/g&gt;&lt;!-- D&amp;#45;&amp;gt;B --&gt;&lt;g id="edge3" class="edge"&gt;&lt;title&gt;D&amp;#45;&amp;gt;B&lt;/title&gt;&lt;path fill="none" stroke="black" d="M99,-143.697C99,-135.983 99,-126.712 99,-118.112"/&gt;&lt;polygon fill="black" stroke="black" points="102.5,-118.104 99,-108.104 95.5001,-118.104 102.5,-118.104"/&gt;&lt;/g&gt;&lt;!-- B&amp;#45;&amp;gt;A --&gt;&lt;g id="edge5" class="edge"&gt;&lt;title&gt;B&amp;#45;&amp;gt;A&lt;/title&gt;&lt;path fill="none" stroke="black" d="M90.6504,-72.7646C86.2885,-64.2831 80.8531,-53.7144 75.9587,-44.1974"/&gt;&lt;polygon fill="black" stroke="black" points="78.9904,-42.4395 71.3043,-35.1473 72.7654,-45.6409 78.9904,-42.4395"/&gt;&lt;/g&gt;&lt;/g&gt;&lt;/svg&gt;    &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/table&gt;
+
+&lt;p&gt;If we think about rake in terms of managing a build process, what we called &lt;em&gt;dependancies&lt;/em&gt; are actually the source of the data.  If we want an object file, we start with the source file.  If we want to generate C, we need to have generated the data for D and E.&lt;/p&gt;
+
+&lt;h2 id="file-tasks"&gt;File Tasks&lt;/h2&gt;
+
+&lt;p&gt;Rake also knows about building files.  &lt;code&gt;Rake::FileTask&lt;/code&gt; is a subtask of &lt;code&gt;Rake::Task&lt;/code&gt; which will only run the target if the &lt;em&gt;file is out of date&lt;/em&gt; : if the source file is newer than the destination file.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;file &amp;quot;Rakefile.gz&amp;quot; =&amp;gt; &amp;quot;Rakefile&amp;quot; do |task|
+  sh &amp;quot;gzip -fkv #{task.source}&amp;quot;
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;This defined as task called &lt;code&gt;Rakefile.gz&lt;/code&gt; that when invoked will look to see if either the file doesn&amp;#39;t exist, or if it&amp;#39;s older than the source file &lt;code&gt;Rakefile&lt;/code&gt;, and gzips it up.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="sh"&gt;$ rake Rakefile.gz
+gzip -fkv Rakefile
+Rakefile:   -20.6% -- replaced with Rakefile.gz
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Run it again and nothing happens!&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="sh"&gt;$ rake Rakefile.gz
+$
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Touch the source file and it gets rebuilt:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="sh"&gt;$ touch Rakefile
+$ rake Rakefile.gz
+gzip -fkv Rakefile
+Rakefile:   -20.6% -- replaced with Rakefile.gz
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id="rake-as-a-build-system"&gt;Rake as a build system&lt;/h2&gt;
+
+&lt;p&gt;Files and rules come from Rake&amp;#39;s &lt;code&gt;make&lt;/code&gt; heritage.  We can think of regular &lt;code&gt;Task&lt;/code&gt;s as being a general sort of &lt;em&gt;action&lt;/em&gt;, meaning you are packaging up certain set of imperitives in a particular context to achieve some goal.  &lt;code&gt;FileTask&lt;/code&gt;s are a more specific type of action, where we want to generate a specific file from a specific source file.  For a full build system we want to be able to translate whole classes of files into other files, like source files into object files, or XML files into HTML files.  We use &lt;code&gt;Rules&lt;/code&gt; to set these up.&lt;/p&gt;
+
+&lt;h2 id="tasks-defined-as-rules"&gt;Tasks defined as Rules&lt;/h2&gt;
+
+&lt;p&gt;The third main bit of magic that Rake gives us is rules.  The file task can magically bring a file into being when invoked, but in a build process its more common to translate files with a certain extention to other files in a different extension.  The canonical example is probably compiling &lt;code&gt;.c&lt;/code&gt; source files into &lt;code&gt;.o&lt;/code&gt; objects, but since it&amp;#39;s the 21 first century lets look at how to run the Graphviz dot file to process into svg or png files.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;rule &amp;quot;.svg&amp;quot; =&amp;gt; &amp;quot;.dot&amp;quot; do |task|
+  sh &amp;quot;dot -Tsvg &amp;lt; #{task.source} &amp;gt; #{task}&amp;quot;
+end
+
+rule &amp;quot;.png&amp;quot; =&amp;gt; &amp;quot;.dot&amp;quot; do |task|
+  sh &amp;quot;dot -Tpng &amp;lt; #{task.source} &amp;gt; #{task}&amp;quot;
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now we can ask Rake to build a &lt;em&gt;type&lt;/em&gt; of file, and will look for a source file based upon the name that you request.  For example, if we were to run the command:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="sh"&gt;$ rake bottom.svg
+dot -Tsvg &amp;lt; bottom.dot &amp;gt; bottom.svg
+$
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Rake would try to instantiate the file &lt;code&gt;bottom.svg&lt;/code&gt; by first requesting file called &lt;code&gt;bottom.dot&lt;/code&gt;.  Since this is part of the rake dependancy system, this could in turn be built by a seperate rake task!&lt;/p&gt;
+
+&lt;p&gt;Note that Rake doesn&amp;#39;t know anything specifically about these extension.  It just knows what you have defined.  We can define other formats and build rules around that.&lt;/p&gt;
+
+&lt;h2 id="using-rake-to-pull-data-from-a-url"&gt;Using Rake to pull data from a url&lt;/h2&gt;
+
+&lt;p&gt;Let&amp;#39;s extend the Rake DSL to be able to download files from the internet.  You can put this at the top of your &lt;code&gt;Rakefile&lt;/code&gt; for now.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;def url( dest, source )
+  file dest do
+    puts &amp;quot;Loading #{source}&amp;quot;
+    if !File.exists?( dest )
+      mkdir_p dest.to_s.pathmap( &amp;quot;%d&amp;quot; )
+      sh &amp;quot;curl -L &amp;#39;#{source}&amp;#39; &amp;gt; #{dest}&amp;quot;
+    end
+  end
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Lets use this to download a file from the internet do we can parse it.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;url &amp;quot;source/weather.json&amp;quot;, &amp;quot;http://api.openweathermap.org/data/2.5/weather?id=5128581&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;When we run &lt;code&gt;rake source/weather.json&lt;/code&gt; the first time, the file is downloaded.  The second time we run the rake command nothing happens since the &lt;code&gt;source/weather.json&lt;/code&gt; file already exists.  Lets add a quick task to parse the JSON.&lt;/p&gt;
+
+&lt;h2 id="parse-json-using-simple-ruby-commands"&gt;Parse JSON using simple ruby commands&lt;/h2&gt;
+
+&lt;p&gt;Lets parse the file:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;require &amp;#39;json&amp;#39;
+file &amp;quot;report.txt&amp;quot; =&amp;gt; &amp;quot;source/weather.json&amp;quot; do |task|
+  puts &amp;quot;Parsing sun times&amp;quot;
+  data = JSON.parse( File.read( task.source ))
+  File.open( task.to_s, &amp;quot;wb&amp;quot; ) do |out|
+    out.printf &amp;quot;%-15s %s\n&amp;quot;, &amp;#39;sunrise&amp;#39;, Time.at( data[&amp;#39;sys&amp;#39;][&amp;#39;sunrise&amp;#39;] )
+    out.printf &amp;quot;%-15s %s\n&amp;quot;, &amp;#39;sunset&amp;#39;,  Time.at( data[&amp;#39;sys&amp;#39;][&amp;#39;sunset&amp;#39;] )
+  end
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Run &lt;code&gt;rake report.txt&lt;/code&gt;.  This should generate the file the first time, and on subsequent runs, do nothing.  If you remove &lt;code&gt;source/weather.json&lt;/code&gt; file and run &lt;code&gt;rake report.txt&lt;/code&gt; again, you&amp;#39;ll see that Rake is smart enough to download a new version of the file.&lt;/p&gt;
+
+&lt;h2 id="parsing-html"&gt;Parsing HTML&lt;/h2&gt;
+
+&lt;p&gt;Another common thing to do is to download a webpage and parse through the results.  &lt;code&gt;Nokogiri&lt;/code&gt; makes this really easy since you can identify DOM elements using CSS selectors more or less the same a jQuery selectors.&lt;/p&gt;
+
+&lt;p&gt;Lets make a function to help us parse html files into CSV files:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;# Parse an HTML file into CSV
+def parse_html( dest, source, &amp;amp;parser )
+  require &amp;#39;nokogiri&amp;#39;
+  require &amp;#39;csv&amp;#39;
+
+  file dest =&amp;gt; source do
+    puts &amp;quot;Parsing #{source} -&amp;gt; #{dest}&amp;quot;
+    mkdir_p dest.to_s.pathmap( &amp;quot;%d&amp;quot; )
+
+    html = Nokogiri.parse( File.read( source ) )
+    CSV.open( dest.to_s, &amp;quot;wb&amp;quot; ) do |csv|
+      parser.call( html, csv )
+    end
+  end
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;This defines a file task to convert one file type into another.  When it needs to run -- and this will only happen of the source file changes or the destination file doesnt exist -- it loads up the file into Nokogiri, creates a CSV output file, and passes control to a passed in block for processing.&lt;/p&gt;
+
+&lt;p&gt;Let&amp;#39;s pull out a list of the top 10 popular books on project gutenberg for the last month:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;# Load the html file with statistics
+url &amp;quot;source/top.html&amp;quot;, &amp;quot;http://www.gutenberg.org/browse/scores/top&amp;quot;
+
+parse_html &amp;quot;processed/month_top_100.csv&amp;quot;, &amp;quot;source/top.html&amp;quot; do |html,out|
+  html.css( &amp;quot;h2#books-last30 + ol a&amp;quot; ).each do |link|
+    out &amp;lt;&amp;lt; [link[&amp;#39;href&amp;#39;],link.content]
+  end
+end
+
+file &amp;quot;processed/month_top_10.csv&amp;quot; =&amp;gt; &amp;quot;processed/month_top_100.csv&amp;quot; do |task|
+  sh &amp;quot;head -n 10 #{task.source} &amp;gt; #{task}&amp;quot;
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;And now run &lt;code&gt;rake processed/month_top_10.csv&lt;/code&gt; and watch what happens.  This only hits the server the first time it&amp;#39;s run.  If we want to process things again, we simply delete the files in the &lt;code&gt;source&lt;/code&gt; directory and everything in the &lt;code&gt;processed&lt;/code&gt; directory will get regenerated.&lt;/p&gt;
+
+&lt;h2 id="tasks-over-multiple-files"&gt;Tasks over multiple files&lt;/h2&gt;
+
+&lt;p&gt;We have a few CSV files that contain a list of books.  How would we do something with these books?  The natural thing would be to use Rake&amp;#39;s &lt;code&gt;FileList&lt;/code&gt;, but this doesn&amp;#39;t work the way you&amp;#39;d expect because &lt;code&gt;FileList&lt;/code&gt; caches its results and it therefor doesn&amp;#39;t know about files that are created during the build process.  We don&amp;#39;t want to have to run rake twice to get our results, we want to be able to trust the process!&lt;/p&gt;
+
+&lt;p&gt;Let&amp;#39;s extend the DSL again to add a command that will loop over a file and call our block for each line:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;# Loop over a file and yield the block for each line
+# If name ends with .csv, parse the csv and yield each line
+def file_loop( name, source )
+  task name =&amp;gt; source do
+    if source =~ /.csv$/
+      CSV.open( source ).each do |line|
+        yield line
+      end
+    else
+      File.readlines( source ).each do |line|
+        yield line
+      end
+    end
+  end
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now we can use this to create a task that goes through each of the lines of the file.  We&amp;#39;ll do this to define url tasks for the file and then immediately invoke them so make sure that the file was loaded.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;# Loop through the top ten books and make sure that they exist
+file_loop &amp;quot;processed/top_10_books_text&amp;quot;, &amp;quot;processed/month_top_10.csv&amp;quot; do |line|
+  path = &amp;quot;#{line[0].gsub( /^\//, &amp;quot;&amp;quot; )}.txt&amp;quot;
+  puts path
+  url( path, &amp;quot;http://www.gutenberg.org/#{path}.utf-8&amp;quot;)
+  Rake::Task[path].invoke
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Running &lt;code&gt;rake processed/top_10_books_text&lt;/code&gt; will first make sure that &lt;code&gt;processed/month_top_10.csv&lt;/code&gt; is up-to-date, doing whatever it needs too to make it happen, and then loop through each of the lines and download the ebook file.&lt;/p&gt;
+
+&lt;p&gt;&lt;em&gt;Note, we are going to be making a bunch of requests to the Project Gutenberg website, a total of 11 in all.  You might be flagged as a bot, so take a look at the generated &lt;code&gt;.txt&lt;/code&gt; files to make sure that they actually contain the book content. &lt;strong&gt;But no matter how many times you run your commands, unless you delete the downloaded files there will be no more than 11 requests to the server!&lt;/strong&gt;&lt;/em&gt;&lt;/p&gt;
+
+&lt;h2 id="using-rules-to-parse-data"&gt;Using rules to parse data&lt;/h2&gt;
+
+&lt;p&gt;Lets create a rule that will give us a count of all the words in a book:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;# Count and sort the list of words
+rule &amp;quot;.word_count&amp;quot; =&amp;gt; &amp;quot;.words&amp;quot; do |dest|
+  sh &amp;quot;cat #{dest.source} | sort | uniq -c | sort -nr&amp;gt; #{dest}&amp;quot;
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;If we try to run this now, say &lt;code&gt;rake ebooks/1342.word_count&lt;/code&gt; we&amp;#39;ll get an error saying it doesn&amp;#39;t know how to build that file.  Let&amp;#39;s add a rule to go from &lt;code&gt;.txt&lt;/code&gt; to &lt;code&gt;.words&lt;/code&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;# Covert txt to words
+rule &amp;quot;.words&amp;quot; =&amp;gt; &amp;quot;.txt&amp;quot; do |dest|
+  sh &amp;quot;cat #{dest.source} | tr -cs &amp;#39;[:alpha:]&amp;#39; &amp;#39;\n&amp;#39; | tr &amp;#39;[:upper:]&amp;#39; &amp;#39;[:lower:]&amp;#39; &amp;gt; #{dest}&amp;quot;
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now when we run it, we first generate a list of words, and then from that we find the unique count of them.&lt;/p&gt;
+
+&lt;h2 id="get-your-own-rake-data"&gt;Get your own rake-data&lt;/h2&gt;
+
+&lt;p&gt;It&amp;#39;s simple enough to setup this on your own, but I&amp;#39;ve put together a few useful things that I&amp;#39;ve been using to process data into it&amp;#39;s own gem.  You should head over to &lt;a href="https://github.com/HappyFunCorp/rake-data"&gt;https://github.com/HappyFunCorp/rake-data&lt;/a&gt; now to check it out!&lt;/p&gt;
+
+&lt;p&gt;Other things to check out:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="http://blog.kaggle.com/2012/10/15/make-for-data-scientists/"&gt;http://blog.kaggle.com/2012/10/15/make-for-data-scientists/&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="http://blog.factual.com/introducing-drake-a-kind-of-make-for-data"&gt;http://blog.factual.com/introducing-drake-a-kind-of-make-for-data&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="http://datascienceatthecommandline.com"&gt;http://datascienceatthecommandline.com&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+</content>
+  </entry>
   <entry>
     <title>Building Middleman Extensions</title>
     <link rel="alternate" href="http://willschenk.com/building-middleman-extensions/"/>
@@ -1101,463 +1801,6 @@ We can find out by looking at &lt;code&gt;ga:source&lt;/code&gt; which is basica
 &lt;h2 id="code"&gt;Code&lt;/h2&gt;
 
 &lt;p&gt;The &lt;a href="https://gist.github.com/wschenk/d7f8650d619d8f68730a"&gt;full code is available to play with&lt;/a&gt;.  The mechanism for talking to Google APIs from a script works everywhere, but if you are going to do this on your server you&amp;#39;ll want to get the OAuth2 key using a different process than the &lt;code&gt;InstalledAppFlow&lt;/code&gt;.&lt;/p&gt;
-</content>
-  </entry>
-  <entry>
-    <title>New HappySeed released</title>
-    <link rel="alternate" href="http://willschenk.com/new-happyseed-released/"/>
-    <id>http://willschenk.com/new-happyseed-released/</id>
-    <published>2014-11-28T14:05:00-05:00</published>
-    <updated>2014-11-28T14:05:00-05:00</updated>
-    <author>
-      <name>Will Schenk</name>
-    </author>
-    <content type="html">&lt;h2 id="make-apps-faster"&gt;Make apps faster&lt;/h2&gt;
-
-&lt;p&gt;Head on over to the &lt;a href="http://seed.happyfuncorp.com"&gt;HappySeed website&lt;/a&gt; to get the latest version of HappyFunCorp&amp;#39;s starter application toolkit.&lt;/p&gt;
-
-&lt;p&gt;HappySeed is a set of application templates to help you get started building out new sites. The main section is a rails application template plus a set of rails generators to help you get started with rails appliations quickly. These generators setup the configuration of the application in a standard way, and the full set of generators include many things for setting up a modern rails app and well as middleman apps.&lt;/p&gt;
-
-&lt;p&gt;You can update your command line tools by doing&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;$ gem install happy_seed
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;And then create rails apps, plugins, engines, and middleman static sites using the new &lt;code&gt;happy_seed&lt;/code&gt; tool.&lt;/p&gt;
-
-&lt;h2 id="rails-sites"&gt;Rails sites&lt;/h2&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;$ happy_seed rails app_name
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;&lt;a href="http://seed.happyfuncorp.com/docs/rails.html"&gt;Read rails documentation&lt;/a&gt;&lt;/p&gt;
-
-&lt;h2 id="rails-plugins"&gt;Rails Plugins&lt;/h2&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;$ happy_seed plugin plugin_name
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;&lt;a href="http://seed.happyfuncorp.com/docs/plugin.html"&gt;Read plug-in documentation&lt;/a&gt;&lt;/p&gt;
-
-&lt;h2 id="rails-engines"&gt;Rails Engines&lt;/h2&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;$ happy_seed engine engine_name
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;&lt;a href="http://seed.happyfuncorp.com/docs/plugin.html"&gt;Read engine documentation&lt;/a&gt;&lt;/p&gt;
-
-&lt;h2 id="middleman-static-sites"&gt;Middleman Static Sites&lt;/h2&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;$ happy_seed static static_site
-[...]
-$ happy_seed static_blog static_site
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;&lt;a href="http://seed.happyfuncorp.com/docs/middleman.html"&gt;Read static documentation&lt;/a&gt;&lt;/p&gt;
-
-&lt;h2 id="get-that-code"&gt;Get that code&lt;/h2&gt;
-
-&lt;p&gt;Head on over to &lt;a href="https://github.com/HappyFunCorp/happy_seed"&gt;github&lt;/a&gt; to check it out!&lt;/p&gt;
-
-&lt;p&gt;&lt;em&gt;Image Credit: &lt;a href="http://consciouslifenews.com"&gt;consciouslife news&lt;/a&gt;&lt;/em&gt;&lt;/p&gt;
-</content>
-  </entry>
-  <entry>
-    <title>Building Sites with Middleman</title>
-    <link rel="alternate" href="http://willschenk.com/building-sites-with-middleman/"/>
-    <id>http://willschenk.com/building-sites-with-middleman/</id>
-    <published>2014-11-24T19:00:00-05:00</published>
-    <updated>2014-11-24T19:00:00-05:00</updated>
-    <author>
-      <name>Will Schenk</name>
-    </author>
-    <content type="html">&lt;p&gt;I make a lot of websites, and I have a certain toolkit that I use to build them.  The most useful things I use are:&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;layouts and partials so I only need to set things up once&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;haml&lt;/code&gt; for writing html, since I don&amp;#39;t like closing tags&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;Bootstrap&lt;/code&gt; and &lt;code&gt;sass&lt;/code&gt; for writing css&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;Markdown&lt;/code&gt; for formatting large blogs of content&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;coffeescript&lt;/code&gt; for JavaScript&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;Middleman is a static site generator, which means that it takes a bunch of source files, does some stuff with it, and produces static HTML, CSS, Images, and Javascript that can be hosted on a basic server somewhere, including &lt;a href="http://docs.aws.amazon.com/AmazonS3/latest/dev/WebsiteHosting.html"&gt;hosting on S3&lt;/a&gt; or &lt;a href="https://pages.github.com"&gt;Github Pages&lt;/a&gt; so you don&amp;#39;t need to consider a server.&lt;/p&gt;
-
-&lt;p&gt;Middleman is written in Ruby, so it&amp;#39;s our familiar toolset, and unlike &lt;a href="http://jekyllrb.com"&gt;Jekyll&lt;/a&gt; it uses &lt;a href="https://github.com/sstephenson/sprockets"&gt;Sprockets&lt;/a&gt;, which is the same asset pipelining system that Rails uses.  So you get all the benefits of using a robust system that works for Rails apps without having to learn a bunch more things.&lt;/p&gt;
-
-&lt;p&gt;In the node world &lt;a href="http://yeoman.io"&gt;Yeoman&lt;/a&gt; does something similar, but I personally have had poor luck getting &lt;a href="http://gruntjs.com"&gt;Grunt&lt;/a&gt; to work reliably in practice.&lt;/p&gt;
-
-&lt;h2 id="setting-up-a-simple-static-site-with-middleman"&gt;Setting up a simple static site with Middleman&lt;/h2&gt;
-
-&lt;p&gt;One of the problems with starting with Middleman is that there are so many places to start.  Lets look at how to setup a basic middleman site with bootstrap-sass, haml, and bower.  First thing is to install middleman:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;$ gem install middleman
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;And create an app:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;$ middleman new static_site
-[...]
-      create  static_site/.gitignore
-      create  static_site/config.rb
-      create  static_site/source/index.html.erb
-      create  static_site/source/layouts/layout.erb
-      create  static_site/source/stylesheets
-      create  static_site/source/stylesheets/all.css
-      create  static_site/source/stylesheets/normalize.css
-      create  static_site/source/javascripts
-      create  static_site/source/javascripts/all.js
-      create  static_site/source/images
-      create  static_site/source/images/background.png
-      create  static_site/source/images/middleman.png
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;This creates 4 files in the main directory, &lt;code&gt;Gemfile&lt;/code&gt; and &lt;code&gt;Gemfile.lock&lt;/code&gt;, which we know and love, &lt;code&gt;config.rb&lt;/code&gt; which configures how middleman generates the site, and &lt;code&gt;source&lt;/code&gt; which are the sourcefiles of the site.&lt;/p&gt;
-
-&lt;h2 id="gemfile"&gt;Gemfile&lt;/h2&gt;
-
-&lt;p&gt;By default, &lt;code&gt;middleman&lt;/code&gt; installs the &lt;code&gt;middleman-livereload&lt;/code&gt; plugin, so in development mode any browers that have a page open with refresh when you save a file.  This makes testing a lot easier.  We can install other gems here to add different functionality.  Let&amp;#39;s add a few of these now:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;gem &amp;quot;middleman-deploy&amp;quot;
-gem &amp;#39;middleman-bootstrap-navbar&amp;#39;
-gem &amp;quot;bootstrap-sass&amp;quot;
-gem &amp;quot;jquery-middleman&amp;quot;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;The first two gems expand the functionality of middleman, one to add tasks to push the final site build to &lt;code&gt;s3&lt;/code&gt;, &lt;code&gt;gh-pages&lt;/code&gt; and a whole bunch more, and the second to make it easier to build &lt;code&gt;bootstrap&lt;/code&gt; navbars.&lt;/p&gt;
-
-&lt;p&gt;The file two are including &lt;code&gt;bootstrap-sass&lt;/code&gt; -- the same that we use for rails sites -- and &lt;code&gt;jquery&lt;/code&gt;.  These get included into the sprockets asset path, so you don&amp;#39;t need to maintain them in your project.  (We&amp;#39;ll also see below how to integrate &lt;code&gt;bower&lt;/code&gt; components into your project.)&lt;/p&gt;
-
-&lt;h2 id="tweaking-middleman"&gt;Tweaking Middleman&lt;/h2&gt;
-
-&lt;p&gt;&lt;code&gt;config.rb&lt;/code&gt; is where we configure how middleman itself works.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;# For custom domains on github pages
-page &amp;quot;CNAME&amp;quot;, layout: false
-
-set :css_dir, &amp;#39;stylesheets&amp;#39;
-set :js_dir, &amp;#39;javascripts&amp;#39;
-set :images_dir, &amp;#39;images&amp;#39;
-
-# Better markdown support
-# set :markdown, :tables =&amp;gt; true, :autolink =&amp;gt; true, :gh_blockcode =&amp;gt; true, :fenced_code_blocks =&amp;gt; true
-# set :markdown_engine, :redcarpet
-
-# Turn this on if you want to make your url&amp;#39;s prettier, without the .html
-activate :directory_indexes
-
-# Automatic image dimensions on image_tag helper
-# activate :automatic_image_sizes
-
-# Easier bootstrap navbars
-activate :bootstrap_navbar
-
-configure :development do
-  activate :livereload
-end
-
-# Build-specific configuration
-configure :build do
-  # Any files you want to ignore:
-  ignore &amp;#39;/admin/*&amp;#39;
-
-  # For example, change the Compass output style for deployment
-  activate :minify_css
-
-  # Minify Javascript on build
-  activate :minify_javascript
-
-  # Enable cache buster
-  activate :asset_hash
-
-  # Use relative URLs
-  activate :relative_assets
-end
-
-
-# This will push to the gh-pages branch of the repo, which will
-# host it on github pages (If this is a github repository)
-activate :deploy do |deploy|
-  deploy.method = :git
-  deploy.build_before = true
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Lets go through this in detail.&lt;/p&gt;
-
-&lt;p&gt;&lt;code&gt;page &amp;quot;CNAME&amp;quot;, layout: false&lt;/code&gt;  says to move the file called &lt;code&gt;CNAME&lt;/code&gt; over without wrapping in the main layout.  Since this file doesn&amp;#39;t have .html in the name, it would otherwise get ignored.  This file is for having a custom domain on Github Pages, if that&amp;#39;s the sort of thing you are in to.&lt;/p&gt;
-
-&lt;p&gt;The &lt;code&gt;set&lt;/code&gt; commands are there to configure different middleman settings, here to show where the various stylesheet, image, and css directories are.&lt;/p&gt;
-
-&lt;p&gt;&lt;code&gt;activate :directory_indexes&lt;/code&gt; with enable &lt;em&gt;pretty urls&lt;/em&gt;.  Directory indexes means that files named &lt;code&gt;about.html&lt;/code&gt; will actually get generated into a file called &lt;code&gt;/about/index.html&lt;/code&gt;, and will rely on the underlying server to have &lt;code&gt;/about&lt;/code&gt; actually show the directory &amp;quot;index&amp;quot; page, making the urls prettier.  This doesn&amp;#39;t work on all servers but works on most of them.  This plugin will actually rewrite the output of the &lt;code&gt;link_to&lt;/code&gt; tags, so you don&amp;#39;t need to adjust your templates to work.&lt;/p&gt;
-
-&lt;p&gt;&lt;code&gt;activate :bootstrap_navbar&lt;/code&gt; is an extension that we added in the Gemfile, which makes it easier to generate bootstrap navbars.  Extensions generally work in three ways: they add helper methods, they change the way that the sitemap is processed, or they add different commands to the &amp;quot;middleman&amp;quot; command.&lt;/p&gt;
-
-&lt;p&gt;We see an example of that at the bottom of the &lt;code&gt;config.rb&lt;/code&gt; file, where we configure the &lt;code&gt;deploy&lt;/code&gt; extension:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;activate :deploy do |deploy|
-  deploy.method = :git
-  deploy.build_before = true
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;This also takes some configuration, and in this case it set to deploy to github pages, and to make sure that it generates the site before doing so.  Here is the &lt;a href="https://github.com/karlfreeman/middleman-deploy"&gt;middleman-deploy&lt;/a&gt; github page with documentation.&lt;/p&gt;
-
-&lt;p&gt;There are two sections that each configure a different middleman environment.  The first is used when you run &lt;code&gt;middleman server&lt;/code&gt; to look at the site locally:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;configure :development do
-  activate :livereload
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;The final section is configuring the &lt;code&gt;build&lt;/code&gt; process, when you run &lt;code&gt;middleman build&lt;/code&gt; and it creates the generated files in the &lt;code&gt;build&lt;/code&gt; directory.  The entry below ignores certain files for the build, and runs minifiers over the css and javascript, and turns on &lt;em&gt;cache busting&lt;/em&gt;.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;# Build-specific configuration
-configure :build do
-  # Any files you want to ignore:
-  ignore &amp;#39;/admin/*&amp;#39;
-
-  # For example, change the Compass output style for deployment
-  activate :minify_css
-
-  # Minify Javascript on build
-  activate :minify_javascript
-
-  # Enable cache buster
-  activate :asset_hash
-
-  # Use relative URLs
-  activate :relative_assets
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id="using-bower"&gt;Using bower&lt;/h2&gt;
-
-&lt;p&gt;The basic way to use bower is to put this in &lt;code&gt;config.rb&lt;/code&gt;:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;sprockets.append_path File.join root, &amp;#39;bower_components&amp;#39;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;And then you can put things in your &lt;code&gt;all.js&lt;/code&gt; file like&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="javascript"&gt;//= require &amp;#39;component&amp;#39;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;To get all of the assets that are included in the packge, you may need to specify the package in the &lt;code&gt;config.rb&lt;/code&gt; file, such as:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;sprockets.import_asset &amp;#39;jquery&amp;#39;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;More information on the &lt;a href="http://middlemanapp.com/basics/asset-pipeline/"&gt;Middleman Asset Pipline documentation&lt;/a&gt;&lt;/p&gt;
-
-&lt;h2 id="using-layouts-and-partials"&gt;Using layouts and partials&lt;/h2&gt;
-
-&lt;p&gt;The &lt;code&gt;source&lt;/code&gt; directory is where the actual code for your site lives.  Here is an example &lt;code&gt;layouts/layout.haml&lt;/code&gt; file to give you a sense of how to use layouts and include partials:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="haml"&gt;!!! 5
-%html.no-js.sticky
-  %head
-    %meta{ :charset =&amp;gt; &amp;#39;utf-8&amp;#39; }/
-    %meta{ &amp;#39;http-equiv&amp;#39; =&amp;gt; &amp;#39;X-UA-Compatible&amp;#39;, :content =&amp;gt; &amp;#39;IE=edge,chrome=1&amp;#39; }/
-
-    %title This site is amazing!
-
-    %meta{ :name =&amp;gt; &amp;#39;description&amp;#39;, :content =&amp;gt; &amp;#39;&amp;#39; }/
-    %meta{ :name =&amp;gt; &amp;#39;viewport&amp;#39;, :content =&amp;gt; &amp;#39;width=device-width&amp;#39; }/
-    = stylesheet_link_tag &amp;#39;application&amp;#39;, &amp;quot;socicons&amp;quot;, &amp;quot;animate&amp;quot;
-
-  %body
-    = partial &amp;quot;layouts/main_header&amp;quot;
-
-    ~ yield
-
-    = partial &amp;quot;layouts/footer&amp;quot;
-    = partial &amp;quot;layouts/javascripts&amp;quot;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;In this usage, this is similar to the way that rails layouts work.  I&amp;#39;m using the &lt;code&gt;~&lt;/code&gt; HAML operator inside of &lt;code&gt;=&lt;/code&gt; here because I want to make sure that it doesn&amp;#39;t do anything wonky with the indention on &lt;code&gt;&amp;lt;pre&amp;gt;&lt;/code&gt; blocks, btw.&lt;/p&gt;
-
-&lt;p&gt;Middleman has a concept of nested layouts, which lets you have wrap an a layout around another one.  I think that this is confusing in practice, but as an example you could have a &lt;code&gt;layouts/sidebar_layout.erb&lt;/code&gt; that looked like:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="erb"&gt;&amp;lt;% wrap_layout :layout do %&amp;gt;
-    &amp;lt;div class=&amp;quot;sidebar&amp;quot;&amp;gt;
-        &amp;lt;%= partial &amp;quot;layouts/sidebar&amp;quot; %&amp;gt;
-    &amp;lt;/div&amp;gt;
-
-    &amp;lt;div class=&amp;quot;content&amp;quot;&amp;gt;
-        &amp;lt;%= yield %&amp;gt;
-    &amp;lt;/div&amp;gt;
-&amp;lt;% end %&amp;gt;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id="the-yaml-preable-the-preyaml"&gt;The YAML preable the preyaml&lt;/h2&gt;
-
-&lt;p&gt;Metadata about the template is included in a block of text at the top of the file, which gets pulled off to set things that the templating system can use later.  On the top of this file that I am editing right now, it looks like this&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;---
-title: &amp;#39;Building Sites with Middleman&amp;#39;
-subtitle: &amp;#39;lean publishing&amp;#39;
-tags: middleman, ruby, howto
-header_image: books.jpg
----
-
-I make a lot of websites, and I have a certain toolkit that I use to build... 
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;The &lt;code&gt;title&lt;/code&gt;, &lt;code&gt;subtitle&lt;/code&gt;, &lt;code&gt;tags&lt;/code&gt; and &lt;code&gt;header_image&lt;/code&gt; attributues are available in the templates as page data, so you can access them like:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="haml"&gt;  %h1= current_article.title
-  %h2= current_article.data[&amp;#39;subtitle&amp;#39;]
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;&lt;em&gt;title&lt;/em&gt; is built into middleman, &lt;em&gt;subtitle&lt;/em&gt; and &lt;em&gt;header image&lt;/em&gt; are just some random things I made up.  The &lt;code&gt;tags&lt;/code&gt; attribute is part of the &lt;code&gt;middleman-blog&lt;/code&gt; extension which we will cover below.&lt;/p&gt;
-
-&lt;h2 id="how-the-build-works"&gt;How the build works&lt;/h2&gt;
-
-&lt;p&gt;When you run &lt;code&gt;middleman server&lt;/code&gt; or &lt;code&gt;middleman build&lt;/code&gt;, middleman loads up the configuration file in &lt;code&gt;config.rb&lt;/code&gt;.  It creates a sitemap based upon the files in the &lt;code&gt;source&lt;/code&gt; directory as well as other directives inside of the config.rb file. &lt;/p&gt;
-
-&lt;p&gt;By default it only includes files like &lt;code&gt;.html.erb&lt;/code&gt; and &lt;code&gt;.js&lt;/code&gt;, but you can set it manually include a non-template file (like our &lt;code&gt;page &amp;quot;CNAME&amp;quot;&lt;/code&gt; above or create other &lt;code&gt;proxy&lt;/code&gt; files.  Proxy files are a way of seperating out the templates from the source data.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;# Assumes the file source/about/template.html.erb exists
-[&amp;quot;tom&amp;quot;, &amp;quot;dick&amp;quot;, &amp;quot;harry&amp;quot;].each do |name|
-  proxy &amp;quot;/about/#{name}.html&amp;quot;, &amp;quot;/about/template.html&amp;quot;, :locals =&amp;gt; { :person_name =&amp;gt; name }
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;This creates three entries into the sitemap called &lt;code&gt;/about/tom.html&lt;/code&gt;, &lt;code&gt;/about/dick.html&lt;/code&gt; and &lt;code&gt;/about/harry.html&lt;/code&gt; that use a specific template.&lt;/p&gt;
-
-&lt;p&gt;This data doesn&amp;#39;t need to be hardcoded into the &lt;code&gt;config.rb&lt;/code&gt; btw, you can also place &lt;code&gt;json&lt;/code&gt; and &lt;code&gt;yml&lt;/code&gt; files in the &lt;code&gt;data/&lt;/code&gt; directory which middleman will load automatically.  For example, &lt;code&gt;data/employees.json&lt;/code&gt;&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="json"&gt;[{&amp;quot;name&amp;quot;:&amp;quot;Tom&amp;quot;,&amp;quot;title&amp;quot;:&amp;quot;Janitor&amp;quot;},{&amp;quot;name&amp;quot;:&amp;quot;Mary&amp;quot;,&amp;quot;title&amp;quot;:&amp;quot;CEO&amp;quot;}]
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;And then in your &lt;code&gt;config.rb&lt;/code&gt; you could access this as:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;data[&amp;#39;employees&amp;#39;].each do |employee|
-  proxy &amp;quot;/about/#{name}.html&amp;quot;, &amp;quot;/about/template.html&amp;quot;, :locals =&amp;gt; { :person_name =&amp;gt; employee[:name], :title =&amp;gt; employee[:title] }
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Then each entry in the sitemap the file is processed (based upon the extension, so scss -&amp;gt; js, haml -&amp;gt; html, etc.) into the build directory.  Helper methods are available inside of the templates for things like &lt;code&gt;javascript_include_tag&lt;/code&gt;, &lt;code&gt;stylesheet_link_tag&lt;/code&gt;, &lt;code&gt;link_to&lt;/code&gt; and &lt;code&gt;image_tag&lt;/code&gt; and all of the rest.&lt;/p&gt;
-
-&lt;h2 id="middleman-server"&gt;middleman server&lt;/h2&gt;
-
-&lt;p&gt;Starting the server in preview mode will start a local server on port &lt;code&gt;4567&lt;/code&gt; that generates the files on demand.  If you have livereload enabled this will automatically trigger a page refresh for any open browsers, so you can tweak and look at things as you go.&lt;/p&gt;
-
-&lt;p&gt;Inside of your templates, &lt;code&gt;config.environment == :development&lt;/code&gt; when you are in preview mode.  So, if there are some things that you don&amp;#39;t want to push to the live site but are useful for development, you can switch them on and off using that mechanism.&lt;/p&gt;
-
-&lt;h2 id="middleman-build"&gt;middleman build&lt;/h2&gt;
-
-&lt;p&gt;This does basically the same thing as the server, but the templates are generally further processed.  Cachebusting can be enabled, and you can include tracking code if &lt;code&gt;config.environment == :build&lt;/code&gt; is true.  This goes through all of the files in source that look like webfiles and places them in the &lt;code&gt;build&lt;/code&gt; directory.&lt;/p&gt;
-
-&lt;p&gt;And easy way to check out what you have there is by &lt;code&gt;cd&lt;/code&gt;ing into the &lt;code&gt;build/&lt;/code&gt; directory and running a simple webserver to serve the pages.  Relative links don&amp;#39;t work when you open the file directly in the browser, so you need to use an actual webserver.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;$ cd build
-$ python -m SimpleHTTPServer
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;And then open a new browser on port &lt;code&gt;8000&lt;/code&gt;.&lt;/p&gt;
-
-&lt;h2 id="middleman-deploy"&gt;middleman deploy&lt;/h2&gt;
-
-&lt;p&gt;In the basic &lt;code&gt;:git&lt;/code&gt; setting that we have above, middleman deploy will build the site into the &lt;code&gt;build/&lt;/code&gt; directory, switch that directory to the &lt;code&gt;gh-pages&lt;/code&gt; branch, and push it to &lt;code&gt;origin&lt;/code&gt;.  Assuming that you are hosting your repo on github, this will publish the static content on github pages.&lt;/p&gt;
-
-&lt;p&gt;If you want to use a &lt;a href="https://help.github.com/articles/setting-up-a-custom-domain-with-github-pages/"&gt;custom domain&lt;/a&gt; then you need to create a &lt;code&gt;CNAME&lt;/code&gt; file in &lt;code&gt;source/&lt;/code&gt; with the domain name, and set up your DNS records to match.&lt;/p&gt;
-
-&lt;p&gt;One thing to note is that while changes to the pages seem to deploy quickly, it takes a long time for the first push to github pages to show up, on the order of 10-15 minutes.&lt;/p&gt;
-
-&lt;p&gt;More information on &lt;a href="https://github.com/karlfreeman/middleman-deploy"&gt;middleman-deploy&lt;/a&gt;.&lt;/p&gt;
-
-&lt;h2 id="building-a-blog"&gt;Building a blog&lt;/h2&gt;
-
-&lt;p&gt;There are two good extensions for building a blog with middleman.  The default template for blog is sort of confusing in the way that it&amp;#39;s laid out, mainly because it gets rid of the &lt;code&gt;layouts/&lt;/code&gt; directory, but let&amp;#39;s go through it and see how it&amp;#39;s supposed to work:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;$ gem install middleman-blog
-$ middleman new static_blog --template=blog
-      create  static_blog/.gitignore
-      create  static_blog/config.rb
-      create  static_blog/source
-      create  static_blog/source/2012-01-01-example-article.html.markdown
-      create  static_blog/source/calendar.html.erb
-      create  static_blog/source/feed.xml.builder
-      create  static_blog/source/index.html.erb
-      create  static_blog/source/layout.erb
-      create  static_blog/source/tag.html.erb
-      create  static_blog/source/stylesheets
-      create  static_blog/source/javascripts
-      create  static_blog/source/images
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Now we have another middleman site, with a bunch of files.  It also creates a new command:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;$ middleman article &amp;quot;This is the title of my article&amp;quot;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Let&amp;#39;s also include the &lt;code&gt;middleman-blog-drafts&lt;/code&gt; gem into the &lt;code&gt;Gemfile&lt;/code&gt;, &lt;code&gt;activate :drafts&lt;/code&gt; in `config.rb, and that will give us a few more commands:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;$ middleman draft &amp;quot;This is amazing&amp;quot;
-      create  source/drafts/this-is-amazing.html.markdown
-$ middleman publish source/drafts/this-is-amazing.html.markdown
-      create  source/2014-11-25-this-is-amazing.html.markdown
-      remove  source/drafts/this-is-amazing.html.markdown
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;This lets us keep drafts in git and doesn&amp;#39;t force us to commit to a date until we are ready to publish it.  There are &lt;code&gt;published&lt;/code&gt; and &lt;code&gt;date&lt;/code&gt; attributes that the default blog extension knows about to turn it on and off, and is a good example of something that you can see in development but not production, but that still leaves to moving files around manually to adjust the date.&lt;/p&gt;
-
-&lt;h2 id="what-does-it-add"&gt;What does it add&lt;/h2&gt;
-
-&lt;p&gt;In addition to the sitemap, we now have a &lt;code&gt;blog&lt;/code&gt;, &lt;code&gt;article&lt;/code&gt;, and &lt;code&gt;tag&lt;/code&gt; concept inside of the middleman app.  Articles are represented as pages (by default using &lt;code&gt;markdown&lt;/code&gt;) but the &lt;code&gt;tag&lt;/code&gt; and &lt;code&gt;calendar&lt;/code&gt; templates are actually more like &lt;code&gt;proxy&lt;/code&gt; templates than file templates, and when the site is generated middleman will iterate over then to produce many output files from one template.&lt;/p&gt;
-
-&lt;p&gt;Part of the &lt;code&gt;index.html.haml&lt;/code&gt; of this site looks like:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="haml"&gt;  - (drafts + page_articles).each do |article|
-    .post
-      .post-date
-        - unless article.is_a? ::Middleman::Blog::Drafts::DraftArticle
-          %p= article.date.strftime( &amp;#39;%b %e&amp;#39; )
-        - else
-          %p.draft Draft
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;I&amp;#39;m putting all of the articles in a list, both drafts and published ones, and only showing the date for articles which have already been published.&lt;/p&gt;
-
-&lt;p&gt;Here&amp;#39;s what gets added to the &lt;code&gt;config.rb&lt;/code&gt;:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;activate :blog do |blog|
-  # This will add a prefix to all links, template references and source paths
-  # blog.prefix = &amp;quot;blog&amp;quot;
-
-  # blog.permalink = &amp;quot;{year}/{month}/{day}/{title}.html&amp;quot;
-  # Matcher for blog source files
-  # blog.sources = &amp;quot;{year}-{month}-{day}-{title}.html&amp;quot;
-  # blog.taglink = &amp;quot;tags/{tag}.html&amp;quot;
-  # blog.layout = &amp;quot;layout&amp;quot;
-  # blog.summary_separator = /()/
-  # blog.summary_length = 250
-  # blog.year_link = &amp;quot;{year}.html&amp;quot;
-  # blog.month_link = &amp;quot;{year}/{month}.html&amp;quot;
-  # blog.day_link = &amp;quot;{year}/{month}/{day}.html&amp;quot;
-  # blog.default_extension = &amp;quot;.markdown&amp;quot;
-
-  blog.tag_template = &amp;quot;tag.html&amp;quot;
-  blog.calendar_template = &amp;quot;calendar.html&amp;quot;
-
-  # Enable pagination
-  # blog.paginate = true
-  # blog.per_page = 10
-  # blog.page_link = &amp;quot;page/{num}&amp;quot;
-end
-
-activate :drafts
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;This should be enough to get you started, and more &lt;a href="http://middlemanapp.com/basics/blogging/"&gt;documentation is here&lt;/a&gt; .  At this point it really becomes a design and development challenge, not figuring out how to use the tool.&lt;/p&gt;
-
-&lt;h2 id="go-get-started"&gt;Go get started&lt;/h2&gt;
-
-&lt;p&gt;Middleman gives you all of the front-end developer benefits of using a system like Rails, but outputs static content than can be served anywhere without any dependancies.  Many sites don&amp;#39;t really require all that for them to run, and it&amp;#39;s crazy to me that something as read heavy as a blog often can&amp;#39;t perform well under load given that it&amp;#39;s just serving up the same old stuff over and over again.  You want to have some tooling to make it easier, but it doesn&amp;#39;t need to be &lt;em&gt;run time&lt;/em&gt; tooling.&lt;/p&gt;
-
-&lt;p&gt;&lt;em&gt;Image Credit: &lt;a href="https://www.flickr.com/photos/aigle_dore/6365101775/in/photolist-aGsP14-7PozJp-84P71r-dphot9-5qz3ks-eqHuv-6NP8d6-HdurS-aibaen-ix8Rbz-6buevW-7acJMF-8DFBf3-MLnGM-dGa2xi-f4HeM7-zXqL6-88og6h-r7w3U-2qKgwi-mcp7h-4eXcGM-9uv3gC-7BAEiV-5RzRtp-7JKRHh-6iUdMZ-2bUDT-8s4PDi-8pvSWc-dynb6k-zV2x5-4xWMzG-dsxGqc-7Cby3b-9t3zWm-b4jsc2-8YyqSQ-9ggca5-aGsPSg-68SVDi-4PNHrt-7JGpz4-aL22G2-q1ic-sZMVW-84NAEC-8JBSSW-9k6cM-89NBaJ"&gt;Moyan Brenn&lt;/a&gt;&lt;/em&gt;&lt;/p&gt;
 </content>
   </entry>
 </feed>
