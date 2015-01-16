@@ -5,7 +5,7 @@ subtitle: Connect connect connect
 tags: howto, rails, oauth, happy_seed
 date: 2015-01-16
 ---
-Adding social login to your sites really makes it easier to get users onboard.  Devise is great to help get an authentication system up and running, but there are a few tricky things to get right.  The first challenge is that you don't always get the user's email address when the first connect.  The second challenge is that we want to request the minimum permissions first so that the user is more likely to sign up, and gradually ask more as the time arrises.
+Adding social login to your sites really makes it easier to get users onboard.  Devise is great to help get an authentication system up and running, but there are a few tricky things to get right.  The first challenge is that you don't always get the user's email address when the first connect.  The second challenge is that we want to request the minimum permissions first so that the user is more likely to sign up, and gradually ask more as the time arises.
 
 This post is going to go through the strategy that [happy_seed](http://seed.happyfuncorp.com) uses to support these use cases.  The easiest way to get started is to use seed to get things up and running, but we'll walk through how to do it all in detail below.
 
