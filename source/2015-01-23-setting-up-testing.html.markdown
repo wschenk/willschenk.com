@@ -1,10 +1,9 @@
 ---
-title: 'Setting up Rails testing with rspec, devise, and the gang'
-subtitle: 'so much fun'
-# date: TBD When publishing
-tags: rails, happy_seed, testing, ruby
+:title: Setting up Rails testing with rspec, devise, and the gang
+:subtitle: so much fun
+:tags: rails, happy_seed, testing, ruby
+:date: 2015-01-23
 ---
-
 The goal is to get features out fast, and interate on them quickly.  Does anyone care about it?  What do they care about?  How do we make it better?
 
 As projects get bigger, both in terms of people using the site as well as people _working_ on the site, testing and quality become relatively more important.  Adding tests introduces drag, and the theory is that you invest now for payoffs later.  What's the least amount of drag we can add to the process to get us in a good place for when it will start to pay off?
