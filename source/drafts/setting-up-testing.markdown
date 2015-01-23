@@ -21,7 +21,7 @@ Lets fire up a new rails app, and pass the `-T` option to not include TestUnit.
 $ rails new test_app -T
 ```
 
-Now add some gems to the gem file.
+Now add some gems to the `Gemfile`.
 
 ```rb
 group :development, :test do
@@ -58,6 +58,7 @@ If you are interested in using cucumber, see below for steps to integrate it.
 Lets make sure that spring knows about rspec:
 
 ```sh
+$ bundle install
 $ spring binstub --all
 * bin/rake: spring already present
 * bin/rspec: generated with spring
@@ -103,6 +104,12 @@ I like to have the output in documentation format by default, so we can edit the
 
 Getting feature and controller specs to work with authentication is a bit tricky.  We're going to assume that you use [devise for authentication](/setting-up-devise-with-twitter-and-facebook-and-other-omniauth-schemes-without-email-addresses/), but this should support anything that uses [warden](https://github.com/hassox/warden):
 
+Add devise to `Gemfile`:
+
+```rb
+gem 'devise'
+```
+
 Create `spec/support/controller_helpers.rb`
 
 ```rb
@@ -138,13 +145,12 @@ and in the config block add:
   end
 ```
 
-Then edit `rails_helper.rb` and put the following in the config blog:
+Then edit `rails_helper.rb` and put the following in the config block:
 
 ```rb
   config.include FactoryGirl::Syntax::Methods
   config.include Devise::TestHelpers, type: :controller
   config.include Warden::Test::Helpers
-  end
 ```
 
 **If you are getting uncaught throw :warden errors then make sure you have the right includes in the right config files!**
@@ -155,6 +161,14 @@ This gives you a few things:
 - helper methods to `sign_in` a user for a specific scope.  This could be used as `sign_in create( :user )` at the beginning of your controller test methods, and `sign_in nil` to simulate an anonymous user.
 
 ## Example controller spec
+
+This example assumes that you've already setup devise.  If not, you can get something up and running doing:
+
+```
+$ rails g devise:install && rails g devise User && rake db:migrate
+```
+
+(I go into slightly more detail in setting up [devise for authentication](/setting-up-devise-with-twitter-and-facebook-and-other-omniauth-schemes-without-email-addresses/).)
 
 Assuming that you've already setup devise, lets look at how to implement a controller spec.  First lets create a simple scaffold for a post:
 
@@ -189,7 +203,19 @@ RSpec.describe PostsController, :type => :controller do
 end
 ```
 
-When we run `guard`, it should try and run this tests but fail because we can't configured a user factory.
+When we run `guard`, a few of the scaffold generate things will fail, since we are now forcing signin to check out this page.  Our spec will correctly redirect the user to sign in.
+
+Lets now simulate a logged in user:
+
+```rb
+  it "should let a user see all the posts" do
+    login_with create( :user )
+    get :index
+    expect( response ).to render_template( :index )
+  end
+```
+
+Guard should try and run this tests but fail because we can't configured a user factory.
 
 Lets set that up now in `spec/factories/user.rb`:
 
@@ -209,15 +235,8 @@ FactoryGirl.define do
 end
 ```
 
-Going back to the guard window, we should see our tests successfull.  Press _return_ to run everything again and verify.  Lets look at how to simulate a logged in user:
+Going back to the guard window, press _return_ to run everything again and verify.  (Guard doens't know that the `posts_controller_spec.rb` depends upon the user factory changing.)
 
-```rb
-  it "should let a user see all the posts" do
-    login_with create( :user )
-    get :index
-    expect( response ).to render_template( :index )
-  end
-```
 
 ## Example rspec feature
 
@@ -293,7 +312,8 @@ If you want to skip the steps of manually logging in the user, you can use the `
 
 Webmock stops requests from hitting the network in the test environment.  Lets turn this on by editing `rails_helper.rb`:
 
-At the top of `rails_helper.rb`:
+In `rails_helper.rb`, below `require 'rails/rspec'`:
+
 
 ```rb
 require 'webmock/rspec'
@@ -307,3 +327,72 @@ VCR.configure do |c|
   c.hook_into :webmock
 end
 ```
+
+## Example usage of webmock and VCR
+
+Word comes down from up high that to facilitate decision making, a key bit of information is the current phase of the moon when something is posted to the site.  We can pull the data from the [Cerridwen](http://cerridwen.readthedocs.org/en/latest/index.html) site, but how do we set up tests for this?  We certainly don't want our test suite to fail because the phase of the moon changed!
+
+This is where webmock and VCR comes in.  Webmock by itself will throw an error when a request is made over the network.  VCR will let us record and play back network request -- using _cassettes_ no less -- so that we isolate changing API responses from our tests.
+
+First lets write our code to look up the phase of the moon on the create post action.  Let's add a field
+
+```rb
+$ rails g migration add_phase_of_moon_to_posts moon_phase:string && rake db:migrat
+```
+
+Then add the lookup to our `app/controllers/posts_controller.rb` and replace the `def create` method:
+
+```rb
+  require 'json'
+  require 'net/http'
+  def create
+    @post = Post.new(post_params)
+
+    moon_json = Net::HTTP.get( URI.parse("http://cerridwen.viridian-project.de/api/v1/moon" ))
+    moon = JSON.parse( moon_json ).first
+
+    @post.moon_phase = "#{moon['phase']['trend']} in #{moon['position']['sign']}"
+
+    @post.save
+    respond_with(@post)
+  end
+```
+
+(This is not good style.)
+
+Now lets run our test again.
+
+Lots of unhandled http request errors!  I'm going to ignore the scaffold generate tests and focus on our rspec feature.  So, inside of `spec/features/add_new_posts_spec.rb` we can link the click action inside of a use_cassette block like so::
+
+```rb
+  it "should create a new post with a logged in user" do
+    login_as create( :user ), scope: :user
+
+    visit new_post_path
+    # puts page.body
+
+    within "#new_post" do
+      fill_in "post_name", with: "Post title"
+    end
+
+    VCR.use_cassette "waxing_in_pisces" do
+      click_link_or_button "Create Post"
+
+      expect( Post.count ).to eq(1)
+      expect( Post.first.name).to eq( "Post title")
+      expect( Post.first.moon_phase).to eq( "waxing in Pisces" )
+    end
+  end
+```
+
+And let the tests run.  When tests are run, VCR is going to look for the file `spec/vcr/waxing_in_pisces`.  If it's not found, then it will make the request to the server.  If the API requires authentication, for example an accesstoken when accessing a OAuth protected call, then you'll need to configure you tests to have valid credentials for the first time.  These credentials could be written into the spec/vcr directory, so make sure that you scrub that before things get checked in.  (Or expire the access tokens.)
+
+If it is found, then it plays it back and so the next time the suite is run it plays it back.  Which is way faster.
+
+## Final notes
+
+Testing has a place in software development, but it's not actually clear where that is.  Setting up test haresses and building out tests for every feature really slows things down in the beginning, and probably isn't appropriate for one off, exploratory things.  On the other hand, things tend to grow way past what anyone ever initially expected, and you always say "I wish there was a test suite" when inheriting code -- or even more likely, looking at something you haven't seen for a few months.
+
+The rails community has a [long history with Test Driven Development](http://martinfowler.com/articles/is-tdd-dead/).  The biggest advantage of this is that you write code that is testable, and code that is testable has all sorts of other qualities that is great, from clearly defined boundries of responsibility, good encapulation, and being able to look at small isolated pieces of the system and having it make sense.  On the other hand, thebest code is the stuff you don't need to maintain, and in some projects the weight of the test code is as large or larger than the code for the application features.
+
+The biggest problem with testing is that it gets you in a wonderful, but wrong, flow state of development.  In the begining of projects you should be focused on the user experience, and how the system is experienced from the outside.  The highest level tests tend to be are user stories, which is below the level of brand and user experience.
