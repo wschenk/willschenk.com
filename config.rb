@@ -86,7 +86,7 @@ end
 # host it on github pages (If this is a github repository)
 activate :deploy do |deploy|
   deploy.method = :git
-  deploy.build_before = true
+  #deploy.build_before = true
 end
 
 helpers do

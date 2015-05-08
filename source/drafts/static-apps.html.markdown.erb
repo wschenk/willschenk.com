@@ -1,0 +1,337 @@
+---
+title: 'Static apps are cool'
+subtitle: 'building scalable sites'
+tags: middleman, ruby, howto, static_sites
+header_image: tesla_coil.jpg
+---
+
+Why is it [so hard to scale Kim Kardashian's back-end?](https://medium.com/message/how-paper-magazines-web-engineers-scaled-kim-kardashians-back-end-sfw-6367f8d37688)  We've been building websites now for almost 2 decades, and I still break out in sweats everytime I head something like:
+
+> We may get a lot of traffic.
+
+Most of the time this fear is greatly overrated, and I certainly salute all those involved with keeping the "break the internet" campaign under firm control.
+
+But what is it about the way that we build websites that makes them so fragile, and does it still need to be that way?
+
+## A taxonomy of data
+
+At the end of this meandering article we are going to have a way to build super scalable sites that gives you full client side interactivity with SEO without having any servers, or at least only a small cheap one, which will nevertheless be able to scale to huge amounts of traffic cheaply.  The first insight is to split up your data into a taxonomy based upon it's rate of change, render javascript templates on the server side of a specific classes of data, bring back a static build process, and embrace the client side.
+
+<%= image_tag "pace-layering.jpg", class: "img-responsive" %>
+
+
+
+<% graphviz do %>
+digraph G {
+  {
+    node [shape=plaintext];
+    Timeline -> Static -> Structural -> State -> Session
+  }
+
+  { rank = "same"; 
+    Timeline; 
+    Marketing[shape=plaintext, label="Marketing Sites"];
+    Pub[shape=plaintext, label="Publishing"];
+    Ecom[shape=plaintext, label="Ecommerce Sites"];
+  }
+  { rank = "same"; Static; 
+    MBranding[label="Branding"]; 
+    PBranding[label="Branding"];
+    EBranding[label="Branding"];
+  }
+  { rank = "same"; 
+    Structural; 
+    Content;
+    Articles;
+    Products
+  }
+  Marketing -> MBranding -> Content;
+  Pub -> PBranding -> Articles -> Comments;
+  Ecom -> EBranding -> Products -> Inventory -> Cart;
+}
+<% end %>
+
+## Servers have feelings too
+
+I feel bad for servers constantly doing a whole lot of busy work with the same result, burning up energy doing the same dumb thing over and over.  Relatively simple sites hosted on wordpress explode on the slightest traffic spike, and what they are serving up is basically static content.   The admin tools are nice, but you end up going deep down the hole of caching, layers of Varnish slapped over PHP Caching, with CDNs out in Cloudfront to distribute the traffic, database servers desperatly needing indexes, the full catastrophe.
+
+Why is it like that?  Most sites are built with an architecture based upon an out-dated concept of fancy servers and dumb browsers.  Tooling is complicated and historically focused on server side rendering, and client side rendering is a seperate beast.  But these days websites are getting closer to applications and rich client-side code is necessary for any product manager who as a moducom of self-respect.
+
+## What do we need to assemble a website
+
+A website is a series of interconnected webpages.  These pages are referenced by URLs, and the world of linking and SEO demands that these URLs return self-contained data so that you can deep link and get yourself found on the search engines.  From the outside, it looks like:
+
+<% graphviz do %>
+  digraph Sitemaps {
+    a [label="Site Map"];
+    e [label="Javascripts"];
+    f [label="Stylesheets"];
+    g [label="Images"];
+    b [label="Page"];
+    c [label="Page"];
+    d [label="Page"];
+
+    a -> b;
+    a -> c;
+    a -> d;
+    b -> e;
+    c -> e;
+    d -> e;
+    b -> f;
+    c -> f;
+    d -> f;
+    b -> g;
+    c -> g;
+    d -> g;
+  }
+<% end %>
+
+
+At the top, there is the structure of the site which is a set of URLs or paths that represent the site.  These HTML pages in turn reference the Stylesheets, Javascript, and Images that get combined together inside the browser to render the page.  So far so good.
+
+From the inside of a website, it looks a little more like this:
+
+<% graphviz do %>
+  digraph Routing {
+    rankdir=LR;
+
+    a [label="request"]
+    b [label="router"];
+
+    { rank = same;    
+      c [label="controller"];
+      g [label="controller"];
+    }
+
+    { rank = same;
+      e [label="datastore"];
+      f [label="user session"];
+    }
+
+    { rank = same;
+      d [label="template"];
+      h [label="template"];
+    }
+
+    i [label="result"];
+
+    a -> b;
+    b -> c;
+    c -> f;
+    c -> e;
+    c -> d;
+    d -> i;
+
+    b -> g;
+    g -> e;
+    g -> f;
+    g -> h;
+    h -> i;
+  }
+<% end %>
+
+
+A request comes into the server, and the `router` determines what it's asking for.  The `controller` then looks at _who_ is requesting _what_ and fills out a `template` which is returned to the broswer.  The _what_ part of this comes from the datastore, for example you click on a link to get the full details of that pair of shoes you've been eying.  There isn't an actual page that a developer built for those shoes, but rather a general product template that gets combined with the product database to show you the specific details on those chucks you need to get.
+
+
+
+## The cult of RDBM backed websites
+
+Historically, after we moved out of the dark days of hand coding HTML, sites where build using CGI and server side includes.  This  
+
+## Data Taxonomy
+
+
+browers its easy to push a lot of code to the clients 
+
+There's a better way to build and deploy sites.  Lets take a look at how sites are currently deployed, and see how to rearrange things so that the load on the server is less for different types of usage patterns.
+
+
+
+
+We can look at each of the elements on a website and break down the type of data source it came from:
+
+- Static Data: Templates, Images, Fonts, Assets
+- Site Data: Product Lists, Categories, Pages, Articles
+- Dynamic Data: Inventory, Comments
+- Session Data: User name, Items in cart, Likes, etc.
+
+As we go down the list, the rate in which these things change increase.  Static data, as the name implies, rarely changes.  Templates, with their associated content, are created during the site development process, and once the site is deployed they change only in response to bug fixes or feature requests.
+
+Site Data changes during the operations of the business, but not very frequently and generally in response to things that outside of the site per se.  These include things like marketing material, product pages (less inventory information), categories, articles, and really the bulk of the content on a site.  There are many reasons why you want to generate these pages using some sort of CMS, but rarely does this data change at _run time_.  This stuff doesn't really need to be in a database as such, but it's convient to stick this stuff there if you have one laying around.
+
+Dynamic Data is _run time_ data, that is to say, things that change as part of site operations, things like Orders and credit card transactions.  Most _User Generate Content_ falls in the this category, and depending upon your feature set, that could be the majority of the pages.  Unlike Site Data, where it's a good idea to use a database, this is _neccessarily_ stored in some sort of database.
+
+Session Data is _specific to the user_, and renders the page differently based upon there session, such as their name, whether they've added an item into the cart or not, etc.  This gets persisted from page to page, but generally can get thrown away if the user wanders off.
+
+## Most sites are static and site data
+
+
+
+_Image Credit: [Peretz Partensky](https://www.flickr.com/photos/ifl/14916917569/in/photolist-oJa6TX-P5AzF-4Vga7e-exjV6s-bPYEUa-bCqBNr-8d2Hi9-8cYpjR-8d2FT3-8cYpHM-8cYp7e-8cYqqx-aDJBoj-9xJtWM-4yt7kS-4WpvGW-9g5VCK-bCqfRV-9yEigG-9uUmVQ-9uRmLK-9uRjNp-9xAkbU-bpvmhS-bpvmDm-bpvk6b-a31bV-bpvmQW-bCqCzT-bpvFwh-bCqgCz-bpvH3d-bpvF8E-bCqJJT-PLUBa-9yMsKF-9yMrST-9yQtxS-9yQt6d-PLjKy-PLk9o-PLU4X-PLUHx-o5E7w-8FRP5h-8FRNYY-8FNCrt-9uRqhv-PLUrt-9uRonF)_
+
+- 
+Server Template: ERB, HAML
+Server Template Components: Layouts, Partials
+Client Templates: HTML
+Client Templates Stategies: Direct DOM, Mustache, JSON, Local Storage
+
+Data Store: File system, Site Data (Products, Posts), Page Data, Session Data (User, Views), Database
+Client Data Store: DOM, Backbone, Angular, etc.
+
+
+Complete HTML:
+User/Session Info -> Data Store -> Filter -> Partials -> File Template -> Layout -> Final HTML
+
+CSS:
+SASS/CSS -> CSS -> Minifier
+
+Javascripts:
+CoffeScript -> JavaScript -> Compression
+
+Browser Environment:
+Load HTML -> Process HTML -> Load Assets -> Layout Page -> Execute Client Code
+
+
+---
+
+Static Sites
+##### 
+File Data Store -> File Template -> Layout -> Final HTML
+
+CSS:
+SASS/CSS -> CSS -> Minifier
+
+Javascripts:
+CoffeScript -> JavaScript -> Compression
+
+Browser:
+Load HTML -> Process HTML -> Load Assets -> Layout Page -> Execute Client Code
+
+
+
+
+
+
+
+
+
+
+## DRAFT STUFF BELOW
+
+The first step is to split up your data into a taxonomy based upon it's rate of change and bring back a static build process.  Different classes of data will render javascript templates on the server side and the client side.
+
+The second step is to fully embrace client side coding, push as much code into the browser and leverage many of the APIs that are out there to _make it someone else's problem_.  Even if you built the API yourself, this will shrink down your operational headaches to a more managable problem that gracefully degrades a subset of the user experience rather than exploding the whole thing.
+
+## Two timelines
+
+Sites are made up of **Code** and **Data**, and they both have different timelines.  Code changes a lot during the development phase, and it uses tooling to translate what developers write into what computers use.  Even highlevel things like JavaScript and CSS also have tooling where a developer works in CoffeeScript, JSX, or SASS and these get built and minified and optimized by the time the release is done.
+
+Data processing is the heart of what is being built.
+
+<% graphviz do %>
+digraph CodeAndData {
+  {
+    node[shape=plaintext];
+    Header[label="Timeline"];
+    Inception -> Discovery -> Implementation -> Testing -> Launch -> Operations;
+  }
+
+  {
+    node[shape=plaintext];
+    rank=same;
+    Header;
+    CHeader[label="Code"];
+    DHeader[label="Data"];
+  }
+
+  {
+    rank=same;
+    Inception;
+    CStaffing[label="Staffing"];
+  }
+
+  {
+    rank=same;
+    Discovery;
+    CRequirements[label="Requirements"];
+  }
+
+  {
+    rank=same;
+    Implementation;
+    CDevelopment[label="Development"];
+    DMock[label="Mock Data"];
+  }
+
+  {
+    rank=same;
+    Testing;
+    CTesting[label="QA"];
+    DTest[label="Test Data"];
+  }
+
+  {
+    rank=same;
+    Launch;
+    CLaunch[label="Deployment"];
+    DData[label="Seed Data"];
+  }
+
+  {
+    rank=same;
+    Operations;
+    DAuthoring[label="Authoring"];
+  }
+
+  Header -> Inception;
+  CHeader -> CStaffing -> CRequirements -> CDevelopment -> CTesting -> CLaunch;
+  DHeader -> DMock -> DTest -> DData -> DAuthoring;
+}
+<% end %>
+
+
+
+
+
+
+
+## The joys of trade-offs
+
+The projects that [we take](http://happyfuncorp.com) fall roughly in two categories:
+
+- heavy feature iteration on a new idea
+- fixing a site that has fallen over
+
+The majority of what we do is to start with some vague idea and commit to a 4-6 month project where, at the end of it, there will be a site that the public can use, or an app that can be downloaded from one of the app stores, and we see if people like to use the product.  We do operations and maintence on these sites, but largely the effort is to a) explore the idea to see what works and b) to implement the thing.
+
+In this effort the main priority is around feature iteration.  Can we try something else out quickly?  Most of the time the product at the end of the process is not what anyone thought it would be at the beginning.  It's rhymes with the original idea, it's a clearly related family member, but the process of bringing it into the world has changed it.
+
+The other type of project is inheriting something that fell over.  A lot of time people will have strong feelings about the original team that worked on the project, fingers get pointed, etc. but the issue is rarely with the team itself, or even the engineering as such.  In engineering you always need to make tradeoffs, and the trade-offs that were correct at on point in a project are not going to be correct at other points.  Things change, and running a big site presents different challenges than building it the first time.  At some point the code needs to go from "as easy to change as possible" to "the critical paths are burned in and highly optimized".  While this keeps the site humming along, it also makes it more difficult to change things.  And trying to build sites that scale before you need to means you spend a whole bunch of time and money on things that don't move the needle when time and money are in very short supply.
+
+But man, sometimes things do fall over pretty hard.
+
+## Servers have feelings too
+
+They tried to break the internet with [Kim Kardashian's ass](http://www.papermag.com/2014/11/kim_kardashian.php).  They actually called it **Break the Internet**.  How do you think those servers felt that day?  Was it exilaration, or just a slow gentle crush of the gawking masses leaning in?
+
+I really enjoyed the [backstory to the back-end](https://medium.com/message/how-paper-magazines-web-engineers-scaled-kim-kardashians-back-end-sfw-6367f8d37688).  It's almost as hard to tell these stories without eyes glazing over as it is to keep a site like that going under the load.  (_Note that while I'm using wordpress as an example below, [papermag.com](http://www.papermag.com) is built differently and everyone involved has obviously done a marvelous job of it._)
+
+Those poor servers, constantly doing a whole lot of busy work with the same result, burning up energy doing the same dumb thing over and over and getting the same old result.  Relatively simple sites explode on the slightest traffic spike, and what they are serving up is basically static content.
+
+The worst offendors are wordpress sites, that are really great to get going but fall over immediately once a few people show up.  The admin tools are nice, but you end up going deep down the hole of caching, the content covered layers of Varnish, with CDNs and Cloudfront at the like out front to distribute the traffic, database servers desperatly needing indexes, the full catastrophe.
+
+Why is it like that?  Most sites are built with an architecture based upon an out-dated concept of fancy servers and dumb browsers.  Tooling is complicated and historically focused on server side rendering while client side rendering is a seperate beast and makes search engines prickly.  But these days websites are getting closer to applications and rich client-side code is necessary for any product manager who as a moducom of self-respect.
+
+## Change in the rate of change
+
+This photo is from [How Buildings Learn](http://en.wikipedia.org/wiki/How_Buildings_Learn) which you should check out if you haven't read it yet.  Visually it represents 6 different stacked layers, the higher ones changing more quickly than the one below.
+
+<%= image_tag "pace-layering.jpg", class: "img-responsive" %>
+
+When we are actually building the site, what changes the most is on the **Data Model** and **Code** level.  Fields are getting added and removed, we're actively working on the functionality, and then this gets packaged up into a release.
+
+Here we have things like CSS compilers and JS minifiers and all the _coding_ part of the site.  But once it's released, the pace of change (after the inevidable 4 weeks of post-launch hot fixes) of the code slows way down.  Depending upon the maturity of the product it goes from multiple times a day to every few months.  Then the data starts moving.
+
+
+
