@@ -336,7 +336,7 @@ This is where webmock and VCR comes in.  Webmock by itself will throw an error w
 First lets write our code to look up the phase of the moon on the create post action.  Let's add a field
 
 ```rb
-$ rails g migration add_phase_of_moon_to_posts moon_phase:string && rake db:migrat
+$ rails g migration add_phase_of_moon_to_posts moon_phase:string && rake db:migrate
 ```
 
 Then add the lookup to our `app/controllers/posts_controller.rb` and replace the `def create` method:
