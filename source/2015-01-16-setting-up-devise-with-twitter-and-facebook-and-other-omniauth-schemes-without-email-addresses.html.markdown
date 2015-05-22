@@ -303,7 +303,7 @@ And now we should be good!  Give it a go and see how it looks!
 
 ## Adding methods to User to get to the clients
 
-This goes into `app/models/users.rb`:
+This goes into `app/models/user.rb`:
 
 ```rb
   has_many :identities
