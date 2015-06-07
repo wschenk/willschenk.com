@@ -5,16 +5,266 @@
   <id>http://willschenk.com/</id>
   <link href="http://willschenk.com/"/>
   <link href="http://willschenk.com/feed.xml" rel="self"/>
-  <updated>2015-05-08T16:56:19+00:00</updated>
+  <updated>2015-06-07T13:00:19-04:00</updated>
   <author>
     <name>Will Schenk</name>
   </author>
   <entry>
+    <title>Adding search to a middleman blog</title>
+    <link rel="alternate" href="http://willschenk.com/adding-search-to-a-middleman-blog/"/>
+    <id>http://willschenk.com/adding-search-to-a-middleman-blog/</id>
+    <published>2015-06-07T10:09:00-04:00</published>
+    <updated>2015-06-07T10:09:00-04:00</updated>
+    <author>
+      <name>Will Schenk</name>
+    </author>
+    <content type="html">&lt;p&gt;We&amp;#39;re going to build a simple, niave search for middleman blogs.  We&amp;#39;re going to build a &lt;em&gt;search index&lt;/em&gt; at build time, and then use that index to perform the search itself on the client side.&lt;/p&gt;
+
+&lt;h2 id="building-the-index"&gt;Building the index&lt;/h2&gt;
+
+&lt;p&gt;When you typed in something in google, it doesn&amp;#39;t then go and hit every page on the internet to check to see if there&amp;#39;s a match.  It doesn&amp;#39;t even look at every page that it has squirreled away somewhere in the googleplex.  What it consults is an &lt;em&gt;index&lt;/em&gt; of the documents out there, and the index points to the page information.  (We all know that it&amp;#39;s a lot more complicated than that really, but run with it.)&lt;/p&gt;
+
+&lt;p&gt;First thing we&amp;#39;re going to do is create a very simple version of this index for your site.  This is going to be in a file called &lt;code&gt;source/article.index.json.erb&lt;/code&gt;.&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;Go through all of the articles.&lt;/li&gt;
+&lt;li&gt;Add meta data for the article into the master map.&lt;/li&gt;
+&lt;li&gt;Find all of the words in the article, by stripping out all of the html tags, making things lowercase, and breaking it apart by white space.&lt;/li&gt;
+&lt;li&gt;Insert all of those words into our index.&lt;/li&gt;
+&lt;li&gt;Convert the whole sucker to JSON.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;pre&gt;&lt;code class="erb"&gt;&amp;lt;%
+  map = {articles:{}}
+  index = {}
+  blog.articles.each do |article|
+    map[:articles][article.url] = {
+      title: article.title, 
+      date: article.date, 
+      tags: article.tags 
+    }
+
+    words = &amp;quot;#{article.title} #{article.body}&amp;quot;
+    words = words
+      .downcase              # make lowercase
+      .gsub( /&amp;lt;.*?&amp;gt;/, &amp;quot;&amp;quot; )   # get rid of tags
+      .gsub( /[^\w ]/, &amp;quot;&amp;quot; )  # get rid of not letters
+      .split( /\s+/ )        # split by words
+      .sort.uniq
+
+    words.each do |w|
+      index[w] ||= []
+      index[w] &amp;lt;&amp;lt; article.url
+    end
+  end
+  map[:index] = index
+%&amp;gt;
+&amp;lt;%= map.to_json %&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id="now-lets-add-some-markup-to-the-blog"&gt;Now lets add some markup to the blog&lt;/h2&gt;
+
+&lt;p&gt;I&amp;#39;m sticking this in the header, as you see above:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="haml"&gt;%form.navbar-form.navbar-right#search{ role: &amp;quot;search&amp;quot; }
+  .form-group.dropdown
+    .input-group
+      %input.form-control#search_box{ type: &amp;quot;text&amp;quot;, placeholder: &amp;quot;Search&amp;quot;, autocomplete: &amp;quot;off&amp;quot; }
+      %span.input-group-btn
+        %button.btn.btn-default
+          %span.glyphicon.glyphicon-search
+    %ul.dropdown-menu.dropdown-menu-left.results
+      = link_to &amp;quot;Title&amp;quot;, &amp;quot;/url&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id="loading-and-querying-the-index"&gt;Loading and Querying the index&lt;/h2&gt;
+
+&lt;p&gt;Ok, lets build this from the ground up.  All this goes into &lt;code&gt;application.js&lt;/code&gt;.First we&amp;#39;re create a method that loads up the index if we need it.  We&amp;#39;re going to use a promise here, so if multiple request come in at the same time only one will go to the server:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="js"&gt;var article_index = function() {
+  if( window.article_promise === undefined ) {
+    console.log( &amp;quot;Loading article index&amp;quot; );
+    window.article_promise = $.Deferred();
+
+    $.get( &amp;quot;/articles.index.json&amp;quot; ).done( function(data) {
+      console.log( &amp;quot;Loaded article index&amp;quot; );
+      window.article_promise.resolve( data );
+    } );
+  }
+
+  return window.article_promise;
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;This is called like &lt;code&gt;article_index().done( function( index ) { console.log( index )})&lt;/code&gt;  The second time it calls, it returns the first promise again so everything is nice and fast.&lt;/p&gt;
+
+&lt;p&gt;To query the index itself we need to look through all of the words and return a list of urls that match:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="js"&gt;var match_index = function( word, index ) {
+  var result = [];
+  var matcher = new RegExp( word );
+
+  $.each( index.index, function( i ) {
+    if( matcher.exec( i ) ) {
+      $.each( index.index[i], function( idx, url ) {
+        if( result.indexOf( url ) &amp;lt; 0 ) {
+          result.push( url );
+        }
+      } );
+    }
+  });
+
+  return result;
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now lets build a simple search.  This is a little complicated, since we need to compute the intersection of the results if the user types in multiple words.  Here&amp;#39;s what&amp;#39;s happening:&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;We create a promise, since we may need wait for the index to load.&lt;/li&gt;
+&lt;li&gt;We split the search term into multiple words.&lt;/li&gt;
+&lt;li&gt;Collect the results of the &lt;code&gt;match_index&lt;/code&gt; function.&lt;/li&gt;
+&lt;li&gt;Compute the intersections of all the results&lt;/li&gt;
+&lt;li&gt;Look up the meta data based on the url.&lt;/li&gt;
+&lt;li&gt;Resolve the promise with the results.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;pre&gt;&lt;code class="js"&gt;var find_article = function( search ) {
+  var search_results = $.Deferred();
+
+  article_index().done( function( index ) {
+    // Split the search by widespace
+    var words = search.toLowerCase().replace(/\s+$/, &amp;#39;&amp;#39;).split( /\s+/ );
+
+    // Lookup the matches for each word
+    // Note using $.map seems to flatten the result.
+    var full_results = [];
+    $.each( words, function( i, word ) {
+      full_results.push( match_index( word, index ) );
+    } );
+
+    var urls = full_results[0];
+
+    // If there are multiple words, compute the intersection
+    if( full_results.length &amp;gt; 1 ) {
+      var url_counts = {}
+      $.each( full_results, function( i, set ) {
+        $.each( set, function( i, url ) {
+          url_counts[url] = (url_counts[url]||0)+1;
+        } )
+      } );
+
+      urls = [];
+      $.each( url_counts, function( url, count ) {
+        if( count == full_results.length ) {
+          urls.push( url );
+        }
+      } );
+    }
+
+    // Pull in the metadata
+    var results = {};
+    $.each( urls, function( i, url ) {
+      results[url] = index.articles[url];
+    } );
+
+    search_results.resolve( results );
+  });
+
+  return search_results;
+};
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id="wiring-it-up"&gt;Wiring it up&lt;/h2&gt;
+
+&lt;p&gt;First we need to call our code when the user inputs something in the text area:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="js"&gt;$(function() {
+  $( &amp;quot;#search_box&amp;quot; ).on( &amp;#39;input&amp;#39;, search_typing );
+});
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Then we wire everything together:&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;If the field is empty, hide the dropdown.&lt;/li&gt;
+&lt;li&gt;Otherwise show the dropdown and a loading message&lt;/li&gt;
+&lt;li&gt;Call &lt;code&gt;find_article&lt;/code&gt; and when it returns&lt;/li&gt;
+&lt;li&gt;Put the results in the result dropdown.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;pre&gt;&lt;code class="js"&gt;var search_typing = function() {
+  var val = $(this).val();
+
+  if( val == &amp;quot;&amp;quot; ) {
+    $(&amp;quot;#search .dropdown&amp;quot;).removeClass( &amp;quot;open&amp;quot; );
+  } else {
+    $(&amp;quot;#search .dropdown&amp;quot;).addClass( &amp;quot;open&amp;quot; );
+    $(&amp;quot;#search .dropdown-menu&amp;quot;).html(&amp;quot;&amp;lt;li class=&amp;#39;disabled&amp;#39;&amp;gt;&amp;lt;a href=&amp;#39;#&amp;#39;&amp;gt;Loading &amp;quot; + val +&amp;quot;&amp;lt;/a&amp;gt;&amp;lt;/li&amp;gt;&amp;quot;)
+    find_article( val ).done( function(results) {
+      var menu = $(&amp;quot;#search .dropdown-menu&amp;quot;).html(&amp;quot;&amp;quot;);
+      if( $.isEmptyObject( results ) ) {
+        $(&amp;quot;#search .dropdown-menu&amp;quot;).html(&amp;quot;&amp;lt;li class=&amp;#39;disabled&amp;#39;&amp;gt;&amp;lt;a href=&amp;#39;#&amp;#39;&amp;gt;No results for: &amp;quot; + val +&amp;quot;&amp;lt;/a&amp;gt;&amp;lt;/li&amp;gt;&amp;quot;)
+      }
+      $.each( results, function( url, info ) {
+        menu.append( &amp;quot;&amp;lt;li&amp;gt;&amp;lt;a href=\&amp;quot;&amp;quot; + url + &amp;quot;\&amp;quot;&amp;gt;&amp;quot; + info.title + &amp;quot;&amp;lt;/a&amp;gt;&amp;lt;/li&amp;gt;&amp;quot;);
+      });
+    });
+  }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id="next-steps"&gt;Next steps&lt;/h2&gt;
+
+&lt;ol&gt;
+&lt;li&gt;Stemming&lt;/li&gt;
+&lt;li&gt;Logical operations&lt;/li&gt;
+&lt;li&gt;Showing more metadata in the search results.&lt;/li&gt;
+&lt;/ol&gt;
+</content>
+  </entry>
+  <entry>
+    <title>OSX Script for Kiosk Mode</title>
+    <link rel="alternate" href="http://willschenk.com/osx-script-for-kiosk-mode/"/>
+    <id>http://willschenk.com/osx-script-for-kiosk-mode/</id>
+    <published>2015-05-20T10:21:00-04:00</published>
+    <updated>2015-05-20T10:21:00-04:00</updated>
+    <author>
+      <name>Will Schenk</name>
+    </author>
+    <content type="html">&lt;p&gt;In the office, we run &lt;a href="http://jenkins-ci.org"&gt;Jenkins&lt;/a&gt; on the same machine that we run &lt;a href="http://gaze.happyfuncorp.com"&gt;Benevolent Gaze&lt;/a&gt;.  During iOS builds, the iOS simulator will take over the screen for the build, and then leave the beautiful screen on the desktop, hiding our smiling faces.  We want to return to Safari in this case, but we also want to make sure that if someone is actually in front of the machine it will let them do their thing.&lt;/p&gt;
+
+&lt;p&gt;Here&amp;#39;s a little script that check if the user hasn&amp;#39;t touched the keyboard or mouse in a while, and if so it will pull Safari to the front.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="bash"&gt;#!/bin/bash
+while true
+do
+  IDLE=$(ioreg -c IOHIDSystem |awk &amp;#39;/HIDIdle/ {print int($(NF)/1000000000 + 0.5)}&amp;#39;| sort -n |head -1)
+  echo Idle $IDLE seconds
+
+  if [ $IDLE -gt 30 ]
+  then
+    cat &amp;lt;&amp;lt;- EOF | osascript
+      tell application &amp;quot;Safari&amp;quot;
+              activate
+      end tell
+    EOF
+  fi
+  sleep 1
+done
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;The first thing that this does is to call the &lt;code&gt;ioreg&lt;/code&gt; command to pull data from the &lt;code&gt;IOHIDSystem&lt;/code&gt;.  This is what OSX uses to track &lt;em&gt;inactivity&lt;/em&gt;, which is used to start powering things down to conserve battery life.  The units of this measurement are &lt;em&gt;small&lt;/em&gt;, so we divide by &lt;code&gt;1000000000&lt;/code&gt; to get them into seconds.  We round that number to the nearest integer by adding &lt;code&gt;0.5&lt;/code&gt; and lopping off the right of the decimal place with &lt;code&gt;int&lt;/code&gt;.  Then we get the shortest number in the list using &lt;code&gt;sort | head&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;This script waits &lt;code&gt;30&lt;/code&gt; seconds (&lt;code&gt;if [ $IDLE -gt 30 ]&lt;/code&gt;) and then will run &lt;code&gt;osascript&lt;/code&gt; to activate Safari.  The here-doc between &lt;code&gt;EOF&lt;/code&gt; is AppleScript which will activate &lt;em&gt;Safari&lt;/em&gt; and bring it to the front.  Replace that with &lt;em&gt;Google Chrome&lt;/em&gt; if that&amp;#39;s your preferred browser.&lt;/p&gt;
+</content>
+  </entry>
+  <entry>
     <title>Slow data and Fast Sites</title>
     <link rel="alternate" href="http://willschenk.com/slow-data-and-fast-sites/"/>
     <id>http://willschenk.com/slow-data-and-fast-sites/</id>
-    <published>2015-05-08T00:00:00+00:00</published>
-    <updated>2015-05-08T00:00:00+00:00</updated>
+    <published>2015-05-07T20:00:00-04:00</published>
+    <updated>2015-05-07T20:00:00-04:00</updated>
     <author>
       <name>Will Schenk</name>
     </author>
@@ -238,8 +488,8 @@ end
     <title>Why Engineers build crappy products</title>
     <link rel="alternate" href="http://willschenk.com/why-engineers-build-crappy-products/"/>
     <id>http://willschenk.com/why-engineers-build-crappy-products/</id>
-    <published>2015-02-21T00:00:00+00:00</published>
-    <updated>2015-02-21T00:00:00+00:00</updated>
+    <published>2015-02-20T19:00:00-05:00</published>
+    <updated>2015-02-20T19:00:00-05:00</updated>
     <author>
       <name>Will Schenk</name>
     </author>
@@ -315,8 +565,8 @@ end
     <title>Setting up Rails testing with rspec, devise, and the gang</title>
     <link rel="alternate" href="http://willschenk.com/setting-up-testing/"/>
     <id>http://willschenk.com/setting-up-testing/</id>
-    <published>2015-01-23T00:00:00+00:00</published>
-    <updated>2015-01-23T00:00:00+00:00</updated>
+    <published>2015-01-22T19:00:00-05:00</published>
+    <updated>2015-01-22T19:00:00-05:00</updated>
     <author>
       <name>Will Schenk</name>
     </author>
@@ -631,7 +881,7 @@ end
 
 &lt;p&gt;First lets write our code to look up the phase of the moon on the create post action.  Let&amp;#39;s add a field&lt;/p&gt;
 
-&lt;pre&gt;&lt;code class="rb"&gt;$ rails g migration add_phase_of_moon_to_posts moon_phase:string &amp;amp;&amp;amp; rake db:migrat
+&lt;pre&gt;&lt;code class="rb"&gt;$ rails g migration add_phase_of_moon_to_posts moon_phase:string &amp;amp;&amp;amp; rake db:migrate
 &lt;/code&gt;&lt;/pre&gt;
 
 &lt;p&gt;Then add the lookup to our &lt;code&gt;app/controllers/posts_controller.rb&lt;/code&gt; and replace the &lt;code&gt;def create&lt;/code&gt; method:&lt;/p&gt;
@@ -694,8 +944,8 @@ end
     <title>Setting up Devise with Twitter and Facebook and other Omniauth schemes without email addresses</title>
     <link rel="alternate" href="http://willschenk.com/setting-up-devise-with-twitter-and-facebook-and-other-omniauth-schemes-without-email-addresses/"/>
     <id>http://willschenk.com/setting-up-devise-with-twitter-and-facebook-and-other-omniauth-schemes-without-email-addresses/</id>
-    <published>2015-01-16T00:00:00+00:00</published>
-    <updated>2015-01-16T00:00:00+00:00</updated>
+    <published>2015-01-15T19:00:00-05:00</published>
+    <updated>2015-01-15T19:00:00-05:00</updated>
     <author>
       <name>Will Schenk</name>
     </author>
@@ -984,7 +1234,7 @@ end
 
 &lt;h2 id="adding-methods-to-user-to-get-to-the-clients"&gt;Adding methods to User to get to the clients&lt;/h2&gt;
 
-&lt;p&gt;This goes into &lt;code&gt;app/models/users.rb&lt;/code&gt;:&lt;/p&gt;
+&lt;p&gt;This goes into &lt;code&gt;app/models/user.rb&lt;/code&gt;:&lt;/p&gt;
 
 &lt;pre&gt;&lt;code class="rb"&gt;  has_many :identities
 
@@ -1081,586 +1331,6 @@ end
 &lt;p&gt;Making all of this work is possible, but there are a lot of fiddly little bits to make it work.  Both devise and all of the many omniauth strategies out there make it easy to add this functionality to your application.&lt;/p&gt;
 
 &lt;p&gt;Check out &lt;a href="http://seed.happyfuncorp.com"&gt;seed&lt;/a&gt; to quickly create an application will all of this stuff done for you!&lt;/p&gt;
-</content>
-  </entry>
-  <entry>
-    <title>Using rake for dataflow programming and data science</title>
-    <link rel="alternate" href="http://willschenk.com/using-rake-for-dataflow-programming-and-data-science/"/>
-    <id>http://willschenk.com/using-rake-for-dataflow-programming-and-data-science/</id>
-    <published>2014-12-19T00:00:00+00:00</published>
-    <updated>2014-12-19T00:00:00+00:00</updated>
-    <author>
-      <name>Will Schenk</name>
-    </author>
-    <content type="html">&lt;p&gt;I&amp;#39;ve been using Rake more and more for data collection and processing tasks.  Rake is pretty pretty powerful.  Most people know it as way to add external tasks to a Rails app, but it&amp;#39;s actually very powerful build system.  We&amp;#39;re going to take advantage of that to build out a &lt;a href="https://github.com/HappyFunCorp/rake-data"&gt;framework&lt;/a&gt; that will make it easy to collect, process, and interpret data while keeping it all in sync.&lt;/p&gt;
-
-&lt;p&gt;In fact, if you just want to start playing with stuff now, head over to the &lt;a href="https://github.com/HappyFunCorp/rake-data"&gt;rake-data&lt;/a&gt; site to go through some walk throughs.  Read on to setup a fun world of your own!&lt;/p&gt;
-
-&lt;h2 id="rejected-titles-of-this-post"&gt;Rejected titles of this post&lt;/h2&gt;
-
-&lt;ul&gt;
-&lt;li&gt;rake and bake&lt;/li&gt;
-&lt;li&gt;rake me up before you go-go&lt;/li&gt;
-&lt;li&gt;let them eat rake&lt;/li&gt;
-&lt;li&gt;rake it until you make it&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h2 id="tasks-and-dependancies"&gt;Tasks and Dependancies&lt;/h2&gt;
-
-&lt;p&gt;Rake is a a Make-like Ruby program that people know mostly in terms of rails apps.  We can define a few tasks and define their interdependancies:&lt;/p&gt;
-
-&lt;div class="diagram_right"&gt;
-&lt;svg width="291pt" height="188pt" viewBox="0.00 0.00 291.36 188.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"&gt;&lt;g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 184)"&gt;&lt;title&gt;G&lt;/title&gt;&lt;polygon fill="white" stroke="none" points="-4,4 -4,-184 287.355,-184 287.355,4 -4,4"/&gt;&lt;!-- a --&gt;&lt;g id="node1" class="node"&gt;&lt;title&gt;a&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="93.105" cy="-162" rx="93.2101" ry="18"/&gt;&lt;text text-anchor="middle" x="93.105" y="-157.8" font-family="Times,serif" font-size="14.00"&gt;mail daily leaderboards&lt;/text&gt;&lt;/g&gt;&lt;!-- b --&gt;&lt;g id="node2" class="node"&gt;&lt;title&gt;b&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="93.105" cy="-90" rx="83.0546" ry="18"/&gt;&lt;text text-anchor="middle" x="93.105" y="-85.8" font-family="Times,serif" font-size="14.00"&gt;update leader boards&lt;/text&gt;&lt;/g&gt;&lt;!-- a&amp;#45;&amp;gt;b --&gt;&lt;g id="edge1" class="edge"&gt;&lt;title&gt;a&amp;#45;&amp;gt;b&lt;/title&gt;&lt;path fill="none" stroke="black" d="M93.105,-143.697C93.105,-135.983 93.105,-126.712 93.105,-118.112"/&gt;&lt;polygon fill="black" stroke="black" points="96.6051,-118.104 93.105,-108.104 89.6051,-118.104 96.6051,-118.104"/&gt;&lt;/g&gt;&lt;!-- c --&gt;&lt;g id="node3" class="node"&gt;&lt;title&gt;c&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="166.105" cy="-18" rx="54.6076" ry="18"/&gt;&lt;text text-anchor="middle" x="166.105" y="-13.8" font-family="Times,serif" font-size="14.00"&gt;environment&lt;/text&gt;&lt;/g&gt;&lt;!-- b&amp;#45;&amp;gt;c --&gt;&lt;g id="edge2" class="edge"&gt;&lt;title&gt;b&amp;#45;&amp;gt;c&lt;/title&gt;&lt;path fill="none" stroke="black" d="M110.776,-72.055C120.057,-63.1558 131.574,-52.1121 141.693,-42.4085"/&gt;&lt;polygon fill="black" stroke="black" points="144.304,-44.7545 149.099,-35.307 139.459,-39.702 144.304,-44.7545"/&gt;&lt;/g&gt;&lt;!-- d --&gt;&lt;g id="node4" class="node"&gt;&lt;title&gt;d&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="239.105" cy="-90" rx="44.0015" ry="18"/&gt;&lt;text text-anchor="middle" x="239.105" y="-85.8" font-family="Times,serif" font-size="14.00"&gt;flush data&lt;/text&gt;&lt;/g&gt;&lt;!-- d&amp;#45;&amp;gt;c --&gt;&lt;g id="edge3" class="edge"&gt;&lt;title&gt;d&amp;#45;&amp;gt;c&lt;/title&gt;&lt;path fill="none" stroke="black" d="M222.54,-73.1159C213.062,-64.0273 200.997,-52.458 190.457,-42.3513"/&gt;&lt;polygon fill="black" stroke="black" points="192.751,-39.702 183.111,-35.307 187.906,-44.7545 192.751,-39.702"/&gt;&lt;/g&gt;&lt;/g&gt;&lt;/svg&gt;&lt;/div&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;task :mail_daily_leader_boards =&amp;gt; :update_leader_boards do
-  User.mail_leader_boards!
-end
-
-task :flush_data =&amp;gt; :environment do
-  Leaderboard.flush!
-end
-
-task :update_leader_boards =&amp;gt; :environment do
-  Leaderboard.update!
-end
-
-task :environment
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;When we run &lt;code&gt;mail_daily_leaderboards&lt;/code&gt; it makes sure that &lt;code&gt;update_leader_boards&lt;/code&gt; is run first.  This in turn depends upon &lt;code&gt;environment&lt;/code&gt;, and Rake makes sure that all dependancies are met before executing the task.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;$ rake mail_daily_leaderboards --dry-run
-** Invoke mail_daily_leader_boards (first_time)
-** Invoke update_leader_boards (first_time)
-** Invoke environment (first_time)
-** Execute (dry run) environment
-** Execute (dry run) update_leader_boards
-** Execute (dry run) mail_daily_leader_boards
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Rake is also smart enough to only run a task once.  Lets look at what happens when we try to run two tasks:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;$ rake flush_data mail_daily_leader_boards --dry-run
-** Invoke flush_data (first_time)
-** Invoke environment (first_time)
-** Execute (dry run) environment
-** Execute (dry run) flush_data
-** Invoke mail_daily_leader_boards (first_time)
-** Invoke update_leader_boards (first_time)
-** Invoke environment 
-** Execute (dry run) update_leader_boards
-** Execute (dry run) mail_daily_leader_boards
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Notice here that even though &lt;code&gt;update_leader_boards&lt;/code&gt; and &lt;code&gt;flush_data&lt;/code&gt; both depend on &lt;code&gt;environment&lt;/code&gt;, so it needs to be run for either of the dependant tasks to run, and it is only invoked once.&lt;/p&gt;
-
-&lt;p&gt;So far so good.&lt;/p&gt;
-
-&lt;h2 id="dataflow-programming"&gt;Dataflow programming&lt;/h2&gt;
-
-&lt;p&gt;So Rake gives us a dependancy specification and resolution process.  We can visualize this in two ways.  One way is where the arrows are pointing to sub tasks, top down, where the arrow direction represents the control flow control of the process.  When you want A, it makes sure that B and C are there, which in turn have their own dependancies.&lt;/p&gt;
-
-&lt;p&gt;What does it mean if we were to reverse the arrows on the graph?&lt;/p&gt;
-
-&lt;table class="table table-bordered"&gt;
-  &lt;tr&gt;
-    &lt;th style="text-align: center"&gt;Top Down&lt;/th&gt;
-    &lt;th style="text-align: center"&gt;Bottom Up&lt;/th&gt;
-  &lt;/tr&gt;
-
-  &lt;tr&gt;
-    &lt;td style="text-align: center"&gt;
-&lt;svg width="134pt" height="188pt" viewBox="0.00 0.00 134.00 188.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"&gt;&lt;g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 184)"&gt;&lt;title&gt;%3&lt;/title&gt;&lt;polygon fill="white" stroke="none" points="-4,4 -4,-184 130,-184 130,4 -4,4"/&gt;&lt;!-- A --&gt;&lt;g id="node1" class="node"&gt;&lt;title&gt;A&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="63" cy="-162" rx="27" ry="18"/&gt;&lt;text text-anchor="middle" x="63" y="-157.8" font-family="Times,serif" font-size="14.00"&gt;A&lt;/text&gt;&lt;/g&gt;&lt;!-- B --&gt;&lt;g id="node2" class="node"&gt;&lt;title&gt;B&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="27" cy="-90" rx="27" ry="18"/&gt;&lt;text text-anchor="middle" x="27" y="-85.8" font-family="Times,serif" font-size="14.00"&gt;B&lt;/text&gt;&lt;/g&gt;&lt;!-- A&amp;#45;&amp;gt;B --&gt;&lt;g id="edge1" class="edge"&gt;&lt;title&gt;A&amp;#45;&amp;gt;B&lt;/title&gt;&lt;path fill="none" stroke="black" d="M54.6504,-144.765C50.2885,-136.283 44.8531,-125.714 39.9587,-116.197"/&gt;&lt;polygon fill="black" stroke="black" points="42.9904,-114.439 35.3043,-107.147 36.7654,-117.641 42.9904,-114.439"/&gt;&lt;/g&gt;&lt;!-- C --&gt;&lt;g id="node3" class="node"&gt;&lt;title&gt;C&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="99" cy="-90" rx="27" ry="18"/&gt;&lt;text text-anchor="middle" x="99" y="-85.8" font-family="Times,serif" font-size="14.00"&gt;C&lt;/text&gt;&lt;/g&gt;&lt;!-- A&amp;#45;&amp;gt;C --&gt;&lt;g id="edge2" class="edge"&gt;&lt;title&gt;A&amp;#45;&amp;gt;C&lt;/title&gt;&lt;path fill="none" stroke="black" d="M71.3496,-144.765C75.7115,-136.283 81.1469,-125.714 86.0413,-116.197"/&gt;&lt;polygon fill="black" stroke="black" points="89.2346,-117.641 90.6957,-107.147 83.0096,-114.439 89.2346,-117.641"/&gt;&lt;/g&gt;&lt;!-- D --&gt;&lt;g id="node4" class="node"&gt;&lt;title&gt;D&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="27" cy="-18" rx="27" ry="18"/&gt;&lt;text text-anchor="middle" x="27" y="-13.8" font-family="Times,serif" font-size="14.00"&gt;D&lt;/text&gt;&lt;/g&gt;&lt;!-- B&amp;#45;&amp;gt;D --&gt;&lt;g id="edge3" class="edge"&gt;&lt;title&gt;B&amp;#45;&amp;gt;D&lt;/title&gt;&lt;path fill="none" stroke="black" d="M27,-71.6966C27,-63.9827 27,-54.7125 27,-46.1124"/&gt;&lt;polygon fill="black" stroke="black" points="30.5001,-46.1043 27,-36.1043 23.5001,-46.1044 30.5001,-46.1043"/&gt;&lt;/g&gt;&lt;!-- C&amp;#45;&amp;gt;D --&gt;&lt;g id="edge4" class="edge"&gt;&lt;title&gt;C&amp;#45;&amp;gt;D&lt;/title&gt;&lt;path fill="none" stroke="black" d="M84.4297,-74.8345C74.2501,-64.9376 60.4761,-51.5462 48.9694,-40.3591"/&gt;&lt;polygon fill="black" stroke="black" points="51.4055,-37.8461 41.7957,-33.3847 46.5259,-42.865 51.4055,-37.8461"/&gt;&lt;/g&gt;&lt;!-- E --&gt;&lt;g id="node5" class="node"&gt;&lt;title&gt;E&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="99" cy="-18" rx="27" ry="18"/&gt;&lt;text text-anchor="middle" x="99" y="-13.8" font-family="Times,serif" font-size="14.00"&gt;E&lt;/text&gt;&lt;/g&gt;&lt;!-- C&amp;#45;&amp;gt;E --&gt;&lt;g id="edge5" class="edge"&gt;&lt;title&gt;C&amp;#45;&amp;gt;E&lt;/title&gt;&lt;path fill="none" stroke="black" d="M99,-71.6966C99,-63.9827 99,-54.7125 99,-46.1124"/&gt;&lt;polygon fill="black" stroke="black" points="102.5,-46.1043 99,-36.1043 95.5001,-46.1044 102.5,-46.1043"/&gt;&lt;/g&gt;&lt;/g&gt;&lt;/svg&gt;    &lt;/td&gt;
-
-    &lt;td style="text-align: center"&gt;
-&lt;svg width="134pt" height="188pt" viewBox="0.00 0.00 134.00 188.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"&gt;&lt;g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 184)"&gt;&lt;title&gt;%3&lt;/title&gt;&lt;polygon fill="white" stroke="none" points="-4,4 -4,-184 130,-184 130,4 -4,4"/&gt;&lt;!-- E --&gt;&lt;g id="node1" class="node"&gt;&lt;title&gt;E&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="27" cy="-162" rx="27" ry="18"/&gt;&lt;text text-anchor="middle" x="27" y="-157.8" font-family="Times,serif" font-size="14.00"&gt;E&lt;/text&gt;&lt;/g&gt;&lt;!-- C --&gt;&lt;g id="node2" class="node"&gt;&lt;title&gt;C&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="27" cy="-90" rx="27" ry="18"/&gt;&lt;text text-anchor="middle" x="27" y="-85.8" font-family="Times,serif" font-size="14.00"&gt;C&lt;/text&gt;&lt;/g&gt;&lt;!-- E&amp;#45;&amp;gt;C --&gt;&lt;g id="edge1" class="edge"&gt;&lt;title&gt;E&amp;#45;&amp;gt;C&lt;/title&gt;&lt;path fill="none" stroke="black" d="M27,-143.697C27,-135.983 27,-126.712 27,-118.112"/&gt;&lt;polygon fill="black" stroke="black" points="30.5001,-118.104 27,-108.104 23.5001,-118.104 30.5001,-118.104"/&gt;&lt;/g&gt;&lt;!-- A --&gt;&lt;g id="node5" class="node"&gt;&lt;title&gt;A&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="63" cy="-18" rx="27" ry="18"/&gt;&lt;text text-anchor="middle" x="63" y="-13.8" font-family="Times,serif" font-size="14.00"&gt;A&lt;/text&gt;&lt;/g&gt;&lt;!-- C&amp;#45;&amp;gt;A --&gt;&lt;g id="edge4" class="edge"&gt;&lt;title&gt;C&amp;#45;&amp;gt;A&lt;/title&gt;&lt;path fill="none" stroke="black" d="M35.3496,-72.7646C39.7115,-64.2831 45.1469,-53.7144 50.0413,-44.1974"/&gt;&lt;polygon fill="black" stroke="black" points="53.2346,-45.6409 54.6957,-35.1473 47.0096,-42.4395 53.2346,-45.6409"/&gt;&lt;/g&gt;&lt;!-- D --&gt;&lt;g id="node3" class="node"&gt;&lt;title&gt;D&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="99" cy="-162" rx="27" ry="18"/&gt;&lt;text text-anchor="middle" x="99" y="-157.8" font-family="Times,serif" font-size="14.00"&gt;D&lt;/text&gt;&lt;/g&gt;&lt;!-- D&amp;#45;&amp;gt;C --&gt;&lt;g id="edge2" class="edge"&gt;&lt;title&gt;D&amp;#45;&amp;gt;C&lt;/title&gt;&lt;path fill="none" stroke="black" d="M84.4297,-146.834C74.2501,-136.938 60.4761,-123.546 48.9694,-112.359"/&gt;&lt;polygon fill="black" stroke="black" points="51.4055,-109.846 41.7957,-105.385 46.5259,-114.865 51.4055,-109.846"/&gt;&lt;/g&gt;&lt;!-- B --&gt;&lt;g id="node4" class="node"&gt;&lt;title&gt;B&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="99" cy="-90" rx="27" ry="18"/&gt;&lt;text text-anchor="middle" x="99" y="-85.8" font-family="Times,serif" font-size="14.00"&gt;B&lt;/text&gt;&lt;/g&gt;&lt;!-- D&amp;#45;&amp;gt;B --&gt;&lt;g id="edge3" class="edge"&gt;&lt;title&gt;D&amp;#45;&amp;gt;B&lt;/title&gt;&lt;path fill="none" stroke="black" d="M99,-143.697C99,-135.983 99,-126.712 99,-118.112"/&gt;&lt;polygon fill="black" stroke="black" points="102.5,-118.104 99,-108.104 95.5001,-118.104 102.5,-118.104"/&gt;&lt;/g&gt;&lt;!-- B&amp;#45;&amp;gt;A --&gt;&lt;g id="edge5" class="edge"&gt;&lt;title&gt;B&amp;#45;&amp;gt;A&lt;/title&gt;&lt;path fill="none" stroke="black" d="M90.6504,-72.7646C86.2885,-64.2831 80.8531,-53.7144 75.9587,-44.1974"/&gt;&lt;polygon fill="black" stroke="black" points="78.9904,-42.4395 71.3043,-35.1473 72.7654,-45.6409 78.9904,-42.4395"/&gt;&lt;/g&gt;&lt;/g&gt;&lt;/svg&gt;    &lt;/td&gt;
-  &lt;/tr&gt;
-&lt;/table&gt;
-
-&lt;p&gt;If we think about rake in terms of managing a build process, what we called &lt;em&gt;dependancies&lt;/em&gt; are actually the source of the data.  If we want an object file, we start with the source file.  If we want to generate C, we need to have generated the data for D and E.&lt;/p&gt;
-
-&lt;h2 id="file-tasks"&gt;File Tasks&lt;/h2&gt;
-
-&lt;p&gt;Rake also knows about building files.  &lt;code&gt;Rake::FileTask&lt;/code&gt; is a subtask of &lt;code&gt;Rake::Task&lt;/code&gt; which will only run the target if the &lt;em&gt;file is out of date&lt;/em&gt; : if the source file is newer than the destination file.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;file &amp;quot;Rakefile.gz&amp;quot; =&amp;gt; &amp;quot;Rakefile&amp;quot; do |task|
-  sh &amp;quot;gzip -fkv #{task.source}&amp;quot;
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;This defined as task called &lt;code&gt;Rakefile.gz&lt;/code&gt; that when invoked will look to see if either the file doesn&amp;#39;t exist, or if it&amp;#39;s older than the source file &lt;code&gt;Rakefile&lt;/code&gt;, and gzips it up.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;$ rake Rakefile.gz
-gzip -fkv Rakefile
-Rakefile:   -20.6% -- replaced with Rakefile.gz
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Run it again and nothing happens!&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;$ rake Rakefile.gz
-$
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Touch the source file and it gets rebuilt:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;$ touch Rakefile
-$ rake Rakefile.gz
-gzip -fkv Rakefile
-Rakefile:   -20.6% -- replaced with Rakefile.gz
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id="rake-as-a-build-system"&gt;Rake as a build system&lt;/h2&gt;
-
-&lt;p&gt;Files and rules come from Rake&amp;#39;s &lt;code&gt;make&lt;/code&gt; heritage.  We can think of regular &lt;code&gt;Task&lt;/code&gt;s as being a general sort of &lt;em&gt;action&lt;/em&gt;, meaning you are packaging up certain set of imperitives in a particular context to achieve some goal.  &lt;code&gt;FileTask&lt;/code&gt;s are a more specific type of action, where we want to generate a specific file from a specific source file.  For a full build system we want to be able to translate whole classes of files into other files, like source files into object files, or XML files into HTML files.  We use &lt;code&gt;Rules&lt;/code&gt; to set these up.&lt;/p&gt;
-
-&lt;h2 id="tasks-defined-as-rules"&gt;Tasks defined as Rules&lt;/h2&gt;
-
-&lt;p&gt;The third main bit of magic that Rake gives us is rules.  The file task can magically bring a file into being when invoked, but in a build process its more common to translate files with a certain extention to other files in a different extension.  The canonical example is probably compiling &lt;code&gt;.c&lt;/code&gt; source files into &lt;code&gt;.o&lt;/code&gt; objects, but since it&amp;#39;s the 21 first century lets look at how to run the Graphviz dot file to process into svg or png files.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;rule &amp;quot;.svg&amp;quot; =&amp;gt; &amp;quot;.dot&amp;quot; do |task|
-  sh &amp;quot;dot -Tsvg &amp;lt; #{task.source} &amp;gt; #{task}&amp;quot;
-end
-
-rule &amp;quot;.png&amp;quot; =&amp;gt; &amp;quot;.dot&amp;quot; do |task|
-  sh &amp;quot;dot -Tpng &amp;lt; #{task.source} &amp;gt; #{task}&amp;quot;
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Now we can ask Rake to build a &lt;em&gt;type&lt;/em&gt; of file, and will look for a source file based upon the name that you request.  For example, if we were to run the command:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;$ rake bottom.svg
-dot -Tsvg &amp;lt; bottom.dot &amp;gt; bottom.svg
-$
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Rake would try to instantiate the file &lt;code&gt;bottom.svg&lt;/code&gt; by first requesting file called &lt;code&gt;bottom.dot&lt;/code&gt;.  Since this is part of the rake dependancy system, this could in turn be built by a seperate rake task!&lt;/p&gt;
-
-&lt;p&gt;Note that Rake doesn&amp;#39;t know anything specifically about these extension.  It just knows what you have defined.  We can define other formats and build rules around that.&lt;/p&gt;
-
-&lt;h2 id="using-rake-to-pull-data-from-a-url"&gt;Using Rake to pull data from a url&lt;/h2&gt;
-
-&lt;p&gt;Let&amp;#39;s extend the Rake DSL to be able to download files from the internet.  You can put this at the top of your &lt;code&gt;Rakefile&lt;/code&gt; for now.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;def url( dest, source )
-  file dest do
-    puts &amp;quot;Loading #{source}&amp;quot;
-    if !File.exists?( dest )
-      mkdir_p dest.to_s.pathmap( &amp;quot;%d&amp;quot; )
-      sh &amp;quot;curl -L &amp;#39;#{source}&amp;#39; &amp;gt; #{dest}&amp;quot;
-    end
-  end
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Lets use this to download a file from the internet do we can parse it.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;url &amp;quot;source/weather.json&amp;quot;, &amp;quot;http://api.openweathermap.org/data/2.5/weather?id=5128581&amp;quot;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;When we run &lt;code&gt;rake source/weather.json&lt;/code&gt; the first time, the file is downloaded.  The second time we run the rake command nothing happens since the &lt;code&gt;source/weather.json&lt;/code&gt; file already exists.  Lets add a quick task to parse the JSON.&lt;/p&gt;
-
-&lt;h2 id="parse-json-using-simple-ruby-commands"&gt;Parse JSON using simple ruby commands&lt;/h2&gt;
-
-&lt;p&gt;Lets parse the file:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;require &amp;#39;json&amp;#39;
-file &amp;quot;report.txt&amp;quot; =&amp;gt; &amp;quot;source/weather.json&amp;quot; do |task|
-  puts &amp;quot;Parsing sun times&amp;quot;
-  data = JSON.parse( File.read( task.source ))
-  File.open( task.to_s, &amp;quot;wb&amp;quot; ) do |out|
-    out.printf &amp;quot;%-15s %s\n&amp;quot;, &amp;#39;sunrise&amp;#39;, Time.at( data[&amp;#39;sys&amp;#39;][&amp;#39;sunrise&amp;#39;] )
-    out.printf &amp;quot;%-15s %s\n&amp;quot;, &amp;#39;sunset&amp;#39;,  Time.at( data[&amp;#39;sys&amp;#39;][&amp;#39;sunset&amp;#39;] )
-  end
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Run &lt;code&gt;rake report.txt&lt;/code&gt;.  This should generate the file the first time, and on subsequent runs, do nothing.  If you remove &lt;code&gt;source/weather.json&lt;/code&gt; file and run &lt;code&gt;rake report.txt&lt;/code&gt; again, you&amp;#39;ll see that Rake is smart enough to download a new version of the file.&lt;/p&gt;
-
-&lt;h2 id="parsing-html"&gt;Parsing HTML&lt;/h2&gt;
-
-&lt;p&gt;Another common thing to do is to download a webpage and parse through the results.  &lt;code&gt;Nokogiri&lt;/code&gt; makes this really easy since you can identify DOM elements using CSS selectors more or less the same a jQuery selectors.&lt;/p&gt;
-
-&lt;p&gt;Lets make a function to help us parse html files into CSV files:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;# Parse an HTML file into CSV
-def parse_html( dest, source, &amp;amp;parser )
-  require &amp;#39;nokogiri&amp;#39;
-  require &amp;#39;csv&amp;#39;
-
-  file dest =&amp;gt; source do
-    puts &amp;quot;Parsing #{source} -&amp;gt; #{dest}&amp;quot;
-    mkdir_p dest.to_s.pathmap( &amp;quot;%d&amp;quot; )
-
-    html = Nokogiri.parse( File.read( source ) )
-    CSV.open( dest.to_s, &amp;quot;wb&amp;quot; ) do |csv|
-      parser.call( html, csv )
-    end
-  end
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;This defines a file task to convert one file type into another.  When it needs to run -- and this will only happen of the source file changes or the destination file doesnt exist -- it loads up the file into Nokogiri, creates a CSV output file, and passes control to a passed in block for processing.&lt;/p&gt;
-
-&lt;p&gt;Let&amp;#39;s pull out a list of the top 10 popular books on project gutenberg for the last month:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;# Load the html file with statistics
-url &amp;quot;source/top.html&amp;quot;, &amp;quot;http://www.gutenberg.org/browse/scores/top&amp;quot;
-
-parse_html &amp;quot;processed/month_top_100.csv&amp;quot;, &amp;quot;source/top.html&amp;quot; do |html,out|
-  html.css( &amp;quot;h2#books-last30 + ol a&amp;quot; ).each do |link|
-    out &amp;lt;&amp;lt; [link[&amp;#39;href&amp;#39;],link.content]
-  end
-end
-
-file &amp;quot;processed/month_top_10.csv&amp;quot; =&amp;gt; &amp;quot;processed/month_top_100.csv&amp;quot; do |task|
-  sh &amp;quot;head -n 10 #{task.source} &amp;gt; #{task}&amp;quot;
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;And now run &lt;code&gt;rake processed/month_top_10.csv&lt;/code&gt; and watch what happens.  This only hits the server the first time it&amp;#39;s run.  If we want to process things again, we simply delete the files in the &lt;code&gt;source&lt;/code&gt; directory and everything in the &lt;code&gt;processed&lt;/code&gt; directory will get regenerated.&lt;/p&gt;
-
-&lt;h2 id="tasks-over-multiple-files"&gt;Tasks over multiple files&lt;/h2&gt;
-
-&lt;p&gt;We have a few CSV files that contain a list of books.  How would we do something with these books?  The natural thing would be to use Rake&amp;#39;s &lt;code&gt;FileList&lt;/code&gt;, but this doesn&amp;#39;t work the way you&amp;#39;d expect because &lt;code&gt;FileList&lt;/code&gt; caches its results and it therefor doesn&amp;#39;t know about files that are created during the build process.  We don&amp;#39;t want to have to run rake twice to get our results, we want to be able to trust the process!&lt;/p&gt;
-
-&lt;p&gt;Let&amp;#39;s extend the DSL again to add a command that will loop over a file and call our block for each line:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;# Loop over a file and yield the block for each line
-# If name ends with .csv, parse the csv and yield each line
-def file_loop( name, source )
-  task name =&amp;gt; source do
-    if source =~ /.csv$/
-      CSV.open( source ).each do |line|
-        yield line
-      end
-    else
-      File.readlines( source ).each do |line|
-        yield line
-      end
-    end
-  end
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Now we can use this to create a task that goes through each of the lines of the file.  We&amp;#39;ll do this to define url tasks for the file and then immediately invoke them so make sure that the file was loaded.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;# Loop through the top ten books and make sure that they exist
-file_loop &amp;quot;processed/top_10_books_text&amp;quot;, &amp;quot;processed/month_top_10.csv&amp;quot; do |line|
-  path = &amp;quot;#{line[0].gsub( /^\//, &amp;quot;&amp;quot; )}.txt&amp;quot;
-  puts path
-  url( path, &amp;quot;http://www.gutenberg.org/#{path}.utf-8&amp;quot;)
-  Rake::Task[path].invoke
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Running &lt;code&gt;rake processed/top_10_books_text&lt;/code&gt; will first make sure that &lt;code&gt;processed/month_top_10.csv&lt;/code&gt; is up-to-date, doing whatever it needs too to make it happen, and then loop through each of the lines and download the ebook file.&lt;/p&gt;
-
-&lt;p&gt;&lt;em&gt;Note, we are going to be making a bunch of requests to the Project Gutenberg website, a total of 11 in all.  You might be flagged as a bot, so take a look at the generated &lt;code&gt;.txt&lt;/code&gt; files to make sure that they actually contain the book content. &lt;strong&gt;But no matter how many times you run your commands, unless you delete the downloaded files there will be no more than 11 requests to the server!&lt;/strong&gt;&lt;/em&gt;&lt;/p&gt;
-
-&lt;h2 id="using-rules-to-parse-data"&gt;Using rules to parse data&lt;/h2&gt;
-
-&lt;p&gt;Lets create a rule that will give us a count of all the words in a book:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;# Count and sort the list of words
-rule &amp;quot;.word_count&amp;quot; =&amp;gt; &amp;quot;.words&amp;quot; do |dest|
-  sh &amp;quot;cat #{dest.source} | sort | uniq -c | sort -nr&amp;gt; #{dest}&amp;quot;
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;If we try to run this now, say &lt;code&gt;rake ebooks/1342.word_count&lt;/code&gt; we&amp;#39;ll get an error saying it doesn&amp;#39;t know how to build that file.  Let&amp;#39;s add a rule to go from &lt;code&gt;.txt&lt;/code&gt; to &lt;code&gt;.words&lt;/code&gt;:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;# Covert txt to words
-rule &amp;quot;.words&amp;quot; =&amp;gt; &amp;quot;.txt&amp;quot; do |dest|
-  sh &amp;quot;cat #{dest.source} | tr -cs &amp;#39;[:alpha:]&amp;#39; &amp;#39;\n&amp;#39; | tr &amp;#39;[:upper:]&amp;#39; &amp;#39;[:lower:]&amp;#39; &amp;gt; #{dest}&amp;quot;
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Now when we run it, we first generate a list of words, and then from that we find the unique count of them.&lt;/p&gt;
-
-&lt;h2 id="get-your-own-rake-data"&gt;Get your own rake-data&lt;/h2&gt;
-
-&lt;p&gt;It&amp;#39;s simple enough to setup this on your own, but I&amp;#39;ve put together a few useful things that I&amp;#39;ve been using to process data into it&amp;#39;s own gem.  You should head over to &lt;a href="https://github.com/HappyFunCorp/rake-data"&gt;https://github.com/HappyFunCorp/rake-data&lt;/a&gt; now to check it out!&lt;/p&gt;
-
-&lt;p&gt;Other things to check out:&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;&lt;a href="http://blog.kaggle.com/2012/10/15/make-for-data-scientists/"&gt;http://blog.kaggle.com/2012/10/15/make-for-data-scientists/&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href="http://blog.factual.com/introducing-drake-a-kind-of-make-for-data"&gt;http://blog.factual.com/introducing-drake-a-kind-of-make-for-data&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href="http://datascienceatthecommandline.com"&gt;http://datascienceatthecommandline.com&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;
-</content>
-  </entry>
-  <entry>
-    <title>Building Middleman Extensions</title>
-    <link rel="alternate" href="http://willschenk.com/building-middleman-extensions/"/>
-    <id>http://willschenk.com/building-middleman-extensions/</id>
-    <published>2014-12-17T00:00:00+00:00</published>
-    <updated>2014-12-17T00:00:00+00:00</updated>
-    <author>
-      <name>Will Schenk</name>
-    </author>
-    <content type="html">&lt;p&gt;Middleman extensions, like rails plugins, are packaged as gems.  There are three main ways to extend middleman.  You can add helpers, add middleman commands, or extend the sitemap generation in someway.  Lets go through those in detail.&lt;/p&gt;
-
-&lt;h2 id="creating-the-extension"&gt;Creating the extension&lt;/h2&gt;
-
-&lt;p&gt;Create a gem using &lt;code&gt;bundle gem _name_&lt;/code&gt;&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;$ bundle gem middleman-graphviz
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Add &lt;code&gt;middleman-core&lt;/code&gt; to your gem dependancies in the &lt;code&gt;.gemspec&lt;/code&gt; file:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;  spec.add_runtime_dependency     &amp;#39;middleman-core&amp;#39;, [&amp;#39;&amp;gt;= 3.0.0&amp;#39;]
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Register your extension into middleman.  Our gem will be activated in the sites &lt;code&gt;config.rb&lt;/code&gt; using &lt;code&gt;activate :graphviz&lt;/code&gt; and this is how middleman knows what to load.  &lt;code&gt;lib/middleman/graphviz.rb&lt;/code&gt;:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;require &amp;#39;middleman-core&amp;#39;
-require &amp;quot;middleman/graphviz/version&amp;quot;
-require &amp;quot;middleman/graphviz/extension&amp;quot;
-
-::Middleman::Extensions.register(:graphviz, ::Middleman::Graphviz::Extension )
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;&lt;em&gt;Replace with your gem name!&lt;/em&gt;&lt;/p&gt;
-
-&lt;p&gt;Write the code that actually plugs into middleman.  The we are going to add some helpers to the site, so let&amp;#39;s register them here.  Create &lt;code&gt;lib/middleman/graphviz/extension.rb&lt;/code&gt;&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;require &amp;#39;middleman/graphviz/helpers&amp;#39;
-
-module Middleman
-  module Graphviz
-    class Extension &amp;lt; Middleman::Extension
-      def initialize( app, options_hash = {}, &amp;amp;block)
-        super
-
-        app.helpers Middleman::Graphviz::Helpers
-      end
-    end
-  end
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;&lt;em&gt;Replace with your gem name!&lt;/em&gt;&lt;/p&gt;
-
-&lt;h2 id="writing-helpers"&gt;Writing helpers&lt;/h2&gt;
-
-&lt;p&gt;Lets create a basic helper method now in the file &lt;code&gt;lib/middleman/graphviz/helpers.rb&lt;/code&gt;. This is going to accept one parameter and a block. We are going to get the content of that block and then spit it back directly for now.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;module Middleman
-  module Graphviz
-    module Helpers
-      def basic_helper_example( param )
-        &amp;quot;&amp;lt;h1&amp;gt;#{param}&amp;lt;/h1&amp;gt;&amp;quot;.html_safe
-      end
-
-      def block_helper_example( type, &amp;amp;block )
-        if block_given?
-          data = capture_html(&amp;amp;block)
-
-          data = data.upcase
-
-          concat_content(data.html_safe)
-        end
-      end
-    end
-  end
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;These can be used like&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="erb"&gt;&amp;lt;%%= basic_helper_example( &amp;quot;My Title&amp;quot;) %&amp;gt;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;or as a block&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="erb"&gt;&amp;lt;%% block_helper( &amp;quot;My Title&amp;quot;) do %&amp;gt;
-  This is going to be in upcase
-&amp;lt;%% end %%&amp;gt;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id="add-it-to-an-active-middleman-project"&gt;Add it to an active middleman project&lt;/h2&gt;
-
-&lt;p&gt;Have bundler reference this new gem inside of an existing middleman project.  &lt;code&gt;Gemfile&lt;/code&gt;:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;gem &amp;quot;middleman-graphviz&amp;quot;, path: &amp;quot;../middleman-graphviz&amp;quot;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Inside of the middleman project&amp;#39;s &lt;code&gt;config.rb&lt;/code&gt; activate it:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;activate :graphviz
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Now startup the middleman server, and use your helper in the page!  Note that, just like when you use a helper defined in &lt;code&gt;config.rb&lt;/code&gt; you need to restart &lt;code&gt;middleman server&lt;/code&gt; to see your change take effect.&lt;/p&gt;
-
-&lt;h2 id="adding-configuration-to-your-extension"&gt;Adding configuration to your extension&lt;/h2&gt;
-
-&lt;p&gt;If you want to include configurable options in your extension, here&amp;#39;s some skeleton code for &lt;code&gt;extension.rb&lt;/code&gt;:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;require &amp;#39;middleman/graphviz/helpers&amp;#39;
-
-module Middleman
-  module Graphviz
-    cattr_accessor :options
-
-    class Extension &amp;lt; Middleman::Extension
-      def initialize( app, options_hash = {}, &amp;amp;block)
-        super
-
-        app.helpers Middleman::Graphviz::Helpers
-      end
-
-      def registered(app, options_hash = {}, &amp;amp;block)
-        options = Options.new(options_hash)
-        yield options if block_given?
-
-        # Default options for the rsync method.
-        options.theme ||= &amp;quot;default&amp;quot;
-        options.generate_file ||= false
-
-        ::Middleman::Graphviz.options = options
-
-        app.helpers Middleman::Graphviz::Helpers
-      end
-
-      def after_configuration
-        puts &amp;quot;After configuration&amp;quot;
-      end
-    end
-
-    module Helpers
-      def options
-        ::Middleman::Graphviz.options
-      end
-    end
-  end
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id="adding-additional-middleman-commands"&gt;Adding additional middleman commands&lt;/h2&gt;
-
-&lt;p&gt;The middleman command is built on &lt;a href="/making-a-command-line-utility-with-gems-and-thor"&gt;thor&lt;/a&gt;, which as we know is awesome.  To add a command to the middleman, use the following template for each &lt;code&gt;command.rb&lt;/code&gt;:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;require &amp;#39;middleman-core/cli&amp;#39;
-
-module Middleman
-  module Cli
-    # This class provides a &amp;quot;deploy&amp;quot; command for the middleman CLI.
-    class Graphviz &amp;lt; Thor
-      include Thor::Actions
-
-      check_unknown_options!
-
-      namespace :graphviz
-
-      # Tell Thor to exit with a nonzero exit code on failure
-      def self.exit_on_failure?
-        true
-      end
-
-      desc &amp;#39;graphviz [options]&amp;#39;, &amp;#39;Run this amazing command&amp;#39;
-      method_option &amp;#39;clean&amp;#39;,
-        type: :boolean,
-        aliases: &amp;#39;-c&amp;#39;,
-        desc: &amp;#39;Clean all the build files&amp;#39;
-      def graphviz
-        @shared_instance = ::Middleman::Application.server.inst
-
-        puts &amp;quot;Running my command&amp;quot;
-      end
-    end
-  end
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Then, inside of &lt;code&gt;middleman/graphviz.rb&lt;/code&gt; simply &lt;code&gt;require &amp;#39;middleman/graphviz/command&amp;#39;&lt;/code&gt;.&lt;/p&gt;
-
-&lt;p&gt;The &lt;a href="http://www.rubydoc.info/github/wycats/thor/Thor/Actions"&gt;&lt;code&gt;Thor::Actions&lt;/code&gt;&lt;/a&gt; class gives you access to many different helper commands that make it easy to move, filter, template, and otherwise mangle files, and of course you have access to the full middleman app.&lt;/p&gt;
-
-&lt;h2 id="manipulating-the-sitemap"&gt;Manipulating the sitemap&lt;/h2&gt;
-
-&lt;p&gt;The most awesomest way to extend middleman is by modifying the sitemap.  This lets us create whole new URLs that are derived and generated from other sources.  This is how the &lt;a href="https://github.com/middleman/middleman-blog"&gt;middleman-blog&lt;/a&gt; extension really works, and if you want to start an indepth exploration that&amp;#39;s a good place to start spelunking.&lt;/p&gt;
-
-&lt;p&gt;Lets build an extesion that creates pages from an external datasource.  In this case, a CSV file, but you could imagine having this come out of a database instead.  This lets us manipulate the sitemap of the site it&amp;#39;s been created, and will let us add and remove different pages based upon what middleman knows about the site.&lt;/p&gt;
-
-&lt;p&gt;First we add an &lt;code&gt;after_configuration&lt;/code&gt; handler to &lt;code&gt;Middleman::Graphviz::Extension&lt;/code&gt; to register our class as a &lt;code&gt;resource_list_manipulator&lt;/code&gt;:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;  def after_configuration
-    @csv_pages = Middleman::CSV::Page.new( @app, self )
-    @app.sitemap.register_resource_list_manipulator(:&amp;quot;csv_pages&amp;quot;, @csv_pages, false)
-  end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Then we create &lt;code&gt;lib/middleman/csv/page.rb&lt;/code&gt;.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;require &amp;#39;csv&amp;#39;
-
-module Middleman
-  module CSV
-    class Page
-      # include UriTemplates
-
-      def initialize(app, controller)
-        @sitemap = app.sitemap
-        @page_link_template = &amp;quot;pages/{page}.html&amp;quot;
-        @page_template = &amp;quot;page.html&amp;quot;
-        app.ignore @page_template
-      end
-
-      # Update the main sitemap resource list
-      # @return [void]
-      def manipulate_resource_list(resources)
-        resources + ::CSV.open( &amp;quot;pages.csv&amp;quot; ).collect do |row|
-          create_page_resource( row[0], row )
-        end
-      end
-
-      private
-
-      def link(page)
-        ::Middleman::Util.normalize_path @page_link_template.gsub( /\{page\}/, page )
-      end
-
-      def create_page_resource( page, row )
-        Sitemap::Resource.new(@sitemap, link(page)).tap do |p|
-          p.proxy_to( @page_template )
-
-          p.add_metadata locals: {
-            row: row
-          }
-        end
-      end
-    end
-  end
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;When &lt;code&gt;initialized&lt;/code&gt; is called, we are grabbing references to the middleman app.  We&amp;#39;ve hard coded two things in this example that should be from the options, the page name template, and the page template itself.  Since the &lt;code&gt;page.html&lt;/code&gt; isn&amp;#39;t meant to be standalone, we tell middleman to ignore it in the sitemap with &lt;code&gt;app.ignore @page_template&lt;/code&gt;.&lt;/p&gt;
-
-&lt;p&gt;When &lt;code&gt;manipulate_resource_list&lt;/code&gt; is called it is passed a list of resources that middleman currently knows about.  We return a new list of resources based on that list.  What we are doing in this example is loading up the list of pages from a file called &lt;code&gt;pages.csv&lt;/code&gt;, creating new pages based on that, and then returning the new list.&lt;/p&gt;
-
-&lt;p&gt;This example is contrived and we are loading in the list of pages from the filesystem.  At this point in the rendering process we do have access to all of the pages, instead of loading up a file you could inspect the site map, go through all of the pages and make additional pages for subsets of those.  The &lt;code&gt;middleman-blog&lt;/code&gt; does this for both &lt;code&gt;tag&lt;/code&gt; pages and &lt;code&gt;calendar&lt;/code&gt; pages.  Instead of calling &lt;code&gt;::CSV.open&lt;/code&gt; it goes through all of the pages on the site and collects a dynamic list of pages based upon the metatag, either &lt;code&gt;tag&lt;/code&gt; or published dates.&lt;/p&gt;
-
-&lt;p&gt;Then we create the entries in the sitemap themselves. These first get proxied to our page template.  Then we set the metadata of the particular page to be what we loaded in from the file.&lt;/p&gt;
-
-&lt;p&gt;Here&amp;#39;s an example template &lt;code&gt;page.html.haml&lt;/code&gt;:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="haml"&gt;%h1= row[1]
-= row[0] 
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;This example is equivelent to looping over a file in &lt;code&gt;config.rb&lt;/code&gt; and setting up page proxies there.  However in that case we don&amp;#39;t have access to the sitemap overall, so we couldn&amp;#39;t generate a dynamic list of new pages based upon existing pages.  With this extension we can insert ourselves into the rendering process and add the &lt;em&gt;awesome&lt;/em&gt;.&lt;/p&gt;
-
-&lt;h2 id="conclusion"&gt;Conclusion&lt;/h2&gt;
-
-&lt;p&gt;Building these extensions is a very complicated way to achive things that would be simplier if you just build the site in rails and had a database with you at runtime.  But it works, and you can achieve plug into the rendering process to create a more &lt;em&gt;dynamic&lt;/em&gt; static site.  Helpers are by far the easiest way to package things together, and as you can see from the example I&amp;#39;m working through I&amp;#39;m working on an easy way to integrate Graphviz images in middleman documents without a seperate workflow.  (&lt;em&gt;Coming soon.&lt;/em&gt;)&lt;/p&gt;
-
-&lt;p&gt;Middleman CLI commands are also easy to build, though here you do start to need to know more about how the internals of how middleman is setup.  Things like the &lt;code&gt;middleman-deploy&lt;/code&gt; gem are pretty amazing and can really help with the overall publishing workflow.&lt;/p&gt;
-
-&lt;p&gt;And sitemap manipulation is the most powerful, which lets you recreate pages based upon site and page metadata that is collected throughout the process.  The entire &lt;code&gt;middleman-blog&lt;/code&gt; extention is build using this functionality.&lt;/p&gt;
-
-&lt;p&gt;Happy building!&lt;/p&gt;
 </content>
   </entry>
 </feed>
