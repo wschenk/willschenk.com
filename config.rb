@@ -14,7 +14,7 @@ end
 
 after_configuration do
   sprockets.append_path File.dirname(::React::Source.bundled_path_for('react.js'))
-  sprockets.append_path File.dirname(Middleman::React::Extension.react_ujs_path)
+  sprockets.append_path File.dirname(Middleman::React::react_ujs_path)
 end
 
 set :debug_assets, true

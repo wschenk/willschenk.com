@@ -1,6 +1,8 @@
 @Dashboard = React.createClass
   render: ->
     <div className="dashboard">
+      <Toolbar />
+
       <div className="row">
         <MainContent />
         <Sidebar />
