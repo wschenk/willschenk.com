@@ -23,3 +23,6 @@ gem "builder", "~> 3.0"
 gem "redcarpet"
 
 gem "middleman-graphviz"#, path: "../middleman-graphviz"
+gem "sinatra"
+
+gem "middleman-react", path: "../middleman-react" #github: "happyfuncorp/middleman-react"

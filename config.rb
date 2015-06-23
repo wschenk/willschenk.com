@@ -1,3 +1,26 @@
+# Begin Admin Tool
+
+require 'lib/apiserver.rb'
+
+map "/api" do
+  run ApiServer
+end
+
+page "/admin/*html", layout: "admin/layout"
+
+activate :react do |conf|
+#  conf.components = ['admin/admin.js']
+end
+
+after_configuration do
+  sprockets.append_path File.dirname(::React::Source.bundled_path_for('react.js'))
+  sprockets.append_path File.dirname(Middleman::React::Extension.react_ujs_path)
+end
+
+set :debug_assets, true
+
+# End Admin Tool
+
 # For custom domains on github pages
 page "CNAME", layout: false
 
