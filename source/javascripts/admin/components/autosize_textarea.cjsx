@@ -1,13 +1,25 @@
 @AutosizeTextarea = React.createClass
   getInitialState: ->
     @shrink = 0
-    value: "",
+    value: @props.value,
     style: 
       boxSizing: "border-box"
       minHeight: "31px"
       overflowX: "hidden"
       height: 50
       resize: 'none'
+
+  componentWillReceiveProps: (props) ->
+    @state.value = props.value
+    @state.trigger_resize = true
+    @setState @state
+
+  componentDidUpdate: ->
+    if @state.trigger_resize
+      @state.trigger_resize = false
+      requestAnimationFrame =>
+        @resize React.findDOMNode( @refs.myInput )
+
 
   inputHandler: (e)->
     @resize( e.target )

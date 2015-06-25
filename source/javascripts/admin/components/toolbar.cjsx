@@ -16,7 +16,7 @@
     @setState { markdown: value }
 
   render: ->
-    <div className="row">
+    <div className="toolbar">
       <ButtonToolbar>
         <Button bsStyle="primary">Refresh</Button>
         <Button bsStyle="success">Build</Button>

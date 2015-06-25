@@ -16,6 +16,16 @@
 
     @promises[url]
 
+  loadPost: (path) ->
+    ret = $.Deferred()
+
+    $.ajax( '/api/post', {data: {path: path}} ).success (data) =>
+      console.log "Got post back"
+      ret.resolve( JSON.parse( data ) )
+
+
+    ret
+
   loadDrafts: ->
     @loadUrl "/admin/drafts.json"
 

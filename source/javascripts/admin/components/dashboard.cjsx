@@ -36,9 +36,9 @@
 
   render: ->
     articles = this.state.articles.map ((item) ->
-      <li key={item.path}><a href="#">{ item.title }</a></li>
+      <li key={item.path}><a href="/admin/editor?article=#{item.path}">{ item.title }</a></li>
     ).bind( this )
 
-    <ul className="nav nav-pills">
+    <ul className="nav nav-pills nav-stacked">
       {articles}
     </ul>

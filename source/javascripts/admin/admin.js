@@ -9,3 +9,5 @@
 
 var Button = ReactBootstrap.Button;
 var ButtonToolbar = ReactBootstrap.ButtonToolbar;
+var Table = ReactBootstrap.Table;
+var Input = ReactBootstrap.Input;

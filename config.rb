@@ -9,7 +9,7 @@ end
 page "/admin/*html", layout: "admin/layout"
 
 activate :react do |conf|
-#  conf.components = ['admin/admin.js']
+ conf.components = ['admin/offline.js']
 end
 
 after_configuration do

@@ -13,9 +13,9 @@
 
   render: ->
     drafts = this.state.drafts.map ((item) ->
-      <li key={item.path}>{ item.title }</li>
+      <li key={item.path}><a href="/admin/editor?article=#{item.path}">{ item.title }</a></li>
     ).bind( this )
 
-    <ul>
+    <ul className="nav nav-pills nav-stacked">
       {drafts}
     </ul>
