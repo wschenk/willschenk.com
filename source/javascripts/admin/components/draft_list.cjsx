@@ -4,7 +4,7 @@
     this.props.clickHandler(this)
 
   getInitialState: ->
-    drafts: [{ title: "Hello", path: "1" }]
+    drafts: []
 
   componentDidMount: ->
     API.loadDrafts().done (drafts) =>
@@ -19,3 +19,4 @@
     <ul className="nav nav-pills nav-stacked">
       {drafts}
     </ul>
+  

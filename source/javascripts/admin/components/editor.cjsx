@@ -121,20 +121,7 @@
       </tr>
 
     <Table striped bordered condensed>
-      {rows}
+      <tbody>
+        {rows}
+      </tbody>
     </Table>
-
-  # render: ->
-  #   rows = for k,v of @state.metadata
-  #     _this = this
-  #     updateMeta = (e) =>
-  #       this.updateMeta( e, k )
-
-  #     <tr key={k}>
-  #       <th>{k}:</th>
-  #       <td><Input standalone type='text' name={k} defaultValue={v} onChange={updateMeta}/></td>
-  #     </tr>
-
-  #   <Table striped bordered condensed>
-  #     {rows}
-  #   </Table>

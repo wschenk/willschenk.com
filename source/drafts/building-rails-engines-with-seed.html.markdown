@@ -1,13 +1,11 @@
 ---
-title: 'Building Rails Engines with Seed'
-# date: TBD When publishing
+title: Building Rails Engines with Seed
 tags: rails, happy_seed, ruby, howto
+date: '2015-06-26T16:54:03.254Z'
 ---
-
 [Rails Engines](http://guides.rubyonrails.org/engines.html) are a type of rails plugin, which allows you to package up functionality inside of a gem that can be shared across projects.  An engine is a _mountable_ plugin, which means that you can add routes, controllers, actions and views.  
-
+ 
 Lets walk through building a simple rails engine that shows you information about the gems that you have installed on your application.  These pages are meant to be available only on development, but this is just business logic.
-
 
 ## Create the project
 

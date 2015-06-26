@@ -1,4 +1,4 @@
-@Toolbar = React.createClass
+@DashboardToolbar = React.createClass
   clickHandler: (e) ->
     e.preventDefault()
     this.props.clickHandler(this)
