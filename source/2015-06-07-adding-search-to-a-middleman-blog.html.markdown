@@ -4,7 +4,6 @@ subtitle: slightly simplier than google
 date: 2015-06-07 14:09 UTC
 tags: middleman, howto, ruby
 ---
-
 We're going to build a simple, niave search for middleman blogs.  We're going to build a _search index_ at build time, and then use that index to perform the search itself on the client side.
 
 ## Building the index
@@ -205,6 +204,6 @@ var search_typing = function() {
 
 ## Next steps
 
-1. Stemming
+1. Language stemming
 2. Logical operations
 3. Showing more metadata in the search results.

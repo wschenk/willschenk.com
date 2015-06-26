@@ -17,19 +17,29 @@
       @state.dirty = false
       @state.markdown = post.content
       @state.meta = post.meta
-      console.log @state
       @setState( @state )
 
   handleSave: (e) ->
     e.preventDefault()
     console.log "Pressed save"
-    @state.dirty = false
+    @state.saving = "Saving..."
+
+    API.savePost( @state.path, @state.meta, @state.markdown ).done (message) =>
+      @state.dirty = false
+      @state.saving = message
+      @setState @state
+
     @setState @state
-    console.log @state.markdown
 
   handleChange: (value) ->
     @state.markdown = value
     @state.dirty = true
+    @restartTimer()
+    @setState @state
+
+  metadataChange: (metadata) ->
+    @state.dirty = true
+    @state.meta = metadata
     @restartTimer()
     @setState @state
 
@@ -41,17 +51,15 @@
     , 2000
 
   render: ->
-    # drafts = this.state.drafts.map ((item) ->
-    #   <li key={item.path}>{ item.title }</li>
-    # ).bind( this )
-
     <div className="editor">
       <EditorToolbar
         handleSave={this.handleSave}
         path={this.state.path}
         loading={this.state.loading}
+        saving={this.state.saving}
         dirty={this.state.dirty}
-        metadata={this.state.meta} />
+        metadata={this.state.meta}
+        onChange={this.metadataChange} />
 
       <div className="row">
         <div className="editorPane">
@@ -70,13 +78,19 @@
     else
       null
 
+    saving = if @props.saving
+      <p>{@props.saving}</p>
+    else
+      null
+
     <div className="toolbar">
       <div className="dataeditor">
-        <DataEditor onChange={this.props.metadataChange} metadata={this.props.metadata}/>
+        <DataEditor onChange={this.props.onChange} metadata={this.props.metadata}/>
       </div>
       <div className="status">
         <p>{this.props.path}</p>
         {loading}
+        {saving}
       </div>
 
       <div className="buttons">
@@ -87,19 +101,40 @@
     </div>
 
 @DataEditor = React.createClass
-  updateMeta: (a,b) ->
-    console.log "Clicked", a, b
-    console.log @refs.form
+  getInitialState: ->
+    metadata: {}
+
+  componentWillReceiveProps: (props) ->
+    @setState metadata: props.metadata
+
+  updateMeta: (key, event) ->
+    @state.metadata[key] = event.target.value
+    # @setState @state
+    @props.onChange @state.metadata
     false
 
   render: ->
-    rows = for k,v of @props.metadata
-      updateMeta = this.updateMeta.bind( k )
+    rows = for k,v of @state.metadata
       <tr key={k}>
         <th>{k}:</th>
-        <td><Input standalone type='text' name={k} defaultValue={v} onChange={updateMeta}/></td>
+        <td><Input standalone type='text' name={k} value={v} onChange={this.updateMeta.bind( this, k )}/></td>
       </tr>
 
     <Table striped bordered condensed>
       {rows}
     </Table>
+
+  # render: ->
+  #   rows = for k,v of @state.metadata
+  #     _this = this
+  #     updateMeta = (e) =>
+  #       this.updateMeta( e, k )
+
+  #     <tr key={k}>
+  #       <th>{k}:</th>
+  #       <td><Input standalone type='text' name={k} defaultValue={v} onChange={updateMeta}/></td>
+  #     </tr>
+
+  #   <Table striped bordered condensed>
+  #     {rows}
+  #   </Table>

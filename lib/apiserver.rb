@@ -17,6 +17,20 @@ class ApiServer < Sinatra::Base
     { meta: file.data, content: body }.to_json
   end
 
+  post '/post' do
+    puts "Saving #{params[:path]}"
+
+    file = load_app.sitemap.find_resource_by_path params[:path]
+
+    File.open( file.source_file, "w" ) do |out|
+      out.puts YAML.dump( params[:meta] )
+      out.puts "---"
+      out.puts params[:body]
+    end
+
+    "Saved your draft!"
+  end
+
   put '/build' do
     system( "bundle exec middleman build")
   end

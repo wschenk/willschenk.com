@@ -26,6 +26,15 @@
 
     ret
 
+  savePost: (path, meta, body) ->
+    ret = $.Deferred()
+
+    $.ajax( '/api/post', {method: 'POST', data: {path: path, meta: meta, body: body} } ).success (data) =>
+      console.log "Saved post"
+      ret.resolve data
+
+    ret
+
   loadDrafts: ->
     @loadUrl "/admin/drafts.json"
 
