@@ -35,6 +35,27 @@
 
     ret
 
+  uploadFile: ( path, nativeEvent, process_cb ) ->
+    console.log "Uploading image to path"
+
+    fd = new FormData()
+    fd.append 'path', path
+    fd.append 'file', nativeEvent.dataTransfer.files[0]
+
+    $.ajax 
+      type: "post"
+      url: '/api/images'
+      xhr: ->
+        xhr = new XMLHttpRequest()
+        xhr.upload.onprogress = process_cb
+        xhr
+      cache: false
+      contentType: false
+      # complete: uploadCompleted
+      processData: false
+      data: fd
+
+
   loadDrafts: ->
     @loadUrl "/admin/drafts.json"
 

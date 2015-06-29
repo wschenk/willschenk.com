@@ -51,25 +51,27 @@
     , 2000
 
   render: ->
-    <div className="editor">
-      <EditorToolbar
-        handleSave={this.handleSave}
-        path={this.state.path}
-        loading={this.state.loading}
-        saving={this.state.saving}
-        dirty={this.state.dirty}
-        metadata={this.state.meta}
-        onChange={this.metadataChange} />
+    <DropUploader path={@state.path}>
+      <div className="editor">
+        <EditorToolbar
+          handleSave={this.handleSave}
+          path={this.state.path}
+          loading={this.state.loading}
+          saving={this.state.saving}
+          dirty={this.state.dirty}
+          metadata={this.state.meta}
+          onChange={this.metadataChange} />
 
-      <div className="row">
-        <div className="editorPane">
-          <AutosizeTextarea value={this.state.markdown} onChange={this.handleChange}/>
-        </div>
-        <div className="previewPane">
-          <MarkdownPreview markdown={this.state.markdown} />
+        <div className="row">
+            <div className="editorPane">
+              <AutosizeTextarea value={this.state.markdown} onChange={this.handleChange}/>
+            </div>
+            <div className="previewPane">
+              <MarkdownPreview markdown={this.state.markdown} />
+            </div>
         </div>
       </div>
-    </div>
+    </DropUploader>
 
 @EditorToolbar = React.createClass
   render: ->

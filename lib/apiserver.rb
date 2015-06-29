@@ -31,6 +31,16 @@ class ApiServer < Sinatra::Base
     "Saved your draft!"
   end
 
+  post '/images' do
+    p params
+
+    File.open('/tmp/' + params['file'][:filename], "w") do |f|
+      f.write(params['file'][:tempfile].read)
+    end
+
+    "Thanks"
+  end
+
   put '/build' do
     system( "bundle exec middleman build")
   end
