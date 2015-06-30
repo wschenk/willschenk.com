@@ -21,15 +21,17 @@
     @state.isModalOpen = true
     @state.dragging = false
     @setState @state
-    API.uploadFile( @props.path, e.nativeEvent, @progress ).done ->
+    API.uploadFile( @props.path, e.nativeEvent, @progress ).done =>
       @state.isModalOpen = false
       @setState @state
     e.preventDefault()
 
   progress: (size) ->
-    @state.progress = size
+    percent = size.position / size.totalSize * 100
+    console.log "Got size", size, percent
+    @state.progress = percent
     @setState @state
-    
+
   hideOverlay: ->
     @state.isModalOpen = false
     @setState @state

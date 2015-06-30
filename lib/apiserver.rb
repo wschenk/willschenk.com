@@ -34,7 +34,7 @@ class ApiServer < Sinatra::Base
   post '/images' do
     p params
 
-    File.open('/tmp/' + params['file'][:filename], "w") do |f|
+    File.open('/tmp/' + params['file'][:filename], "wb") do |f|
       f.write(params['file'][:tempfile].read)
     end
 
