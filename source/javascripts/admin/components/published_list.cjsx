@@ -7,7 +7,7 @@
     articles: [{}]
 
   componentDidMount: ->
-    API.loadPublished().done (articles) =>
+    API.loadPublished().then (articles) =>
       console.log "Setting State", articles
       @setState( articles );
 

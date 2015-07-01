@@ -7,13 +7,13 @@
     drafts: []
 
   componentDidMount: ->
-    API.loadDrafts().done (drafts) =>
+    API.loadDrafts().then (drafts) =>
       console.log "Setting State", drafts
       @setState( drafts );
 
   render: ->
     drafts = this.state.drafts.map ((item) ->
-      <li key={item.path}><a href="/admin/editor?article=#{item.path}">{ item.title }</a></li>
+      <li key={item.path}><a href="/admin/editor?draft=#{item.path}">{ item.title }</a></li>
     ).bind( this )
 
     <ul className="nav nav-pills nav-stacked">

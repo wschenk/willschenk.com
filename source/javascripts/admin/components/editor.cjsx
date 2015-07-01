@@ -5,26 +5,31 @@
 
   getInitialState: ->
     article = ParseSearch( window.location.search ).article
+    draft = ParseSearch( window.location.search ).draft
     markdown: "Hello"
     dirty: false
     loading: true
-    path: article
+    path: article || draft
+    draft: draft
     meta: {}
 
   componentDidMount: ->
-    API.loadPost( @state.path ).done (post) =>
+    API.loadPost( @state.path ).then (post) =>
       @state.loading = false
       @state.dirty = false
       @state.markdown = post.content
       @state.meta = post.meta
       @setState( @state )
+    , (error) =>
+      @state.error = error.error
+      @setState @state
 
   handleSave: (e) ->
     e.preventDefault()
     console.log "Pressed save"
     @state.saving = "Saving..."
 
-    API.savePost( @state.path, @state.meta, @state.markdown ).done (message) =>
+    API.savePost( @state.path, @state.meta, @state.markdown ).then (message) =>
       @state.dirty = false
       @state.saving = message
       @setState @state
@@ -52,14 +57,18 @@
 
   render: ->
     <DropUploader path={@state.path}>
+      {@errorMessage()}
       <EditorToolbar
-        handleSave={this.handleSave}
-        path={this.state.path}
-        loading={this.state.loading}
-        saving={this.state.saving}
-        dirty={this.state.dirty}
-        metadata={this.state.meta}
-        onChange={this.metadataChange} />
+        handleSave={@handleSave}
+        path={@state.path}
+        loading={@state.loading}
+        saving={@state.saving}
+        dirty={@state.dirty}
+        metadata={@state.meta}
+        onChange={@metadataChange}
+        draft={@state.draft}
+        onPublish={@publish}
+        path={@state.path}/>
       <div className="editor">
         <div className="row">
             <div className="editorPane">
@@ -72,57 +81,17 @@
       </div>
     </DropUploader>
 
-@EditorToolbar = React.createClass
-  render: ->
-    loading = if @props.loading
-      <p>Loading...</p>
-    else
-      null
+  goBack: ->
+    window.location = '/admin'
 
-    saving = if @props.saving
-      <p>{@props.saving}</p>
-    else
-      null
+  errorMessage: ->
+    return <span/> if !@state.error
 
-    <div className="toolbar">
-      <div className="dataeditor">
-        <DataEditor onChange={this.props.onChange} metadata={this.props.metadata}/>
+    <Modal title='Editor Error' onRequestHide={@goBack}>
+      <div className='modal-body'>
+        {@state.error}
       </div>
-      <div className="status">
-        <p>{this.props.path}</p>
-        {loading}
-        {saving}
+      <div className='modal-footer'>
+        <Button onClick={@goBack}>Close</Button>
       </div>
-
-      <div className="buttons">
-        <ButtonToolbar>
-          <Button bsStyle="success" onClick={this.props.handleSave} disabled={!this.props.dirty}>Save</Button>
-        </ButtonToolbar>
-      </div>
-    </div>
-
-@DataEditor = React.createClass
-  getInitialState: ->
-    metadata: {}
-
-  componentWillReceiveProps: (props) ->
-    @setState metadata: props.metadata
-
-  updateMeta: (key, event) ->
-    @state.metadata[key] = event.target.value
-    # @setState @state
-    @props.onChange @state.metadata
-    false
-
-  render: ->
-    rows = for k,v of @state.metadata
-      <tr key={k}>
-        <th>{k}:</th>
-        <td><Input standalone type='text' name={k} value={v} onChange={this.updateMeta.bind( this, k )}/></td>
-      </tr>
-
-    <Table striped bordered condensed>
-      <tbody>
-        {rows}
-      </tbody>
-    </Table>
+    </Modal>

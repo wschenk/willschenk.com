@@ -1,4 +1,4 @@
-// not right now require jquery
+//= require jquery
 // not right now require bootstrap-sprockets
 //= require react
 //= require react_ujs

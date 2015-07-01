@@ -1,23 +1,39 @@
 @DashboardToolbar = React.createClass
-  clickHandler: (e,v) ->
-    console.log e,v 
-    # e.preventDefault()
-    this.props.clickHandler(this)
-
   getInitialState: ->
-    markdown: "Hello"
+    newDraft: false
 
-  XcomponentDidMount: ->
-    API.loadDrafts().done (drafts) =>
-      console.log "Setting State", drafts
-      @setState( drafts );
+  newDraft: ->
+    @state.metadata = {title: "", tags: "" }
+    @state.newDraft = true
+    @setState @state
 
-  handleChange: (value) ->
-    console.log "Changing value to", value
-    @setState { markdown: value }
+  closeNewDraft: ->
+    @state.newDraft = false
+    @setState @state
+
+  updateMeta: (meta) ->
+    @state.metadata = meta
+    @setState @state
+
+  createNewDraft: ->
+    API.newDraft( @state.metadata ).then (resp) ->
+      window.location = "/admin/editor?drafts=" + resp.created
+    , (error) ->
+      alert( error.responseJSON.error )
 
   render: ->
+    new_draft = if @state.newDraft
+      <Modal title='New Draft' onRequestHide={@closeNewDraft}>
+        <div className='modal-body'>
+          <MetaDataEditor metadata={@state.metadata} onChange={@updateMeta}/>
+        </div>
+        <div className='modal-footer'>
+          <Button onClick={@createNewDraft} disabled={@state.metadata.title.length < 5}>Create Draft</Button>
+        </div>
+      </Modal>
+
+
     <AdminNavbar>
-      <NavItem href='#' onClick={this.clickHandler.bind( "refresh" )}>Refresh</NavItem>
-      <NavItem href='#' onClick={this.clickHandler.bind( "build" )}>Build</NavItem>
+      {new_draft}
+      <NavItem href='#' onClick={@newDraft}>New Draft</NavItem>
     </AdminNavbar>
