@@ -1,6 +1,7 @@
 @DashboardToolbar = React.createClass
-  clickHandler: (e) ->
-    e.preventDefault()
+  clickHandler: (e,v) ->
+    console.log e,v 
+    # e.preventDefault()
     this.props.clickHandler(this)
 
   getInitialState: ->
@@ -16,9 +17,7 @@
     @setState { markdown: value }
 
   render: ->
-    <div className="toolbar">
-      <ButtonToolbar>
-        <Button bsStyle="primary">Refresh</Button>
-        <Button bsStyle="success">Build</Button>
-      </ButtonToolbar>
-    </div>
+    <AdminNavbar>
+      <NavItem href='#' onClick={this.clickHandler.bind( "refresh" )}>Refresh</NavItem>
+      <NavItem href='#' onClick={this.clickHandler.bind( "build" )}>Build</NavItem>
+    </AdminNavbar>

@@ -1,10 +1,12 @@
 @Dashboard = React.createClass
   render: ->
-    <div className="dashboard">
+    <div>
       <DashboardToolbar />
 
-      <div className="row">
-        <Drafts />
-        <PublishedList />
+      <div className="dashboard">
+        <div className="row">
+          <Drafts />
+          <PublishedList />
+        </div>
       </div>
     </div>

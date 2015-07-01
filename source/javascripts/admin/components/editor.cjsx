@@ -52,16 +52,15 @@
 
   render: ->
     <DropUploader path={@state.path}>
+      <EditorToolbar
+        handleSave={this.handleSave}
+        path={this.state.path}
+        loading={this.state.loading}
+        saving={this.state.saving}
+        dirty={this.state.dirty}
+        metadata={this.state.meta}
+        onChange={this.metadataChange} />
       <div className="editor">
-        <EditorToolbar
-          handleSave={this.handleSave}
-          path={this.state.path}
-          loading={this.state.loading}
-          saving={this.state.saving}
-          dirty={this.state.dirty}
-          metadata={this.state.meta}
-          onChange={this.metadataChange} />
-
         <div className="row">
             <div className="editorPane">
               <AutosizeTextarea value={this.state.markdown} onChange={this.handleChange}/>
