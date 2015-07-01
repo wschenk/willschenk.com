@@ -1,0 +1,145 @@
+---
+title: Building a GUI for managing middleman blogs
+subtitle: the site will still be fast
+tags: middleman, static_sites, react
+date: '2015-07-01T22:30:19.345Z'
+---
+Lets take a look at how we'd start to implement [Slow Data and Fast Sites](/slow-data-and-fast-sites/) using the example of building an admin UI for a Middleman blog.
+
+## The basic idea
+
+We're going to add a `/admin` directory to the middleman site which will host a static JavaScript application.  This application will consume data from your middleman app in the `development` environment, such as the lists of published and draft articles, and will be able to trigger commands such as:
+
+<div class="diagram_right">
+  <% graphviz do %>
+    digraph G {
+rankdir=BT
+node [shape=box ];
+app [label="Static Middleman Site"];
+admin [label="Admin JS FrontEnd App"];
+api [label="Sinatra API Server"];
+cmds [label="Middleman Commands"];
+cmds -> app;
+api -> cmds;
+api -> app;
+admin -> api;
+admin -> app;
+    }
+  <% end %> 
+</div>
+
+- create new draft
+- publish draft into article
+- `git status`
+- `bundle exec middleman build`
+
+Let go through each of the components.
+
+## Static Middleman Site
+
+We're going to add our files in `source/admin`, and `source/javascript/admin` and `source/stylesheets/admin.scss`.  All of these files will be rendered in development mode, so when the server is running locally and you load up [http://localhost:4567/admin](http://localhost:4567/admin) we can use the middleman build process to load up our UI.  This, in turn, will use AJAX to pull in data from the running middleman instance.
+
+Inside of `config.rb`, we tell middleman about our pages, and we tell the build process to ignore these files since we don't want to release them into production:
+
+```rb
+page "/admin/*html", layout: "admin/layout"
+
+# Build-specific configuration
+configure :build do
+  ignore '/admin/*'
+  ignore '/stylesheets/admin/*'
+end
+```
+
+This will allow us to create files like `/source/admin/drafts.json.erb`:
+
+```erb
+<%% d = drafts.collect do |d|
+    { path: d.path, title: d.title }
+  end
+%><%%= 
+  {drafts: d }.to_json
+%>
+```
+
+That we can load from our JS app like:
+
+```js
+$.get( '/admin/drafts.json' ).then( function( data ) { console.log( data ) } );
+```
+
+Note that when we do `middleman build` these files _will not_ be generated, since we've specified them as `ignore`.  These files only are in the `:development` environment.
+
+## The Sinatra App
+
+That's fine for static data, or data that can be exposed using normal middleman ways of doing things, but we'll also want to be able to interact with the filesystem and run commands.  It's also going to be useful to interact with the middleman _Sitemap_ as it understands it, so we can build a simple sinatra app that acts as a bridge.  The current version of the code I'm using for this blog can be found [on github](https://github.com/wschenk/willschenk.com/blob/master/lib/apiserver.rb).
+
+First we need to `require` and `mount` our app on `config.rb`.  This is done like so:
+
+```rb
+require 'lib/apiserver.rb'
+
+map "/api" do
+  run ApiServer
+end
+```
+
+The commands we want to support are:
+
+- `get /api/post` - load a specific post and metadata
+- `post /api/post` - save a post and update metadata
+- `post /api/images` - upload an image (for drag and drop)
+- `post /api/draft` - create a new draft post
+- `post /api/update` - run `git pull origin master 2>&1`
+- `post /api/commit` - run `git add . && git push origin master 2>&1`
+- `post /api/status` - run `git status 2>&1`
+- `post /api/build` - run `bundle exec middleman build 2>&1`
+- `post /api/deploy` - run `bundle exec middleman deploy 2>&1`
+
+Right now the code is in more of a proof of concept phase, so please feel free to make suggestions, but lets take a look at a few of these methods in `lib/api_server.rb`:
+
+```rb
+require 'sinatra/base'
+require 'sinatra/json'
+
+class ApiServer < Sinatra::Base
+  get '/' do
+    "This is the api server"
+  end
+
+  get '/post' do
+    app = load_app
+
+    logger.info "Looking up #{params[:path]}"
+
+    file = app.sitemap.find_resource_by_path params[:path] if params[:path]
+
+    if !file
+      status 404
+      json error: "Unknown path #{params[:path]}"
+    else
+      raw = File.read file.source_file
+      body = raw.gsub( /^---\n.*?---\n*/m, "" ) # Remove the preyaml
+
+      json meta: file.data, content: body
+    end
+  end
+
+  private
+  def load_app
+    opts = {}
+
+    app = ::Middleman::Application.server.inst do
+      set :environment, opts[:environment].to_sym if opts[:environment]
+
+      logger
+    end
+
+    app
+  end
+
+  def logger
+    ::Middleman::Logger.singleton( 1 )
+  end
+end
+```

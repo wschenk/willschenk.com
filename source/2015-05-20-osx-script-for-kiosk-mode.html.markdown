@@ -4,7 +4,6 @@ subtitle: make your own screen saver
 date: 2015-05-20 14:21 UTC
 tags: howto, osx, toys, gaze
 ---
-
 In the office, we run [Jenkins](http://jenkins-ci.org) on the same machine that we run [Benevolent Gaze](http://gaze.happyfuncorp.com).  During iOS builds, the iOS simulator will take over the screen for the build, and then leave the beautiful screen on the desktop, hiding our smiling faces.  We want to return to Safari in this case, but we also want to make sure that if someone is actually in front of the machine it will let them do their thing.
 
 Here's a little script that check if the user hasn't touched the keyboard or mouse in a while, and if so it will pull Safari to the front.
@@ -20,7 +19,7 @@ do
   then
     cat <<- EOF | osascript
       tell application "Safari"
-              activate
+        activate
       end tell
     EOF
   fi

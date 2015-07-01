@@ -7,7 +7,7 @@ gem "middleman-deploy"
 gem "middleman-blog", "~> 3.5.3"
 gem "middleman-blog-drafts"
 gem "middleman-autometatags"
-gem "middleman-livereload", "~> 3.1.0"
+gem "middleman-livereload", github: "middleman/middleman-livereload"
 gem 'middleman-bootstrap-navbar'
 
 gem "bootstrap-sass"

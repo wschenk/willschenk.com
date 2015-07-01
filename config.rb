@@ -79,7 +79,9 @@ page "/feed.xml", layout: false
 activate :drafts
 
 configure :development do
-  activate :livereload
+  activate :livereload do |lr|
+    lr.ignore = ['/admin/*']
+  end
 end
 
 # Build-specific configuration

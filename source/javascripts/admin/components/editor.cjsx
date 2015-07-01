@@ -27,6 +27,10 @@
   handleSave: (e) ->
     e.preventDefault()
     console.log "Pressed save"
+
+    @doSave()
+
+  doSave: ->
     @state.saving = "Saving..."
 
     API.savePost( @state.path, @state.meta, @state.markdown ).then (message) =>
@@ -50,8 +54,10 @@
 
   restartTimer: ->
     clearTimeout( @timer ) if( @timer )
-    @timer = setTimeout ->
+    @timer = setTimeout =>
       console.log "Timeout"
+      window.LiveReload.shutDown() if window.LiveReload
+      @doSave()
       @timer = null
     , 2000
 
