@@ -45,7 +45,6 @@ class ApiServer < Sinatra::Base
   end
 
   post '/images' do
-    p params
 
     File.open('/tmp/' + params['file'][:filename], "wb") do |f|
       f.write(params['file'][:tempfile].read)
@@ -67,8 +66,6 @@ class ApiServer < Sinatra::Base
   end
 
   post '/drafts' do
-    p params
-
     if !params[:title]
       status 404
       json error: "Bad Parameters"
@@ -86,6 +83,51 @@ class ApiServer < Sinatra::Base
 
       json created: slug
     end
+  end
+
+  post '/diff' do
+    file = load_app.sitemap.find_resource_by_path params[:path]
+
+    if !file
+      logger.info "Unknown path: #{params[:path]}"
+      status 404
+      "Unknown path #{params[:path]}"
+    else
+      `git diff #{file.source_file} 2>&1`
+    end
+  end
+
+
+  post '/publish' do
+    file = load_app.sitemap.find_resource_by_path params[:path]
+
+    if !file
+      logger.info "Unknown path: #{params[:path]}"
+      status 404
+      "Unknown path #{params[:path]}"
+    else
+      `bundle exec middleman publish #{file.source_file} 2>&1`
+    end
+  end
+
+
+  post '/deploy' do
+    content_type :txt
+    stream do |out|
+      5.times do
+        out << "Hi there\n"
+        puts "Hi there"
+        sleep 1
+      end
+    end
+    # IO.popen( '/Users/wschenk/src/willschenk.com/longrunning.sh' ) do |io|
+    #   stream do |out|
+    #     io.each do |s|
+    #       puts s
+    #       out << s
+    #     end
+    #   end
+    # end
   end
 
   private

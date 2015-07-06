@@ -44,6 +44,9 @@
   newDraft: (metadata) ->
     $.post( '/api/drafts', metadata )
 
+  publishDraft: (path) ->
+    $.post( '/api/publish', { path: path } )
+
   uploadFile: ( path, nativeEvent, process_cb ) ->
     console.log "Uploading image to path"
 
@@ -64,10 +67,24 @@
       processData: false
       data: fd
 
-  runCommand: (cmd) ->
-    console.log "Running command " + cmd
+  runCommand: (cmd, path) ->
+    console.log "Running command", cmd, path
 
-    $.post( '/api/' + cmd )
+    callback = (e) ->
+      console.log "Got change"
+      console.log e
+      true
+
+    # $.post( '/api/' + cmd )
+    $.ajax
+      type: 'post'
+      url: '/api/' + cmd
+      data: {path: path}
+      xhr: ->
+        xhr = new XMLHttpRequest()
+        xhr.onprogress = callback # process_cb
+        # xhr.upload.onprogress = process_cb
+        xhr
 
 
   loadDrafts: ->

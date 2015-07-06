@@ -18,16 +18,6 @@
     </Modal>
 
   render: ->
-    loading = if @props.loading
-      <p>Loading...</p>
-    else
-      null
-
-    saving = if @props.saving
-      <p>{@props.saving}</p>
-    else
-      null
-
     metadata = for k,v of @props.metadata
       <MenuItem onClick={@toggleDataeditor} key={k}>
         {k}: {v}

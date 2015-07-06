@@ -5,12 +5,15 @@
   getInitialState: ->
     commandModal: false
 
-  command: (cmd) ->
+  command: (cmd, path) ->
     =>
+      path = @props.path if path
+      console.log cmd, path
+      console.log @state
       @state.commandModal = true
       @state.response = "Running " + cmd + "..."
       @setState @state
-      API.runCommand( cmd ).then (data) =>
+      API.runCommand( cmd, path ).then (data) =>
         @state.response = data
         @setState @state
       , (error) =>
@@ -26,9 +29,11 @@
         </Nav>
         <Nav navbar right>
           <DropdownButton title='Site Commands'>
+            <NavItem onClick={@command( 'diff', true )}>Diff</NavItem>
             <NavItem onClick={@command( 'status' ) }>Git Status</NavItem>
             <NavItem onClick={@command( 'update' ) }>Update</NavItem>
             <NavItem onClick={@command( 'build' ) }>Build</NavItem>
+            <NavItem onClick={@command( 'deploy' )}>Deploy</NavItem>
           </DropdownButton>
           <NavItem href={"/" + @props.path}>Preview</NavItem>
         </Nav>

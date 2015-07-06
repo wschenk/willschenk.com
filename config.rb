@@ -2,6 +2,8 @@
 
 require 'lib/apiserver.rb'
 
+set :server, 'thin'
+
 map "/api" do
   run ApiServer
 end

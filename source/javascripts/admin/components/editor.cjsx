@@ -37,8 +37,22 @@
       @state.dirty = false
       @state.saving = message
       @setState @state
+    , (error) =>
+      @state.error = error.error
+      @setState @state
 
     @setState @state
+
+  publish: ->
+    @state.publishing = "Saving post..."
+    @setState @state
+    API.savePost( @state.path, @state.meta, @state.markdown ).then (message) =>
+      @state.publishing = "Publishing post..."
+      @setState @state
+      API.publishDraft( @state.path ) (message) =>
+        @state.publishing = message
+
+
 
   handleChange: (value) ->
     @state.markdown = value
@@ -64,6 +78,7 @@
   render: ->
     <DropUploader path={@state.path}>
       {@errorMessage()}
+      {@publishingMessage()}
       <EditorToolbar
         handleSave={@handleSave}
         path={@state.path}
@@ -89,6 +104,19 @@
 
   goBack: ->
     window.location = '/admin'
+
+  publishingMessage: ->
+    return <span/> if !@state.publishing
+
+    <Modal title='Saving draft' onRequestHide={@goBack}>
+      <div className='modal-body'>
+        {@state.publishing}
+      </div>
+      <div className='modal-footer'>
+        <Button onClick={@goBack}>Close</Button>
+      </div>
+    </Modal>
+
 
   errorMessage: ->
     return <span/> if !@state.error

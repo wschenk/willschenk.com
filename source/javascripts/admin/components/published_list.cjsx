@@ -17,6 +17,7 @@
     ).bind( this )
 
     <div className="sidebar">
+      <h1>Published</h1>
       <ul className="nav nav-pills nav-stacked">
         {articles}
       </ul>
