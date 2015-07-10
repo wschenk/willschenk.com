@@ -4,16 +4,25 @@
     this.props.clickHandler(this)
 
   getInitialState: ->
-    article = ParseSearch( window.location.search ).article
-    draft = ParseSearch( window.location.search ).draft
-    markdown: "Hello"
+    # article = ParseSearch( window.location.search ).article
+    # draft = ParseSearch( window.location.search ).draft
+    draft = false
+    markdown: ""
     dirty: false
     loading: true
-    path: article || draft
+    path: @props.path
     draft: draft
     meta: {}
 
+  componentWillReceiveProps: (props) ->
+    @state = @getInitialState()
+    @state.path = props.path
+    @loadPost()
+
   componentDidMount: ->
+    @loadPost()
+
+  loadPost: ->
     API.loadPost( @state.path ).then (post) =>
       @state.loading = false
       @state.dirty = false
@@ -26,7 +35,6 @@
 
   handleSave: (e) ->
     e.preventDefault()
-    console.log "Pressed save"
 
     @doSave()
 
@@ -69,7 +77,6 @@
   restartTimer: ->
     clearTimeout( @timer ) if( @timer )
     @timer = setTimeout =>
-      console.log "Timeout"
       window.LiveReload.shutDown() if window.LiveReload
       @doSave()
       @timer = null

@@ -34,13 +34,11 @@
     line_diff = target.value.length - @state.value.length 
     if line_diff < 0 # Removed content
       @shrink = 1
-      # console.log "starting shrinking"
       setTimeout( @startShrinking, 0 )
 
     new_height = target.scrollHeight + @diff - @shrink
 
     if new_height > @state.style.height
-      # console.log "expanded"
       @shrink = 0
 
     @state.value = target.value
@@ -48,8 +46,6 @@
     @setState @state
 
   startShrinking: ->
-    # console.log "ping"
-    # console.log @shrink
     @resize( React.findDOMNode( @refs.myInput ))
     requestAnimationFrame( @startShrinking ) if @shrink != 0
 

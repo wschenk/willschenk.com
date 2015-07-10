@@ -26,7 +26,7 @@
     publish = if @props.draft
       <NavItem onClick={@props.onPublish}>Publish Draft</NavItem>
 
-    <AdminNavbar path={@props.path}>
+    <Nav navbar>
       {publish}
       <NavItem disabled={!this.props.dirty} onClick={this.props.handleSave}>Save</NavItem>
       <DropdownButton title='Metadata'>
@@ -34,5 +34,5 @@
       </DropdownButton>
       <NavItem disabled>{@props.path}</NavItem>
       {@renderDataEditor()}
-    </AdminNavbar>
+    </Nav>
     

@@ -17,7 +17,7 @@
 
   createNewDraft: ->
     API.newDraft( @state.metadata ).then (resp) ->
-      window.location = "/admin/editor?drafts=" + resp.created
+      @prop.viewPath( resp.created )
     , (error) ->
       alert( error.responseJSON.error )
 
@@ -33,7 +33,7 @@
       </Modal>
 
 
-    <AdminNavbar>
+    <Nav navbar>
       {new_draft}
       <NavItem href='#' onClick={@newDraft}>New Draft</NavItem>
-    </AdminNavbar>
+    </Nav>

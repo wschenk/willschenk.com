@@ -1,12 +1,8 @@
 @Dashboard = React.createClass
   render: ->
-    <div>
-      <DashboardToolbar />
-
-      <div className="dashboard">
-        <div className="row">
-          <Drafts />
-          <PublishedList />
-        </div>
+    <div className="dashboard">
+      <div className="row">
+        <DraftList viewPath={@props.viewPath}/>
+        <PublishedList viewPath={@props.viewPath}/>
       </div>
     </div>

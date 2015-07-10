@@ -21,3 +21,7 @@ var NavItem = ReactBootstrap.NavItem;
 var MenuItem = ReactBootstrap.MenuItem;
 var CollapsibleNav = ReactBootstrap.CollapsibleNav;
 var DropdownButton = ReactBootstrap.DropdownButton;
+
+$( function() {
+  React.render( React.createElement(App, null), document.getElementById('content') );  
+})

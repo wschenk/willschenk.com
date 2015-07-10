@@ -8,7 +8,7 @@ map "/api" do
   run ApiServer
 end
 
-page "/admin/*html", layout: "admin/layout"
+page "/admin/*html", layout: false
 
 activate :react do |conf|
  conf.components = ['admin/offline.js']

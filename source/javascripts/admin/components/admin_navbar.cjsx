@@ -1,6 +1,7 @@
 @AdminNavbar = React.createClass
   getDefaultProps: ->
     path: ""
+    draft: false
 
   getInitialState: ->
     commandModal: false
@@ -8,25 +9,27 @@
   command: (cmd, path) ->
     =>
       path = @props.path if path
-      console.log cmd, path
-      console.log @state
       @state.commandModal = true
       @state.response = "Running " + cmd + "..."
       @setState @state
       API.runCommand( cmd, path ).then (data) =>
         @state.response = data
+        console.log "Response", data
         @setState @state
       , (error) =>
         @state.response = error
         @setState @state
       
   render: ->
+    subnav = unless @state.draft
+      <DashboardToolbar/>
+    else
+      <EditorToolbar />
+
     <Navbar brand={<a href="/admin">Blog Admin</a>} fixedTop>
       { @response() }
       <CollapsibleNav>
-        <Nav navbar>
-          { @props.children }
-        </Nav>
+        {subnav}
         <Nav navbar right>
           <DropdownButton title='Site Commands'>
             <NavItem onClick={@command( 'diff', true )}>Diff</NavItem>
