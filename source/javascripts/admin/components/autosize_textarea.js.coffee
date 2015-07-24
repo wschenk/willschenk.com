@@ -14,16 +14,20 @@
     @state.trigger_resize = true
     @setState @state
 
+  componentWillUpdate: () ->
+    console.log "Start", React.findDOMNode( @refs.myInput )
+
   componentDidUpdate: ->
+    React.findDOMNode( @refs.myInput ).setSelectionRange( @position, @position )
     if @state.trigger_resize
       @state.trigger_resize = false
       requestAnimationFrame =>
         @resize React.findDOMNode( @refs.myInput )
 
-
   inputHandler: (e)->
     @resize( e.target )
     if( @props.onChange )
+      @position = e.target.selectionStart
       @props.onChange( e.target.value )
 
   resize: (target) ->
@@ -38,7 +42,7 @@
 
     new_height = target.scrollHeight + @diff - @shrink
 
-    if new_height > @state.style.height
+    if new_height >= @state.style.height
       @shrink = 0
 
     @state.value = target.value
@@ -46,6 +50,7 @@
     @setState @state
 
   startShrinking: ->
+    console.log "Shrinking"
     @resize( React.findDOMNode( @refs.myInput ))
     requestAnimationFrame( @startShrinking ) if @shrink != 0
 

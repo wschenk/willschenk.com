@@ -1,10 +1,17 @@
 @viewPath = Reflux.createAction
   asyncResult: true
 
+@updateMarkdown = Reflux.createAction()
+@updateMetadata = Reflux.createAction()
+@saveCurrentArticle = Reflux.createAction()
+
 @pathStore = Reflux.createStore
   init: ->
     @state = @defaultState()
     @listenTo viewPath, @onViewPath
+    @listenTo updateMarkdown, @onUpdateMarkdown
+    @listenTo updateMetadata, @onUpdateMetadata
+    @listenTo saveCurrentArticle, @onSaveCurrentArticle
 
   defaultState: ->
     loading: false
@@ -32,3 +39,26 @@
           @trigger @state
         else
           viewPath.failed( response.error )
+
+  onUpdateMetadata: (metadata) ->
+    @state.metadata = metadata
+    @state.dirty = true
+    @trigger @state
+
+  onUpdateMarkdown: (markdown) ->
+    @state.markdown = markdown
+    @state.dirty = true
+    @trigger @state
+
+  onSaveCurrentArticle: ->
+    @state.saving = true
+    @trigger @state
+
+    request.post "/api/post"
+      .set('Content-Type', 'application/json')
+      .send path: @state.path, meta: @state.metadata, body: @state.markdown
+      .end (err, response) =>
+        if response.ok
+          @state.saving = false
+          @state.dirty = false
+          @trigger @state

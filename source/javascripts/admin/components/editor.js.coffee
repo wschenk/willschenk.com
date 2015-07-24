@@ -2,10 +2,16 @@
   mixins: [Reflux.connect(pathStore)]
 
   handleChange: (value) ->
-    @state.markdown = value
-    @state.dirty = true
-    # @restartTimer()
-    @setState @state
+    updateMarkdown value
+    @restartTimer()
+
+  restartTimer: () ->
+    clearTimeout( @timer ) if( @timer )
+    @timer = setTimeout =>
+      window.LiveReload.shutDown() if window.LiveReload
+      saveCurrentArticle()
+      @timer = null
+    , 2000
 
   render: ->
     <div className="editor">

@@ -25,19 +25,22 @@ class ApiServer < Sinatra::Base
   end
 
   post '/post' do
-    logger.info "Saving #{params[:path]}"
+    payload = params 
+    payload = JSON.parse(request.body.read).symbolize_keys unless params[:path]
 
-    file = load_app.sitemap.find_resource_by_path params[:path]
+    logger.info "Saving #{payload[:path]} with #{payload[:meta]}"
+
+    file = load_app.sitemap.find_resource_by_path payload[:path]
 
     if !file
-      logger.info "Unknown path: #{params[:path]}"
+      logger.info "Unknown path: #{payload[:path]}"
       status 404
-      json error: "Unknown path #{params[:path]}"
+      json error: "Unknown path #{payload[:path]}"
     else
       File.open( file.source_file, "w" ) do |out|
-        out.puts YAML.dump( params[:meta] )
+        out.puts YAML.dump( payload[:meta] )
         out.puts "---"
-        out.puts params[:body]
+        out.puts payload[:body]
       end
     end
 
@@ -81,7 +84,7 @@ class ApiServer < Sinatra::Base
         out.puts "---\n\n# #{params[:title]}\nHere we go!"
       end
 
-      json created: slug
+      json created: "drafts/#{slug}.html"
     end
   end
 

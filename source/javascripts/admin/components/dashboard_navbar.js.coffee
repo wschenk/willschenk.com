@@ -3,11 +3,27 @@
     newDraftModal: false
     metadata: 
       title: ""
+      subtitle: ""
+      tags: ""
 
   toggleModal: ->
     @state.newDraftModal = !@state.newDraftModal
-    console.log @state.newDraftModal
+    @state.metadata =
+      title: ""
+      subtitle: ""
+      tags: ""
+
     @setState @state
+
+  updateMeta: (metadata) ->
+    @state.metadata = metadata
+    @setState @state
+
+  onCreateNewDraft: ->
+    console.log "Running create new draft"
+    @state.newDraftModal = false
+    @setState @state
+    createNewDraft( @state.metadata )
 
   render: ->
     <Nav navbar>
@@ -16,14 +32,13 @@
     </Nav>
 
   newDraftModal: ->
-    console.log "New Draft Modal", @state.newDraftModal
     return <span/> unless @state.newDraftModal
 
     <Modal title='New Draft' onRequestHide={@toggleModal}>
       <div className='modal-body'>
-        <h1>This should be the meta data editor</h1>
+        <MetaDataEditor metadata={@state.metadata} updateMeta={@updateMeta}/>
       </div>
       <div className='modal-footer'>
-        <Button onClick={@createNewDraft} disabled={@state.metadata.title.length < 5}>Create Draft</Button>
+        <Button onClick={@onCreateNewDraft} disabled={@state.metadata.title.length < 5}>Create Draft</Button>
       </div>
     </Modal>

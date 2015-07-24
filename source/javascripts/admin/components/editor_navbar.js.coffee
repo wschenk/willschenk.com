@@ -3,6 +3,8 @@
 
   getInitialState: ->
     metadata: {}
+    dirty: false
+    saving: false
 
   toggleModal: ->
     @state.newDraftModal = !@state.newDraftModal
@@ -15,9 +17,14 @@
         {k}: {v}
       </MenuItem>
 
+    text = "Save"
+    text = "Saving..." if @state.saving
+
+    console.log "Text", text
+
     <Nav navbar>
       {@newDraftModal()}
-      <NavItem href='#' onClick={@toggleModal}>Save</NavItem>
+      <NavItem href='#' onClick={@toggleModal} disabled={!@state.dirty || @state.saving}>{text}</NavItem>
       <DropdownButton title='Metadata'>
         {metadata}
       </DropdownButton>
