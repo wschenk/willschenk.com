@@ -1,11 +1,13 @@
-//= require jquery
-// not right now require bootstrap-sprockets
 //= require react
-//= require react_ujs
 //= require ./react-bootstrap.min
 //= require ./marked.min.js
+//= require ./reflux.min
+//= require ./superagent.js
 //= require ./api
+//= require_tree ./stores
 //= require_tree ./components
+
+var request = window.superagent;
 
 var Button = ReactBootstrap.Button;
 var ButtonToolbar = ReactBootstrap.ButtonToolbar;
@@ -21,7 +23,3 @@ var NavItem = ReactBootstrap.NavItem;
 var MenuItem = ReactBootstrap.MenuItem;
 var CollapsibleNav = ReactBootstrap.CollapsibleNav;
 var DropdownButton = ReactBootstrap.DropdownButton;
-
-$( function() {
-  React.render( React.createElement(App, null), document.getElementById('content') );  
-})

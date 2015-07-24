@@ -2,7 +2,7 @@
   render: ->
     <div className="dashboard">
       <div className="row">
-        <DraftList viewPath={@props.viewPath}/>
-        <PublishedList viewPath={@props.viewPath}/>
+        <DashboardDraftList />
+        <DashboardPublishedList />
       </div>
     </div>
