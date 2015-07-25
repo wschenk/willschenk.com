@@ -1,9 +1,12 @@
 ---
 title: Bower with Rails
 subtitle: Javascript dependancies and sprockets
+date: 2015-07-25 02:01 UTC
 tags: javascript, rails
-date: '2015-07-24T23:05:51.307Z'
 ---
+
+
+
 Let's look at how we can integrate bower with rails and Sprockets. [Bower](http://bower.io) is one of the two major javascript package managers, the other being the Node Package Manager, or [npm](https://www.npmjs.com).  The biggest difference between the two is how the javascript is packaged up.  Bower is the more straightforward of the two, and it mainly a way to distribute javascript and keep things up to date.
 
 ## Install Bower
