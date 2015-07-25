@@ -3,6 +3,8 @@ title: Bower with Rails
 subtitle: Javascript dependancies and sprockets
 date: 2015-07-25 02:01 UTC
 tags: javascript, rails
+header_image: train_hat.jpg
+
 ---
 
 
