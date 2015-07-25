@@ -1,0 +1,1 @@
+(function(){this.Dashboard=React.createClass({render:function(){return React.createElement("div",{className:"dashboard"},React.createElement("div",{className:"row"},React.createElement(DashboardDraftList,null),React.createElement(DashboardPublishedList,null)))}})}).call(this);

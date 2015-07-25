@@ -5,10 +5,109 @@
   <id>http://willschenk.com/</id>
   <link href="http://willschenk.com/"/>
   <link href="http://willschenk.com/feed.xml" rel="self"/>
-  <updated>2015-06-07T13:00:19-04:00</updated>
+  <updated>2015-07-24T22:07:46-04:00</updated>
   <author>
     <name>Will Schenk</name>
   </author>
+  <entry>
+    <title>Bower with Rails</title>
+    <link rel="alternate" href="http://willschenk.com/bower-with-rails/"/>
+    <id>http://willschenk.com/bower-with-rails/</id>
+    <published>2015-07-24T22:01:00-04:00</published>
+    <updated>2015-07-24T22:01:00-04:00</updated>
+    <author>
+      <name>Will Schenk</name>
+    </author>
+    <content type="html">&lt;p&gt;Let&amp;#39;s look at how we can integrate bower with rails and Sprockets. &lt;a href="http://bower.io"&gt;Bower&lt;/a&gt; is one of the two major javascript package managers, the other being the Node Package Manager, or &lt;a href="https://www.npmjs.com"&gt;npm&lt;/a&gt;.  The biggest difference between the two is how the javascript is packaged up.  Bower is the more straightforward of the two, and it mainly a way to distribute javascript and keep things up to date.&lt;/p&gt;
+
+&lt;h2 id="install-bower"&gt;Install Bower&lt;/h2&gt;
+
+&lt;p&gt;The first step is to install bower.  Ironically, we need to use npm to do that!  On OSX, the easiest way is to use the &lt;a href="http://brew.sh"&gt;Homebrew&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="sh"&gt;$ brew install node
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Then let&amp;#39;s install bower in your local command path so you can run it.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="sh"&gt;$ npm install -g bower
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id="setup-bower"&gt;Setup Bower&lt;/h2&gt;
+
+&lt;p&gt;Now let&amp;#39;s setup rails to work with bower.  This section assumes that you already have a rails application.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="sh"&gt;cd rails_application
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Create a &lt;code&gt;.bowerrc&lt;/code&gt; file. This is going to tell bower where to install the packages it needs, and we&amp;#39;re going to say put it in &lt;code&gt;vendor/assets/bower_components&lt;/code&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="json"&gt;{
+  &amp;quot;directory&amp;quot;: &amp;quot;vendor/assets/bower_components&amp;quot;
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now run &lt;code&gt;bower init&lt;/code&gt; to create a &lt;code&gt;bower.json&lt;/code&gt; file.  This file is similar to a &lt;code&gt;Gemfile&lt;/code&gt;, in that it lists out the dependancies, and when you run bower again, it will download the specific versions from the intertubes.&lt;/p&gt;
+
+&lt;h2 id="tell-rails-where-to-look"&gt;Tell rails where to look&lt;/h2&gt;
+
+&lt;p&gt;Inside of &lt;code&gt;config/application.rb&lt;/code&gt; we&amp;#39;re going to tell spockets and additional directory to look for javascript components.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;config.assets.paths &amp;lt;&amp;lt; Rails.root.join(&amp;#39;vendor&amp;#39;, &amp;#39;assets&amp;#39;, &amp;#39;bower_components&amp;#39;)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id="small-walk-through"&gt;Small walk through&lt;/h2&gt;
+
+&lt;p&gt;Let&amp;#39;s say you want to use Google Maps with Angular.  &lt;a href="http://angular-ui.github.io/angular-google-maps/#!/"&gt;angular-google-maps&lt;/a&gt; is a package that does a lot of the heavy lifting for you, so lets install that.  We&amp;#39;re going to tell bower to keep track of the packages we want inside of our &lt;code&gt;bower.json&lt;/code&gt; file by passing in the &lt;code&gt;--save&lt;/code&gt; option:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ bower install --save angular-google-maps
+[...]
+angular-google-maps#2.1.5 vendor/assets/bower_components/angular-google-maps
+├── angular#1.4.3
+└── lodash#3.10.0
+
+lodash#3.10.0 vendor/assets/bower_components/lodash
+
+angular#1.4.3 vendor/assets/bower_components/angular
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;I&amp;#39;ve cleaned up some of the output, but you can see that bower installed angular-google-maps and it&amp;#39;s dependancies, angular itself and lodash.  Lets go to our &lt;code&gt;application.js&lt;/code&gt; file now to tell Sprockets that we want to use this awesome stuff:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="js"&gt;//= require lodash
+//= require angular
+//= require angular-google-maps
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Since we&amp;#39;ve added &lt;code&gt;vendor/assets/bower_components&lt;/code&gt; in Sprockets load path, it should be able to find all of these files.  Notice that you don&amp;#39;t need to know where to get all of the dependancies from, but you do need to make sure that you specify them in your &lt;code&gt;application.js&lt;/code&gt; in the right order.  We&amp;#39;ll be talking about &lt;code&gt;browersify&lt;/code&gt; in future posts that assuages this issue.&lt;/p&gt;
+
+&lt;h2 id="to-check-in-or-not-to-check-in"&gt;To check in or not to check in&lt;/h2&gt;
+
+&lt;p&gt;I prefer to check in the dependancies inside of my source control.  This isn&amp;#39;t necessary and in some ways is a waste of disk space, but I think it&amp;#39;s easier to figure out what&amp;#39;s going on if there&amp;#39;s less magic.  This can be confusion if you start to make local tweaks of the javascript, which you should never do.&lt;/p&gt;
+
+&lt;p&gt;However, it&amp;#39;s not necessary to check things in if you expand your build process a bit.  If you look inside of your &lt;code&gt;bower.json&lt;/code&gt; file, you&amp;#39;ll see that it specifies the specific version of the bower package that you installed.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="js"&gt;{
+  &amp;quot;name&amp;quot;: &amp;quot;rails_app&amp;quot;,
+  &amp;quot;version&amp;quot;: &amp;quot;0.0.0&amp;quot;,
+  &amp;quot;authors&amp;quot;: [
+    &amp;quot;Will Schenk &amp;lt;wschenk@gmail.com&amp;gt;&amp;quot;
+  ],
+  &amp;quot;license&amp;quot;: &amp;quot;MIT&amp;quot;,
+  &amp;quot;ignore&amp;quot;: [
+    &amp;quot;**/.*&amp;quot;,
+    &amp;quot;node_modules&amp;quot;,
+    &amp;quot;bower_components&amp;quot;,
+    &amp;quot;test&amp;quot;,
+    &amp;quot;tests&amp;quot;
+  ],
+  &amp;quot;dependencies&amp;quot;: {
+    &amp;quot;angular-google-maps&amp;quot;: &amp;quot;~2.1.5&amp;quot;
+  }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;This should contain all the information needed so that when you run &lt;code&gt;bower install&lt;/code&gt; again, all of the correct versions of the files will be downloaded.  You could make it part of your build process, much like how running &lt;code&gt;bundle install&lt;/code&gt; is part of the standard rails build pack.  Bundler looks through &lt;code&gt;Gemfile.lock&lt;/code&gt; and installs those specific packages.  The version is always specified inside of &lt;code&gt;bower.json&lt;/code&gt; so there doesn&amp;#39;t need to be two files.&lt;/p&gt;
+</content>
+  </entry>
   <entry>
     <title>Adding search to a middleman blog</title>
     <link rel="alternate" href="http://willschenk.com/adding-search-to-a-middleman-blog/"/>
@@ -217,7 +316,7 @@
 &lt;h2 id="next-steps"&gt;Next steps&lt;/h2&gt;
 
 &lt;ol&gt;
-&lt;li&gt;Stemming&lt;/li&gt;
+&lt;li&gt;Language stemming&lt;/li&gt;
 &lt;li&gt;Logical operations&lt;/li&gt;
 &lt;li&gt;Showing more metadata in the search results.&lt;/li&gt;
 &lt;/ol&gt;
@@ -246,7 +345,7 @@ do
   then
     cat &amp;lt;&amp;lt;- EOF | osascript
       tell application &amp;quot;Safari&amp;quot;
-              activate
+        activate
       end tell
     EOF
   fi
@@ -938,399 +1037,6 @@ end
 &lt;p&gt;The rails community has a &lt;a href="http://martinfowler.com/articles/is-tdd-dead/"&gt;long history with Test Driven Development&lt;/a&gt;.  The biggest advantage of this is that you write code that is testable, and code that is testable has all sorts of other qualities that is great, from clearly defined boundries of responsibility, good encapulation, and being able to look at small isolated pieces of the system and having it make sense.  On the other hand, thebest code is the stuff you don&amp;#39;t need to maintain, and in some projects the weight of the test code is as large or larger than the code for the application features.&lt;/p&gt;
 
 &lt;p&gt;The biggest problem with testing is that it gets you in a wonderful, but wrong, flow state of development.  In the begining of projects you should be focused on the user experience, and how the system is experienced from the outside.  The highest level tests tend to be are user stories, which is below the level of brand and user experience.&lt;/p&gt;
-</content>
-  </entry>
-  <entry>
-    <title>Setting up Devise with Twitter and Facebook and other Omniauth schemes without email addresses</title>
-    <link rel="alternate" href="http://willschenk.com/setting-up-devise-with-twitter-and-facebook-and-other-omniauth-schemes-without-email-addresses/"/>
-    <id>http://willschenk.com/setting-up-devise-with-twitter-and-facebook-and-other-omniauth-schemes-without-email-addresses/</id>
-    <published>2015-01-15T19:00:00-05:00</published>
-    <updated>2015-01-15T19:00:00-05:00</updated>
-    <author>
-      <name>Will Schenk</name>
-    </author>
-    <content type="html">&lt;p&gt;Adding social login to your sites really makes it easier to get users onboard.  Devise is great to help get an authentication system up and running, but there are a few tricky things to get right.  The first challenge is that you don&amp;#39;t always get the user&amp;#39;s email address when the first connect.  The second challenge is that we want to request the minimum permissions first so that the user is more likely to sign up, and gradually ask more as the time arises.&lt;/p&gt;
-
-&lt;p&gt;This post is going to go through the strategy that &lt;a href="http://seed.happyfuncorp.com"&gt;happy_seed&lt;/a&gt; uses to support these use cases.  The easiest way to get started is to use seed to get things up and running, but we&amp;#39;ll walk through how to do it all in detail below.&lt;/p&gt;
-
-&lt;h2 id="install-devise-and-omniauth"&gt;Install devise and omniauth&lt;/h2&gt;
-
-&lt;p&gt;Let&amp;#39;s install a few gems.  We&amp;#39;ll go through how to install twitter, facebook, and google.&lt;/p&gt;
-
-&lt;p&gt;&lt;code&gt;Gemfile&lt;/code&gt;:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;gem &amp;#39;devise&amp;#39;, &amp;#39;~&amp;gt; 3.4&amp;#39;
-gem &amp;#39;omniauth&amp;#39;
-gem &amp;#39;omniauth-twitter&amp;#39;
-gem &amp;#39;omniauth-facebook&amp;#39;
-gem &amp;#39;omniauth-instagram&amp;#39;
-gem &amp;#39;twitter&amp;#39;
-gem &amp;#39;instagram&amp;#39;
-gem &amp;#39;omniauth-google-oauth2&amp;#39;
-gem &amp;#39;google-api-client&amp;#39;, require: &amp;#39;google/api_client&amp;#39;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Now we need to run the &lt;code&gt;devise&lt;/code&gt; generators.  I like to copy over the views so that I can fix them up to look like the rest of my app.  If you are using seed, these views will be generated with &lt;code&gt;HAML&lt;/code&gt; and the &lt;code&gt;bootstrap helpers&lt;/code&gt; gem.&lt;/p&gt;
-
-&lt;p&gt;First install devise:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;$ rails generate devise:install
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;&lt;code&gt;devise:install&lt;/code&gt; copies over &lt;code&gt;config/initializers/devise.rb&lt;/code&gt; and a localized message file.  We will configure devise here.  &lt;em&gt;Follow the outputed instuctions to setup flashes and mailer configs.&lt;/em&gt;&lt;/p&gt;
-
-&lt;p&gt;Now create a model, call it user:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;$ rails generate devise User
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;This creates a &lt;code&gt;User&lt;/code&gt; model and configures devise routes to use it.  We will edit both of these.&lt;/p&gt;
-
-&lt;p&gt;Finally, copy over the views so you can style them as you need:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;$ rails generate devise:views
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id="make-sure-regular-login-in-works"&gt;Make sure regular login in works&lt;/h2&gt;
-
-&lt;p&gt;Lets create a basic controller to see if our login works:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;$ rails g controller welcome index
-$ rake db:migrate
-$ rails s
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Edit &lt;code&gt;routes.rb&lt;/code&gt;:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;  get &amp;#39;welcome/index&amp;#39;
-  root &amp;#39;welcome#index&amp;#39;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;And change your &lt;code&gt;WeclomeController&lt;/code&gt; to require user authentication:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;class WelcomeController
-  before_action :authenticate_user!
-
-  def index
-  end
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Now if you go to &lt;a href="http://localhost:3000/"&gt;http://localhost:3000/&lt;/a&gt; you should get redirected to a login page.  If you create a user you should be able to then see the protected page.&lt;/p&gt;
-
-&lt;p&gt;Let&amp;#39;s add a logout button to the index page for testing: &lt;code&gt;app/views/welcome/index.html.erb&lt;/code&gt;:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="erb"&gt;&amp;lt;%= link_to &amp;quot;Signout&amp;quot;, destroy_user_session_path, method: :delete %&amp;gt;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Now we can go back and forth.  The &lt;code&gt;method: :delete&lt;/code&gt; part is something that I often forget about.&lt;/p&gt;
-
-&lt;h2 id="configure-omniauth"&gt;Configure Omniauth&lt;/h2&gt;
-
-&lt;p&gt;We need to tell devise and omniauth how to talk to the various outside services.  The first thing you&amp;#39;ll need to do is configure those services and collect their app ids and app secrets.  Then you put that information inside of &lt;code&gt;config/initializers/devise.rb&lt;/code&gt;:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;    config.omniauth :google_oauth2, ENV[&amp;#39;GOOGLE_OAUTH2_APP_ID&amp;#39;], ENV[&amp;#39;GOOGLE_OAUTH2_APP_SECRET&amp;#39;], scope: &amp;quot;email,profile,offline&amp;quot;, prompt: &amp;quot;consent&amp;quot;
-    config.omniauth :instagram, ENV[&amp;#39;INSTAGRAM_APP_ID&amp;#39;], ENV[&amp;#39;INSTAGRAM_APP_SECRET&amp;#39;]
-    config.omniauth :facebook, ENV[&amp;#39;FACEBOOK_APP_ID&amp;#39;], ENV[&amp;#39;FACEBOOK_APP_SECRET&amp;#39;], scope: &amp;quot;email&amp;quot;
-    config.omniauth :twitter, ENV[&amp;#39;TWITTER_APP_ID&amp;#39;], ENV[&amp;#39;TWITTER_APP_SECRET&amp;#39;]
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Since we are building nice &lt;a href="http://12factor.net"&gt;12 Factor Apps&lt;/a&gt; we pull the config from the environment.  seed uses the &lt;a href="https://github.com/bkeepers/dotenv"&gt;dotenv gem&lt;/a&gt; to keep track of these things in a &lt;code&gt;.env&lt;/code&gt; file, and when you deploy to heroku you will use heroku config variables.&lt;/p&gt;
-
-&lt;p&gt;We also pass in &lt;code&gt;scope&lt;/code&gt;s to a few strategies, which is where we can configure omniauth to request specific permissions.  Sometimes you need to enable them on the remote side before you can request things (&lt;em&gt;e.g.&lt;/em&gt; google, twitter) so make sure that things are setup there.&lt;/p&gt;
-
-&lt;p&gt;We&amp;#39;ll go into how to dynamically set that scope later on.&lt;/p&gt;
-
-&lt;h2 id="tell-devise-about-omniauthable"&gt;Tell Devise about omniauthable&lt;/h2&gt;
-
-&lt;p&gt;Open up &lt;code&gt;app/models/user.rb&lt;/code&gt; and add &lt;code&gt;:omniauthable&lt;/code&gt; to your &lt;code&gt;devise&lt;/code&gt; line and remove &lt;code&gt;:validatable&lt;/code&gt;:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;  devise :omniauthable, :database_authenticatable, :registerable,
-         :recoverable, :rememberable, :trackable
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Now you should see that there are a list of connect with our services when you go to your sign in or login pages.&lt;/p&gt;
-
-&lt;h2 id="create-a-formuser-to-handle-validations"&gt;Create a FormUser to handle validations&lt;/h2&gt;
-
-&lt;p&gt;Not all services return email addresses, and by default the devise validations expect them.  Let&amp;#39;s move those validations out of the base &lt;code&gt;User&lt;/code&gt; class into a &lt;code&gt;FormUser&lt;/code&gt; class.&lt;/p&gt;
-
-&lt;ol&gt;
-&lt;li&gt;Remove &lt;code&gt;:validatable&lt;/code&gt; from &lt;code&gt;app/models/user.rb&lt;/code&gt; (which you&amp;#39;ve done above)&lt;/li&gt;
-&lt;li&gt;Tell devise to use our new model.&lt;/li&gt;
-&lt;li&gt;Create the forms_user.rb class.&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;Inside of &lt;code&gt;config/routes.rb&lt;/code&gt;:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;devise_for :users, class_name: &amp;#39;FormUser&amp;#39;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;And &lt;code&gt;app/models/form_user.rb&lt;/code&gt; should look like:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;class FormUser &amp;lt; User
-  attr_accessor :current_password
-
-  validates_presence_of   :email, if: :email_required?
-  validates_uniqueness_of :email, allow_blank: true, if: :email_changed?
-  validates_format_of     :email, with: Devise.email_regexp, allow_blank: true, if: :email_changed?
-
-  validates_presence_of     :password, if: :password_required?
-  validates_confirmation_of :password, if: :password_required?
-  validates_length_of       :password, within: Devise.password_length, allow_blank: true
-
-  def password_required?
-    return false if email.blank?
-    !persisted? || !password.nil? || !password_confirmation.nil?
-  end
-
-  def email_required?
-    true
-  end
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;The &lt;code&gt;class_name&lt;/code&gt; inside of the devise config will tell it to use this class for building forms, and we have the validations on this class so our error messages will work on the site, but we&amp;#39;ll be able to save objects without it.&lt;/p&gt;
-
-&lt;h2 id="create-identity-model-to-store-access_keys-and-metadata"&gt;Create Identity model to store access_keys and metadata&lt;/h2&gt;
-
-&lt;p&gt;Now we are ready to plug in oauth authentications.  The flow is:&lt;/p&gt;
-
-&lt;ol&gt;
-&lt;li&gt;User requests &lt;code&gt;/users/auth/:provider&lt;/code&gt;, where provider one of the strategies that you defined above.&lt;/li&gt;
-&lt;li&gt;Omniauth does magic and directs the user to the remote service.&lt;/li&gt;
-&lt;li&gt;The user grants us access and is redirected to the callback path.&lt;/li&gt;
-&lt;li&gt;The OmniauthCallbacks controller is called on our application with the relavent info.&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;We will use this info to create the user.  We are also going to store it to be able to access the service on behalf of the user, and we&amp;#39;ll need to store the &lt;code&gt;access_token&lt;/code&gt; in order to do so.&lt;/p&gt;
-
-&lt;p&gt;Google is slightly more complicated and we&amp;#39;ll need to store a &lt;code&gt;refresh_token&lt;/code&gt; as well.&lt;/p&gt;
-
-&lt;p&gt;Lets create that model now:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;$ rails model identity user:references provider:string accesstoken:string refreshtoken:string uid:string name:string email:string nickname:string image:string phone:string urls:string
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;And flesh out &lt;code&gt;app/models/identity.rb&lt;/code&gt;&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;class Identity &amp;lt; ActiveRecord::Base
-  belongs_to :user
-  validates_presence_of :uid, :provider
-  validates_uniqueness_of :uid, :scope =&amp;gt; :provider
-
-  def self.find_for_oauth(auth)
-    identity = find_by(provider: auth.provider, uid: auth.uid)
-    identity = create(uid: auth.uid, provider: auth.provider) if identity.nil?
-    identity.accesstoken = auth.credentials.token
-    identity.refreshtoken = auth.credentials.refresh_token
-    identity.name = auth.info.name
-    identity.email = auth.info.email
-    identity.nickname = auth.info.nickname
-    identity.image = auth.info.image
-    identity.phone = auth.info.phone
-    identity.urls = (auth.info.urls || &amp;quot;&amp;quot;).to_json
-    identity.save
-    identity
-  end
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Now we need to tell devise to use this model.&lt;/p&gt;
-
-&lt;h2 id="create-omniauthcallbackscontroller-to-pull-in-data"&gt;Create OmniauthCallbacksController to pull in data&lt;/h2&gt;
-
-&lt;p&gt;We&amp;#39;re going to build one method to handle the different authentication callbacks, called &lt;code&gt;generic_callback&lt;/code&gt;.  The logic of this controller is:&lt;/p&gt;
-
-&lt;ol&gt;
-&lt;li&gt;Find or create an &lt;code&gt;Identity&lt;/code&gt; object for the incoming oauth data.  Update it with the latest info.&lt;/li&gt;
-&lt;li&gt;If there is no user associated with the Identity, associate it with the current_user.&lt;/li&gt;
-&lt;li&gt;If there is no current_user, create a new User object.&lt;/li&gt;
-&lt;li&gt;If the User object doesn&amp;#39;t have an email address set yet, but we do have one from the remote service, set the email address to that.&lt;/li&gt;
-&lt;li&gt;Log the user in and let the continue on their way.&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;First we need to tell devise about our controller in &lt;code&gt;routes.rb&lt;/code&gt;&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;devise_for :users, class_name: &amp;#39;FormUser&amp;#39;, :controllers =&amp;gt; { omniauth_callbacks: &amp;#39;omniauth_callbacks&amp;#39; }
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Create &lt;code&gt;app/controllers/omniauth_callback_controller.rb&lt;/code&gt;:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;class OmniauthCallbacksController &amp;lt; Devise::OmniauthCallbacksController
-  def instagram
-    generic_callback( &amp;#39;instagram&amp;#39; )
-  end
-
-  def facebook
-    generic_callback( &amp;#39;facebook&amp;#39; )
-  end
-
-  def twitter
-    generic_callback( &amp;#39;twitter&amp;#39; )
-  end
-
-  def google_oauth2
-    generic_callback( &amp;#39;google_oauth2&amp;#39; )
-  end
-
-  def generic_callback( provider )
-    @identity = Identity.find_for_oauth env[&amp;quot;omniauth.auth&amp;quot;]
-
-    @user = @identity.user || current_user
-    if @user.nil?
-      @user = User.create( email: @identity.email || &amp;quot;&amp;quot; )
-      @identity.update_attribute( :user_id, @user.id )
-    end
-
-    if @user.email.blank? &amp;amp;&amp;amp; @identity.email
-      @user.update_attribute( :email, @identity.email)
-    end
-
-    if @user.persisted?
-      @identity.update_attribute( :user_id, @user.id )
-      # This is because we&amp;#39;ve created the user manually, and Device expects a
-      # FormUser class (with the validations)
-      @user = FormUser.find @user.id
-      sign_in_and_redirect @user, event: :authentication
-      set_flash_message(:notice, :success, kind: provider.capitalize) if is_navigational_format?
-    else
-      session[&amp;quot;devise.#{provider}_data&amp;quot;] = env[&amp;quot;omniauth.auth&amp;quot;]
-      redirect_to new_user_registration_url
-    end
-  end
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id="override-registrationscontroller-to-handle-adding-email-address-and-password"&gt;Override RegistrationsController to handle adding email address and password&lt;/h2&gt;
-
-&lt;p&gt;We want to let the user add an email address if they haven&amp;#39;t already, and also let them set a password if they haven&amp;#39;t already set one.  (Otherwise it requires the user to enter in &lt;code&gt;current_password&lt;/code&gt;.)  Lets first tell devise about our new controller:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;devise_for :users, class_name: &amp;#39;FormUser&amp;#39;, :controllers =&amp;gt; { omniauth_callbacks: &amp;#39;omniauth_callbacks&amp;#39;, registrations: &amp;#39;registrations&amp;#39;}
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;And then create that controller:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;class RegistrationsController &amp;lt; Devise::RegistrationsController
-  def update_resource(resource, params)
-    if resource.encrypted_password.blank? # || params[:password].blank?
-      resource.email = params[:email] if params[:email]
-      if !params[:password].blank? &amp;amp;&amp;amp; params[:password] == params[:password_confirmation]
-        logger.info &amp;quot;Updating password&amp;quot;
-        resource.password = params[:password]
-        resource.save
-      end
-      if resource.valid?
-        resource.update_without_password(params)
-      end
-    else
-      resource.update_with_password(params)
-    end
-  end
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;And now we should be good!  Give it a go and see how it looks!&lt;/p&gt;
-
-&lt;h2 id="adding-methods-to-user-to-get-to-the-clients"&gt;Adding methods to User to get to the clients&lt;/h2&gt;
-
-&lt;p&gt;This goes into &lt;code&gt;app/models/user.rb&lt;/code&gt;:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;  has_many :identities
-
-  def twitter
-    identities.where( :provider =&amp;gt; &amp;quot;twitter&amp;quot; ).first
-  end
-
-  def twitter_client
-    @twitter_client ||= Twitter.client( access_token: twitter.accesstoken )
-  end
-
-  def facebook
-    identities.where( :provider =&amp;gt; &amp;quot;facebook&amp;quot; ).first
-  end
-
-  def facebook_client
-    @facebook_client ||= Facebook.client( access_token: facebook.accesstoken )
-  end
-
-  def instagram
-    identities.where( :provider =&amp;gt; &amp;quot;instagram&amp;quot; ).first
-  end
-
-  def instagram_client
-    @instagram_client ||= Instagram.client( access_token: instagram.accesstoken )
-  end
-
-  def google_oauth2
-    identities.where( :provider =&amp;gt; &amp;quot;google_oauth2&amp;quot; ).first
-  end
-
-  def google_oauth2_client
-    if !@google_oauth2_client
-      @google_oauth2_client = Google::APIClient.new(:application_name =&amp;gt; &amp;#39;HappySeed App&amp;#39;, :application_version =&amp;gt; &amp;quot;1.0.0&amp;quot; )
-      @google_oauth2_client.authorization.update_token!({:access_token =&amp;gt; google_oauth2.accesstoken, :refresh_token =&amp;gt; google_oauth2.refreshtoken})
-    end
-    @google_oauth2_client
-  end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Now you can access a configured API client using things like &lt;code&gt;current_user.twitter&lt;/code&gt;.&lt;/p&gt;
-
-&lt;h2 id="passing-dynamic-scopes-to-omniauth"&gt;Passing dynamic scopes to omniauth&lt;/h2&gt;
-
-&lt;p&gt;In the current scheme above, you have to hard code the scopes that you want to request for the user which doesn&amp;#39;t always work.  It would be better to only request write access if the user really needs to have it, and by default only get read-only access.  In order to do this we can leverage the &lt;code&gt;Omniauth&lt;/code&gt; setup property.  Inside of &lt;code&gt;devise.rb&lt;/code&gt; add &lt;code&gt;setup: true&lt;/code&gt; to each of the services you want to be able to upgrade.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;    config.omniauth :google_oauth2, ENV[&amp;#39;GOOGLE_OAUTH2_APP_ID&amp;#39;], ENV[&amp;#39;GOOGLE_OAUTH2_APP_SECRET&amp;#39;], scope: &amp;quot;email,profile,offline&amp;quot;, prompt: &amp;quot;consent&amp;quot;, setup: true
-    config.omniauth :instagram, ENV[&amp;#39;INSTAGRAM_APP_ID&amp;#39;], ENV[&amp;#39;INSTAGRAM_APP_SECRET&amp;#39;], setup: true
-    config.omniauth :facebook, ENV[&amp;#39;FACEBOOK_APP_ID&amp;#39;], ENV[&amp;#39;FACEBOOK_APP_SECRET&amp;#39;], scope: &amp;quot;email&amp;quot;, setup: true
-    config.omniauth :twitter, ENV[&amp;#39;TWITTER_APP_ID&amp;#39;], ENV[&amp;#39;TWITTER_APP_SECRET&amp;#39;], setup: true
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Let&amp;#39;s add a few routes in &lt;code&gt;routes.rb&lt;/code&gt; that we can have the user link to:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;  devise_scope :user do
-    get &amp;#39;/users/auth/:provider/upgrade&amp;#39; =&amp;gt; &amp;#39;omniauth_callbacks#upgrade&amp;#39;, as: :user_omniauth_upgrade
-    get &amp;#39;/users/auth/:provider/setup&amp;#39;, :to =&amp;gt; &amp;#39;omniauth_callbacks#setup&amp;#39;
-  end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;The first route is something that we&amp;#39;ll have the user link to, using &lt;code&gt;user_omniauth_upgrade_path( :google_oauth2 )&lt;/code&gt; for example.  The second &lt;code&gt;setup&lt;/code&gt; route is what omniauth will call internally that we can use to change the &lt;code&gt;scope&lt;/code&gt; parameter.  These go into &lt;code&gt;omniauth_callbacks_controller.rb&lt;/code&gt;.&lt;/p&gt;
-
-&lt;p&gt;The first &lt;code&gt;upgrade&lt;/code&gt; method looks at the provider and sets a &lt;code&gt;flash&lt;/code&gt; variable for the additional access.  In this case, we are asking for the &lt;code&gt;https://www.googleapis.com/auth/admin.directory.user&lt;/code&gt; also.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;  def upgrade
-    scope = nil
-    if params[:provider] == &amp;quot;google_oauth2&amp;quot;
-      scope = &amp;quot;email,profile,offline,https://www.googleapis.com/auth/admin.directory.user&amp;quot;
-    end
-
-    redirect_to user_omniauth_authorize_path( params[:provider] ), flash: { scope: scope }
-  end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Then it directs the user back to the normal flow.&lt;/p&gt;
-
-&lt;p&gt;When you specify &lt;code&gt;setup: true&lt;/code&gt; inside of the omniauth configuration, there is magic that calls the &lt;code&gt;setup_path&lt;/code&gt; by default, and this is the method where we change the scope from the default in the strategy:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;  def setup
-    request.env[&amp;#39;omniauth.strategy&amp;#39;].options[&amp;#39;scope&amp;#39;] = flash[:scope] || request.env[&amp;#39;omniauth.strategy&amp;#39;].options[&amp;#39;scope&amp;#39;]
-    render :text =&amp;gt; &amp;quot;Setup complete.&amp;quot;, :status =&amp;gt; 404
-  end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Now in your views, you can do&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="erb"&gt;&amp;lt;%= link_to &amp;quot;Upgrade Access&amp;quot;, user_omniauth_upgrade_path( :google_oauth2 ) %&amp;gt;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;And the user will go through the oauth flow again requesting the additional access.&lt;/p&gt;
-
-&lt;h2 id="conclusion"&gt;Conclusion&lt;/h2&gt;
-
-&lt;p&gt;Making all of this work is possible, but there are a lot of fiddly little bits to make it work.  Both devise and all of the many omniauth strategies out there make it easy to add this functionality to your application.&lt;/p&gt;
-
-&lt;p&gt;Check out &lt;a href="http://seed.happyfuncorp.com"&gt;seed&lt;/a&gt; to quickly create an application will all of this stuff done for you!&lt;/p&gt;
 </content>
   </entry>
 </feed>
