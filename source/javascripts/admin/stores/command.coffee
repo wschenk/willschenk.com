@@ -7,8 +7,11 @@
 @publishDraft = Reflux.createAction
   asyncResult: true
 
-@runLater = (cmd, path) ->
+@runLater = (cmd, findPath) ->
   ->
+    path = null
+    if findPath
+      path = pathStore.state.path
     runCommand( cmd, path )
 
 @commandResultStore = Reflux.createStore

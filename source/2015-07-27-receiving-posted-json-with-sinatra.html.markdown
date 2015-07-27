@@ -8,7 +8,7 @@ Here's some simple code to accept a JSON string posted to a [Sinatra]( http://ww
 
 I needed something that could do both.
 
-## Code to use formed encoded or JSON blob
+## Code to use form encoding or JSON blob
 
 This first tries and loads the parameters using the normal form encoding methods.  If it doesn't find the `path` parameter, it attempts to parse the body's payload, found in `request.body.read`, using `JSON.parse`:
 
