@@ -3,6 +3,8 @@
     newDraftModal: false
     metadata: 
       title: ""
+      subtitle: ""
+      tags: ""
 
   toggleModal: ->
     @state.newDraftModal = !@state.newDraftModal
@@ -11,6 +13,15 @@
       subtitle: ""
       tags: ""
     @setState @state
+
+  updateMeta: (metadata) ->
+    @state.metadata = metadata
+    @setState @state
+
+  onCreateNewDraft: ->
+    console.log "Running create new draft"
+    @state.newDraftModal = false
+    createNewDraft( @state.metadata )
 
   render: ->
     <Nav navbar>
@@ -27,7 +38,6 @@
     @setState @state
 
   newDraftModal: ->
-    console.log "New Draft Modal", @state.newDraftModal
     return <span/> unless @state.newDraftModal
 
     <Modal title='New Draft' onRequestHide={@toggleModal}>
@@ -36,6 +46,6 @@
       </div>
       <div className='modal-footer'>
         <Button onClick={@closeModal}>Cancel</Button>
-        <Button bsStyle='primary' onClick={@createNewDraft} disabled={@state.metadata.title.length < 5}>Update Data</Button>
+        <Button bsStyle='primary' onClick={@onCreateNewDraft} disabled={@state.metadata.title.length < 5}>New Draft</Button>
       </div>
     </Modal>
