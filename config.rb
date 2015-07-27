@@ -1,5 +1,6 @@
 # Begin Admin Tool
 
+require 'sprockets/coffee-react'
 require 'lib/apiserver.rb'
 
 set :server, 'thin'
@@ -8,15 +9,16 @@ map "/api" do
   run ApiServer
 end
 
-page "/admin/*html", layout: "admin/layout"
+page "/admin/*html", layout: false
 
-activate :react do |conf|
- conf.components = ['admin/offline.js']
-end
+activate :react
+
+::Sprockets.register_preprocessor 'application/javascript', ::Sprockets::CoffeeReact
+::Sprockets.register_engine '.cjsx', ::Sprockets::CoffeeReactScript
+::Sprockets.register_engine '.js.cjsx', ::Sprockets::CoffeeReactScript
 
 after_configuration do
   sprockets.append_path File.dirname(::React::Source.bundled_path_for('react.js'))
-  sprockets.append_path File.dirname(Middleman::React::react_ujs_path)
 end
 
 set :debug_assets, true

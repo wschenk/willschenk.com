@@ -27,4 +27,5 @@ gem "middleman-graphviz"#, path: "../middleman-graphviz"
 gem "sinatra"
 gem "sinatra-contrib"
 
-gem "middleman-react", path: "../middleman-react" #github: "happyfuncorp/middleman-react"
+gem "middleman-react"
+gem "sprockets-coffee-react"
