@@ -28,11 +28,12 @@
   newDraftModal: ->
     return <span/> unless @state.newDraftModal
 
-    <Modal title='New Draft' onRequestHide={@toggleModal}>
+    <Modal title='Update' onRequestHide={@toggleModal}>
       <div className='modal-body'>
-        <h1>This should be the meta data editor</h1>
+        <MetadataEditor metadata={@state.metadata} />
       </div>
       <div className='modal-footer'>
-        <Button onClick={@createNewDraft} disabled={@state.metadata.title.length < 5}>Create Draft</Button>
+        <Button onClick={@closeModal}>Cancel</Button>
+        <Button bsStyle='primary' onClick={@createNewDraft} disabled={@state.metadata.title.length < 5}>Update Data</Button>
       </div>
     </Modal>
