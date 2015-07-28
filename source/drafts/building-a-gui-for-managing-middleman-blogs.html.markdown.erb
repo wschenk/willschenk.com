@@ -2,17 +2,42 @@
 title: Building a GUI for managing middleman blogs
 subtitle: the site will still be fast, really fast
 tags: middleman, static_sites, react
-date: '2015-07-13T16:22:13.969Z'
+date: '2015-07-28T15:45:21.972Z'
 ---
 Lets take a look at how we'd start to implement [Slow Data and Fast Sites](/slow-data-and-fast-sites/) using the example of building an admin UI for a Middleman blog.
 
+## TLDR
+
+Given a middleman app:
+
+1. Make sure you have `middleman-blog`, `middleman-blog-drafts` and `middleman-blog-ui` in your `Gemfile`.  (This document will describe how `middleman-blog-ui` works.) 
+2. Add `activate :blog_ui` in `config.rb`
+3. Start `middleman server`
+4. Visit [http://localhost:4567/admin](http://localhost:4567/admin).
+
+This will let you
+
+- Edit existing drafts and posts
+- Create new drafts
+- Publish drafts into posts
+- Run some basic `git` commands.
+- Run `middleman build`
+- Run `middleman deploy`
+
+## Why do this
+
+This is explained in more detail in the  [Slow Data and Fast Sites](/slow-data-and-fast-sites/) post, but basically what we're trying to do it seperate out runtime tooling with development time tooling.  Static sites have a huge runtime benefit, but actually setting them up and running them can [really suck](http://veekaybee.github.io/static-sites-suck/).  This is a proof of concept of how to add a CMS to a static site so that it's easier to manage.
 
 ## The basic idea
 
-We're going to add a `/admin` directory to the middleman site which will host a static JavaScript application.  This application will consume data from your middleman app in the `development` environment, such as the lists of published and draft articles, and will be able to trigger commands such as:
+We're going to add a `/admin` directory to the middleman site which will host a static JavaScript application.  This application will consume data from your middleman app in the `development` environment, such as the lists of published and draft articles, and will interact with a API server that will be mounted as part of the middleman preview server.  This will allow the Javascript app to change the filesystem, which will in turn be monitored and rendered by the middleman application.  An example of the commands that can be triggered are:
 
-<div class="diagram_right">
-  <% graphviz do %>
+- create new draft
+- publish draft into article
+- `git status`
+- `bundle exec middleman build`
+
+<% graphviz do %>
     digraph G {
 rankdir=BT
 node [shape=box ];
@@ -26,15 +51,10 @@ api -> app;
 admin -> api;
 admin -> app;
     }
-  <% end %> 
-</div>
+<% end %> 
 
-- create new draft
-- publish draft into article
-- `git status`
-- `bundle exec middleman build`
 
-Let go through each of the components.
+Let go through each of the components as if we were building them in our app directly.  The `gem` does a lot of this for you, but it's always nice to see how it works.
 
 ## Static Middleman Site
 
@@ -49,6 +69,7 @@ page "/admin/*html", layout: "admin/layout"
 configure :build do
   ignore '/admin/*'
   ignore '/stylesheets/admin/*'
+  ignore '/javascripts/admin/*'
 end
 ```
 
@@ -73,7 +94,7 @@ Note that when we do `middleman build` these files _will not_ be generated, sinc
 
 ## The Sinatra App
 
-That's fine for static data, or data that can be exposed using normal middleman ways of doing things, but we'll also want to be able to interact with the filesystem and run commands.  It's also going to be useful to interact with the middleman _Sitemap_ as it understands it, so we can build a simple sinatra app that acts as a bridge.  The current version of the code I'm using for this blog can be found [on github](https://github.com/wschenk/willschenk.com/blob/master/lib/apiserver.rb).
+That's fine for static data, or data that can be exposed using normal middleman ways of doing things, but we'll also want to be able to interact with the filesystem and run commands.  It's also going to be useful to interact with the middleman _Sitemap_ as it understands it, so we can build a simple sinatra app that acts as a bridge.  The current version of the code I'm using for this blog can be found [on github](https://github.com/HappyFunCorp/middleman-blog-ui/blob/master/lib/middleman/blog/ui/api_server.rb).
 
 First we need to `require` and `mount` our app on `config.rb`.  This is done like so:
 
@@ -144,3 +165,80 @@ class ApiServer < Sinatra::Base
   end
 end
 ```
+
+## The Javascript App
+
+I also wanted to see how to build this in [React](http://facebook.github.io/react/index.html) and [Reflux](https://github.com/reflux/refluxjs) to start exploring how we can start to add build-type rendering into the equation.  While this doesn't do any server side rendering, its still good to explore how a React app actually works.
+
+The main html file simple calls `React.render( React.createElement(App, null), document.getElementById('content') );` to setup the page.  The [App](https://github.com/HappyFunCorp/middleman-blog-ui/blob/master/source/javascripts/admin/components/app.js.coffee) component works off of the [pathStore](https://github.com/HappyFunCorp/middleman-blog-ui/blob/master/source/javascripts/admin/stores/article.coffee) component, which keeps track of what page the user is currently editing.  Lets take a quick look at how the [DashboardDraftList](https://github.com/HappyFunCorp/middleman-blog-ui/blob/master/source/javascripts/admin/components/dashboard_draft_list.js.coffee) component works:
+
+```coffeescript
+@DashboardDraftList = React.createClass
+  mixins: [Reflux.connect(draftStore)],
+
+  getInitialState: ->
+    drafts: []
+
+  componentDidMount: -> updateDraftList()
+
+  render: ->
+    drafts = @state.drafts.map (item) ->
+      <li key={item.path}><a onClick={viewPath.bind(this, item.path)}>{item.title}</a></li>
+
+    <div className="maincontent">
+      <h1>Drafts</h1>
+      
+      <ul className="nav nav-pills nav-stacked">
+        {drafts}
+      </ul>
+    </div>
+```
+
+The first thing that this does is wire itself up to the `draftStore` class, which manages the communication to the server.  When this changes, `draftStore` will trigger a state change and all components that have been connected will receive a `setState` message, which will then call the `render` method.  As part of the React component life cycle `componentDidMount`, we call the `updateDraftList()` action when the component is first loaded on the page.  This is defined in [drafts store](https://github.com/HappyFunCorp/middleman-blog-ui/blob/master/source/javascripts/admin/stores/drafts.coffee):
+
+```coffeescript
+@updateDraftList = Reflux.createAction
+  asyncResult: true
+
+@draftStore = Reflux.createStore
+  init: ->
+    @drafts = []
+    @listenTo( updateDraftList, @onUpdateDrafts )
+
+  onUpdateDrafts: ->
+    request.get "/admin/drafts.json", (err, response) =>
+      if response.ok
+        updateDraftList.completed( response.body )
+        @drafts = response.body
+        @trigger @drafts
+      else
+        updateDraftList.failed(response.error)
+```
+
+The first thing we do is to define and export a `Reflux` action called `updateDraftList`.  This action is what the `componentDidMount` function triggeres.  Inside of the `draftStore` we listen for that action, and when it get it, call `onUpdateDrafts`.  This uses request.get to load up the json from `/admin/drafts.json` and then pushes it out to all of the components that have subscribed to it.
+
+The other components are [defined here](https://github.com/HappyFunCorp/middleman-blog-ui/tree/master/source/javascripts/admin/components) and the different stores can be [found here](https://github.com/HappyFunCorp/middleman-blog-ui/tree/master/source/javascripts/admin/stores).  This is my first real React app so I'm sure there's cleaner/better ways of doing things...
+
+## Putting it all together
+
+When I was working on this I did it out of the directory of this blog, but I wanted to package it up into a gem so that other folks could use it.  I pulled the relavent code out from `willschenk.com/source` into `middleman-blog-ui/source` and then created a middleman extension to put the various templates in the sitemap, tell sprockets where to find the javascript files, and setup coffee script.
+
+The [full code](https://github.com/HappyFunCorp/middleman-blog-ui/blob/master/lib/middleman/blog/ui/extension.rb) is found on github, but to explain how it works:
+
+1. Define `SOURCE_DIR`
+2. Map the sinatra app `ApiServer` in the extentions `initialize` method, using `app.map`.
+3. Register the CoffeeScript processing using `::Sprockets.register_preprocessor 'application/javascript', ::Sprockets::CoffeeReact`
+4. Use `after_configuration` to register the application templates, by creating `Middleman::Sitemap::Resource` objects mapping the sitemap urls with the filesytem paths.
+5. Adding each of the javascript and stylesheet files to `app.sprockets`.
+
+## Next steps
+
+This is mainly a proof of concept, but I'm using it right now to write this post.  The app itself needs
+
+1. A decent UI
+2. Support for other static generators other than middleman
+3. A concept of users
+4. Shared drafts
+5. Better error handling
+
+If you are at all interested in this, please let me know!

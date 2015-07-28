@@ -3,8 +3,6 @@
 require 'sprockets/coffee-react'
 require 'lib/apiserver.rb'
 
-set :server, 'thin'
-
 map "/api" do
   run ApiServer
 end
