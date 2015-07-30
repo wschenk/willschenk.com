@@ -5,10 +5,304 @@
   <id>http://willschenk.com/</id>
   <link href="http://willschenk.com/"/>
   <link href="http://willschenk.com/feed.xml" rel="self"/>
-  <updated>2015-07-25T12:15:16-04:00</updated>
+  <updated>2015-07-30T15:36:33-04:00</updated>
   <author>
     <name>Will Schenk</name>
   </author>
+  <entry>
+    <title>Building a GUI for managing middleman blogs</title>
+    <link rel="alternate" href="http://willschenk.com/building-a-gui-for-managing-middleman-blogs/"/>
+    <id>http://willschenk.com/building-a-gui-for-managing-middleman-blogs/</id>
+    <published>2015-07-29T20:00:00-04:00</published>
+    <updated>2015-07-29T20:00:00-04:00</updated>
+    <author>
+      <name>Will Schenk</name>
+    </author>
+    <content type="html">&lt;p&gt;Can we make static site generators work like a normal site? Lets take a look at how we&amp;#39;d start to implement &lt;a href="/slow-data-and-fast-sites/"&gt;Slow Data and Fast Sites&lt;/a&gt; using the example of building an admin UI for a Middleman blog.&lt;/p&gt;
+
+&lt;h2 id="tldr"&gt;TLDR&lt;/h2&gt;
+
+&lt;p&gt;Given a middleman app with &lt;code&gt;middleman-blog&lt;/code&gt; and &lt;code&gt;middleman-blog-drafts&lt;/code&gt; configured:&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;Add &lt;code&gt;middleman-blog-ui&lt;/code&gt; in your &lt;code&gt;Gemfile&lt;/code&gt;.  &lt;em&gt;This document describes how &lt;code&gt;middleman-blog-ui&lt;/code&gt; works.&lt;/em&gt;&lt;/li&gt;
+&lt;li&gt;Add &lt;code&gt;activate :blog_ui&lt;/code&gt; in &lt;code&gt;config.rb&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;Start &lt;code&gt;middleman server&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;Visit &lt;a href="http://localhost:4567/admin"&gt;http://localhost:4567/admin&lt;/a&gt;.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;And now you are living in the fabulous world where you can, from your browser:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;Edit existing drafts and posts&lt;/li&gt;
+&lt;li&gt;Create new drafts&lt;/li&gt;
+&lt;li&gt;Publish drafts into posts&lt;/li&gt;
+&lt;li&gt;Run some basic &lt;code&gt;git&lt;/code&gt; commands.&lt;/li&gt;
+&lt;li&gt;Run &lt;code&gt;middleman build&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;Run &lt;code&gt;middleman deploy&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id="why-do-this"&gt;Why do this&lt;/h2&gt;
+
+&lt;p&gt;This is explained in more detail in the  &lt;a href="/slow-data-and-fast-sites/"&gt;Slow Data and Fast Sites&lt;/a&gt; post, but basically what we&amp;#39;re trying to do it seperate out runtime tooling with development time tooling.  &lt;em&gt;Future work will be around differentiating when components are rendered and from which data source.&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;Static sites have a huge runtime benefit, but actually setting them up and running them can &lt;a href="http://veekaybee.github.io/static-sites-suck/"&gt;really suck unless you already know how to do it&lt;/a&gt;.  This is a proof of concept of how to add a CMS to a static site so that it&amp;#39;s easier to manage.  This doesn&amp;#39;t address the &amp;quot;pain in the ass to setup&amp;quot; part, but it helps with the usability.&lt;/p&gt;
+
+&lt;p&gt;Lets walk through what we&amp;#39;re doing if we were to implement this in your own app directly.  The gem packages this up with a slightly different directory scheme, but the code below is the same but slightly easier to understand.&lt;/p&gt;
+
+&lt;h2 id="the-basic-idea"&gt;The basic idea&lt;/h2&gt;
+
+&lt;p&gt;We&amp;#39;re going to add a static JavaScript application in the &lt;code&gt;source/admin&lt;/code&gt; directory which will interact with the local filesystem and middleman install.  This application will consume data from your middleman app on the local system, in the &amp;quot;development&amp;quot; environment, such as the lists of published and draft articles, and will interact with a API server that will be mounted as part of the middleman preview server.  This will allow the Javascript app to change the filesystem, which will in turn be monitored and rendered by the middleman application.  &lt;/p&gt;
+
+&lt;p&gt;Examples of the commands that can be triggered are:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;create new draft&lt;/li&gt;
+&lt;li&gt;publish draft into article&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;git status&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;bundle exec middleman build&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;svg width="255pt" height="260pt" viewBox="0.00 0.00 255.34 260.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"&gt;&lt;g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 256)"&gt;&lt;title&gt;G&lt;/title&gt;&lt;polygon fill="white" stroke="none" points="-4,4 -4,-256 251.341,-256 251.341,4 -4,4"/&gt;&amp;lt;!-- app --&amp;gt;&lt;g id="node1" class="node"&gt;&lt;title&gt;app&lt;/title&gt;&lt;polygon fill="none" stroke="black" points="142.136,-252 0.722016,-252 0.722016,-216 142.136,-216 142.136,-252"/&gt;&lt;text text-anchor="middle" x="71.4292" y="-229.8" font-family="Times,serif" font-size="14.00"&gt;Static Middleman Site&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- admin --&amp;gt;&lt;g id="node2" class="node"&gt;&lt;title&gt;admin&lt;/title&gt;&lt;polygon fill="none" stroke="black" points="154.788,-36 0.0707361,-36 0.0707361,-0 154.788,-0 154.788,-36"/&gt;&lt;text text-anchor="middle" x="77.4292" y="-13.8" font-family="Times,serif" font-size="14.00"&gt;Admin JS FrontEnd App&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- admin&amp;#45;&amp;gt;app --&amp;gt;&lt;g id="edge5" class="edge"&gt;&lt;title&gt;admin&amp;#45;&amp;gt;app&lt;/title&gt;&lt;path fill="none" stroke="black" d="M66.8041,-36.444C61.3313,-46.4566 55.2313,-59.4912 52.4292,-72 42.0373,-118.39 53.6295,-173.651 62.7198,-205.883"/&gt;&lt;polygon fill="black" stroke="black" points="59.4841,-207.285 65.6713,-215.885 66.1979,-205.303 59.4841,-207.285"/&gt;&lt;/g&gt;&amp;lt;!-- api --&amp;gt;&lt;g id="node3" class="node"&gt;&lt;title&gt;api&lt;/title&gt;&lt;polygon fill="none" stroke="black" points="181.916,-108 60.9429,-108 60.9429,-72 181.916,-72 181.916,-108"/&gt;&lt;text text-anchor="middle" x="121.429" y="-85.8" font-family="Times,serif" font-size="14.00"&gt;Sinatra API Server&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- admin&amp;#45;&amp;gt;api --&amp;gt;&lt;g id="edge4" class="edge"&gt;&lt;title&gt;admin&amp;#45;&amp;gt;api&lt;/title&gt;&lt;path fill="none" stroke="black" d="M88.3056,-36.3034C93.4208,-44.4411 99.6247,-54.311 105.274,-63.2987"/&gt;&lt;polygon fill="black" stroke="black" points="102.393,-65.2919 110.678,-71.8957 108.319,-61.5667 102.393,-65.2919"/&gt;&lt;/g&gt;&amp;lt;!-- api&amp;#45;&amp;gt;app --&amp;gt;&lt;g id="edge3" class="edge"&gt;&lt;title&gt;api&amp;#45;&amp;gt;app&lt;/title&gt;&lt;path fill="none" stroke="black" d="M109.321,-108.433C102.869,-118.442 95.2835,-131.477 90.4292,-144 82.6849,-163.979 77.8136,-187.768 74.9446,-205.723"/&gt;&lt;polygon fill="black" stroke="black" points="71.4545,-205.398 73.4447,-215.804 78.3783,-206.428 71.4545,-205.398"/&gt;&lt;/g&gt;&amp;lt;!-- cmds --&amp;gt;&lt;g id="node4" class="node"&gt;&lt;title&gt;cmds&lt;/title&gt;&lt;polygon fill="none" stroke="black" points="247.254,-180 99.6049,-180 99.6049,-144 247.254,-144 247.254,-180"/&gt;&lt;text text-anchor="middle" x="173.429" y="-157.8" font-family="Times,serif" font-size="14.00"&gt;Middleman Commands&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- api&amp;#45;&amp;gt;cmds --&amp;gt;&lt;g id="edge2" class="edge"&gt;&lt;title&gt;api&amp;#45;&amp;gt;cmds&lt;/title&gt;&lt;path fill="none" stroke="black" d="M134.283,-108.303C140.454,-116.611 147.966,-126.723 154.753,-135.859"/&gt;&lt;polygon fill="black" stroke="black" points="151.95,-137.955 160.723,-143.896 157.569,-133.781 151.95,-137.955"/&gt;&lt;/g&gt;&amp;lt;!-- cmds&amp;#45;&amp;gt;app --&amp;gt;&lt;g id="edge1" class="edge"&gt;&lt;title&gt;cmds&amp;#45;&amp;gt;app&lt;/title&gt;&lt;path fill="none" stroke="black" d="M148.477,-180.124C135.388,-189.107 119.169,-200.237 104.993,-209.966"/&gt;&lt;polygon fill="black" stroke="black" points="102.742,-207.266 96.4771,-215.81 106.703,-213.038 102.742,-207.266"/&gt;&lt;/g&gt;&lt;/g&gt;&lt;/svg&gt;&lt;/p&gt;
+
+&lt;p&gt;Let go through each of the components as if we were building them in our app directly.  The &lt;code&gt;gem&lt;/code&gt; does a lot of this for you, but it&amp;#39;s always nice to see how it works.&lt;/p&gt;
+
+&lt;h2 id="static-middleman-site"&gt;Static Middleman Site&lt;/h2&gt;
+
+&lt;p&gt;We&amp;#39;re going to add our files in &lt;code&gt;source/admin&lt;/code&gt;, and &lt;code&gt;source/javascript/admin&lt;/code&gt; and &lt;code&gt;source/stylesheets/admin.scss&lt;/code&gt;.  All of these files will be rendered in development mode, so when the server is running locally and you load up &lt;a href="http://localhost:4567/admin"&gt;http://localhost:4567/admin&lt;/a&gt; we can use the middleman build process to load up our UI.  This, in turn, will use AJAX to pull in data from the running middleman instance.&lt;/p&gt;
+
+&lt;p&gt;Inside of &lt;code&gt;config.rb&lt;/code&gt;, we tell middleman about our pages, and we tell the build process to ignore these files as part of the build process since we don&amp;#39;t want to release them into production:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;page &amp;quot;/admin/*html&amp;quot;, layout: &amp;quot;admin/layout&amp;quot;
+
+# Build-specific configuration
+configure :build do
+  ignore &amp;#39;/admin/*&amp;#39;
+  ignore &amp;#39;/stylesheets/admin/*&amp;#39;
+  ignore &amp;#39;/javascripts/admin/*&amp;#39;
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;If they were not ignored, then you would be deploying a read-only version of the admin tools, since the production build would include the javascript application but not the API which is needed to make changes.&lt;/p&gt;
+
+&lt;p&gt;This will allow us to create files like &lt;code&gt;/source/admin/drafts.json.erb&lt;/code&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="erb"&gt;&amp;lt;% d = drafts.collect do |d|
+    { path: d.path, title: d.title }
+  end
+%&amp;gt;&amp;lt;%= 
+  {drafts: d }.to_json
+%&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;That we can load from our JS app like:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="js"&gt;$.get( &amp;#39;/admin/drafts.json&amp;#39; ).then( function( data ) { console.log( data ) } );
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Note that when we do &lt;code&gt;middleman build&lt;/code&gt; these files &lt;em&gt;will not&lt;/em&gt; be generated, since we&amp;#39;ve specified them as &lt;code&gt;ignore&lt;/code&gt;.  These files only are in the &lt;code&gt;:development&lt;/code&gt; environment.&lt;/p&gt;
+
+&lt;h2 id="the-sinatra-app"&gt;The Sinatra App&lt;/h2&gt;
+
+&lt;p&gt;That&amp;#39;s fine for static data, or data that can be exposed using normal middleman ways of doing things, but we&amp;#39;ll also want to be able to interact with the filesystem and run commands.  It&amp;#39;s also going to be useful to interact with the middleman &lt;em&gt;Sitemap&lt;/em&gt; as it understands it, so we can build a simple sinatra app that acts as a bridge.  The current version of the code I&amp;#39;m using for this blog can be found &lt;a href="https://github.com/HappyFunCorp/middleman-blog-ui/blob/master/lib/middleman/blog/ui/api_server.rb"&gt;on github&lt;/a&gt;.&lt;/p&gt;
+
+&lt;p&gt;First we need to &lt;code&gt;require&lt;/code&gt; and &lt;code&gt;mount&lt;/code&gt; our app on &lt;code&gt;config.rb&lt;/code&gt;.  This is done like so:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;require &amp;#39;lib/apiserver.rb&amp;#39;
+
+map &amp;quot;/api&amp;quot; do
+  run ApiServer
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;The commands we want to support are:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;get /api/post&lt;/code&gt; - load a specific post and metadata&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;post /api/post&lt;/code&gt; - save a post and update metadata&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;post /api/images&lt;/code&gt; - upload an image (for drag and drop) (not implemented)&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;post /api/draft&lt;/code&gt; - create a new draft post&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;post /api/publish&lt;/code&gt; - change a draft into an article&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;post /api/update&lt;/code&gt; - run &lt;code&gt;git pull origin master 2&amp;gt;&amp;amp;1&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;post /api/diff&lt;/code&gt; - run &lt;code&gt;git diff 2&amp;gt;$1&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;post /api/status&lt;/code&gt; - run &lt;code&gt;git status 2&amp;gt;&amp;amp;1&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;post /api/build&lt;/code&gt; - run &lt;code&gt;bundle exec middleman build 2&amp;gt;&amp;amp;1&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;post /api/deploy&lt;/code&gt; - run &lt;code&gt;bundle exec middleman deploy 2&amp;gt;&amp;amp;1&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;To reiterate right now the code is in more of a proof of concept, butso please feel free to make suggestions. Lets take a look at a few of these methods in &lt;code&gt;lib/api_server.rb&lt;/code&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;require &amp;#39;sinatra/base&amp;#39;
+require &amp;#39;sinatra/json&amp;#39;
+
+class ApiServer &amp;lt; Sinatra::Base
+  get &amp;#39;/&amp;#39; do
+    &amp;quot;This is the api server&amp;quot;
+  end
+
+  get &amp;#39;/post&amp;#39; do
+    app = load_app
+
+    logger.info &amp;quot;Looking up #{params[:path]}&amp;quot;
+
+    file = app.sitemap.find_resource_by_path params[:path] if params[:path]
+
+    if !file
+      status 404
+      json error: &amp;quot;Unknown path #{params[:path]}&amp;quot;
+    else
+      raw = File.read file.source_file
+      body = raw.gsub( /^---\n.*?---\n*/m, &amp;quot;&amp;quot; ) # Remove the preyaml
+
+      json meta: file.data, content: body
+    end
+  end
+
+  private
+  def load_app
+    opts = {}
+
+    app = ::Middleman::Application.server.inst do
+      set :environment, opts[:environment].to_sym if opts[:environment]
+
+      logger
+    end
+
+    app
+  end
+
+  def logger
+    ::Middleman::Logger.singleton( 1 )
+  end
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id="the-javascript-app"&gt;The Javascript App&lt;/h2&gt;
+
+&lt;p&gt;I also wanted to see how to build this in &lt;a href="http://facebook.github.io/react/index.html"&gt;React&lt;/a&gt; and &lt;a href="https://github.com/reflux/refluxjs"&gt;Reflux&lt;/a&gt; to start exploring how we can start to add build-type rendering into the equation.  While this doesn&amp;#39;t do any server side rendering, its still good to explore how a React app actually works.&lt;/p&gt;
+
+&lt;p&gt;The main html file simple calls &lt;code&gt;React.render( React.createElement(App, null), document.getElementById(&amp;#39;content&amp;#39;) );&lt;/code&gt; to setup the page.  The &lt;a href="https://github.com/HappyFunCorp/middleman-blog-ui/blob/master/source/javascripts/admin/components/app.js.coffee"&gt;App&lt;/a&gt; component works off of the &lt;a href="https://github.com/HappyFunCorp/middleman-blog-ui/blob/master/source/javascripts/admin/stores/article.coffee"&gt;pathStore&lt;/a&gt; component, which keeps track of what page the user is currently editing.  Lets take a quick look at how the &lt;a href="https://github.com/HappyFunCorp/middleman-blog-ui/blob/master/source/javascripts/admin/components/dashboard_draft_list.js.coffee"&gt;DashboardDraftList&lt;/a&gt; component works:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="coffeescript"&gt;@DashboardDraftList = React.createClass
+  mixins: [Reflux.connect(draftStore)],
+
+  getInitialState: -&amp;gt;
+    drafts: []
+
+  componentDidMount: -&amp;gt; updateDraftList()
+
+  render: -&amp;gt;
+    drafts = @state.drafts.map (item) -&amp;gt;
+      &amp;lt;li key={item.path}&amp;gt;&amp;lt;a onClick={viewPath.bind(this, item.path)}&amp;gt;{item.title}&amp;lt;/a&amp;gt;&amp;lt;/li&amp;gt;
+
+    &amp;lt;div className=&amp;quot;maincontent&amp;quot;&amp;gt;
+      &amp;lt;h1&amp;gt;Drafts&amp;lt;/h1&amp;gt;
+
+      &amp;lt;ul className=&amp;quot;nav nav-pills nav-stacked&amp;quot;&amp;gt;
+        {drafts}
+      &amp;lt;/ul&amp;gt;
+    &amp;lt;/div&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;The first thing that this does is wire itself up to the &lt;code&gt;draftStore&lt;/code&gt; store which manages the communication to the server and the state received from the server.  When this changes, &lt;code&gt;draftStore&lt;/code&gt; will trigger a state change and all components that have been connected will receive a &lt;code&gt;setState&lt;/code&gt; message, which will then call the &lt;code&gt;render&lt;/code&gt; method of the component keeping the UI up to date.   As part of the React component life cycle &lt;code&gt;componentDidMount&lt;/code&gt;, we call the &lt;code&gt;updateDraftList()&lt;/code&gt; action when the component is first loaded on the page.  This is defined in &lt;a href="https://github.com/HappyFunCorp/middleman-blog-ui/blob/master/source/javascripts/admin/stores/drafts.coffee"&gt;drafts store&lt;/a&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="coffeescript"&gt;@updateDraftList = Reflux.createAction
+  asyncResult: true
+
+@draftStore = Reflux.createStore
+  init: -&amp;gt;
+    @drafts = []
+    @listenTo( updateDraftList, @onUpdateDrafts )
+
+  onUpdateDrafts: -&amp;gt;
+    request.get &amp;quot;/admin/drafts.json&amp;quot;, (err, response) =&amp;gt;
+      if response.ok
+        updateDraftList.completed( response.body )
+        @drafts = response.body
+        @trigger @drafts
+      else
+        updateDraftList.failed(response.error)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;The first thing we do is to define and export a &lt;code&gt;Reflux&lt;/code&gt; action called &lt;code&gt;updateDraftList&lt;/code&gt;.  This action is what the &lt;code&gt;componentDidMount&lt;/code&gt; function triggeres.  Inside of the &lt;code&gt;draftStore&lt;/code&gt; we listen for that action, and when it get it, call &lt;code&gt;onUpdateDrafts&lt;/code&gt;.  This uses request.get to load up the json from &lt;code&gt;/admin/drafts.json&lt;/code&gt; and then pushes it out to all of the components that have subscribed to it.&lt;/p&gt;
+
+&lt;p&gt;The other components are &lt;a href="https://github.com/HappyFunCorp/middleman-blog-ui/tree/master/source/javascripts/admin/components"&gt;defined here&lt;/a&gt; and the different stores can be &lt;a href="https://github.com/HappyFunCorp/middleman-blog-ui/tree/master/source/javascripts/admin/stores"&gt;found here&lt;/a&gt;.  This is my first real React app so I&amp;#39;m sure there&amp;#39;s cleaner/better ways of doing things...&lt;/p&gt;
+
+&lt;h2 id="putting-it-all-together"&gt;Putting it all together&lt;/h2&gt;
+
+&lt;p&gt;When I was working on this I did it out of the source directory of this blog, but I wanted to package it up into a gem so that other folks could use it.  I pulled the relavent code out from &lt;code&gt;willschenk.com/source&lt;/code&gt; into &lt;code&gt;middleman-blog-ui/source&lt;/code&gt; and then created a middleman extension to put the various templates in the sitemap, tell sprockets where to find the javascript files, and setup coffee script.&lt;/p&gt;
+
+&lt;p&gt;The &lt;a href="https://github.com/HappyFunCorp/middleman-blog-ui/blob/master/lib/middleman/blog/ui/extension.rb"&gt;full code&lt;/a&gt; is found on github, but to explain how it works:&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;Define &lt;code&gt;SOURCE_DIR&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;Map the sinatra app &lt;code&gt;ApiServer&lt;/code&gt; in the extentions &lt;code&gt;initialize&lt;/code&gt; method, using &lt;code&gt;app.map&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;Register the CoffeeScript processing using &lt;code&gt;::Sprockets.register_preprocessor &amp;#39;application/javascript&amp;#39;, ::Sprockets::CoffeeReact&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;Use &lt;code&gt;after_configuration&lt;/code&gt; to register the application templates, by creating &lt;code&gt;Middleman::Sitemap::Resource&lt;/code&gt; objects mapping the sitemap urls with the filesytem paths.&lt;/li&gt;
+&lt;li&gt;Adding each of the javascript and stylesheet files to &lt;code&gt;app.sprockets&lt;/code&gt;.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h2 id="next-steps"&gt;Next steps&lt;/h2&gt;
+
+&lt;p&gt;This is mainly a proof of concept, but I&amp;#39;m using it right now to write this post.  The app itself needs&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;A decent UI&lt;/li&gt;
+&lt;li&gt;Support for other static generators other than middleman&lt;/li&gt;
+&lt;li&gt;A concept of users&lt;/li&gt;
+&lt;li&gt;Shared drafts&lt;/li&gt;
+&lt;li&gt;Better error handling&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;If you are at all interested in this, please let me know!&lt;/p&gt;
+</content>
+  </entry>
+  <entry>
+    <title>Receiving posted JSON with Sinatra</title>
+    <link rel="alternate" href="http://willschenk.com/receiving-posted-json-with-sinatra/"/>
+    <id>http://willschenk.com/receiving-posted-json-with-sinatra/</id>
+    <published>2015-07-26T20:00:00-04:00</published>
+    <updated>2015-07-26T20:00:00-04:00</updated>
+    <author>
+      <name>Will Schenk</name>
+    </author>
+    <content type="html">&lt;p&gt;Here&amp;#39;s some simple code to accept a JSON string posted to a &lt;a href="http://www.sinatrarb.com"&gt;Sinatra&lt;/a&gt; end point rather than a form. I switched from using &lt;a href="http://jquery.com"&gt;jQueries&lt;/a&gt; &lt;code&gt;$.ajax&lt;/code&gt; method to &lt;a href="https://github.com/visionmedia/superagent"&gt;superagent&lt;/a&gt; as part of my exploration of the node javascript package universe, and it has a different way of serializing nest objects when posting as a form.  Specifically, it doesn&amp;#39;t.&lt;/p&gt;
+
+&lt;p&gt;I needed something that could do both.&lt;/p&gt;
+
+&lt;h2 id="code-to-use-form-encoding-or-json-blob"&gt;Code to use form encoding or JSON blob&lt;/h2&gt;
+
+&lt;p&gt;This first tries and loads the parameters using the normal form encoding methods.  If it doesn&amp;#39;t find the &lt;code&gt;path&lt;/code&gt; parameter, it attempts to parse the body&amp;#39;s payload, found in &lt;code&gt;request.body.read&lt;/code&gt;, using &lt;code&gt;JSON.parse&lt;/code&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;  post &amp;#39;/post&amp;#39; do
+    payload = params 
+    payload = JSON.parse(request.body.read).symbolize_keys unless params[:path]
+
+    logger.info &amp;quot;Saving #{payload[:path]} with #{payload[:meta]}&amp;quot;
+
+    file = load_app.sitemap.find_resource_by_path payload[:path]
+  end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id="javascript"&gt;Javascript&lt;/h2&gt;
+
+&lt;p&gt;The coffeescript that calls this is:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="coffeescript"&gt;request.post &amp;quot;/api/post&amp;quot;
+  .set(&amp;#39;Content-Type&amp;#39;, &amp;#39;application/json&amp;#39;)
+  .send path: @state.path, meta: @state.metadata, body: @state.markdown
+  .end (err, response) =&amp;gt;
+    if response.ok
+      @state.saving = false
+      @state.dirty = false
+      @trigger @state
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;In this case, &lt;code&gt;@state.metadata&lt;/code&gt; is also a complex object, and posting it as JSON ensures that it&amp;#39;s marshalled correctly.&lt;/p&gt;
+
+&lt;p&gt;Not too complicated.&lt;/p&gt;
+</content>
+  </entry>
   <entry>
     <title>Bower with Rails</title>
     <link rel="alternate" href="http://willschenk.com/bower-with-rails/"/>
@@ -581,462 +875,6 @@ end
 &lt;li&gt;The system breaks gracefully. If you overwhelm the API server the site is still available for browsing.  Assuming that most usage of the sites are reads, this means that if you try to &lt;em&gt;break the internet&lt;/em&gt; with &lt;a href="http://www.papermag.com/2014/11/kim_kardashian.php"&gt;Kim Kardashian&amp;#39;s ass&lt;/a&gt; maybe user login will slow down, but everything else is still available.&lt;/li&gt;
 &lt;li&gt;You are able to build your front end using modern and clean fancy JavaScript technologies and don&amp;#39;t need to mess around with back-end coding.&lt;/li&gt;
 &lt;/ol&gt;
-</content>
-  </entry>
-  <entry>
-    <title>Why Engineers build crappy products</title>
-    <link rel="alternate" href="http://willschenk.com/why-engineers-build-crappy-products/"/>
-    <id>http://willschenk.com/why-engineers-build-crappy-products/</id>
-    <published>2015-02-20T19:00:00-05:00</published>
-    <updated>2015-02-20T19:00:00-05:00</updated>
-    <author>
-      <name>Will Schenk</name>
-    </author>
-    <content type="html">&lt;p&gt;There&amp;#39;s a certain user interface that, when you first see it, screams out of you that it was designed by an engineer. &lt;/p&gt;
-
-&lt;p&gt;&lt;img alt="designed by an engineer" src="http://www.pspad.com/img/screen/mainfull.png" /&gt;&lt;/p&gt;
-
-&lt;p&gt;(&lt;em&gt;via &lt;a href="http://daringfireball.net"&gt;Daring Fireball&lt;/a&gt; &lt;a href="https://www.google.com/search?client=safari&amp;amp;rls=en&amp;amp;q=daring+fireball+user+interface+of+the+week&amp;amp;ie=UTF-8&amp;amp;oe=UTF-8"&gt;User Interface of the Week&lt;/a&gt;&lt;/em&gt;)&lt;/p&gt;
-
-&lt;p&gt;Why does that happen? What is it in the nature of engineering or software development process that leads to user interfaces that are impossible for the users to actually use?&lt;/p&gt;
-
-&lt;h2 id="perfect-storm-of-user-discontent"&gt;Perfect Storm of User Discontent&lt;/h2&gt;
-
-&lt;p&gt;The short version:&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;The most interesting part of engineer&amp;#39;s jobs is the obsession with the possibilities in the solution space - all the cool shit you can make computers do.&lt;/li&gt;
-&lt;li&gt;Engineers don&amp;#39;t want to make choices that limit power and flexibly.&lt;/li&gt;
-&lt;li&gt;Engineers value adding potential functionality higher than removing unneeded complexity.&lt;/li&gt;
-&lt;li&gt;Engineers want to engineer their way out of design problems.&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h2 id="being-a-people-person"&gt;Being a people person&lt;/h2&gt;
-
-&lt;iframe width="560" height="315" src="https://www.youtube.com/embed/RAY27NU1Jog" frameborder="0" allowfullscreen&gt;&lt;/iframe&gt;
-
-&lt;p&gt;The process of thinking about a new product begins with an attempt to understand what it is that the software supposed to do, that is, it starts with specifying a solution to a problem. This is assuming that the problem itself is correctly framed, which it often isn&amp;#39;t.  These specifications generally take form in things like user stories and wireframes which are ways of specifying both what the user is trying to do and the specific interface that the user will use to achieve those goals.&lt;/p&gt;
-
-&lt;p&gt;Implicit in this is the understanding of what technology is able to do. Sometimes, especially for a product with a novel technical solution, what technology is able to do it isn&amp;#39;t completely understood. And regardless of whether or not the solution is in a known problem space, there will always be different challenges that will come up when building something.  Building software is actually very difficult.&lt;/p&gt;
-
-&lt;p&gt;Given that fact, engineering will look at design, start thinking about what the general shape of the solution looks like, and should structure their development efforts around the parts of the product that seem the most risky -- the parts that will be technically the most challenging. If we can prove that those parts will work, with a prototype or make it functional with a sort of mock interface, then and only then does it make sense to flush out the rest of the product.&lt;/p&gt;
-
-&lt;h2 id="the-fractal-nature-of-engineering"&gt;The fractal nature of engineering&lt;/h2&gt;
-
-&lt;p&gt;This is the fun part. Every engineer loves greenfield development because it allows them to explore the terrain without having to deal with the trade-offs, constraints, and messiness of existing code. The process is one of exploration, of being able to explore a technical space of possibilities and potentialities. This is really awesome, and a large part of what makes engineering interesting.&lt;/p&gt;
-
-&lt;p&gt;The experience is of building little things, putting them together in novel ways, and build things which are increasingly powerful.  This leads engineers to put knobs and buttons and gizmos on different functionality to make it easier to explore all of what it can do.  It&amp;#39;s socially rewarding to show off all this cool stuff, not just what it does not, but also what it&amp;#39;s capable of doing.  Focusing on the technology aspect of it leads people to optimize the functionality in both breath and power.&lt;/p&gt;
-
-&lt;h2 id="interface-ecstasy"&gt;Interface ecstasy&lt;/h2&gt;
-
-&lt;p&gt;&lt;img src="images/product/nosql_query-89043e77.png" /&gt;
-&lt;em&gt;Engineers Keeping it Real: Go Fuck Yourself&lt;/em&gt;&lt;/p&gt;
-
-&lt;p&gt;The problem is products aren&amp;#39;t about technology. Technology is necessary but not sufficient to build products. Technology is just the plumbing, the thing which makes it possible, but not actually the thing that people care about.&lt;/p&gt;
-
-&lt;p&gt;The ecstasy of possibility is in conflict with producing elegant products, because products are fundamentally about making choices and creating clarity around something which is very complicated. This is more than missing the forest for the trees; the ideals and aspirations of both efforts are directly contradictory.&lt;/p&gt;
-
-&lt;h2 id="example:-me-doing-yet-another-dumb-thing"&gt;Example: Me doing Yet Another Dumb Thing&lt;/h2&gt;
-
-&lt;p&gt;We were recently &lt;a href="http://shoutouts.happyfuncorp.com/"&gt;building a product&lt;/a&gt; that would use email as an interface touch point.  Specifications, being what they are, didn&amp;#39;t really explain what should happen when a user attempted to interact with another user who had only partially setup their account.  We were just playing around with some stuff, so it&amp;#39;s not even fair to blame the specifications on being vague; as it often goes when building something, we ended up way deeper in the weeds than anyone intended.&lt;/p&gt;
-
-&lt;p&gt;Looking at this from the edge case perspective, that is, while focusing on the engineering implementation and building in robustness of response based upon stuff that could happen, my instinct was to start building out code that would deal with this.  It also uses slack as an endpoint, and in that set of scenarios it does something clever, so naturally email should do something clever as well.&lt;/p&gt;
-
-&lt;p&gt;I started down the path of being able to store partial requests that would get queued up and in the user interface to resolve in the future.  I started going down the path of creating a whole bunch of functionality because I was thinking about things in terms of the technology, the other interfaces had something &amp;quot;elegant&amp;quot;, and I wanted to build something complete.  Madness was creeping into the interface, because I was in the mind set of searching for a technology solution.&lt;/p&gt;
-
-&lt;p&gt;This is not something that&amp;#39;s core to the product.  No one actually cares. In the situation like this, the answer really isn&amp;#39;t to be a lot of technology solution. I thought that there isn&amp;#39;t a problem, but that a technology solution is not the most effective way to solve the problem.  It&amp;#39;s actually a design problem.&lt;/p&gt;
-
-&lt;h2 id="technology-is-the-easy-part"&gt;Technology is the easy part&lt;/h2&gt;
-
-&lt;p&gt;If the teams aren&amp;#39;t integrated, if the design team &amp;quot;finishes&amp;quot; their work and then lobs it over the fence to the engineering team, this conversation will take the form of engineering requesting designs for something that &amp;quot;was missed and we need to solve&amp;quot;.  It may have been missed, but it doesn&amp;#39;t need to be solved.  The solution, in this case, is not to &amp;quot;solve it&amp;quot; at all, but to reframe the problem.  And this reframing puts it into a place that engineers don&amp;#39;t like to be.  It was not to build out a whole partially-completed-request queuing system that the user could resolve, be alerted of outstanding tasks or whatever, it was instead to simply keep the email interface simple and redirect them to the main flow on the website.&lt;/p&gt;
-
-&lt;p&gt;In short, the reason why engineers tend to be crappy product designers is that &lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;The most interesting part of engineer&amp;#39;s jobs is the obsession with the possibilities in the solution space - all the cool shit you can make computers do.&lt;/li&gt;
-&lt;li&gt;Engineers don&amp;#39;t want to make choices that limit power and flexibly.&lt;/li&gt;
-&lt;li&gt;Engineers value adding potential functionality higher than removing unneeded complexity.&lt;/li&gt;
-&lt;li&gt;Engineers want to engineer their way out of design problems.&lt;/li&gt;
-&lt;/ul&gt;
-</content>
-  </entry>
-  <entry>
-    <title>Setting up Rails testing with rspec, devise, and the gang</title>
-    <link rel="alternate" href="http://willschenk.com/setting-up-testing/"/>
-    <id>http://willschenk.com/setting-up-testing/</id>
-    <published>2015-01-22T19:00:00-05:00</published>
-    <updated>2015-01-22T19:00:00-05:00</updated>
-    <author>
-      <name>Will Schenk</name>
-    </author>
-    <content type="html">&lt;p&gt;The goal is to get features out fast, and interate on them quickly.  Does anyone care about it?  What do they care about?  How do we make it better?&lt;/p&gt;
-
-&lt;p&gt;As projects get bigger, both in terms of people using the site as well as people &lt;em&gt;working&lt;/em&gt; on the site, testing and quality become relatively more important.  Adding tests introduces drag, and the theory is that you invest now for payoffs later.  What&amp;#39;s the least amount of drag we can add to the process to get us in a good place for when it will start to pay off?&lt;/p&gt;
-
-&lt;p&gt;RSpec feature specs lets developers create testing click paths through the application, looking at the flow though the app.  It doesn&amp;#39;t focus enough on the design details, and going through a test driving development process with this way will end up with sites &amp;#39;working&amp;#39; using only an engineer&amp;#39;s defination, so as a MVP implementor you&amp;#39;ll need to find a way to resist the temptation, no matter how nifty the backend flow state is.&lt;/p&gt;
-
-&lt;p&gt;This article will go through how the testing environment is set up on &lt;a href="http://seed.happyfuncorp.com"&gt;HappySeed&lt;/a&gt; where we focus mainly on RSpec feature specs.  Seed does this all automatically, but its nice to have it written down in a one place so we all know what&amp;#39;s going on.  Let&amp;#39;s get into it.&lt;/p&gt;
-
-&lt;h2 id="install-rspec,-factorygirl,-capybara,-and-guard"&gt;Install RSpec, FactoryGirl, Capybara, and Guard&lt;/h2&gt;
-
-&lt;p&gt;Lets fire up a new rails app, and pass the &lt;code&gt;-T&lt;/code&gt; option to not include TestUnit.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;$ rails new test_app -T
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Now add some gems to the &lt;code&gt;Gemfile&lt;/code&gt;.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;group :development, :test do
-  gem &amp;#39;rspec-rails&amp;#39;
-  gem &amp;#39;factory_girl_rails&amp;#39;
-  gem &amp;#39;capybara&amp;#39;
-  gem &amp;#39;guard-rspec&amp;#39;
-  gem &amp;#39;spring-commands-rspec&amp;#39;
-  gem &amp;#39;vcr&amp;#39;
-end
-
-group :test do
-  gem &amp;#39;webmock&amp;#39;
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Lets go through this:&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;&lt;a href="http://rspec.info"&gt;&lt;code&gt;rpsec&lt;/code&gt;&lt;/a&gt; (implied as a dependancy) is the testing framework that we are going to use&lt;/li&gt;
-&lt;li&gt;&lt;a href="https://github.com/thoughtbot/factory_girl"&gt;&lt;code&gt;factory_girl&lt;/code&gt;&lt;/a&gt; (implied) lets us code smart database fixtures in ruby, in things called &lt;em&gt;factories&lt;/em&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href="https://github.com/jnicklas/capybara"&gt;&lt;code&gt;capybara&lt;/code&gt;&lt;/a&gt; lets helps you test web applications by simulating how a real user would interact with your app. &lt;/li&gt;
-&lt;li&gt;&lt;a href="https://github.com/guard/guard"&gt;&lt;code&gt;guard&lt;/code&gt;&lt;/a&gt; (implied) makes rerunning tests a snap, by watching the filesystem for when you save files and triggering events automatically&lt;/li&gt;
-&lt;li&gt;&lt;a href="https://github.com/bblimke/webmock"&gt;&lt;code&gt;webmock&lt;/code&gt;&lt;/a&gt; locks down your test environment from talking to the internet&lt;/li&gt;
-&lt;li&gt;&lt;a href="https://github.com/vcr/vcr"&gt;&lt;code&gt;vcr&lt;/code&gt;&lt;/a&gt; record your test suite&amp;#39;s HTTP interactions and replay them during future test runs for fast, deterministic, accurate tests&lt;/li&gt;
-&lt;li&gt;&lt;a href="https://github.com/rspec/rspec-rails"&gt;&lt;code&gt;rspec-rails&lt;/code&gt;&lt;/a&gt; is the rails integration with rspec, which depends upon rspec itself.&lt;/li&gt;
-&lt;li&gt;&lt;a href="https://github.com/thoughtbot/factory_girl_rails"&gt;&lt;code&gt;factory_girl_rails&lt;/code&gt;&lt;/a&gt; is the rails integration with factory_girl.&lt;/li&gt;
-&lt;li&gt;&lt;a href="https://github.com/guard/guard-rspec"&gt;&lt;code&gt;guard-rspec&lt;/code&gt;&lt;/a&gt; is rspec integration with guard&lt;/li&gt;
-&lt;li&gt;&lt;a href="https://github.com/jonleighton/spring-commands-rspec"&gt;&lt;code&gt;spring-commands-rspec&lt;/code&gt;&lt;/a&gt; lets you integrate rspec with spring, which means that your tests will run much faster.&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;If you are interested in using cucumber, see below for steps to integrate it.&lt;/p&gt;
-
-&lt;h2 id="base-configuration-of-rspec-and-guard"&gt;Base configuration of rspec and guard&lt;/h2&gt;
-
-&lt;p&gt;Lets make sure that spring knows about rspec:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;$ bundle install
-$ spring binstub --all
-* bin/rake: spring already present
-* bin/rspec: generated with spring
-* bin/rails: spring already present
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;This creates a &lt;code&gt;bin/rspec&lt;/code&gt; command that lets us run our tests.  Lets create a Guardfile and then tell guard to use this command:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;$ guard init
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Then edit the newly generated &lt;code&gt;Guardfile&lt;/code&gt; to use the spring version of the rspec runner.  I also like to run all of the tests when I start up guard, because the more the merrier.  In &lt;code&gt;Guardfile&lt;/code&gt;, change the &lt;code&gt;guard :rspec&lt;/code&gt; line to:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;guard :rspec, cmd: &amp;quot;bin/rspec&amp;quot;, all_on_start: true do
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Now we install the rspec files:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;$ rails g rspec:install
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;This creates 3 files:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;create  .rspec
-create  spec
-create  spec/spec_helper.rb
-create  spec/rails_helper.rb
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;I like to have the output in documentation format by default, so we can edit the &lt;code&gt;.rspec&lt;/code&gt; file to be:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;--color
---require spec_helper
---format documentation
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id="add-login-support-and-factory-girl-to-spec_helper"&gt;Add login support and factory girl to spec_helper&lt;/h2&gt;
-
-&lt;p&gt;Getting feature and controller specs to work with authentication is a bit tricky.  We&amp;#39;re going to assume that you use &lt;a href="/setting-up-devise-with-twitter-and-facebook-and-other-omniauth-schemes-without-email-addresses/"&gt;devise for authentication&lt;/a&gt;, but this should support anything that uses &lt;a href="https://github.com/hassox/warden"&gt;warden&lt;/a&gt;:&lt;/p&gt;
-
-&lt;p&gt;Add devise to &lt;code&gt;Gemfile&lt;/code&gt;:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;gem &amp;#39;devise&amp;#39;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Create &lt;code&gt;spec/support/controller_helpers.rb&lt;/code&gt;&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;module ControllerHelpers
-  def login_with(user = double(&amp;#39;user&amp;#39;), scope = :user)
-    current_user = &amp;quot;current_#{scope}&amp;quot;.to_sym
-    if user.nil?
-      allow(request.env[&amp;#39;warden&amp;#39;]).to receive(:authenticate!).and_throw(:warden, {:scope =&amp;gt; scope})
-      allow(controller).to receive(current_user).and_return(nil)
-    else
-      allow(request.env[&amp;#39;warden&amp;#39;]).to receive(:authenticate!).and_return(user)
-      allow(controller).to receive(current_user).and_return(user)
-    end
-  end
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;At the top of &lt;code&gt;spec_helper.rb&lt;/code&gt; add:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;require_relative &amp;#39;support/controller_helpers&amp;#39;
-require &amp;#39;devise&amp;#39;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;and in the config block add:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;  config.include ControllerHelpers, type: :controller
-  Warden.test_mode!
-
-  config.after do
-    Warden.test_reset!
-  end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Then edit &lt;code&gt;rails_helper.rb&lt;/code&gt; and put the following in the config block:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;  config.include FactoryGirl::Syntax::Methods
-  config.include Devise::TestHelpers, type: :controller
-  config.include Warden::Test::Helpers
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;&lt;strong&gt;If you are getting uncaught throw :warden errors then make sure you have the right includes in the right config files!&lt;/strong&gt;&lt;/p&gt;
-
-&lt;p&gt;This gives you a few things:&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;&lt;code&gt;FactoryGirl&lt;/code&gt; syntax methods, which let you use things like &lt;code&gt;create( :user )&lt;/code&gt; in your tests, which uses &lt;code&gt;FactoryGirl&lt;/code&gt; to generate a database object.&lt;/li&gt;
-&lt;li&gt;helper methods to &lt;code&gt;sign_in&lt;/code&gt; a user for a specific scope.  This could be used as &lt;code&gt;sign_in create( :user )&lt;/code&gt; at the beginning of your controller test methods, and &lt;code&gt;sign_in nil&lt;/code&gt; to simulate an anonymous user.&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h2 id="example-controller-spec"&gt;Example controller spec&lt;/h2&gt;
-
-&lt;p&gt;This example assumes that you&amp;#39;ve already setup devise.  If not, you can get something up and running doing:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ rails g devise:install &amp;amp;&amp;amp; rails g devise User &amp;amp;&amp;amp; rake db:migrate
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;(I go into slightly more detail in setting up &lt;a href="/setting-up-devise-with-twitter-and-facebook-and-other-omniauth-schemes-without-email-addresses/"&gt;devise for authentication&lt;/a&gt;.)&lt;/p&gt;
-
-&lt;p&gt;Assuming that you&amp;#39;ve already setup devise, lets look at how to implement a controller spec.  First lets create a simple scaffold for a post:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;$ rails g scaffold post name:string
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;And lets make it require authentication in &lt;code&gt;posts_controller.rb&lt;/code&gt;:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;class PostsController &amp;lt; ApplicationController
-  before_action :authenticate_user!
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;And replace &lt;code&gt;posts_controller_spec.rb&lt;/code&gt; with:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;require &amp;#39;rails_helper&amp;#39;
-
-RSpec.describe PostsController, :type =&amp;gt; :controller do
-  describe &amp;quot;anonymous user&amp;quot; do
-    before :each do
-      # This simulates an anonymous user
-      login_with nil
-    end
-
-    it &amp;quot;should be redirected to signin&amp;quot; do
-      get :index
-      expect( response ).to redirect_to( new_user_session_path )
-    end
-  end
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;When we run &lt;code&gt;guard&lt;/code&gt;, a few of the scaffold generate things will fail, since we are now forcing signin to check out this page.  Our spec will correctly redirect the user to sign in.&lt;/p&gt;
-
-&lt;p&gt;Lets now simulate a logged in user:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;  it &amp;quot;should let a user see all the posts&amp;quot; do
-    login_with create( :user )
-    get :index
-    expect( response ).to render_template( :index )
-  end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Guard should try and run this tests but fail because we can&amp;#39;t configured a user factory.&lt;/p&gt;
-
-&lt;p&gt;Lets set that up now in &lt;code&gt;spec/factories/user.rb&lt;/code&gt;:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;FactoryGirl.define do
-  sequence :email do |n|
-    &amp;quot;person#{n}@example.com&amp;quot;
-  end
-end
-
-FactoryGirl.define do
-  factory :user, :class =&amp;gt; &amp;#39;User&amp;#39; do
-    email
-    password &amp;#39;12345678&amp;#39;
-    password_confirmation &amp;#39;12345678&amp;#39;
-  end
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Going back to the guard window, press &lt;em&gt;return&lt;/em&gt; to run everything again and verify.  (Guard doens&amp;#39;t know that the &lt;code&gt;posts_controller_spec.rb&lt;/code&gt; depends upon the user factory changing.)&lt;/p&gt;
-
-&lt;h2 id="example-rspec-feature"&gt;Example rspec feature&lt;/h2&gt;
-
-&lt;p&gt;Feature specs are more interesting, since they let you walk through the site and how it works.  Lets build one now:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;$ rails g rspec:feature add_new_post
-      create  spec/features/add_new_posts_spec.rb
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;And lets add something there now:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;require &amp;#39;rails_helper&amp;#39;
-
-feature &amp;quot;AddNewPosts&amp;quot;, :type =&amp;gt; :feature do
-  it &amp;quot;should require the user log in before adding a post&amp;quot; do
-    password = &amp;quot;123456789&amp;quot;
-    u = create( :user, password: password, password_confirmation: password )
-
-    visit new_post_path
-
-    within &amp;quot;#new_user&amp;quot; do
-      fill_in &amp;quot;user_email&amp;quot;, with: u.email
-      fill_in &amp;quot;user_password&amp;quot;, with: password
-    end
-
-    click_button &amp;quot;Log in&amp;quot;
-
-    within &amp;quot;#new_post&amp;quot; do
-      fill_in &amp;quot;post_name&amp;quot;, with: &amp;quot;Post title&amp;quot;
-    end
-
-    click_link_or_button &amp;quot;Create Post&amp;quot;
-
-    expect( Post.count ).to eq(1)
-    expect( Post.first.name).to eq( &amp;quot;Post title&amp;quot;)
-  end
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;This first creates a new user in the database, and then&lt;/p&gt;
-
-&lt;ol&gt;
-&lt;li&gt;Visits the &lt;code&gt;new_post_path&lt;/code&gt; url.&lt;br&gt;&lt;/li&gt;
-&lt;li&gt;We should be shown the login form, and we fill it out&lt;/li&gt;
-&lt;li&gt;Click the log in button&lt;/li&gt;
-&lt;li&gt;Fill out the new post form&lt;/li&gt;
-&lt;li&gt;Create the post&lt;/li&gt;
-&lt;li&gt;Make sure that it&amp;#39;s in the database&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;If you want to skip the steps of manually logging in the user, you can use the &lt;code&gt;login_as&lt;/code&gt; method like so:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;  it &amp;quot;should create a new post with a logged in user&amp;quot; do
-    login_as create( :user ), scope: :user
-
-    visit new_post_path
-    # puts page.body
-
-    within &amp;quot;#new_post&amp;quot; do
-      fill_in &amp;quot;post_name&amp;quot;, with: &amp;quot;Post title&amp;quot;
-    end
-
-    click_link_or_button &amp;quot;Create Post&amp;quot;
-
-    expect( Post.count ).to eq(1)
-    expect( Post.first.name).to eq( &amp;quot;Post title&amp;quot;)
-
-  end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id="setting-up-webmock-and-vcr"&gt;Setting up webmock and VCR&lt;/h2&gt;
-
-&lt;p&gt;Webmock stops requests from hitting the network in the test environment.  Lets turn this on by editing &lt;code&gt;rails_helper.rb&lt;/code&gt;:&lt;/p&gt;
-
-&lt;p&gt;In &lt;code&gt;rails_helper.rb&lt;/code&gt;, below &lt;code&gt;require &amp;#39;rails/rspec&amp;#39;&lt;/code&gt;:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;require &amp;#39;webmock/rspec&amp;#39;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;And VCR lets you record and play back tests in the test environment, so the first time it&amp;#39;s called it lets it get through, and then on subsequent requests it plays back a known response.  Put this at the bottom of &lt;code&gt;rails_helper.rb&lt;/code&gt; to configure:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;VCR.configure do |c|
-  c.cassette_library_dir  = Rails.root.join(&amp;quot;spec&amp;quot;, &amp;quot;vcr&amp;quot;)
-  c.hook_into :webmock
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id="example-usage-of-webmock-and-vcr"&gt;Example usage of webmock and VCR&lt;/h2&gt;
-
-&lt;p&gt;Word comes down from up high that to facilitate decision making, a key bit of information is the current phase of the moon when something is posted to the site.  We can pull the data from the &lt;a href="http://cerridwen.readthedocs.org/en/latest/index.html"&gt;Cerridwen&lt;/a&gt; site, but how do we set up tests for this?  We certainly don&amp;#39;t want our test suite to fail because the phase of the moon changed!&lt;/p&gt;
-
-&lt;p&gt;This is where webmock and VCR comes in.  Webmock by itself will throw an error when a request is made over the network.  VCR will let us record and play back network request -- using &lt;em&gt;cassettes&lt;/em&gt; no less -- so that we isolate changing API responses from our tests.&lt;/p&gt;
-
-&lt;p&gt;First lets write our code to look up the phase of the moon on the create post action.  Let&amp;#39;s add a field&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;$ rails g migration add_phase_of_moon_to_posts moon_phase:string &amp;amp;&amp;amp; rake db:migrate
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Then add the lookup to our &lt;code&gt;app/controllers/posts_controller.rb&lt;/code&gt; and replace the &lt;code&gt;def create&lt;/code&gt; method:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;  require &amp;#39;json&amp;#39;
-  require &amp;#39;net/http&amp;#39;
-  def create
-    @post = Post.new(post_params)
-
-    moon_json = Net::HTTP.get( URI.parse(&amp;quot;http://cerridwen.viridian-project.de/api/v1/moon&amp;quot; ))
-    moon = JSON.parse( moon_json ).first
-
-    @post.moon_phase = &amp;quot;#{moon[&amp;#39;phase&amp;#39;][&amp;#39;trend&amp;#39;]} in #{moon[&amp;#39;position&amp;#39;][&amp;#39;sign&amp;#39;]}&amp;quot;
-
-    @post.save
-    respond_with(@post)
-  end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;(This is not good style.)&lt;/p&gt;
-
-&lt;p&gt;Now lets run our test again.&lt;/p&gt;
-
-&lt;p&gt;Lots of unhandled http request errors!  I&amp;#39;m going to ignore the scaffold generate tests and focus on our rspec feature.  So, inside of &lt;code&gt;spec/features/add_new_posts_spec.rb&lt;/code&gt; we can link the click action inside of a use_cassette block like so::&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;  it &amp;quot;should create a new post with a logged in user&amp;quot; do
-    login_as create( :user ), scope: :user
-
-    visit new_post_path
-    # puts page.body
-
-    within &amp;quot;#new_post&amp;quot; do
-      fill_in &amp;quot;post_name&amp;quot;, with: &amp;quot;Post title&amp;quot;
-    end
-
-    VCR.use_cassette &amp;quot;waxing_in_pisces&amp;quot; do
-      click_link_or_button &amp;quot;Create Post&amp;quot;
-
-      expect( Post.count ).to eq(1)
-      expect( Post.first.name).to eq( &amp;quot;Post title&amp;quot;)
-      expect( Post.first.moon_phase).to eq( &amp;quot;waxing in Pisces&amp;quot; )
-    end
-  end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;And let the tests run.  When tests are run, VCR is going to look for the file &lt;code&gt;spec/vcr/waxing_in_pisces&lt;/code&gt;.  If it&amp;#39;s not found, then it will make the request to the server.  If the API requires authentication, for example an accesstoken when accessing a OAuth protected call, then you&amp;#39;ll need to configure you tests to have valid credentials for the first time.  These credentials could be written into the spec/vcr directory, so make sure that you scrub that before things get checked in.  (Or expire the access tokens.)&lt;/p&gt;
-
-&lt;p&gt;If it is found, then it plays it back and so the next time the suite is run it plays it back.  Which is way faster.&lt;/p&gt;
-
-&lt;h2 id="final-notes"&gt;Final notes&lt;/h2&gt;
-
-&lt;p&gt;Testing has a place in software development, but it&amp;#39;s not actually clear where that is.  Setting up test haresses and building out tests for every feature really slows things down in the beginning, and probably isn&amp;#39;t appropriate for one off, exploratory things.  On the other hand, things tend to grow way past what anyone ever initially expected, and you always say &amp;quot;I wish there was a test suite&amp;quot; when inheriting code -- or even more likely, looking at something you haven&amp;#39;t seen for a few months.&lt;/p&gt;
-
-&lt;p&gt;The rails community has a &lt;a href="http://martinfowler.com/articles/is-tdd-dead/"&gt;long history with Test Driven Development&lt;/a&gt;.  The biggest advantage of this is that you write code that is testable, and code that is testable has all sorts of other qualities that is great, from clearly defined boundries of responsibility, good encapulation, and being able to look at small isolated pieces of the system and having it make sense.  On the other hand, thebest code is the stuff you don&amp;#39;t need to maintain, and in some projects the weight of the test code is as large or larger than the code for the application features.&lt;/p&gt;
-
-&lt;p&gt;The biggest problem with testing is that it gets you in a wonderful, but wrong, flow state of development.  In the begining of projects you should be focused on the user experience, and how the system is experienced from the outside.  The highest level tests tend to be are user stories, which is below the level of brand and user experience.&lt;/p&gt;
 </content>
   </entry>
 </feed>
