@@ -5,10 +5,347 @@
   <id>http://willschenk.com/</id>
   <link href="http://willschenk.com/"/>
   <link href="http://willschenk.com/feed.xml" rel="self"/>
-  <updated>2015-08-05T08:26:39-04:00</updated>
+  <updated>2015-10-24T16:13:37-04:00</updated>
   <author>
     <name>Will Schenk</name>
   </author>
+  <entry>
+    <title>Using seed to explore APIs</title>
+    <link rel="alternate" href="http://willschenk.com/using-seed-to-explore/"/>
+    <id>http://willschenk.com/using-seed-to-explore/</id>
+    <published>2015-09-17T10:21:00-04:00</published>
+    <updated>2015-09-17T10:21:00-04:00</updated>
+    <author>
+      <name>Will Schenk</name>
+    </author>
+    <content type="html">&lt;p&gt;I&amp;#39;ve been working to update seed, which is HappyFunCorp&amp;#39;s app generator to make it easy to kick off MVPs.  Check out the website for more information.  One of the things that I&amp;#39;ve started to do is to seperate out the dependancies more, and being tutorials on how to use each of the different features.  After I link to that stuff, let&amp;#39;s walk through a way to combine different techniques we&amp;#39;ve discussed together.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;Check out &lt;a href="http://seed.happyfuncorp.com"&gt;the site&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;Or watch the video:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;div class="embed-responsive embed-responsive-16by9"&gt;
+  &lt;iframe src="https://www.youtube.com/embed/hCsPDaKHw6I?rel=0" allowfullscreen&gt;&lt;/iframe&gt;
+&lt;/div&gt;
+
+&lt;h2 id="the-basic-process"&gt;The basic process&lt;/h2&gt;
+
+&lt;ol&gt;
+&lt;li&gt;Get access to the API.&lt;/li&gt;
+&lt;li&gt;Open up a console and start playing with commands.&lt;/li&gt;
+&lt;li&gt;Start storing the data locally once we need to get more.&lt;/li&gt;
+&lt;li&gt;Play around with the data.&lt;/li&gt;
+&lt;li&gt;Design a UI around in.&lt;/li&gt;
+&lt;li&gt;Refactor the test &amp;quot;scripts&amp;quot; into ruby classes that fit that UI.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h2 id="using-seed,-oauth,-and-rake-to-explore-github-data"&gt;Using Seed, OAuth, and Rake to explore github data&lt;/h2&gt;
+
+&lt;p&gt;What I want to do is to look at all of the &lt;code&gt;Gemfile&lt;/code&gt;s for all of our projects, and see which gems are the most popular, which versions we are using, and if we can develop some more expertise around it.  But first, I want to get the data.&lt;/p&gt;
+
+&lt;p&gt;I could go to each of the repos in github, but there are well over a hundred so that doesn&amp;#39;t work.  Github has an API, which is great, but I need oauth2 to access it.  Let&amp;#39;s get going.&lt;/p&gt;
+
+&lt;h2 id="creating-a-github-application"&gt;Creating a github application&lt;/h2&gt;
+
+&lt;p&gt;The first step is to make sure you have a github application. &lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;Go to &lt;a href="https://github.com/settings/developers"&gt;developer applications&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;Click &lt;em&gt;Register New Application&lt;/em&gt;&lt;/li&gt;
+&lt;li&gt;Enter in &lt;code&gt;http://localhost:3000/users/auth/github/callback&lt;/code&gt; as the callback URL.&lt;/li&gt;
+&lt;li&gt;Fill in whatever else.&lt;/li&gt;
+&lt;li&gt;&lt;em&gt;Resister the Application&lt;/em&gt;&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;At this point you should have the &lt;em&gt;Client ID&lt;/em&gt; and the &lt;em&gt;Client Secret&lt;/em&gt;.&lt;/p&gt;
+
+&lt;h2 id="create-a-seed_defaults-file"&gt;Create a seed_defaults file&lt;/h2&gt;
+
+&lt;p&gt;Once I create a remote app, I like to put the credentials into the &lt;code&gt;~/.seed_defaults&lt;/code&gt; file.  This will make it so the next time I generate a seed app, these are the default credentials that are used.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;GITHUB_APP_ID=replace with client id
+GITHUB_APP_SECRET=replace with client secret
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id="generate-the-app"&gt;Generate the app&lt;/h2&gt;
+
+&lt;p&gt;If you haven&amp;#39;t installed &lt;a href="http://seed.happyfuncorp.com"&gt;happy_seed&lt;/a&gt; yet, do so now by typing &lt;code&gt;gem install happy_seed&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;Then generate the app:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ happy_seed rails project_stats
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now it&amp;#39;s going to install things.  Inititally, just say no to everything.  Once it&amp;#39;s done, install the github generator:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ cd project_status
+$ rails g happy_seed:github
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;That will do its thing.  Then we need to create the database and get going:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ rake db:migrate
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id="ask-for-more-scope"&gt;Ask for more scope&lt;/h2&gt;
+
+&lt;p&gt;When the &lt;em&gt;github&lt;/em&gt; generator is run, it configures the oauth scope that it requests in &lt;code&gt;config/initializers/devise.rb&lt;/code&gt;.  We need to ask for a bit more permissions, so open up that file and change the scope requested to be &lt;code&gt;&amp;quot;user,repo,read:org&amp;quot;&lt;/code&gt;, so:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;config.omniauth :github, ENV[&amp;#39;GITHUB_APP_ID&amp;#39;], ENV[&amp;#39;GITHUB_APP_SECRET&amp;#39;], scope: &amp;quot;user,repo,read:org&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now lets start the server and see what&amp;#39;s up:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ rails s
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;ol&gt;
+&lt;li&gt;Point your browser to &lt;a href="http://localhost:3000"&gt;http://localhost:3000&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;Select &amp;quot;Sign up&amp;quot; from the &amp;quot;Account&amp;quot; menu.&lt;/li&gt;
+&lt;li&gt;Press &amp;quot;Sign in with Github&amp;quot;&lt;/li&gt;
+&lt;li&gt;You should be bounced to github and you have to accept.&lt;/li&gt;
+&lt;li&gt;You should be back on localhost with the message &lt;code&gt;Successfully authenticated from Github account.&lt;/code&gt;&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h2 id="lets-play"&gt;Lets play&lt;/h2&gt;
+
+&lt;ol&gt;
+&lt;li&gt;&lt;del&gt;Get access to the API.&lt;/del&gt;&lt;/li&gt;
+&lt;li&gt;Open up a console and start playing with commands.&lt;/li&gt;
+&lt;li&gt;Start storing the data locally once we need to get more.&lt;/li&gt;
+&lt;li&gt;Play around with the data.&lt;/li&gt;
+&lt;li&gt;Design a UI around in.&lt;/li&gt;
+&lt;li&gt;Refactor the test &amp;quot;scripts&amp;quot; into ruby classes that fit that UI.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;Lets get in that console and see what we can do.  If you look at &lt;code&gt;app/models/user.rb&lt;/code&gt; you can see that there&amp;#39;s code to setup the github client, and we can access it like so:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ rails c
+Loading development environment (Rails 4.2.3)
+2.2.1 :001 &amp;gt; gc = User.first.github_client
+  User Load (0.2ms)  SELECT  &amp;quot;users&amp;quot;.* FROM &amp;quot;users&amp;quot;  ORDER BY &amp;quot;users&amp;quot;.&amp;quot;id&amp;quot; ASC LIMIT 1
+  User Load (0.2ms)  SELECT  &amp;quot;users&amp;quot;.* FROM &amp;quot;users&amp;quot;  ORDER BY &amp;quot;users&amp;quot;.&amp;quot;id&amp;quot; ASC LIMIT 1
+  Identity Load (0.4ms)  SELECT  &amp;quot;identities&amp;quot;.* FROM &amp;quot;identities&amp;quot; WHERE &amp;quot;identities&amp;quot;.&amp;quot;user_id&amp;quot; = ? AND &amp;quot;identities&amp;quot;.&amp;quot;provider&amp;quot; = ?  ORDER BY &amp;quot;identities&amp;quot;.&amp;quot;id&amp;quot; ASC LIMIT 1  [[&amp;quot;user_id&amp;quot;, 1], [&amp;quot;provider&amp;quot;, &amp;quot;github&amp;quot;]]
+  Identity Load (0.4ms)  SELECT  &amp;quot;identities&amp;quot;.* FROM &amp;quot;identities&amp;quot; WHERE &amp;quot;identities&amp;quot;.&amp;quot;user_id&amp;quot; = ? AND &amp;quot;identities&amp;quot;.&amp;quot;provider&amp;quot; = ?  ORDER BY &amp;quot;identities&amp;quot;.&amp;quot;id&amp;quot; ASC LIMIT 1  [[&amp;quot;user_id&amp;quot;, 1], [&amp;quot;provider&amp;quot;, &amp;quot;github&amp;quot;]]
+ =&amp;gt; #&amp;lt;Octokit::Client:0x007fe1f7bec7e8 
+
+2.2.1 :002 &amp;gt; gc.org_repos( &amp;#39;HappyFunCorp&amp;#39;, {:type =&amp;gt; &amp;#39;private&amp;#39;} ).count
+ =&amp;gt; 30 
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Ok, now we can start figuring out what we need to do to get access to the data.  We have an authenticated user account, and we can start hitting the API.  I know for a fact that I have way more than 30 repos -- I mean, seriously -- so first thing is to figure out why that is and how to get more.  It&amp;#39;s probably related to pagination.  &lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;2.2.1 :003 &amp;gt; gc.org_repos( &amp;#39;HappyFunCorp&amp;#39;, {:type =&amp;gt; &amp;#39;private&amp;#39;, per_page: 100} ).count
+ =&amp;gt; 100 
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;OK, looking through the &lt;a href="https://github.com/octokit/octokit.rb/issues/255"&gt;octokit issues&lt;/a&gt; this can be dealt with by turning &lt;code&gt;auto_paginate: true&lt;/code&gt; on when we load up the client.  So let&amp;#39;s edit &lt;code&gt;app/models/user.rb&lt;/code&gt; to do that:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;@github_client ||= Octokit::Client.new(access_token: github.accesstoken, auto_paginate: true)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Back to the console, do &lt;code&gt;reload!&lt;/code&gt; and load up our client again.  Notice that I&amp;#39;m making this a one liner, since we&amp;#39;re going to be doing it over and over its nice to use the arrow keys.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;2.2.1 :004 &amp;gt; reload!; gc = User.first.github_client
+Reloading...
+  User Load (0.1ms)  SELECT  &amp;quot;users&amp;quot;.* FROM &amp;quot;users&amp;quot;  ORDER BY &amp;quot;users&amp;quot;.&amp;quot;id&amp;quot; ASC LIMIT 1
+  User Load (0.1ms)  SELECT  &amp;quot;users&amp;quot;.* FROM &amp;quot;users&amp;quot;  ORDER BY &amp;quot;users&amp;quot;.&amp;quot;id&amp;quot; ASC LIMIT 1
+  Identity Load (0.2ms)  SELECT  &amp;quot;identities&amp;quot;.* FROM &amp;quot;identities&amp;quot; WHERE &amp;quot;identities&amp;quot;.&amp;quot;user_id&amp;quot; = ? AND &amp;quot;identities&amp;quot;.&amp;quot;provider&amp;quot; = ?  ORDER BY &amp;quot;identities&amp;quot;.&amp;quot;id&amp;quot; ASC LIMIT 1  [[&amp;quot;user_id&amp;quot;, 1], [&amp;quot;provider&amp;quot;, &amp;quot;github&amp;quot;]]
+  Identity Load (0.2ms)  SELECT  &amp;quot;identities&amp;quot;.* FROM &amp;quot;identities&amp;quot; WHERE &amp;quot;identities&amp;quot;.&amp;quot;user_id&amp;quot; = ? AND &amp;quot;identities&amp;quot;.&amp;quot;provider&amp;quot; = ?  ORDER BY &amp;quot;identities&amp;quot;.&amp;quot;id&amp;quot; ASC LIMIT 1  [[&amp;quot;user_id&amp;quot;, 1], [&amp;quot;provider&amp;quot;, &amp;quot;github&amp;quot;]]
+ =&amp;gt; #&amp;lt;Octokit::Client:0x007fe1f7d986f0 @access_token=&amp;quot;*.......
+
+2.2.1 :005 &amp;gt; gc.org_repos( &amp;#39;HappyFunCorp&amp;#39;, {:type =&amp;gt; &amp;#39;private&amp;#39;} ).count
+ =&amp;gt; 169 
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;OK, that looks better.  That will give us a list of all the repos, so now we just need to see how to get the contents of our file, and then we can put it all together.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;2.2.1 :006 &amp;gt; repo = gc.org_repos( &amp;#39;HappyFunCorp&amp;#39;, {:type =&amp;gt; &amp;#39;private&amp;#39;} ).first
+ =&amp;gt; {:id=&amp;gt;988713,
+ :name=&amp;gt;&amp;quot;benchcoach&amp;quot;,
+ :full_name=&amp;gt;&amp;quot;HappyFunCorp/benchcoach&amp;quot;,
+ :owner=&amp;gt;
+ .....
+
+2.2.1 :007 &amp;gt; repo.full_name
+ =&amp;gt; &amp;quot;HappyFunCorp/benchcoach&amp;quot; 
+
+2.2.1 :008 &amp;gt; content = gc.contents repo.full_name, path: &amp;#39;Gemfile&amp;#39;
+ =&amp;gt; {:name=&amp;gt;&amp;quot;Gemfile&amp;quot;,
+ :path=&amp;gt;&amp;quot;Gemfile&amp;quot;,
+ :sha=&amp;gt;&amp;quot;1d67bb85e43adab5b68ecc0eb3a5304e6ee2588e&amp;quot;,....
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Looking at this, we see that github returns the contents of the file base64 encoded.  I guess that makes sense, so if we want to print it out:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;2.2.1 :009 &amp;gt; Base64.decode64 content.content
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id="using-rake-to-pull-the-data-down"&gt;Using Rake to pull the data down&lt;/h2&gt;
+
+&lt;ol&gt;
+&lt;li&gt;&lt;del&gt;Get access to the API.&lt;/del&gt;&lt;/li&gt;
+&lt;li&gt;&lt;del&gt;Open up a console and start playing with commands.&lt;/del&gt;&lt;/li&gt;
+&lt;li&gt;Start storing the data locally once we need to get more.&lt;/li&gt;
+&lt;li&gt;Play around with the data.&lt;/li&gt;
+&lt;li&gt;Design a UI around in.&lt;/li&gt;
+&lt;li&gt;Refactor the test &amp;quot;scripts&amp;quot; into ruby classes that fit that UI.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;Lets use rake to start managing the data.  We&amp;#39;re going to be using some of the techniques that were outlined in the &lt;a href="/using-rake-for-dataflow-programming-and-data-science/]"&gt;using rake for dataflow programming and data science&lt;/a&gt; post.  First step is to create a &lt;code&gt;lib/tasks/github.rake&lt;/code&gt; file that we&amp;#39;re going to put our tasks.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;require &amp;#39;fileutils&amp;#39;
+
+file &amp;quot;data/projects.json&amp;quot; do
+  Rake::Task[&amp;quot;environment&amp;quot;].invoke
+  FileUtils.mkdir_p &amp;quot;data&amp;quot;
+
+  gc = User.first.github_client
+
+  data = gc.org_repos( &amp;#39;HappyFunCorp&amp;#39;, {:type =&amp;gt; &amp;#39;private&amp;#39;} ).collect do |x|
+    { name: x[:name],
+      full_name: x[:full_name],
+      url: x[:url] }
+  end
+
+  File.open( &amp;quot;data/projects.json&amp;quot;, &amp;quot;w&amp;quot; ) do |out|
+    out.puts JSON.unparse( data )
+  end
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;em&gt;Be sure to change the &lt;code&gt;HappyFunCorp&lt;/code&gt; to your organization, or use the &lt;code&gt;repos&lt;/code&gt; call instead of the organization one.&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;Now lets run &lt;code&gt;rake data/projects.json&lt;/code&gt;.  If you run it a second time, notice that rake returns imediately and doesn&amp;#39;t hit the remote server.&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;The &lt;code&gt;file&lt;/code&gt; task only runs if the file doesn&amp;#39;t exist.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;Rake::Task[&amp;quot;environment&amp;quot;].invoke&lt;/code&gt; is a way to ensure that a task as been run without forcing it to run.&lt;/li&gt;
+&lt;li&gt;The API calls are from our console experiments.&lt;/li&gt;
+&lt;li&gt;Just save it to a file.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;OK, now lets be able to loop over everything to load the files that we want.  First we define a method that lets us define a task to loop over all the entries in a JSON array, and then we&amp;#39;ll call it with our block which loads up the contents.  (Add this to the end of the &lt;code&gt;github.rake&lt;/code&gt; file)&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;def for_each_elem( name, file )
+  task name =&amp;gt; file do
+    JSON.parse( File.read( file ) ).each do |record|
+      yield record
+    end
+  end
+end
+
+for_each_elem &amp;quot;load_gemfiles&amp;quot;, &amp;quot;data/projects.json&amp;quot; do |repo|
+  outfile = &amp;quot;data/gemfiles/#{repo[&amp;#39;name&amp;#39;]}.Gemfile.lock&amp;quot;
+  FileUtils.mkdir_p &amp;quot;data/gemfiles&amp;quot;
+
+  file outfile do
+    Rake::Task[&amp;quot;environment&amp;quot;].invoke
+
+    gc = User.first.github_client
+
+    begin
+      content = gc.contents repo[&amp;#39;full_name&amp;#39;], path: &amp;#39;Gemfile.lock&amp;#39;
+
+      File.open outfile, &amp;quot;w&amp;quot; do |out|
+        out.puts Base64.decode64 content.content
+      end
+    rescue Octokit::NotFound
+      puts &amp;quot;No Gemfile.lock found for #{repo[&amp;#39;full_name&amp;#39;]}&amp;quot;
+    end
+  end
+
+  Rake::Task[outfile].invoke
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;And run it, &lt;code&gt;rake load_gemfiles&lt;/code&gt;.  Depending upon how many repos you have, this could take a few seconds.  (Also make sure you&amp;#39;ve updated the organization!)&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;Define a file task for each output file, that we will &lt;code&gt;invoke&lt;/code&gt; at the very end.&lt;/li&gt;
+&lt;li&gt;Inside the task, make sure that the &lt;code&gt;environment&lt;/code&gt; is loaded.&lt;/li&gt;
+&lt;li&gt;Pull down the contents of the Gemfile.lock from the API.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;If you run this a second time, notice that it only attempts to load from the files that weren&amp;#39;t loaded before.&lt;/p&gt;
+
+&lt;p&gt;For fun, delete the &lt;code&gt;data&lt;/code&gt; directly and run the rake task again.  BOOM!&lt;/p&gt;
+
+&lt;h2 id="massaging-the-data-into-something-usable"&gt;Massaging the data into something usable&lt;/h2&gt;
+
+&lt;ol&gt;
+&lt;li&gt;&lt;del&gt;Get access to the API.&lt;/del&gt;&lt;/li&gt;
+&lt;li&gt;&lt;del&gt;Open up a console and start playing with commands.&lt;/del&gt;&lt;/li&gt;
+&lt;li&gt;&lt;del&gt;Start storing the data locally once we need to get more.&lt;/del&gt;&lt;/li&gt;
+&lt;li&gt;Play around with the data.&lt;/li&gt;
+&lt;li&gt;Design a UI around in.&lt;/li&gt;
+&lt;li&gt;Refactor the test &amp;quot;scripts&amp;quot; into ruby classes that fit that UI.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;OK, now that we have all the data, lets figure out how to slice and dice it.  Lets just wire together some standard UNIX tools to filter and get some info.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;for_each_elem &amp;quot;filter_gemfiles&amp;quot;, &amp;quot;data/projects.json&amp;quot; do |repo|
+  sourcefile = &amp;quot;data/gemfiles/#{repo[&amp;#39;name&amp;#39;]}.Gemfile.lock&amp;quot;
+  outfile = &amp;quot;data/filtered/#{repo[&amp;#39;name&amp;#39;]}.gems&amp;quot;
+  FileUtils.mkdir_p &amp;quot;data/filtered&amp;quot;
+
+  if File.exists?( sourcefile )
+    file outfile do
+      system( &amp;quot;awk &amp;#39;/^    [^ ]/ { print $1, $2 }&amp;#39; #{sourcefile} &amp;gt; #{outfile}&amp;quot; )
+    end
+    Rake::Task[outfile].invoke
+  end
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Running &lt;code&gt;rake filter_gemfiles&lt;/code&gt; will go through and only show the specific gems that were locked out the Gemfile.locks.  Obviously, filtering the file based on the fact that it has exactly 4 spaces isn&amp;#39;t robust, but it works.&lt;/p&gt;
+
+&lt;p&gt;Lets add a couple of other nifty methods:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;file &amp;quot;data/versioned.list&amp;quot; do
+  system( &amp;quot;cat data/filtered/* | sort | uniq -c | sort -rn &amp;gt; data/versioned.list&amp;quot; )
+end
+
+file &amp;quot;data/gems.list&amp;quot; do
+  system( &amp;quot;awk &amp;#39;{print $1}&amp;#39; data/filtered/* | sort | uniq -c | sort -rn &amp;gt; data/gems.list&amp;quot;)
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;I&amp;#39;m going to stop here, but in case you are wondering the top gems that we use are:&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;(82) json&lt;/li&gt;
+&lt;li&gt;(81) tzinfo&lt;/li&gt;
+&lt;li&gt;(81) i18n&lt;/li&gt;
+&lt;li&gt;(81) activesupport&lt;/li&gt;
+&lt;li&gt;(79) rack&lt;/li&gt;
+&lt;li&gt;(79) multi_json&lt;/li&gt;
+&lt;li&gt;(78) sass&lt;/li&gt;
+&lt;li&gt;(77) rack-test&lt;/li&gt;
+&lt;li&gt;(76) tilt&lt;/li&gt;
+&lt;li&gt;(76) mime-types&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h2 id="repeatable-data-in-10-minutes"&gt;Repeatable data in 10 minutes&lt;/h2&gt;
+
+&lt;p&gt;There&amp;#39;s lots of stuff you can do from there, the most likely one being &amp;quot;sending an email and forgetting about it.&amp;quot;  But lets look at what we have.&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;The access key isn&amp;#39;t hard coded anywhere.  When you come back to this, if it expires, you just reconnect on the website.&lt;/li&gt;
+&lt;li&gt;Way easier to get access keys this way, only a few oauth providers make this simple.  (Twitter does, for example, github doesn&amp;#39;t.)&lt;/li&gt;
+&lt;li&gt;There&amp;#39;s a direct process transitioning from &amp;#39;playing around&amp;#39; to automated.&lt;/li&gt;
+&lt;li&gt;Loading the data from the remote API is automated and repeatable.  If you&amp;#39;ve setup the dependancies correctly, you can run the rake tasks and things magically get up to date.&lt;/li&gt;
+&lt;li&gt;If you do want to build a UI around this, you already have a webapp up and running...&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;Importantly, this is something that you can get up and going with in under 10 minutes, at least if you know how the API works.  It takes less that 1 minute to get to the point where you have an authenticated client to the remote service and you can spend time exploring.&lt;/p&gt;
+
+&lt;p&gt;One of the reasons I like having seed around to help prototype and explore ideas!&lt;/p&gt;
+
+&lt;p&gt;Source code can be found: &lt;a href="https://github.com/wschenk/project_stats_demo"&gt;https://github.com/wschenk/project_stats_demo&lt;/a&gt;&lt;/p&gt;
+</content>
+  </entry>
   <entry>
     <title>Building a GUI for managing middleman blogs</title>
     <link rel="alternate" href="http://willschenk.com/building-a-gui-for-managing-middleman-blogs/"/>
@@ -650,231 +987,6 @@ done
 &lt;p&gt;The first thing that this does is to call the &lt;code&gt;ioreg&lt;/code&gt; command to pull data from the &lt;code&gt;IOHIDSystem&lt;/code&gt;.  This is what OSX uses to track &lt;em&gt;inactivity&lt;/em&gt;, which is used to start powering things down to conserve battery life.  The units of this measurement are &lt;em&gt;small&lt;/em&gt;, so we divide by &lt;code&gt;1000000000&lt;/code&gt; to get them into seconds.  We round that number to the nearest integer by adding &lt;code&gt;0.5&lt;/code&gt; and lopping off the right of the decimal place with &lt;code&gt;int&lt;/code&gt;.  Then we get the shortest number in the list using &lt;code&gt;sort | head&lt;/code&gt;.&lt;/p&gt;
 
 &lt;p&gt;This script waits &lt;code&gt;30&lt;/code&gt; seconds (&lt;code&gt;if [ $IDLE -gt 30 ]&lt;/code&gt;) and then will run &lt;code&gt;osascript&lt;/code&gt; to activate Safari.  The here-doc between &lt;code&gt;EOF&lt;/code&gt; is AppleScript which will activate &lt;em&gt;Safari&lt;/em&gt; and bring it to the front.  Replace that with &lt;em&gt;Google Chrome&lt;/em&gt; if that&amp;#39;s your preferred browser.&lt;/p&gt;
-</content>
-  </entry>
-  <entry>
-    <title>Slow data and Fast Sites</title>
-    <link rel="alternate" href="http://willschenk.com/slow-data-and-fast-sites/"/>
-    <id>http://willschenk.com/slow-data-and-fast-sites/</id>
-    <published>2015-05-07T20:00:00-04:00</published>
-    <updated>2015-05-07T20:00:00-04:00</updated>
-    <author>
-      <name>Will Schenk</name>
-    </author>
-    <content type="html">&lt;p&gt;This article walks through the motivations driving and benefits of using a the Seed Architecture for building performant websites using Middleman, React, and a seperate API server such as Parse.  The benefits are:&lt;/p&gt;
-
-&lt;ol&gt;
-&lt;li&gt;You get full SEO with a heavy client JavaScript site without having to do crazy things with PhantomJS or meta fragments.&lt;/li&gt;
-&lt;li&gt;Hosting and operations become both cheap and doesn&amp;#39;t require a support team.&lt;/li&gt;
-&lt;li&gt;Scaling out the system is mainly a bandwidth problem, and secondarily a API scaling problem for a subset of behavior.&lt;/li&gt;
-&lt;li&gt;The system breaks gracefully. If you overwhelm the API server the site is still available for browsing.  Assuming that most usage of the sites are reads, this means that if you try to &lt;em&gt;break the internet&lt;/em&gt; with &lt;a href="http://www.papermag.com/2014/11/kim_kardashian.php"&gt;Kim Kardashian&amp;#39;s ass&lt;/a&gt; maybe user login will slow down, but everything else is still available.&lt;/li&gt;
-&lt;li&gt;You are able to build your front end using modern and clean fancy JavaScript technologies and don&amp;#39;t need to mess around with back-end coding.&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;h2 id="motivation"&gt;Motivation&lt;/h2&gt;
-
-&lt;p&gt;Sometimes I feel bad for what we make servers do.  I will occasionally get a cringing feeling because we&amp;#39;re just not being very nice to the fancy machines around us.  It&amp;#39;s similar to being in the car with someone who is learning how to drive a standard transmission and they grind the gears lurching the car into a stall.  Ahhh!&lt;/p&gt;
-
-&lt;p&gt;I especially get this feeling when trying to make poorly built websites scale, e.g.  wordpress sites that jam up the server when the slightest breeze of traffic wafts in, or Rails sites that are slamming the database with N+1 unindexed queries of largely static data.  I really enjoyed the &lt;a href="https://medium.com/message/how-paper-magazines-web-engineers-scaled-kim-kardashians-back-end-sfw-6367f8d37688"&gt;backstory to the back-end&lt;/a&gt;, but surely there has to be a better way to do this.&lt;/p&gt;
-
-&lt;p&gt;The reality is the computer is mostly doing the same exact thing, over and over again.  For a lot of sites, there are only a few parts of the page that change based upon who is looking or when they are looking at it, and the bulk of what everyone seems is the same same same.  The computer doesn&amp;#39;t complain about it but silently and stoically gets crushed under the load.  But we can fix it.  If we can break down the data on the page into different categories based upon its rate of change the bulk of the processing can happen at &amp;quot;compile&amp;quot; or &amp;quot;build&amp;quot; time, while only a small part of it needs to happen at run-time.  And when a wave of people come in the servers are fully prepared to serve them up what they need.&lt;/p&gt;
-
-&lt;p&gt;There is so much computer power available both in desktop browsers and mobile browsers, and we should use it.  If we can find a way to precompute the repetitive stuff and push the computing of the dynamic stuff out to the edges, we vastly lower the load on the servers which simplifies operations and scaling.  There are some challenges with doing this; how to deal with SEO, increasing the &amp;quot;build&amp;quot; frequency to handle the &amp;quot;slow data&amp;quot; updates, and how to make it easy to do front-end development.  We&amp;#39;ll go through a strategy below to address those challenges.&lt;/p&gt;
-
-&lt;p&gt;At the end of this meandering article we are going to have a way to build super scalable sites that give you SEO and full client side interactivity without having any servers (or at least only a small cheap one) which will nevertheless be able to scale to huge amounts of traffic cheaply.&lt;/p&gt;
-
-&lt;h2 id="the-outline"&gt;The Outline&lt;/h2&gt;
-
-&lt;p&gt;Let&amp;#39;s take a step back from how we normally build websites, and see what we can we do better based upon the challenges and current reality of operating sites:&lt;/p&gt;
-
-&lt;ol&gt;
-&lt;li&gt;&lt;p&gt;The first insight is that once your site is built and running, things change at a different rate than they do in development.  The difference between tooling and run-time evaluation becomes more pronounced, and usage patterns of the data become clearly statified.  Even though we dump everything into the database, there are distinct classes of data that have different change patterns.&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;The second insight is websites are about sitemaps, not about URLs.  SEO thinks in terms of Sitemaps, and webapps thinks in terms of Routes, but if we could get the best of both worlds if we had a static build process that can pull data from a datastore and understands the concepts of a Sitemap and a Router.&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;The third insight is that we need a templating language that can run equally well on the server and the client in order to keep developers sane and effective.  The bulk of the application needs to be written using the same tooling.&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;The fourth insight is that web services don&amp;#39;t need to be hidden behind the server, and with rich client apps we can consume them directly from the client.&lt;/p&gt;&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;I&amp;#39;ll walk through these in turn, deconstructing what they mean, and outline a way of building a prerendered website that will let you add all the fancy front-end features and full SEO support - all of the benefits of so-called database backed web-sites with content management systems and complex logic - that will be able to scale up quickly without any ops support, and be able to degrade gracefully under spikes.&lt;/p&gt;
-
-&lt;h2 id="data-changes-at-different-rates"&gt;Data changes at different rates&lt;/h2&gt;
-
-&lt;p&gt;Lets take 4 classes of sites that we all build regularly:&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;&lt;strong&gt;Marketing Sites&lt;/strong&gt;, which after they launch rarely change, but may have a form that&amp;#39;s the beginning of a sales or conversion funnel.  &lt;em&gt;e.g. Mobile App landing pages, like &lt;a href="http://getpyne.com"&gt;getpyne.com&lt;/a&gt;&lt;/em&gt;&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;Publishing Sites&lt;/strong&gt;, which change when new content is created, comments get posted, or with changes in a list of most emailed or most read articles.  Blogs, magazines and newspapers fit in here, though they have different user types and publishing schedules. &lt;em&gt;e.g. Newspapers, like &lt;a href="http://nytimes.com"&gt;nytimes.com&lt;/a&gt;&lt;/em&gt;&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;Ecommerce Sites&lt;/strong&gt;, which change when the product catalog gets updated, orders are placed, inventory changes, cross and up sells are calculated, and people add things to their cart. &lt;em&gt;e.g. &lt;a href="http://teepublic.com"&gt;teepublic.com&lt;/a&gt;&lt;/em&gt;&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;Social Sites&lt;/strong&gt;, which you only can access as a user, who your connections are, what gets added by other users, how you interact with that content, and any real time messaging between them. &lt;em&gt;e.g. &lt;a href="http://instagram.com"&gt;instagram.com&lt;/a&gt;&lt;/em&gt;&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;&lt;em&gt;If the word social bothers you, just replace it with &amp;quot;all views are customized to the user and you need to log in to see anything&amp;quot;.&lt;/em&gt;&lt;/p&gt;
-
-&lt;p&gt;Let&amp;#39;s look at the rate of change of the different types of data on these sites:&lt;/p&gt;
-
-&lt;p&gt;&lt;svg width="538pt" height="476pt" viewBox="0.00 0.00 537.54 476.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"&gt;&lt;g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 472)"&gt;&lt;title&gt;Dataflow&lt;/title&gt;&lt;polygon fill="white" stroke="none" points="-4,4 -4,-472 533.538,-472 533.538,4 -4,4"/&gt;&amp;lt;!-- Header --&amp;gt;&lt;g id="node1" class="node"&gt;&lt;title&gt;Header&lt;/title&gt;&lt;text text-anchor="middle" x="65.5415" y="-445.8" font-family="Times,serif" font-size="14.00"&gt;Timeline&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- Release --&amp;gt;&lt;g id="node2" class="node"&gt;&lt;title&gt;Release&lt;/title&gt;&lt;text text-anchor="middle" x="65.5415" y="-373.8" font-family="Times,serif" font-size="14.00"&gt;Release&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- Header&amp;#45;&amp;gt;Release --&amp;gt;&amp;lt;!-- Slow Data --&amp;gt;&lt;g id="node3" class="node"&gt;&lt;title&gt;Slow Data&lt;/title&gt;&lt;text text-anchor="middle" x="65.5415" y="-301.8" font-family="Times,serif" font-size="14.00"&gt;Slow Data&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- Release&amp;#45;&amp;gt;Slow Data --&amp;gt;&lt;g id="edge1" class="edge"&gt;&lt;title&gt;Release&amp;#45;&amp;gt;Slow Data&lt;/title&gt;&lt;path fill="none" stroke="black" d="M65.5415,-359.697C65.5415,-351.983 65.5415,-342.712 65.5415,-334.112"/&gt;&lt;polygon fill="black" stroke="black" points="69.0416,-334.104 65.5415,-324.104 62.0416,-334.104 69.0416,-334.104"/&gt;&lt;/g&gt;&amp;lt;!-- Medium Speed Data --&amp;gt;&lt;g id="node4" class="node"&gt;&lt;title&gt;Medium Speed Data&lt;/title&gt;&lt;text text-anchor="middle" x="65.5415" y="-229.8" font-family="Times,serif" font-size="14.00"&gt;Medium Speed Data&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- Slow Data&amp;#45;&amp;gt;Medium Speed Data --&amp;gt;&lt;g id="edge2" class="edge"&gt;&lt;title&gt;Slow Data&amp;#45;&amp;gt;Medium Speed Data&lt;/title&gt;&lt;path fill="none" stroke="black" d="M65.5415,-287.697C65.5415,-279.983 65.5415,-270.712 65.5415,-262.112"/&gt;&lt;polygon fill="black" stroke="black" points="69.0416,-262.104 65.5415,-252.104 62.0416,-262.104 69.0416,-262.104"/&gt;&lt;/g&gt;&amp;lt;!-- Fast Data --&amp;gt;&lt;g id="node5" class="node"&gt;&lt;title&gt;Fast Data&lt;/title&gt;&lt;text text-anchor="middle" x="65.5415" y="-157.8" font-family="Times,serif" font-size="14.00"&gt;Fast Data&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- Medium Speed Data&amp;#45;&amp;gt;Fast Data --&amp;gt;&lt;g id="edge3" class="edge"&gt;&lt;title&gt;Medium Speed Data&amp;#45;&amp;gt;Fast Data&lt;/title&gt;&lt;path fill="none" stroke="black" d="M65.5415,-215.697C65.5415,-207.983 65.5415,-198.712 65.5415,-190.112"/&gt;&lt;polygon fill="black" stroke="black" points="69.0416,-190.104 65.5415,-180.104 62.0416,-190.104 69.0416,-190.104"/&gt;&lt;/g&gt;&amp;lt;!-- Ephemera --&amp;gt;&lt;g id="node6" class="node"&gt;&lt;title&gt;Ephemera&lt;/title&gt;&lt;text text-anchor="middle" x="65.5415" y="-85.8" font-family="Times,serif" font-size="14.00"&gt;Ephemera&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- Fast Data&amp;#45;&amp;gt;Ephemera --&amp;gt;&lt;g id="edge4" class="edge"&gt;&lt;title&gt;Fast Data&amp;#45;&amp;gt;Ephemera&lt;/title&gt;&lt;path fill="none" stroke="black" d="M65.5415,-143.697C65.5415,-135.983 65.5415,-126.712 65.5415,-118.112"/&gt;&lt;polygon fill="black" stroke="black" points="69.0416,-118.104 65.5415,-108.104 62.0416,-118.104 69.0416,-118.104"/&gt;&lt;/g&gt;&amp;lt;!-- Session Data --&amp;gt;&lt;g id="node7" class="node"&gt;&lt;title&gt;Session Data&lt;/title&gt;&lt;text text-anchor="middle" x="65.5415" y="-13.8" font-family="Times,serif" font-size="14.00"&gt;Session Data&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- Ephemera&amp;#45;&amp;gt;Session Data --&amp;gt;&lt;g id="edge5" class="edge"&gt;&lt;title&gt;Ephemera&amp;#45;&amp;gt;Session Data&lt;/title&gt;&lt;path fill="none" stroke="black" d="M65.5415,-71.6966C65.5415,-63.9827 65.5415,-54.7125 65.5415,-46.1124"/&gt;&lt;polygon fill="black" stroke="black" points="69.0416,-46.1043 65.5415,-36.1043 62.0416,-46.1044 69.0416,-46.1043"/&gt;&lt;/g&gt;&amp;lt;!-- MHeader --&amp;gt;&lt;g id="node8" class="node"&gt;&lt;title&gt;MHeader&lt;/title&gt;&lt;text text-anchor="middle" x="159.542" y="-445.8" font-family="Times,serif" font-size="14.00"&gt;Marketing&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- MData --&amp;gt;&lt;g id="node12" class="node"&gt;&lt;title&gt;MData&lt;/title&gt;&lt;polygon fill="lightgrey" stroke="black" points="201.022,-396 118.061,-396 118.061,-360 201.022,-360 201.022,-396"/&gt;&lt;text text-anchor="middle" x="159.542" y="-373.8" font-family="Times,serif" font-size="14.00"&gt;Data Model&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- MHeader&amp;#45;&amp;gt;MData --&amp;gt;&amp;lt;!-- PHeader --&amp;gt;&lt;g id="node9" class="node"&gt;&lt;title&gt;PHeader&lt;/title&gt;&lt;text text-anchor="middle" x="259.542" y="-445.8" font-family="Times,serif" font-size="14.00"&gt;Publishing&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- PData --&amp;gt;&lt;g id="node13" class="node"&gt;&lt;title&gt;PData&lt;/title&gt;&lt;polygon fill="lightgrey" stroke="black" points="301.022,-396 218.061,-396 218.061,-360 301.022,-360 301.022,-396"/&gt;&lt;text text-anchor="middle" x="259.542" y="-373.8" font-family="Times,serif" font-size="14.00"&gt;Data Model&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- PHeader&amp;#45;&amp;gt;PData --&amp;gt;&amp;lt;!-- EHeader --&amp;gt;&lt;g id="node10" class="node"&gt;&lt;title&gt;EHeader&lt;/title&gt;&lt;text text-anchor="middle" x="375.542" y="-445.8" font-family="Times,serif" font-size="14.00"&gt;Commerce&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- EData --&amp;gt;&lt;g id="node14" class="node"&gt;&lt;title&gt;EData&lt;/title&gt;&lt;polygon fill="lightgrey" stroke="black" points="417.022,-396 334.061,-396 334.061,-360 417.022,-360 417.022,-396"/&gt;&lt;text text-anchor="middle" x="375.542" y="-373.8" font-family="Times,serif" font-size="14.00"&gt;Data Model&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- EHeader&amp;#45;&amp;gt;EData --&amp;gt;&amp;lt;!-- SHeader --&amp;gt;&lt;g id="node11" class="node"&gt;&lt;title&gt;SHeader&lt;/title&gt;&lt;text text-anchor="middle" x="486.542" y="-445.8" font-family="Times,serif" font-size="14.00"&gt;Social&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- SData --&amp;gt;&lt;g id="node15" class="node"&gt;&lt;title&gt;SData&lt;/title&gt;&lt;polygon fill="lightgrey" stroke="black" points="528.022,-396 445.061,-396 445.061,-360 528.022,-360 528.022,-396"/&gt;&lt;text text-anchor="middle" x="486.542" y="-373.8" font-family="Times,serif" font-size="14.00"&gt;Data Model&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- SHeader&amp;#45;&amp;gt;SData --&amp;gt;&amp;lt;!-- MPages --&amp;gt;&lt;g id="node16" class="node"&gt;&lt;title&gt;MPages&lt;/title&gt;&lt;polygon fill="lightgrey" stroke="black" points="186.542,-324 132.542,-324 132.542,-288 186.542,-288 186.542,-324"/&gt;&lt;text text-anchor="middle" x="159.542" y="-301.8" font-family="Times,serif" font-size="14.00"&gt;Pages&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- MData&amp;#45;&amp;gt;MPages --&amp;gt;&lt;g id="edge11" class="edge"&gt;&lt;title&gt;MData&amp;#45;&amp;gt;MPages&lt;/title&gt;&lt;path fill="none" stroke="black" d="M159.542,-359.697C159.542,-351.983 159.542,-342.712 159.542,-334.112"/&gt;&lt;polygon fill="black" stroke="black" points="163.042,-334.104 159.542,-324.104 156.042,-334.104 163.042,-334.104"/&gt;&lt;/g&gt;&amp;lt;!-- PArticles --&amp;gt;&lt;g id="node17" class="node"&gt;&lt;title&gt;PArticles&lt;/title&gt;&lt;polygon fill="lightgrey" stroke="black" points="289.86,-324 229.223,-324 229.223,-288 289.86,-288 289.86,-324"/&gt;&lt;text text-anchor="middle" x="259.542" y="-301.8" font-family="Times,serif" font-size="14.00"&gt;Articles&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- PData&amp;#45;&amp;gt;PArticles --&amp;gt;&lt;g id="edge13" class="edge"&gt;&lt;title&gt;PData&amp;#45;&amp;gt;PArticles&lt;/title&gt;&lt;path fill="none" stroke="black" d="M259.542,-359.697C259.542,-351.983 259.542,-342.712 259.542,-334.112"/&gt;&lt;polygon fill="black" stroke="black" points="263.042,-334.104 259.542,-324.104 256.042,-334.104 263.042,-334.104"/&gt;&lt;/g&gt;&amp;lt;!-- ECatalog --&amp;gt;&lt;g id="node18" class="node"&gt;&lt;title&gt;ECatalog&lt;/title&gt;&lt;polygon fill="lightgrey" stroke="black" points="428.639,-324 322.444,-324 322.444,-288 428.639,-288 428.639,-324"/&gt;&lt;text text-anchor="middle" x="375.542" y="-301.8" font-family="Times,serif" font-size="14.00"&gt;Product Catalog&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- EData&amp;#45;&amp;gt;ECatalog --&amp;gt;&lt;g id="edge17" class="edge"&gt;&lt;title&gt;EData&amp;#45;&amp;gt;ECatalog&lt;/title&gt;&lt;path fill="none" stroke="black" d="M375.542,-359.697C375.542,-351.983 375.542,-342.712 375.542,-334.112"/&gt;&lt;polygon fill="black" stroke="black" points="379.042,-334.104 375.542,-324.104 372.042,-334.104 379.042,-334.104"/&gt;&lt;/g&gt;&amp;lt;!-- SUsers --&amp;gt;&lt;g id="node19" class="node"&gt;&lt;title&gt;SUsers&lt;/title&gt;&lt;polygon fill="none" stroke="black" points="513.542,-324 459.542,-324 459.542,-288 513.542,-288 513.542,-324"/&gt;&lt;text text-anchor="middle" x="486.542" y="-301.8" font-family="Times,serif" font-size="14.00"&gt;Users&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- SData&amp;#45;&amp;gt;SUsers --&amp;gt;&lt;g id="edge22" class="edge"&gt;&lt;title&gt;SData&amp;#45;&amp;gt;SUsers&lt;/title&gt;&lt;path fill="none" stroke="black" d="M486.542,-359.697C486.542,-351.983 486.542,-342.712 486.542,-334.112"/&gt;&lt;polygon fill="black" stroke="black" points="490.042,-334.104 486.542,-324.104 483.042,-334.104 490.042,-334.104"/&gt;&lt;/g&gt;&amp;lt;!-- MEmail --&amp;gt;&lt;g id="node29" class="node"&gt;&lt;title&gt;MEmail&lt;/title&gt;&lt;polygon fill="none" stroke="black" points="186.924,-108 132.159,-108 132.159,-72 186.924,-72 186.924,-108"/&gt;&lt;text text-anchor="middle" x="159.542" y="-85.8" font-family="Times,serif" font-size="14.00"&gt;Emails&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- MPages&amp;#45;&amp;gt;MEmail --&amp;gt;&lt;g id="edge12" class="edge"&gt;&lt;title&gt;MPages&amp;#45;&amp;gt;MEmail&lt;/title&gt;&lt;path fill="none" stroke="black" d="M159.542,-287.849C159.542,-250.832 159.542,-163.181 159.542,-118.386"/&gt;&lt;polygon fill="black" stroke="black" points="163.042,-118.232 159.542,-108.232 156.042,-118.232 163.042,-118.232"/&gt;&lt;/g&gt;&amp;lt;!-- PUsers --&amp;gt;&lt;g id="node20" class="node"&gt;&lt;title&gt;PUsers&lt;/title&gt;&lt;polygon fill="none" stroke="black" points="293.918,-252 225.165,-252 225.165,-216 293.918,-216 293.918,-252"/&gt;&lt;text text-anchor="middle" x="259.542" y="-229.8" font-family="Times,serif" font-size="14.00"&gt;Accounts&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- PArticles&amp;#45;&amp;gt;PUsers --&amp;gt;&lt;g id="edge14" class="edge"&gt;&lt;title&gt;PArticles&amp;#45;&amp;gt;PUsers&lt;/title&gt;&lt;path fill="none" stroke="black" d="M259.542,-287.697C259.542,-279.983 259.542,-270.712 259.542,-262.112"/&gt;&lt;polygon fill="black" stroke="black" points="263.042,-262.104 259.542,-252.104 256.042,-262.104 263.042,-262.104"/&gt;&lt;/g&gt;&amp;lt;!-- EUsers --&amp;gt;&lt;g id="node21" class="node"&gt;&lt;title&gt;EUsers&lt;/title&gt;&lt;polygon fill="none" stroke="black" points="409.918,-252 341.165,-252 341.165,-216 409.918,-216 409.918,-252"/&gt;&lt;text text-anchor="middle" x="375.542" y="-229.8" font-family="Times,serif" font-size="14.00"&gt;Accounts&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- ECatalog&amp;#45;&amp;gt;EUsers --&amp;gt;&lt;g id="edge18" class="edge"&gt;&lt;title&gt;ECatalog&amp;#45;&amp;gt;EUsers&lt;/title&gt;&lt;path fill="none" stroke="black" d="M375.542,-287.697C375.542,-279.983 375.542,-270.712 375.542,-262.112"/&gt;&lt;polygon fill="black" stroke="black" points="379.042,-262.104 375.542,-252.104 372.042,-262.104 379.042,-262.104"/&gt;&lt;/g&gt;&amp;lt;!-- SConnections --&amp;gt;&lt;g id="node22" class="node"&gt;&lt;title&gt;SConnections&lt;/title&gt;&lt;polygon fill="none" stroke="black" points="529.535,-252 443.548,-252 443.548,-216 529.535,-216 529.535,-252"/&gt;&lt;text text-anchor="middle" x="486.542" y="-229.8" font-family="Times,serif" font-size="14.00"&gt;Connections&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- SUsers&amp;#45;&amp;gt;SConnections --&amp;gt;&lt;g id="edge23" class="edge"&gt;&lt;title&gt;SUsers&amp;#45;&amp;gt;SConnections&lt;/title&gt;&lt;path fill="none" stroke="black" d="M486.542,-287.697C486.542,-279.983 486.542,-270.712 486.542,-262.112"/&gt;&lt;polygon fill="black" stroke="black" points="490.042,-262.104 486.542,-252.104 483.042,-262.104 490.042,-262.104"/&gt;&lt;/g&gt;&amp;lt;!-- PComments --&amp;gt;&lt;g id="node23" class="node"&gt;&lt;title&gt;PComments&lt;/title&gt;&lt;polygon fill="none" stroke="black" points="297.711,-180 221.372,-180 221.372,-144 297.711,-144 297.711,-180"/&gt;&lt;text text-anchor="middle" x="259.542" y="-157.8" font-family="Times,serif" font-size="14.00"&gt;Comments&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- PUsers&amp;#45;&amp;gt;PComments --&amp;gt;&lt;g id="edge15" class="edge"&gt;&lt;title&gt;PUsers&amp;#45;&amp;gt;PComments&lt;/title&gt;&lt;path fill="none" stroke="black" d="M259.542,-215.697C259.542,-207.983 259.542,-198.712 259.542,-190.112"/&gt;&lt;polygon fill="black" stroke="black" points="263.042,-190.104 259.542,-180.104 256.042,-190.104 263.042,-190.104"/&gt;&lt;/g&gt;&amp;lt;!-- EOrders --&amp;gt;&lt;g id="node24" class="node"&gt;&lt;title&gt;EOrders&lt;/title&gt;&lt;polygon fill="none" stroke="black" points="402.638,-180 348.445,-180 348.445,-144 402.638,-144 402.638,-180"/&gt;&lt;text text-anchor="middle" x="375.542" y="-157.8" font-family="Times,serif" font-size="14.00"&gt;Orders&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- EUsers&amp;#45;&amp;gt;EOrders --&amp;gt;&lt;g id="edge19" class="edge"&gt;&lt;title&gt;EUsers&amp;#45;&amp;gt;EOrders&lt;/title&gt;&lt;path fill="none" stroke="black" d="M375.542,-215.697C375.542,-207.983 375.542,-198.712 375.542,-190.112"/&gt;&lt;polygon fill="black" stroke="black" points="379.042,-190.104 375.542,-180.104 372.042,-190.104 379.042,-190.104"/&gt;&lt;/g&gt;&amp;lt;!-- SContent --&amp;gt;&lt;g id="node25" class="node"&gt;&lt;title&gt;SContent&lt;/title&gt;&lt;polygon fill="lightgrey" stroke="black" points="516.873,-180 456.21,-180 456.21,-144 516.873,-144 516.873,-180"/&gt;&lt;text text-anchor="middle" x="486.542" y="-157.8" font-family="Times,serif" font-size="14.00"&gt;Content&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- SConnections&amp;#45;&amp;gt;SContent --&amp;gt;&lt;g id="edge24" class="edge"&gt;&lt;title&gt;SConnections&amp;#45;&amp;gt;SContent&lt;/title&gt;&lt;path fill="none" stroke="black" d="M486.542,-215.697C486.542,-207.983 486.542,-198.712 486.542,-190.112"/&gt;&lt;polygon fill="black" stroke="black" points="490.042,-190.104 486.542,-180.104 483.042,-190.104 490.042,-190.104"/&gt;&lt;/g&gt;&amp;lt;!-- PShared --&amp;gt;&lt;g id="node26" class="node"&gt;&lt;title&gt;PShared&lt;/title&gt;&lt;polygon fill="none" stroke="black" points="303.204,-108 215.879,-108 215.879,-72 303.204,-72 303.204,-108"/&gt;&lt;text text-anchor="middle" x="259.542" y="-85.8" font-family="Times,serif" font-size="14.00"&gt;Most Shared&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- PComments&amp;#45;&amp;gt;PShared --&amp;gt;&lt;g id="edge16" class="edge"&gt;&lt;title&gt;PComments&amp;#45;&amp;gt;PShared&lt;/title&gt;&lt;path fill="none" stroke="black" d="M259.542,-143.697C259.542,-135.983 259.542,-126.712 259.542,-118.112"/&gt;&lt;polygon fill="black" stroke="black" points="263.042,-118.104 259.542,-108.104 256.042,-118.104 263.042,-118.104"/&gt;&lt;/g&gt;&amp;lt;!-- ECross --&amp;gt;&lt;g id="node27" class="node"&gt;&lt;title&gt;ECross&lt;/title&gt;&lt;polygon fill="none" stroke="black" points="429.983,-108 321.1,-108 321.1,-72 429.983,-72 429.983,-108"/&gt;&lt;text text-anchor="middle" x="375.542" y="-85.8" font-family="Times,serif" font-size="14.00"&gt;Product Clusters&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- EOrders&amp;#45;&amp;gt;ECross --&amp;gt;&lt;g id="edge20" class="edge"&gt;&lt;title&gt;EOrders&amp;#45;&amp;gt;ECross&lt;/title&gt;&lt;path fill="none" stroke="black" d="M375.542,-143.697C375.542,-135.983 375.542,-126.712 375.542,-118.112"/&gt;&lt;polygon fill="black" stroke="black" points="379.042,-118.104 375.542,-108.104 372.042,-118.104 379.042,-118.104"/&gt;&lt;/g&gt;&amp;lt;!-- SComments --&amp;gt;&lt;g id="node28" class="node"&gt;&lt;title&gt;SComments&lt;/title&gt;&lt;polygon fill="none" stroke="black" points="524.711,-108 448.372,-108 448.372,-72 524.711,-72 524.711,-108"/&gt;&lt;text text-anchor="middle" x="486.542" y="-85.8" font-family="Times,serif" font-size="14.00"&gt;Comments&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- SContent&amp;#45;&amp;gt;SComments --&amp;gt;&lt;g id="edge25" class="edge"&gt;&lt;title&gt;SContent&amp;#45;&amp;gt;SComments&lt;/title&gt;&lt;path fill="none" stroke="black" d="M486.542,-143.697C486.542,-135.983 486.542,-126.712 486.542,-118.112"/&gt;&lt;polygon fill="black" stroke="black" points="490.042,-118.104 486.542,-108.104 483.042,-118.104 490.042,-118.104"/&gt;&lt;/g&gt;&amp;lt;!-- ECart --&amp;gt;&lt;g id="node30" class="node"&gt;&lt;title&gt;ECart&lt;/title&gt;&lt;polygon fill="none" stroke="black" points="402.542,-36 348.542,-36 348.542,-0 402.542,-0 402.542,-36"/&gt;&lt;text text-anchor="middle" x="375.542" y="-13.8" font-family="Times,serif" font-size="14.00"&gt;Cart&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- ECross&amp;#45;&amp;gt;ECart --&amp;gt;&lt;g id="edge21" class="edge"&gt;&lt;title&gt;ECross&amp;#45;&amp;gt;ECart&lt;/title&gt;&lt;path fill="none" stroke="black" d="M375.542,-71.6966C375.542,-63.9827 375.542,-54.7125 375.542,-46.1124"/&gt;&lt;polygon fill="black" stroke="black" points="379.042,-46.1043 375.542,-36.1043 372.042,-46.1044 379.042,-46.1043"/&gt;&lt;/g&gt;&amp;lt;!-- SChat --&amp;gt;&lt;g id="node31" class="node"&gt;&lt;title&gt;SChat&lt;/title&gt;&lt;polygon fill="none" stroke="black" points="513.542,-36 459.542,-36 459.542,-0 513.542,-0 513.542,-36"/&gt;&lt;text text-anchor="middle" x="486.542" y="-13.8" font-family="Times,serif" font-size="14.00"&gt;Chat&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- SComments&amp;#45;&amp;gt;SChat --&amp;gt;&lt;g id="edge26" class="edge"&gt;&lt;title&gt;SComments&amp;#45;&amp;gt;SChat&lt;/title&gt;&lt;path fill="none" stroke="black" d="M486.542,-71.6966C486.542,-63.9827 486.542,-54.7125 486.542,-46.1124"/&gt;&lt;polygon fill="black" stroke="black" points="490.042,-46.1043 486.542,-36.1043 483.042,-46.1044 490.042,-46.1043"/&gt;&lt;/g&gt;&lt;/g&gt;&lt;/svg&gt;&lt;/p&gt;
-
-&lt;p&gt;Lets walk through this.  A &lt;em&gt;data model&lt;/em&gt; is the structure that all of the site data fits into.  This represents the heart of what your database model, object model, and product design are all orbiting around.  In the beginning of development this rapidly changes, but once the site is released changes are incremental and relatively rare. It&amp;#39;s easy to add functionality that doesn&amp;#39;t change the data model, but when you start making drastic changes, the nature of what you are building changes.  Wordpress sites have pages, posts, categories and users, and if you try and jam in a product catalog then it becomes something different than a standard blog.&lt;/p&gt;
-
-&lt;p&gt;The next level is the bulk of the data on the site.  &lt;em&gt;Marketing&lt;/em&gt; sites have pages that change rarely.  &lt;em&gt;Publishing&lt;/em&gt; sites keep adding more articles, but these really don&amp;#39;t change that much and the bulk of the access pattern is read only.  &lt;em&gt;Commerce&lt;/em&gt; sites have product catalogs, and while merchandizers add and remove things from time to time, you largely expect to have things on there forever.  Again this is mostly, though not completely, read-only.&lt;/p&gt;
-
-&lt;p&gt;For SEO to work correctly, the data in the gray boxes really should be rendered on the server.  The &lt;em&gt;Social Site&lt;/em&gt; is a bit of an outlier here, in that the root object is actually the user and the user&amp;#39;s content.  &lt;/p&gt;
-
-&lt;p&gt;Let&amp;#39;s compare &lt;a href="https://medium.com"&gt;medium.com&lt;/a&gt; with &lt;a href="http://facebook.com"&gt;facebook.com&lt;/a&gt;.  Since the bulk of the content of Medium is accessable to anyone once it&amp;#39;s published.  For this discussion its considered to be a publishing site rather than a social site.  Bits and elements of the page change based upon who is accessing the site, but for the most part, everyone sees the same stuff.  Facebook on the other hand looks different for each of the users.  Individual items may be public, but the main consumption is through the feed and that&amp;#39;s based upon your friends &lt;em&gt;and magic&lt;/em&gt;, so scaling has a whole different set of challenges.  Probably involving something very esoteric.&lt;/p&gt;
-
-&lt;h2 id="towards-a-more-nerdy-taxonomy-of-data"&gt;Towards a more nerdy taxonomy of data&lt;/h2&gt;
-
-&lt;p&gt;We can look at each of the elements on a website and break down the type of data source it came from:&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;&lt;strong&gt;Static Data&lt;/strong&gt;: Templates, Images, Fonts, Assets&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;Structural Data&lt;/strong&gt;: Pages, Articles, Product Catalog, Categories, &amp;quot;Content&amp;quot;&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;Dynamic Data&lt;/strong&gt;: Inventory, Comments&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;Session Data&lt;/strong&gt;: User names, Items in cart, Likes, etc.&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;As we go down the list, the rate in which these things change increases.  &lt;em&gt;Static data&lt;/em&gt;, as the name implies, rarely changes.  Most of these are artifacts that come out of the development process or development tooling.  Templates, for example, are created during the site development process and once the site is deployed they change only in response to bug fixes or feature requests.&lt;/p&gt;
-
-&lt;p&gt;&lt;em&gt;Structural Data&lt;/em&gt; changes during the operations of the business, but not very frequently, and generally in response to things that are outside of the site &lt;em&gt;per se&lt;/em&gt;.  These include things like marketing material, product pages (less inventory information), categories, articles, and really the bulk of the content on a site.  There are many reasons why you want to generate these pages using some sort of CMS, but rarely does this data change at &lt;em&gt;run-time&lt;/em&gt;.  This stuff doesn&amp;#39;t really need to be in a run-time database as such, but it&amp;#39;s convient to stick this stuff there if you have one laying around.&lt;/p&gt;
-
-&lt;p&gt;&lt;em&gt;Dynamic Data&lt;/em&gt; is &lt;em&gt;run-time&lt;/em&gt; data, that is to say, things that change as part of site operations, things like newsletter signups, orders and credit card transactions.  Most &lt;em&gt;User Generated Content&lt;/em&gt; falls in the this category, and depending upon your feature set, that could be the majority of the pages.  Unlike &lt;em&gt;Structural Data&lt;/em&gt;, where it&amp;#39;s merely a good idea to use a database, this is &lt;em&gt;neccessarily&lt;/em&gt; stored in some sort of database.&lt;/p&gt;
-
-&lt;p&gt;&lt;em&gt;Session Data&lt;/em&gt; is &lt;em&gt;specific to the user&lt;/em&gt; and renders the page differently based upon their session, such as their name, whether they&amp;#39;ve added an item into the cart or not, etc.  One of the things that makes straight &lt;em&gt;page caching&lt;/em&gt; useless in practice is that the header is different on most sites based on if you are logged in or not, or if there are items in the cart.  This gets persisted from page to page, but generally can get thrown away if the user wanders off.&lt;/p&gt;
-
-&lt;h2 id="what-do-we-need-to-assemble-a-website"&gt;What do we need to assemble a website&lt;/h2&gt;
-
-&lt;p&gt;A website is a series of interconnected webpages.  These pages are referenced by URLs, and the world of linking and SEO demands that these URLs return self-contained data so that you can deep link and get yourself found on the search engines.  From the outside, it looks like:&lt;/p&gt;
-
-&lt;p&gt;&lt;svg width="314pt" height="188pt" viewBox="0.00 0.00 313.55 188.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"&gt;&lt;g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 184)"&gt;&lt;title&gt;Sitemaps&lt;/title&gt;&lt;polygon fill="white" stroke="none" points="-4,4 -4,-184 309.553,-184 309.553,4 -4,4"/&gt;&amp;lt;!-- a --&amp;gt;&lt;g id="node1" class="node"&gt;&lt;title&gt;a&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="165.909" cy="-162" rx="42.0717" ry="18"/&gt;&lt;text text-anchor="middle" x="165.909" y="-157.8" font-family="Times,serif" font-size="14.00"&gt;Site Map&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- b --&amp;gt;&lt;g id="node5" class="node"&gt;&lt;title&gt;b&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="92.9093" cy="-90" rx="27.0958" ry="18"/&gt;&lt;text text-anchor="middle" x="92.9093" y="-85.8" font-family="Times,serif" font-size="14.00"&gt;Page&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- a&amp;#45;&amp;gt;b --&amp;gt;&lt;g id="edge1" class="edge"&gt;&lt;title&gt;a&amp;#45;&amp;gt;b&lt;/title&gt;&lt;path fill="none" stroke="black" d="M149.344,-145.116C139.227,-135.415 126.163,-122.887 115.152,-112.329"/&gt;&lt;polygon fill="black" stroke="black" points="117.559,-109.788 107.919,-105.393 112.714,-114.84 117.559,-109.788"/&gt;&lt;/g&gt;&amp;lt;!-- c --&amp;gt;&lt;g id="node6" class="node"&gt;&lt;title&gt;c&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="165.909" cy="-90" rx="27.0958" ry="18"/&gt;&lt;text text-anchor="middle" x="165.909" y="-85.8" font-family="Times,serif" font-size="14.00"&gt;Page&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- a&amp;#45;&amp;gt;c --&amp;gt;&lt;g id="edge2" class="edge"&gt;&lt;title&gt;a&amp;#45;&amp;gt;c&lt;/title&gt;&lt;path fill="none" stroke="black" d="M165.909,-143.697C165.909,-135.983 165.909,-126.712 165.909,-118.112"/&gt;&lt;polygon fill="black" stroke="black" points="169.409,-118.104 165.909,-108.104 162.409,-118.104 169.409,-118.104"/&gt;&lt;/g&gt;&amp;lt;!-- d --&amp;gt;&lt;g id="node7" class="node"&gt;&lt;title&gt;d&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="238.909" cy="-90" rx="27.0958" ry="18"/&gt;&lt;text text-anchor="middle" x="238.909" y="-85.8" font-family="Times,serif" font-size="14.00"&gt;Page&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- a&amp;#45;&amp;gt;d --&amp;gt;&lt;g id="edge3" class="edge"&gt;&lt;title&gt;a&amp;#45;&amp;gt;d&lt;/title&gt;&lt;path fill="none" stroke="black" d="M182.474,-145.116C192.591,-135.415 205.656,-122.887 216.666,-112.329"/&gt;&lt;polygon fill="black" stroke="black" points="219.104,-114.84 223.9,-105.393 214.259,-109.788 219.104,-114.84"/&gt;&lt;/g&gt;&amp;lt;!-- e --&amp;gt;&lt;g id="node2" class="node"&gt;&lt;title&gt;e&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="48.9093" cy="-18" rx="48.8187" ry="18"/&gt;&lt;text text-anchor="middle" x="48.9093" y="-13.8" font-family="Times,serif" font-size="14.00"&gt;Javascripts&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- f --&amp;gt;&lt;g id="node3" class="node"&gt;&lt;title&gt;f&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="165.909" cy="-18" rx="49.7964" ry="18"/&gt;&lt;text text-anchor="middle" x="165.909" y="-13.8" font-family="Times,serif" font-size="14.00"&gt;Stylesheets&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- g --&amp;gt;&lt;g id="node4" class="node"&gt;&lt;title&gt;g&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="269.909" cy="-18" rx="35.7887" ry="18"/&gt;&lt;text text-anchor="middle" x="269.909" y="-13.8" font-family="Times,serif" font-size="14.00"&gt;Images&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- b&amp;#45;&amp;gt;e --&amp;gt;&lt;g id="edge4" class="edge"&gt;&lt;title&gt;b&amp;#45;&amp;gt;e&lt;/title&gt;&lt;path fill="none" stroke="black" d="M82.925,-73.1159C77.6218,-64.679 70.9749,-54.1044 64.9671,-44.5465"/&gt;&lt;polygon fill="black" stroke="black" points="67.7526,-42.4011 59.4676,-35.7973 61.8261,-46.1263 67.7526,-42.4011"/&gt;&lt;/g&gt;&amp;lt;!-- b&amp;#45;&amp;gt;f --&amp;gt;&lt;g id="edge7" class="edge"&gt;&lt;title&gt;b&amp;#45;&amp;gt;f&lt;/title&gt;&lt;path fill="none" stroke="black" d="M107.682,-74.8345C117.431,-65.4862 130.431,-53.0203 141.674,-42.2391"/&gt;&lt;polygon fill="black" stroke="black" points="144.32,-44.5508 149.116,-35.1033 139.475,-39.4983 144.32,-44.5508"/&gt;&lt;/g&gt;&amp;lt;!-- b&amp;#45;&amp;gt;g --&amp;gt;&lt;g id="edge10" class="edge"&gt;&lt;title&gt;b&amp;#45;&amp;gt;g&lt;/title&gt;&lt;path fill="none" stroke="black" d="M114.712,-78.6811C119.679,-76.4146 124.953,-74.0738 129.909,-72 132.434,-70.9436 192.282,-48.3186 232.902,-32.9744"/&gt;&lt;polygon fill="black" stroke="black" points="234.144,-36.2471 242.262,-29.4393 231.67,-29.6986 234.144,-36.2471"/&gt;&lt;/g&gt;&amp;lt;!-- c&amp;#45;&amp;gt;e --&amp;gt;&lt;g id="edge5" class="edge"&gt;&lt;title&gt;c&amp;#45;&amp;gt;e&lt;/title&gt;&lt;path fill="none" stroke="black" d="M146.326,-77.2836C128.873,-66.8413 102.961,-51.3386 82.2481,-38.9463"/&gt;&lt;polygon fill="black" stroke="black" points="83.8169,-35.8063 73.4385,-33.6756 80.2229,-41.8133 83.8169,-35.8063"/&gt;&lt;/g&gt;&amp;lt;!-- c&amp;#45;&amp;gt;f --&amp;gt;&lt;g id="edge8" class="edge"&gt;&lt;title&gt;c&amp;#45;&amp;gt;f&lt;/title&gt;&lt;path fill="none" stroke="black" d="M165.909,-71.6966C165.909,-63.9827 165.909,-54.7125 165.909,-46.1124"/&gt;&lt;polygon fill="black" stroke="black" points="169.409,-46.1043 165.909,-36.1043 162.409,-46.1044 169.409,-46.1043"/&gt;&lt;/g&gt;&amp;lt;!-- c&amp;#45;&amp;gt;g --&amp;gt;&lt;g id="edge11" class="edge"&gt;&lt;title&gt;c&amp;#45;&amp;gt;g&lt;/title&gt;&lt;path fill="none" stroke="black" d="M184.502,-76.4854C200.168,-65.9413 222.848,-50.6758 240.9,-38.5255"/&gt;&lt;polygon fill="black" stroke="black" points="242.997,-41.3328 249.339,-32.8454 239.089,-35.5257 242.997,-41.3328"/&gt;&lt;/g&gt;&amp;lt;!-- d&amp;#45;&amp;gt;e --&amp;gt;&lt;g id="edge6" class="edge"&gt;&lt;title&gt;d&amp;#45;&amp;gt;e&lt;/title&gt;&lt;path fill="none" stroke="black" d="M217.541,-78.7547C212.459,-76.4372 207.026,-74.0559 201.909,-72 166.251,-57.6716 125.047,-43.5325 94.3876,-33.4665"/&gt;&lt;polygon fill="black" stroke="black" points="95.4168,-30.1208 84.8243,-30.3463 93.2455,-36.7755 95.4168,-30.1208"/&gt;&lt;/g&gt;&amp;lt;!-- d&amp;#45;&amp;gt;f --&amp;gt;&lt;g id="edge9" class="edge"&gt;&lt;title&gt;d&amp;#45;&amp;gt;f&lt;/title&gt;&lt;path fill="none" stroke="black" d="M224.137,-74.8345C214.388,-65.4862 201.388,-53.0203 190.144,-42.2391"/&gt;&lt;polygon fill="black" stroke="black" points="192.343,-39.4983 182.703,-35.1033 187.498,-44.5508 192.343,-39.4983"/&gt;&lt;/g&gt;&amp;lt;!-- d&amp;#45;&amp;gt;g --&amp;gt;&lt;g id="edge12" class="edge"&gt;&lt;title&gt;d&amp;#45;&amp;gt;g&lt;/title&gt;&lt;path fill="none" stroke="black" d="M246.256,-72.411C249.832,-64.3352 254.218,-54.4312 258.238,-45.3547"/&gt;&lt;polygon fill="black" stroke="black" points="261.551,-46.517 262.4,-35.9562 255.151,-43.6825 261.551,-46.517"/&gt;&lt;/g&gt;&lt;/g&gt;&lt;/svg&gt;&lt;/p&gt;
-
-&lt;p&gt;The main entry point is the &lt;em&gt;Sitemap&lt;/em&gt;.  Conceptually, this is the overview of what can be found on the site.  In a specific, SEO sense, a sitemap is a way of communicating to search engines the structure of your site so the search results can be better organized.  But in a more general sense, the sitemap is a collection of all of the pages that make up the site.&lt;/p&gt;
-
-&lt;p&gt;The conceptual sitemap is a list of URLs that makes up your site.  If you have a completely static &lt;em&gt;Marketing&lt;/em&gt; site, then the sitemaps is just the collection of the static HTML files that is on the webserver filesystem.  If you have a &lt;em&gt;Publishing&lt;/em&gt; or &lt;em&gt;Commerce&lt;/em&gt; site, the list of page urls depend upon the templates and the data in the database: even if they use the same template, every individual post has it&amp;#39;s own permalink or &lt;em&gt;canonical URL&lt;/em&gt;, every product in the catalog has it&amp;#39;s own product detail page.&lt;/p&gt;
-
-&lt;h2 id="how-urls-are-made-on-the-inside"&gt;How urls are made on the inside&lt;/h2&gt;
-
-&lt;p&gt;Lets take an example of a &lt;em&gt;Commerce&lt;/em&gt; site, and how those URLs are generated.  I don&amp;#39;t know the actual details, but lets look at how &lt;code&gt;http://www.thinkgeek.com/product/1dbd/&lt;/code&gt; could be generated.&lt;/p&gt;
-
-&lt;p&gt;From the inside of a website, it looks a little more like this:&lt;/p&gt;
-
-&lt;p&gt;&lt;svg width="408pt" height="152pt" viewBox="0.00 0.00 408.03 152.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"&gt;&lt;g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 148)"&gt;&lt;title&gt;Routing&lt;/title&gt;&lt;polygon fill="white" stroke="none" points="-4,4 -4,-148 404.027,-148 404.027,4 -4,4"/&gt;&amp;lt;!-- b --&amp;gt;&lt;g id="node1" class="node"&gt;&lt;title&gt;b&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="31.2223" cy="-99" rx="31.4462" ry="18"/&gt;&lt;text text-anchor="middle" x="31.2223" y="-94.8" font-family="Times,serif" font-size="14.00"&gt;router&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- c --&amp;gt;&lt;g id="node2" class="node"&gt;&lt;title&gt;c&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="142.928" cy="-126" rx="44.4664" ry="18"/&gt;&lt;text text-anchor="middle" x="142.928" y="-121.8" font-family="Times,serif" font-size="14.00"&gt;controller&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- b&amp;#45;&amp;gt;c --&amp;gt;&lt;g id="edge1" class="edge"&gt;&lt;title&gt;b&amp;#45;&amp;gt;c&lt;/title&gt;&lt;path fill="none" stroke="black" d="M60.1895,-105.883C70.7038,-108.471 82.969,-111.489 94.7521,-114.389"/&gt;&lt;polygon fill="black" stroke="black" points="93.9407,-117.794 104.487,-116.785 95.6137,-110.997 93.9407,-117.794"/&gt;&lt;/g&gt;&amp;lt;!-- g --&amp;gt;&lt;g id="node3" class="node"&gt;&lt;title&gt;g&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="142.928" cy="-72" rx="44.4664" ry="18"/&gt;&lt;text text-anchor="middle" x="142.928" y="-67.8" font-family="Times,serif" font-size="14.00"&gt;controller&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- b&amp;#45;&amp;gt;g --&amp;gt;&lt;g id="edge5" class="edge"&gt;&lt;title&gt;b&amp;#45;&amp;gt;g&lt;/title&gt;&lt;path fill="none" stroke="black" d="M60.1895,-92.1169C70.7038,-89.5292 82.969,-86.5106 94.7521,-83.6106"/&gt;&lt;polygon fill="black" stroke="black" points="95.6137,-87.0031 104.487,-81.2146 93.9407,-80.2059 95.6137,-87.0031"/&gt;&lt;/g&gt;&amp;lt;!-- e --&amp;gt;&lt;g id="node4" class="node"&gt;&lt;title&gt;e&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="142.928" cy="-18" rx="42.0524" ry="18"/&gt;&lt;text text-anchor="middle" x="142.928" y="-13.8" font-family="Times,serif" font-size="14.00"&gt;datastore&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- c&amp;#45;&amp;gt;e --&amp;gt;&lt;g id="edge2" class="edge"&gt;&lt;title&gt;c&amp;#45;&amp;gt;e&lt;/title&gt;&lt;path fill="none" stroke="black" d="M108.577,-114.263C97.6138,-108.704 86.7092,-100.839 80.4446,-90 72.4384,-76.1472 72.4384,-67.8528 80.4446,-54 85.1832,-45.801 92.5766,-39.3043 100.642,-34.2196"/&gt;&lt;polygon fill="black" stroke="black" points="102.536,-37.1709 109.564,-29.2427 99.126,-31.0577 102.536,-37.1709"/&gt;&lt;/g&gt;&amp;lt;!-- d --&amp;gt;&lt;g id="node5" class="node"&gt;&lt;title&gt;d&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="263.965" cy="-126" rx="40.6075" ry="18"/&gt;&lt;text text-anchor="middle" x="263.965" y="-121.8" font-family="Times,serif" font-size="14.00"&gt;template&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- c&amp;#45;&amp;gt;d --&amp;gt;&lt;g id="edge3" class="edge"&gt;&lt;title&gt;c&amp;#45;&amp;gt;d&lt;/title&gt;&lt;path fill="none" stroke="black" d="M187.577,-126C195.879,-126 204.626,-126 213.105,-126"/&gt;&lt;polygon fill="black" stroke="black" points="213.265,-129.5 223.265,-126 213.265,-122.5 213.265,-129.5"/&gt;&lt;/g&gt;&amp;lt;!-- g&amp;#45;&amp;gt;e --&amp;gt;&lt;g id="edge6" class="edge"&gt;&lt;title&gt;g&amp;#45;&amp;gt;e&lt;/title&gt;&lt;path fill="none" stroke="black" d="M142.928,-53.7902C142.928,-51.3082 142.928,-48.8262 142.928,-46.3443"/&gt;&lt;polygon fill="black" stroke="black" points="146.428,-46.1406 142.928,-36.1406 139.428,-46.1407 146.428,-46.1406"/&gt;&lt;/g&gt;&amp;lt;!-- h --&amp;gt;&lt;g id="node6" class="node"&gt;&lt;title&gt;h&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="263.965" cy="-72" rx="40.6075" ry="18"/&gt;&lt;text text-anchor="middle" x="263.965" y="-67.8" font-family="Times,serif" font-size="14.00"&gt;template&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- g&amp;#45;&amp;gt;h --&amp;gt;&lt;g id="edge7" class="edge"&gt;&lt;title&gt;g&amp;#45;&amp;gt;h&lt;/title&gt;&lt;path fill="none" stroke="black" d="M187.577,-72C195.879,-72 204.626,-72 213.105,-72"/&gt;&lt;polygon fill="black" stroke="black" points="213.265,-75.5001 223.265,-72 213.265,-68.5001 213.265,-75.5001"/&gt;&lt;/g&gt;&amp;lt;!-- i --&amp;gt;&lt;g id="node7" class="node"&gt;&lt;title&gt;i&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="370.273" cy="-99" rx="29.5104" ry="18"/&gt;&lt;text text-anchor="middle" x="370.273" y="-94.8" font-family="Times,serif" font-size="14.00"&gt;result&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- d&amp;#45;&amp;gt;i --&amp;gt;&lt;g id="edge4" class="edge"&gt;&lt;title&gt;d&amp;#45;&amp;gt;i&lt;/title&gt;&lt;path fill="none" stroke="black" d="M299.408,-117.084C310.021,-114.337 321.744,-111.303 332.507,-108.517"/&gt;&lt;polygon fill="black" stroke="black" points="333.66,-111.834 342.464,-105.939 331.906,-105.057 333.66,-111.834"/&gt;&lt;/g&gt;&amp;lt;!-- h&amp;#45;&amp;gt;i --&amp;gt;&lt;g id="edge8" class="edge"&gt;&lt;title&gt;h&amp;#45;&amp;gt;i&lt;/title&gt;&lt;path fill="none" stroke="black" d="M299.408,-80.9156C310.021,-83.6627 321.744,-86.6972 332.507,-89.4832"/&gt;&lt;polygon fill="black" stroke="black" points="331.906,-92.9429 342.464,-92.0605 333.66,-86.1662 331.906,-92.9429"/&gt;&lt;/g&gt;&lt;/g&gt;&lt;/svg&gt;&lt;/p&gt;
-
-&lt;p&gt;A request comes into the server and the &lt;code&gt;router&lt;/code&gt; determines what the user is asking for.  In our example, since the path of the url is &lt;code&gt;/product/1dbd/&lt;/code&gt;, the router looks at that and says &amp;quot;this is a product page&amp;quot; so let&amp;#39;s hand the request off to the &lt;code&gt;product&lt;/code&gt; controller, which is the part of the code that knows about product stuff.&lt;/p&gt;
-
-&lt;p&gt;The controller would load up the product with the id &lt;code&gt;1dbd&lt;/code&gt; from the product catalog in the database, in this case &lt;em&gt;Flux Capacitor USB Car Charger&lt;/em&gt;, which we can all agree is a necessary car accessory, and then use those details to fill out the product template.&lt;/p&gt;
-
-&lt;p&gt;The developers of this site didn&amp;#39;t code up each of these product pages, they coded up one &lt;code&gt;template&lt;/code&gt; that represents all of the possible product pages that could be served up, they coded up a &lt;code&gt;controller&lt;/code&gt; which knows how to pull the data from the database, and they wired up the whole thing using a &lt;code&gt;router&lt;/code&gt;.&lt;/p&gt;
-
-&lt;h2 id="sitemaps-in-static-site-generators"&gt;Sitemaps in static site generators&lt;/h2&gt;
-
-&lt;p&gt;Our conceptual sitemap then is composed then of the set routes and database ids.  The pages themselves are a cross product of the templates and the data for each of the pages:&lt;/p&gt;
-
-&lt;p&gt;&lt;strong&gt;Data x Templates = Pages&lt;/strong&gt;&lt;/p&gt;
-
-&lt;p&gt;One of the things that&amp;#39;s exciting about &lt;a href="https://middlemanapp.com"&gt;Middleman&lt;/a&gt; is that it has a &lt;a href="/building-middleman-extensions/#manipulating-the-sitemap"&gt;manipulatable concept of a sitemap&lt;/a&gt;.&lt;/p&gt;
-
-&lt;p&gt;The main thing that middleman does it to give front-end developers tooling to build sites, so you get the benefits of layouts and partials and SASS and helper methods and javascript minification all the other front-end tooling that you get with rails, but without needing to run a server.  This lets you build fancy sites using the &amp;quot;normal&amp;quot; tools and you can still host them on github pages or divshot or a cheap server.&lt;/p&gt;
-
-&lt;p&gt;I&amp;#39;ve written about Middleman before:&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;&lt;a href="/building-sites-with-middleman/"&gt;Building Sites with Middleman&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href="/middleman-tricks-and-hacks/"&gt;Middleman Tricks and Hacks&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href="/building-middleman-extensions/"&gt;Building Middleman Extensions&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;If we want to pre-render the pages on the server at build time we&amp;#39;ll need both the routes as well as the &amp;quot;database IDs&amp;quot;.  That gives us the list of files, and to generate the files themselves we&amp;#39;ll need the data for each specific page.  In a basic way, this can be done using &lt;a href="/advanced/dynamic_pages/"&gt;page proxies&lt;/a&gt;, excerpt from the Middleman docs:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;[&amp;quot;tom&amp;quot;, &amp;quot;dick&amp;quot;, &amp;quot;harry&amp;quot;].each do |name|
-  proxy &amp;quot;/about/#{name}.html&amp;quot;, &amp;quot;/about/template.html&amp;quot;, :locals =&amp;gt; { :person_name =&amp;gt; name }, :ignore =&amp;gt; true
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;If you put that code in your &lt;code&gt;config.rb&lt;/code&gt; it will create 3 pages in the middleman sitemap. (Found on &lt;code&gt;http://localhost:4567/__middleman/sitemap/&lt;/code&gt; if you have a local build running.) These files will be named &lt;code&gt;/about/tom.html&lt;/code&gt;, &lt;code&gt;/about/dick.html&lt;/code&gt;, and &lt;code&gt;/about/tom.html&lt;/code&gt;, all generated from the &lt;code&gt;/about/template.html&lt;/code&gt; template.&lt;/p&gt;
-
-&lt;p&gt;You could imagine instead passing in a complex object instead of a string.  I touched on this in a basic way before in the &lt;a href="/middleman-tricks-and-hacks/#site-data-as-database"&gt;Using Site Data as a Database&lt;/a&gt;.&lt;/p&gt;
-
-&lt;p&gt;In the simpliest form, you could dump your data in the &lt;code&gt;data/&lt;/code&gt; directory as &lt;code&gt;books.json&lt;/code&gt;, and then put this in your &lt;code&gt;config.rb&lt;/code&gt; to generate a product catalog:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;data.books.each do |book|
-  proxy &amp;quot;/book/#{book.slug}.html&amp;quot;, &amp;quot;/book.html&amp;quot;, locals: { book: book }, ignore: true
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;As a proof of concept this works, but for a real system there would at least need to be a mechanism to sync the json from the database.  For a more robust mechanism, remember that Middleman exposes a &lt;a href="/building-middleman-extensions/#manipulating-the-sitemap"&gt;manipulatable concept of a sitemap&lt;/a&gt; to extensions.&lt;/p&gt;
-
-&lt;h2 id="making-front-end-development-easy"&gt;Making front-end development easy&lt;/h2&gt;
-
-&lt;p&gt;The story thus far is that we can split out data into static, dynamic, and session data, and we can use Middleman&amp;#39;s sitemap concept to generate static pages that can be served straight from S3 for all we care and it will all be indexable by Google.  Sweet!!!&lt;/p&gt;
-
-&lt;p&gt;Now lets talk about how we can actually implement some of these templates.&lt;/p&gt;
-
-&lt;p&gt;We&amp;#39;ve broken down pages and split out when different parts will be rendered based upon our &lt;a href="#towards-a-more-nerdy-taxonomy-of-data"&gt;taxonomy of data&lt;/a&gt;.  We&amp;#39;ve figured out a basic structure of how to render the &lt;em&gt;Structural Data&lt;/em&gt; into the page, and now we need to figure out a good way to render the &lt;em&gt;Dynamic&lt;/em&gt; and &lt;em&gt;Session&lt;/em&gt; data in there too. And we also want to make this friendly for front-end developers.  It&amp;#39;s not practical to have different templating engines and coding styles for bits of data that, during the development process, may turn out to be &lt;em&gt;Site&lt;/em&gt; or &lt;em&gt;Dynamic&lt;/em&gt; data.&lt;/p&gt;
-
-&lt;p&gt;This is different than using Varnish, CloudFront or Rails Page Level caching.  In those scenarios, there&amp;#39;s no easy way to distinguish between elements on the page that everyone can see, vs elements that only specific people can see.  It&amp;#39;s all or nothing.&lt;/p&gt;
-
-&lt;p&gt;For example, when Admins are logged into wordpress sites, they have a toolbar that regular browsers don&amp;#39;t see, so the page caching mechanisms need to have a way to subvert the caching process for logged in users.  In this mechanism, we are going to send the same basic page data to all of the users, and then use client side javascript templating to change the DOM for the user based upon API calls that we make on their request.&lt;/p&gt;
-
-&lt;h2 id="enter-react"&gt;Enter React&lt;/h2&gt;
-
-&lt;p&gt;&lt;a href="https://facebook.github.io/react/"&gt;React&lt;/a&gt; is a javascript view framework from Facebook that focuses solely on the view layer.  (We&amp;#39;re only going to be talking about the React part, and you can use &lt;a href="https://facebook.github.io/flux/"&gt;flux&lt;/a&gt; or not, up to you.)&lt;/p&gt;
-
-&lt;p&gt;React works by enforcing a specific dataflow model on how components are rendered into the DOM.  React lets you build heirachies of components that know how to render themselves and deal with different user actions.  Much of what we&amp;#39;ve been talking about above thinking about page generation from a dataflow perspective, splitting the data up into different sources based upon their rate of change, and breaking up the page based upon how the data flows into it.With the goal of trying to prerender all of the stuff that&amp;#39;s the same for everyone.&lt;/p&gt;
-
-&lt;p&gt;React has a more focused dataflow model, working by passing in a component, data, and a DOM element, and it render out the HTML in that element.  Components can be nested and have complex logic, and when you change the state of a particular component, all of the subcomponents will be refreshed as needed.&lt;/p&gt;
-
-&lt;p&gt;React has two concepts of data, one is called &lt;em&gt;properties&lt;/em&gt; which is inherited from above and considered to be immutable.  The other is called &lt;em&gt;state&lt;/em&gt;, which is owned by a component and can be changed and passed to any children components.  In React, this is about data ownership and to keep the page updates efficient.&lt;/p&gt;
-
-&lt;h2 id="rendering-react-on-the-server-side"&gt;Rendering React on the server side&lt;/h2&gt;
-
-&lt;p&gt;One of the most interesting things about React is that you can render the HTML on the server side as well as the client side.  Rendering on the server will include data attributes on the DOM so that the client Javascript can pick it up from there.  In other words, if the data is available, you can render a template on the server or the client and it will &lt;em&gt;work the exact same way&lt;/em&gt;.  This is the one templating system that will be easy to move from &lt;em&gt;Structural Data on the server&lt;/em&gt; to &lt;em&gt;Dynamic Data on the client&lt;/em&gt;!&lt;/p&gt;
-
-&lt;p&gt;Obviously you need to have the data available on the server at render time, and you&amp;#39;ll pass it to the precompiler in a different way than you would on the client (one is passed to the JavaScript engine and the other is probably a result of a JSON AJAX call but all of the interaction and user logic remains the same), but outside of the wiring the business and interaction logic completely shared.&lt;/p&gt;
-
-&lt;p&gt;If you are using &lt;a href="https://github.com/reactjs/react-rails"&gt;&lt;code&gt;react-rails&lt;/code&gt;&lt;/a&gt; this looks like:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;&amp;lt;%= react_component(&amp;#39;HelloMessage&amp;#39;, {name: &amp;#39;John&amp;#39;}, {prerender: true}) %&amp;gt;
-&amp;lt;!-- becomes: --&amp;gt;
-&amp;lt;div data-react-class=&amp;quot;HelloMessage&amp;quot; data-react-props=&amp;quot;{&amp;amp;quot;name&amp;amp;quot;:&amp;amp;quot;John&amp;amp;quot;}&amp;quot;&amp;gt;
-  &amp;lt;h1&amp;gt;Hello, John!&amp;lt;/h1&amp;gt;
-&amp;lt;/div&amp;gt;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;When you instantiate the javascript environment in the client, it will look for the &lt;code&gt;data-react-*&lt;/code&gt; attributes and plug in your components there.&lt;/p&gt;
-
-&lt;p&gt;I&amp;#39;ve ported this functionality over to HappyFunCorp&amp;#39;s fork of the &lt;a href="https://github.com/HappyFunCorp/middleman-react"&gt;middleman-react gem&lt;/a&gt; that you can use in middleman.&lt;/p&gt;
-
-&lt;h2 id="javascript-and-web-services-sitting-in-a-tree"&gt;Javascript and web services sitting in a tree&lt;/h2&gt;
-
-&lt;p&gt;The trick is that React can also be rendered on the server, and then the javascript that&amp;#39;s run on the client side can pick it up from there.  At this point in the process all of the &lt;em&gt;Structural Data&lt;/em&gt; is available both in rendered HTML and also in the React components themselves, passed in as &lt;em&gt;properties&lt;/em&gt; or &lt;em&gt;state&lt;/em&gt;.&lt;/p&gt;
-
-&lt;p&gt;Our components are ready to go!  They&amp;#39;ve either rendered &lt;em&gt;Site Data&lt;/em&gt; from the server, or they can pull in &lt;em&gt;Dynamic and Session Data&lt;/em&gt; in from an API, and use that to render the page.  These components are written in the same way, using the same technology, so you don&amp;#39;t need to have a different style of building or constructing the front end, other than breaking down where the components get data from.  Which ones get rendered on the server?  Do they have enough data to render what they need?  Do they need to have additional data that can be loaded in at client-run-time?  Or is it all straight from an API?&lt;/p&gt;
-
-&lt;h2 id="enter-parse"&gt;Enter Parse&lt;/h2&gt;
-
-&lt;p&gt;One of the benefits of this is that there are API-as-services out there, like &lt;a href="https://parse.com"&gt;Parse&lt;/a&gt; or &lt;a href="https://www.firebase.com"&gt;Firebase&lt;/a&gt;.  All of your data could live in these systems, and you can pull certain stuff out during the build process, and other data out at Runtime, and they handle both security, user accounts, and, more importantly, operational scaling support.  From an ops perspective, you don&amp;#39;t need to do anything other than build the site and pay the hosting builds, and all of the tricky scaling stuff handled is by a third party.&lt;/p&gt;
-
-&lt;p&gt;&lt;img class="img-responsive" src="images/seed_sequence-19612778.png" /&gt;&lt;/p&gt;
-
-&lt;h2 id="bringing-back-a-build-server"&gt;Bringing back a build server&lt;/h2&gt;
-
-&lt;div class="diagram_right"&gt;
-&lt;svg width="228pt" height="302pt" viewBox="0.00 0.00 228.08 302.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"&gt;&lt;g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 298)"&gt;&lt;title&gt;deployment&lt;/title&gt;&lt;polygon fill="white" stroke="none" points="-4,4 -4,-298 224.078,-298 224.078,4 -4,4"/&gt;&lt;!-- Build Server --&gt;&lt;g id="node1" class="node"&gt;&lt;title&gt;Build Server&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="113.656" cy="-276" rx="55.1079" ry="18"/&gt;&lt;text text-anchor="middle" x="113.656" y="-271.8" font-family="Times,serif" font-size="14.00"&gt;Build Server&lt;/text&gt;&lt;/g&gt;&lt;!-- Static Files --&gt;&lt;g id="node2" class="node"&gt;&lt;title&gt;Static Files&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="49.6563" cy="-190" rx="49.8131" ry="18"/&gt;&lt;text text-anchor="middle" x="49.6563" y="-185.8" font-family="Times,serif" font-size="14.00"&gt;Static Files&lt;/text&gt;&lt;/g&gt;&lt;!-- Build Server&amp;#45;&amp;gt;Static Files --&gt;&lt;g id="edge1" class="edge"&gt;&lt;title&gt;Build Server&amp;#45;&amp;gt;Static Files&lt;/title&gt;&lt;path fill="none" stroke="black" d="M96.1299,-258.625C90.5065,-252.977 84.4446,-246.444 79.4424,-240 73.8261,-232.765 68.3996,-224.402 63.7518,-216.656"/&gt;&lt;polygon fill="black" stroke="black" points="66.7419,-214.835 58.6888,-207.951 60.6909,-218.355 66.7419,-214.835"/&gt;&lt;text text-anchor="middle" x="100.263" y="-228.8" font-family="Times,serif" font-size="14.00"&gt;Deploy&lt;/text&gt;&lt;/g&gt;&lt;!-- Client --&gt;&lt;g id="node3" class="node"&gt;&lt;title&gt;Client&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="44.6563" cy="-104" rx="31.948" ry="18"/&gt;&lt;text text-anchor="middle" x="44.6563" y="-99.8" font-family="Times,serif" font-size="14.00"&gt;Client&lt;/text&gt;&lt;/g&gt;&lt;!-- Static Files&amp;#45;&amp;gt;Client --&gt;&lt;g id="edge2" class="edge"&gt;&lt;title&gt;Static Files&amp;#45;&amp;gt;Client&lt;/title&gt;&lt;path fill="none" stroke="black" d="M46.2496,-171.98C45.265,-166.289 44.3253,-159.893 43.8389,-154 43.2694,-147.1 43.1445,-139.636 43.2392,-132.663"/&gt;&lt;polygon fill="black" stroke="black" points="46.7492,-132.358 43.5362,-122.262 39.7521,-132.158 46.7492,-132.358"/&gt;&lt;text text-anchor="middle" x="79.065" y="-142.8" font-family="Times,serif" font-size="14.00"&gt;User Access&lt;/text&gt;&lt;/g&gt;&lt;!-- Parse --&gt;&lt;g id="node4" class="node"&gt;&lt;title&gt;Parse&lt;/title&gt;&lt;ellipse fill="none" stroke="black" cx="90.6563" cy="-18" rx="29.0257" ry="18"/&gt;&lt;text text-anchor="middle" x="90.6563" y="-13.8" font-family="Times,serif" font-size="14.00"&gt;Parse&lt;/text&gt;&lt;/g&gt;&lt;!-- Client&amp;#45;&amp;gt;Parse --&gt;&lt;g id="edge3" class="edge"&gt;&lt;title&gt;Client&amp;#45;&amp;gt;Parse&lt;/title&gt;&lt;path fill="none" stroke="black" d="M43.6422,-85.7706C43.7746,-75.9442 45.1857,-63.6942 50.3008,-54 53.425,-48.079 57.9961,-42.7142 62.9497,-38.0628"/&gt;&lt;polygon fill="black" stroke="black" points="65.5066,-40.485 70.8957,-31.3632 60.9944,-35.1333 65.5066,-40.485"/&gt;&lt;text text-anchor="middle" x="85.834" y="-56.8" font-family="Times,serif" font-size="14.00"&gt;Update Data&lt;/text&gt;&lt;/g&gt;&lt;!-- Parse&amp;#45;&amp;gt;Build Server --&gt;&lt;g id="edge4" class="edge"&gt;&lt;title&gt;Parse&amp;#45;&amp;gt;Build Server&lt;/title&gt;&lt;path fill="none" stroke="black" d="M106.772,-33.1082C112.276,-38.9538 117.769,-46.1938 120.656,-54 145.151,-120.214 130.838,-205.352 120.835,-248.049"/&gt;&lt;polygon fill="black" stroke="black" points="117.389,-247.408 118.411,-257.953 124.188,-249.072 117.389,-247.408"/&gt;&lt;text text-anchor="middle" x="177.367" y="-142.8" font-family="Times,serif" font-size="14.00"&gt;Trigger Update&lt;/text&gt;&lt;/g&gt;&lt;/g&gt;&lt;/svg&gt;&lt;/div&gt;
-
-&lt;p&gt;There still needs to be a way to get new versions of &lt;em&gt;Structural Data&lt;/em&gt; onto the site.  For this, we need to host middleman somewhere on a build server, and everytime &lt;em&gt;Structural Data&lt;/em&gt; changes we need to trigger another build that pushes up the static content.  Parse has &lt;a href="https://parse.com/docs/js/guide#cloud-code-aftersave-triggers"&gt;afterSave triggers&lt;/a&gt; that could, for example, ping your build server to first pull down the data changes, and then push the code out.&lt;/p&gt;
-
-&lt;p&gt;Remember, this would only be for &lt;em&gt;Structural Data&lt;/em&gt; updates, for example if an Admin user updated a product description.  If a customer added an item to their cart or placed an order, this would all be dynamic data inside of the data store and managed on the client site.  It would only update Parse, not the site that everyone would access.&lt;/p&gt;
-
-&lt;h2 id="advantages"&gt;Advantages&lt;/h2&gt;
-
-&lt;p&gt;The advantages of this way of building things are:&lt;/p&gt;
-
-&lt;ol&gt;
-&lt;li&gt;You get full SEO with a heavy client JavaScript site without having to do crazy things with PhantomJS or meta fragments.&lt;/li&gt;
-&lt;li&gt;Hosting and operations become both cheap and doesn&amp;#39;t require a support team.&lt;/li&gt;
-&lt;li&gt;Scaling out the system is mainly a bandwidth problem, and secondarily a API scaling problem for a subset of behavior.&lt;/li&gt;
-&lt;li&gt;The system breaks gracefully. If you overwhelm the API server the site is still available for browsing.  Assuming that most usage of the sites are reads, this means that if you try to &lt;em&gt;break the internet&lt;/em&gt; with &lt;a href="http://www.papermag.com/2014/11/kim_kardashian.php"&gt;Kim Kardashian&amp;#39;s ass&lt;/a&gt; maybe user login will slow down, but everything else is still available.&lt;/li&gt;
-&lt;li&gt;You are able to build your front end using modern and clean fancy JavaScript technologies and don&amp;#39;t need to mess around with back-end coding.&lt;/li&gt;
-&lt;/ol&gt;
 </content>
   </entry>
 </feed>
