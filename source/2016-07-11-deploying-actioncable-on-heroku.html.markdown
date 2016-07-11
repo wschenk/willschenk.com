@@ -1,5 +1,5 @@
 ---
-title: Deploying ActionCable on Heroku wiht Sidekiq
+title: Deploying ActionCable on Heroku with Sidekiq
 subtitle: you're gonna need a bigger redis
 date: 2016-07-11 20:49 UTC
 tags: howto, rails, heroku, sidekiq
@@ -140,12 +140,6 @@ production:
   url: redis://h:p75fl9as.........
 ```
 
-And we can also tell `sidekiq` what to use also in a way that we can all agree is a little nicer.
-
-```
-$ heroku config:set REDIS_PROVIDER=REDISTOGO_URL
-```
-
 ## Set the right ActionCable websocket address
 
 We need to tell rails where it's expected to receive the websocket connection from.  Doing `heroku info` will show us our external application.  If you deploy on a custom url, use that as well.
@@ -153,13 +147,14 @@ We need to tell rails where it's expected to receive the websocket connection fr
 ```
 $ heroku info
 === aqueous-thicket-49913
-Addons:        redistogo:micro
-Dynos:         
+Addons:        heroku-postgresql:hobby-dev
+               heroku-redis:hobby-dev
+Dynos:         web: 1, worker: 1
 Git URL:       https://git.heroku.com/aqueous-thicket-49913.git
 Owner:         operations@happyfuncorp.com
 Region:        us
-Repo Size:     0 B
-Slug Size:     0 B
+Repo Size:     34 KB
+Slug Size:     29 MB
 Stack:         cedar-14
 Web URL:       https://aqueous-thicket-49913.herokuapp.com/
 ```
