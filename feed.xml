@@ -5,10 +5,228 @@
   <id>http://willschenk.com/</id>
   <link href="http://willschenk.com/"/>
   <link href="http://willschenk.com/feed.xml" rel="self"/>
-  <updated>2015-12-18T10:29:42-05:00</updated>
+  <updated>2016-07-11T18:23:44-04:00</updated>
   <author>
     <name>Will Schenk</name>
   </author>
+  <entry>
+    <title>Deploying ActionCable on Heroku wiht Sidekiq</title>
+    <link rel="alternate" href="http://willschenk.com/deploying-actioncable-on-heroku/"/>
+    <id>http://willschenk.com/deploying-actioncable-on-heroku/</id>
+    <published>2016-07-11T16:49:00-04:00</published>
+    <updated>2016-07-11T16:49:00-04:00</updated>
+    <author>
+      <name>Will Schenk</name>
+    </author>
+    <content type="html">&lt;p&gt;ActionCable is WebSockets on rails.  This lets you create realtime systems, where you can push data from one client to another client without reloading or polling.  It&amp;#39;s composed to two main parts: a javascript client library, and a backend pub/sub system built upon Redis.  We&amp;#39;re also going to use ActiveJob to offload the publishing tasks from the main user thread, so we&amp;#39;ll also be setting up sidekiq.&lt;/p&gt;
+
+&lt;p&gt;Let&amp;#39;s go through the steps of how to deploy things on heroku.&lt;/p&gt;
+
+&lt;h2 id="first,-the-app"&gt;First, the app&lt;/h2&gt;
+
+&lt;p&gt;I&amp;#39;m going to use an app that &lt;a href="https://medium.com/@dhh/rails-5-action-cable-demo-8bba4ccfc55e#.q92qfr3c2"&gt;dhh made as a walk through.&lt;/a&gt;  What it does is&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;creates a message model&lt;/li&gt;
+&lt;li&gt;creates a rooms controller with a show action&lt;/li&gt;
+&lt;li&gt;opens a websocket with the server&lt;/li&gt;
+&lt;li&gt;that receives rendered messages on the &lt;code&gt;rooms_channel&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;and accepts messages to be broadcast to everyone else&lt;/li&gt;
+&lt;li&gt;uses a background worker to render the message and broadcast it back to everyone&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;I&amp;#39;ve &lt;a href="https://github.com/HappyFunCorp/actioncable_chatapp/blob/master/README.md"&gt;transcribed it here&lt;/a&gt; if you want to see the basics of the app, but it&amp;#39;ll be easier to t &lt;a href="https://github.com/HappyFunCorp/actioncable_chatapp"&gt;clone the code from github&lt;/a&gt; if you don&amp;#39;t have an app already.&lt;/p&gt;
+
+&lt;h2 id="now-lets-talk-about-deployment"&gt;Now lets talk about deployment&lt;/h2&gt;
+
+&lt;p&gt;The app we generated was done using basic rails 5 commands, and it&amp;#39;s setup to use puma (good) but ActiveJob is in async mode and ActionCable isn&amp;#39;t setup to use redis nor is the websocket going to know where to connect.  Lets walk through everything that needs to get done.&lt;/p&gt;
+
+&lt;h2 id="gemfile"&gt;Gemfile&lt;/h2&gt;
+
+&lt;p&gt;Add the following to your &lt;code&gt;Gemfile&lt;/code&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;gem &amp;#39;redis&amp;#39;, &amp;#39;~&amp;gt; 3.0&amp;#39;
+gem &amp;#39;pg&amp;#39;, group: :production
+gem &amp;#39;sqlite3&amp;#39;, group: :development
+gem &amp;#39;sidekiq&amp;#39;
+gem &amp;#39;sinatra&amp;#39;, git: &amp;#39;https://github.com/sinatra/sinatra&amp;#39;, :require =&amp;gt; nil
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Make sure you remove the &lt;code&gt;sqlite3&lt;/code&gt; above.  We are installing &lt;code&gt;sinatra&lt;/code&gt; out of the master branch since the current release doesn&amp;#39;t play well with Rails 5.  If you don&amp;#39;t want the web interface to sidekiq you can omit.&lt;/p&gt;
+
+&lt;h2 id="setup-sidekiq"&gt;Setup sidekiq&lt;/h2&gt;
+
+&lt;p&gt;First we need to create a &lt;code&gt;Procfile&lt;/code&gt; that defines our workers&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;web: bundle exec puma -C config/puma.rb
+worker: bundle exec sidekiq -c 2
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;I&amp;#39;m running sidekiq with a concurrency of 2 to limit the number of redis connections.  You&amp;#39;ll probably want that a lot higher in real life.&lt;/p&gt;
+
+&lt;p&gt;Now create &lt;code&gt;config/initializers/active_job.rb&lt;/code&gt; and tell ActiveJob to use &lt;code&gt;sidekiq&lt;/code&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;Rails.application.config.active_job.queue_adapter = :sidekiq
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;And let&amp;#39;s add the sidekiq web interace to your &lt;code&gt;config/routes.rb&lt;/code&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;  require &amp;#39;sidekiq/web&amp;#39;
+  mount Sidekiq::Web =&amp;gt; &amp;#39;/sidekiq&amp;#39;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;You should probably limit who can get to that engine.  If you installed devise, the way to do that is:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="rb"&gt;  authenticate :admin_user do
+    mount Sidekiq::Web =&amp;gt; &amp;#39;/sidekiq&amp;#39;
+  end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id="a-brief-digression-to-test-locally"&gt;A brief digression to test locally&lt;/h2&gt;
+
+&lt;p&gt;Edit &lt;code&gt;config/cable.yml&lt;/code&gt; to set the dev use to use redis.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;development:
+  adapter: redis
+  url: redis://localhost:6379/1
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;If you don&amp;#39;t have redis installed, use &lt;a href="http://brew.sh"&gt;homebrew&lt;/a&gt; to do that now:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ brew install redis
+$ redis-server
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;If you don&amp;#39;t have foreman installed, do that now:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ gem install foreman
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now lets run that app!&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ rails db:migrate
+$ foreman start
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Using foreman will start both the web interace as well as the sidekiq worker.&lt;/p&gt;
+
+&lt;p&gt;Now you should be able to go to &lt;code&gt;http://localhost:3000&lt;/code&gt; in multiple windows and talk with yourself.&lt;/p&gt;
+
+&lt;p&gt;And &lt;code&gt;http://localhost:3000/admin&lt;/code&gt; should load up the sidekiq admin console.  Validate that everything is working, since now we are going to spin up everything on heroku!&lt;/p&gt;
+
+&lt;h2 id="setup-the-heroku-app"&gt;Setup the heroku app&lt;/h2&gt;
+
+&lt;p&gt;Create a new app:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ heroku create
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id="wire-up-redis"&gt;Wire up redis&lt;/h2&gt;
+
+&lt;p&gt;We need to create a redis instance.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ heroku addons:create heroku-redis:hobby-dev
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;We now need to tell ActionCable where it&amp;#39;s redis server is.  Lets find out the answer and put in into the production section of &lt;code&gt;config/cable.yml&lt;/code&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$  heroku config | grep REDIS
+REDIS_URL:                redis://h:p75fl9as.........
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;config/cable.yml&lt;/code&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;production:
+  adapter: redis
+  url: redis://h:p75fl9as.........
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;And we can also tell &lt;code&gt;sidekiq&lt;/code&gt; what to use also in a way that we can all agree is a little nicer.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ heroku config:set REDIS_PROVIDER=REDISTOGO_URL
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id="set-the-right-actioncable-websocket-address"&gt;Set the right ActionCable websocket address&lt;/h2&gt;
+
+&lt;p&gt;We need to tell rails where it&amp;#39;s expected to receive the websocket connection from.  Doing &lt;code&gt;heroku info&lt;/code&gt; will show us our external application.  If you deploy on a custom url, use that as well.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ heroku info
+=== aqueous-thicket-49913
+Addons:        redistogo:micro
+Dynos:         
+Git URL:       https://git.heroku.com/aqueous-thicket-49913.git
+Owner:         operations@happyfuncorp.com
+Region:        us
+Repo Size:     0 B
+Slug Size:     0 B
+Stack:         cedar-14
+Web URL:       https://aqueous-thicket-49913.herokuapp.com/
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Lets tell rails about it.  Edit &lt;code&gt;config/environments/production.rb&lt;/code&gt;.  Obviously update the urls for your application.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;  config.action_cable.url = &amp;#39;wss://aqueous-thicket-49913.herokuapp.com/cable&amp;#39;
+  config.action_cable.allowed_request_origins = [ &amp;#39;https://aqueous-thicket-49913.herokuapp.com&amp;#39;]
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Note that &lt;code&gt;wss&lt;/code&gt; is secure over SSL.  You should use that.  However, if you don&amp;#39;t, use &lt;code&gt;ws&lt;/code&gt; instead.&lt;/p&gt;
+
+&lt;p&gt;Now we need to tell the javascript where to connect.  Lets open up &lt;code&gt;app/views/layouts/application.html.erb&lt;/code&gt; and add this into the &lt;code&gt;&amp;lt;HEAD&amp;gt;&lt;/code&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt; &amp;lt;%= action_cable_meta_tag %&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id="commit-and-push"&gt;Commit and push&lt;/h2&gt;
+
+&lt;p&gt;First we add the code to repo&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ git add .
+$ git commit -a -m &amp;quot;Added heroku configuration&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now we push to heroku itself:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ git push heroku master
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;If that goes well, lets create the database and the worker process&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ heroku run rake db:migrate
+$ heroku ps:scale worker=1
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;And now, lets run the app and look at the logs:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ heroku open
+$ heroku open
+$ heroku log --tail
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;We ran open twice, so you could see what was there.  Does it work?&lt;/p&gt;
+
+&lt;p&gt;Do you like talking to yourself as much as I do?&lt;/p&gt;
+
+&lt;h2 id="but-does-it-scale?"&gt;But does it scale?&lt;/h2&gt;
+
+&lt;p&gt;Right now you have 1 web dyno, running puma with 5 threads, and 1 worker dyno running sidekiq with 2 concurrent worker.  This should be at least 5 redis connections, up to 2 more depending upon how many jobs have gone through sidekiq.  Lets look at the redis info:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ heroku redis:cli
+ec2-54-243-230-243.compute-1.amazonaws.com:24949&amp;gt; info
+
+....
+# Clients
+connected_clients:7
+client_longest_output_list:0
+client_biggest_input_buf:0
+blocked_clients:2
+....
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;So we see that we have 7 active connections now.  As you get more people listening to redis, those will go up.  Adding more dynos will push the number of active connections up, so you need to be careful in sizing both your postgres install as well as your redis install.&lt;/p&gt;
+
+&lt;p&gt;&lt;em&gt;Image credit &lt;a href="https://www.flickr.com/photos/flintman45/15521201146/in/photolist-pDydmj-4EmYXp-5iGRcG-4KrLFJ-rjnz22-9Cpo2C-azDiP-adi58f-aSgSYP-7Uc2y7-bmGghk-a4pD4T-5wDbbf-a3zri3-7rDRMh-9Z3c6a-471ZjP-8qQ2fX-kYdZ28-9Z6fc9-9ap1TR-2nhNUA-93VFQa-76jVr-4Q3WXY-bbVhbt-9Z3ij2-kx5BP4-59LXDM-nnav37-eTfHYC-p3JqVp-k6dTdF-qxURpr-ay5db9-5vk21b-oC9hPd-n4bS2m-476583-pMvQCn-CffNFE-rbndpL-6QP35H-d1mxVf-9Wrx53-a1LCGS-d1mxZJ-9ugrWA-9XFZPm-46WZVf"&gt;Lee Roberts&lt;/a&gt;&lt;/em&gt;&lt;/p&gt;
+</content>
+  </entry>
   <entry>
     <title>Inflight internet</title>
     <link rel="alternate" href="http://willschenk.com/inflight-internet/"/>
@@ -774,220 +992,6 @@ angular#1.4.3 vendor/assets/bower_components/angular
 &lt;/code&gt;&lt;/pre&gt;
 
 &lt;p&gt;This should contain all the information needed so that when you run &lt;code&gt;bower install&lt;/code&gt; again, all of the correct versions of the files will be downloaded.  You could make it part of your build process, much like how running &lt;code&gt;bundle install&lt;/code&gt; is part of the standard rails build pack.  Bundler looks through &lt;code&gt;Gemfile.lock&lt;/code&gt; and installs those specific packages.  The version is always specified inside of &lt;code&gt;bower.json&lt;/code&gt; so there doesn&amp;#39;t need to be two files.&lt;/p&gt;
-</content>
-  </entry>
-  <entry>
-    <title>Adding search to a middleman blog</title>
-    <link rel="alternate" href="http://willschenk.com/adding-search-to-a-middleman-blog/"/>
-    <id>http://willschenk.com/adding-search-to-a-middleman-blog/</id>
-    <published>2015-06-07T10:09:00-04:00</published>
-    <updated>2015-06-07T10:09:00-04:00</updated>
-    <author>
-      <name>Will Schenk</name>
-    </author>
-    <content type="html">&lt;p&gt;We&amp;#39;re going to build a simple, niave search for middleman blogs.  We&amp;#39;re going to build a &lt;em&gt;search index&lt;/em&gt; at build time, and then use that index to perform the search itself on the client side.&lt;/p&gt;
-
-&lt;h2 id="building-the-index"&gt;Building the index&lt;/h2&gt;
-
-&lt;p&gt;When you typed in something in google, it doesn&amp;#39;t then go and hit every page on the internet to check to see if there&amp;#39;s a match.  It doesn&amp;#39;t even look at every page that it has squirreled away somewhere in the googleplex.  What it consults is an &lt;em&gt;index&lt;/em&gt; of the documents out there, and the index points to the page information.  (We all know that it&amp;#39;s a lot more complicated than that really, but run with it.)&lt;/p&gt;
-
-&lt;p&gt;First thing we&amp;#39;re going to do is create a very simple version of this index for your site.  This is going to be in a file called &lt;code&gt;source/article.index.json.erb&lt;/code&gt;.&lt;/p&gt;
-
-&lt;ol&gt;
-&lt;li&gt;Go through all of the articles.&lt;/li&gt;
-&lt;li&gt;Add meta data for the article into the master map.&lt;/li&gt;
-&lt;li&gt;Find all of the words in the article, by stripping out all of the html tags, making things lowercase, and breaking it apart by white space.&lt;/li&gt;
-&lt;li&gt;Insert all of those words into our index.&lt;/li&gt;
-&lt;li&gt;Convert the whole sucker to JSON.&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;pre&gt;&lt;code class="erb"&gt;&amp;lt;%
-  map = {articles:{}}
-  index = {}
-  blog.articles.each do |article|
-    map[:articles][article.url] = {
-      title: article.title, 
-      date: article.date, 
-      tags: article.tags 
-    }
-
-    words = &amp;quot;#{article.title} #{article.body}&amp;quot;
-    words = words
-      .downcase              # make lowercase
-      .gsub( /&amp;lt;.*?&amp;gt;/, &amp;quot;&amp;quot; )   # get rid of tags
-      .gsub( /[^\w ]/, &amp;quot;&amp;quot; )  # get rid of not letters
-      .split( /\s+/ )        # split by words
-      .sort.uniq
-
-    words.each do |w|
-      index[w] ||= []
-      index[w] &amp;lt;&amp;lt; article.url
-    end
-  end
-  map[:index] = index
-%&amp;gt;
-&amp;lt;%= map.to_json %&amp;gt;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id="now-lets-add-some-markup-to-the-blog"&gt;Now lets add some markup to the blog&lt;/h2&gt;
-
-&lt;p&gt;I&amp;#39;m sticking this in the header, as you see above:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="haml"&gt;%form.navbar-form.navbar-right#search{ role: &amp;quot;search&amp;quot; }
-  .form-group.dropdown
-    .input-group
-      %input.form-control#search_box{ type: &amp;quot;text&amp;quot;, placeholder: &amp;quot;Search&amp;quot;, autocomplete: &amp;quot;off&amp;quot; }
-      %span.input-group-btn
-        %button.btn.btn-default
-          %span.glyphicon.glyphicon-search
-    %ul.dropdown-menu.dropdown-menu-left.results
-      = link_to &amp;quot;Title&amp;quot;, &amp;quot;/url&amp;quot;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id="loading-and-querying-the-index"&gt;Loading and Querying the index&lt;/h2&gt;
-
-&lt;p&gt;Ok, lets build this from the ground up.  All this goes into &lt;code&gt;application.js&lt;/code&gt;.First we&amp;#39;re create a method that loads up the index if we need it.  We&amp;#39;re going to use a promise here, so if multiple request come in at the same time only one will go to the server:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="js"&gt;var article_index = function() {
-  if( window.article_promise === undefined ) {
-    console.log( &amp;quot;Loading article index&amp;quot; );
-    window.article_promise = $.Deferred();
-
-    $.get( &amp;quot;/articles.index.json&amp;quot; ).done( function(data) {
-      console.log( &amp;quot;Loaded article index&amp;quot; );
-      window.article_promise.resolve( data );
-    } );
-  }
-
-  return window.article_promise;
-}
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;This is called like &lt;code&gt;article_index().done( function( index ) { console.log( index )})&lt;/code&gt;  The second time it calls, it returns the first promise again so everything is nice and fast.&lt;/p&gt;
-
-&lt;p&gt;To query the index itself we need to look through all of the words and return a list of urls that match:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="js"&gt;var match_index = function( word, index ) {
-  var result = [];
-  var matcher = new RegExp( word );
-
-  $.each( index.index, function( i ) {
-    if( matcher.exec( i ) ) {
-      $.each( index.index[i], function( idx, url ) {
-        if( result.indexOf( url ) &amp;lt; 0 ) {
-          result.push( url );
-        }
-      } );
-    }
-  });
-
-  return result;
-}
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Now lets build a simple search.  This is a little complicated, since we need to compute the intersection of the results if the user types in multiple words.  Here&amp;#39;s what&amp;#39;s happening:&lt;/p&gt;
-
-&lt;ol&gt;
-&lt;li&gt;We create a promise, since we may need wait for the index to load.&lt;/li&gt;
-&lt;li&gt;We split the search term into multiple words.&lt;/li&gt;
-&lt;li&gt;Collect the results of the &lt;code&gt;match_index&lt;/code&gt; function.&lt;/li&gt;
-&lt;li&gt;Compute the intersections of all the results&lt;/li&gt;
-&lt;li&gt;Look up the meta data based on the url.&lt;/li&gt;
-&lt;li&gt;Resolve the promise with the results.&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;pre&gt;&lt;code class="js"&gt;var find_article = function( search ) {
-  var search_results = $.Deferred();
-
-  article_index().done( function( index ) {
-    // Split the search by widespace
-    var words = search.toLowerCase().replace(/\s+$/, &amp;#39;&amp;#39;).split( /\s+/ );
-
-    // Lookup the matches for each word
-    // Note using $.map seems to flatten the result.
-    var full_results = [];
-    $.each( words, function( i, word ) {
-      full_results.push( match_index( word, index ) );
-    } );
-
-    var urls = full_results[0];
-
-    // If there are multiple words, compute the intersection
-    if( full_results.length &amp;gt; 1 ) {
-      var url_counts = {}
-      $.each( full_results, function( i, set ) {
-        $.each( set, function( i, url ) {
-          url_counts[url] = (url_counts[url]||0)+1;
-        } )
-      } );
-
-      urls = [];
-      $.each( url_counts, function( url, count ) {
-        if( count == full_results.length ) {
-          urls.push( url );
-        }
-      } );
-    }
-
-    // Pull in the metadata
-    var results = {};
-    $.each( urls, function( i, url ) {
-      results[url] = index.articles[url];
-    } );
-
-    search_results.resolve( results );
-  });
-
-  return search_results;
-};
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id="wiring-it-up"&gt;Wiring it up&lt;/h2&gt;
-
-&lt;p&gt;First we need to call our code when the user inputs something in the text area:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="js"&gt;$(function() {
-  $( &amp;quot;#search_box&amp;quot; ).on( &amp;#39;input&amp;#39;, search_typing );
-});
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Then we wire everything together:&lt;/p&gt;
-
-&lt;ol&gt;
-&lt;li&gt;If the field is empty, hide the dropdown.&lt;/li&gt;
-&lt;li&gt;Otherwise show the dropdown and a loading message&lt;/li&gt;
-&lt;li&gt;Call &lt;code&gt;find_article&lt;/code&gt; and when it returns&lt;/li&gt;
-&lt;li&gt;Put the results in the result dropdown.&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;pre&gt;&lt;code class="js"&gt;var search_typing = function() {
-  var val = $(this).val();
-
-  if( val == &amp;quot;&amp;quot; ) {
-    $(&amp;quot;#search .dropdown&amp;quot;).removeClass( &amp;quot;open&amp;quot; );
-  } else {
-    $(&amp;quot;#search .dropdown&amp;quot;).addClass( &amp;quot;open&amp;quot; );
-    $(&amp;quot;#search .dropdown-menu&amp;quot;).html(&amp;quot;&amp;lt;li class=&amp;#39;disabled&amp;#39;&amp;gt;&amp;lt;a href=&amp;#39;#&amp;#39;&amp;gt;Loading &amp;quot; + val +&amp;quot;&amp;lt;/a&amp;gt;&amp;lt;/li&amp;gt;&amp;quot;)
-    find_article( val ).done( function(results) {
-      var menu = $(&amp;quot;#search .dropdown-menu&amp;quot;).html(&amp;quot;&amp;quot;);
-      if( $.isEmptyObject( results ) ) {
-        $(&amp;quot;#search .dropdown-menu&amp;quot;).html(&amp;quot;&amp;lt;li class=&amp;#39;disabled&amp;#39;&amp;gt;&amp;lt;a href=&amp;#39;#&amp;#39;&amp;gt;No results for: &amp;quot; + val +&amp;quot;&amp;lt;/a&amp;gt;&amp;lt;/li&amp;gt;&amp;quot;)
-      }
-      $.each( results, function( url, info ) {
-        menu.append( &amp;quot;&amp;lt;li&amp;gt;&amp;lt;a href=\&amp;quot;&amp;quot; + url + &amp;quot;\&amp;quot;&amp;gt;&amp;quot; + info.title + &amp;quot;&amp;lt;/a&amp;gt;&amp;lt;/li&amp;gt;&amp;quot;);
-      });
-    });
-  }
-}
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id="next-steps"&gt;Next steps&lt;/h2&gt;
-
-&lt;ol&gt;
-&lt;li&gt;Language stemming&lt;/li&gt;
-&lt;li&gt;Logical operations&lt;/li&gt;
-&lt;li&gt;Showing more metadata in the search results.&lt;/li&gt;
-&lt;/ol&gt;
 </content>
   </entry>
 </feed>
