@@ -6,7 +6,9 @@ tags: howto, rails, heroku, sidekiq
 header_image: cables.jpg
 ---
 
-ActionCable is WebSockets on rails.  This lets you create realtime systems, where you can push data from one client to another client without reloading or polling.  It's composed to two main parts: a javascript client library, and a backend pub/sub system built upon Redis.  We're also going to use ActiveJob to offload the publishing tasks from the main user thread, so we'll also be setting up sidekiq.
+ActionCable is WebSockets on rails.  This lets you create realtime, interactive systems, where you can push data from one client to another client without reloading or polling.  But how do we deploy it on heroku?
+
+ActionCable is composed to two main parts: a javascript client library, and a backend pub/sub system built upon Redis.  We're also going to use ActiveJob to offload the publishing tasks from the main user thread, so we'll also be setting up sidekiq.
 
 Let's go through the steps of how to deploy things on heroku.
 
@@ -21,15 +23,15 @@ I'm going to use an app that [dhh made as a walk through.](https://medium.com/@d
 - and accepts messages to be broadcast to everyone else
 - uses a background worker to render the message and broadcast it back to everyone
 
-I've [transcribed it here](https://github.com/HappyFunCorp/actioncable_chatapp/blob/master/README.md) if you want to see the basics of the app, but it'll be easier to t [clone the code from github](https://github.com/HappyFunCorp/actioncable_chatapp) if you don't have an app already.
+I've [transcribed it here](https://github.com/HappyFunCorp/actioncable_chatapp/blob/master/README.md) to see what was added.  The code is available to [clone the code from github](https://github.com/HappyFunCorp/actioncable_chatapp) if you don't have an app that you are working on already.
 
 ## Now lets talk about deployment
 
-The app we generated was done using basic rails 5 commands, and it's setup to use puma (good) but ActiveJob is in async mode and ActionCable isn't setup to use redis nor is the websocket going to know where to connect.  Lets walk through everything that needs to get done.
+The app we generated was done using basic rails 5 commands, and it's out of the box stuff.  (Unlike most of the walkthroughs on this site which were done with [seed](http://seed.happyfuncorp.com).  It's setup to use puma (good), which will handle the WebSockets.  It's also setup with ActiveJob and ActionCable, both on which are in async local mode and won't use redis in development.  ActionCable will also need to know where it's websocket is going to connect to. Lets walk through everything that needs to get done.
 
 ## Gemfile
 
-Add the following to your `Gemfile`
+First we need to add some things to the Gemfile, specifically redis, postgres, and the sidekiq gems.  Add the following to your `Gemfile`
 
 ```rb
 gem 'redis', '~> 3.0'
@@ -39,18 +41,18 @@ gem 'sidekiq'
 gem 'sinatra', git: 'https://github.com/sinatra/sinatra', :require => nil
 ```
 
-Make sure you remove the `sqlite3` above.  We are installing `sinatra` out of the master branch since the current release doesn't play well with Rails 5.  If you don't want the web interface to sidekiq you can omit.
+Make sure you remove the `sqlite3` on the top of the file, we only want it in development.  We are installing `sinatra` out of the master branch since the current release doesn't play well with Rails 5.  (If it tries to install Sinatra 1.0 you'll get rake exception errors.)  If you don't want the web interface to sidekiq you can omit.
 
 ## Setup sidekiq
 
-First we need to create a `Procfile` that defines our workers
+First we need to create a `Procfile` that defines our dynos
 
 ```
 web: bundle exec puma -C config/puma.rb
 worker: bundle exec sidekiq -c 2
 ```
 
-I'm running sidekiq with a concurrency of 2 to limit the number of redis connections.  You'll probably want that a lot higher in real life.
+I'm running sidekiq with a concurrency of 2 to limit the number of redis connections.  You'll probably want that a lot higher in real life if you are using Sidekiq for other things..
 
 Now create `config/initializers/active_job.rb` and tell ActiveJob to use `sidekiq`
 
@@ -65,7 +67,7 @@ And let's add the sidekiq web interace to your `config/routes.rb`:
   mount Sidekiq::Web => '/sidekiq'
 ```
 
-You should probably limit who can get to that engine.  If you installed devise, the way to do that is:
+If this was a real app, you'd limit who can get to that engine.  If you installed devise, the way to do that is:
 
 ```rb
   authenticate :admin_user do
@@ -75,7 +77,9 @@ You should probably limit who can get to that engine.  If you installed devise, 
 
 ## A brief digression to test locally
 
-Edit `config/cable.yml` to set the dev use to use redis.
+It's always nice to change as little as we can, so when everything blows up in our face we can limit our investigations to a small change set.  So lets first migrate our development environment to communicate over redis, so the ActiveJobs are run in a seperate process, and that ActionCable will be able to communicate from that process, back to the main web server, back to the client.
+
+Edit `config/cable.yml` to set the development environment use to use redis.
 
 ```
 development:
@@ -105,11 +109,11 @@ $ foreman start
 
 Using foreman will start both the web interace as well as the sidekiq worker.
 
-Now you should be able to go to `http://localhost:3000` in multiple windows and talk with yourself.
+Now you should be able to go to `http://localhost:3000` in multiple windows and talk with yourself.  I really like talking with myself, and I assume that you do as well.
 
 And `http://localhost:3000/admin` should load up the sidekiq admin console.  Validate that everything is working, since now we are going to spin up everything on heroku!
 
-## Setup the heroku app
+## Heroku and Redis
 
 Create a new app:
 
@@ -117,15 +121,13 @@ Create a new app:
 $ heroku create
 ```
 
-## Wire up redis
-
-We need to create a redis instance.
+Then we create a redis instance
 
 ```
 $ heroku addons:create heroku-redis:hobby-dev
 ```
 
-We now need to tell ActionCable where it's redis server is.  Lets find out the answer and put in into the production section of `config/cable.yml`
+We now need to tell ActionCable where it's redis server is.  Lets find out the answer and put in into the production section of `config/cable.yml`. 
 
 ```
 $  heroku config | grep REDIS
@@ -142,7 +144,7 @@ production:
 
 ## Set the right ActionCable websocket address
 
-We need to tell rails where it's expected to receive the websocket connection from.  Doing `heroku info` will show us our external application.  If you deploy on a custom url, use that as well.
+We need to tell rails where it's expected to receive the websocket connection from. `heroku info` will show us our external application.  If you deploy on a custom url, you'll need to add that as well.
 
 ```
 $ heroku info
@@ -166,7 +168,7 @@ Lets tell rails about it.  Edit `config/environments/production.rb`.  Obviously 
   config.action_cable.allowed_request_origins = [ 'https://aqueous-thicket-49913.herokuapp.com']
 ```
 
-Note that `wss` is secure over SSL.  You should use that.  However, if you don't, use `ws` instead.
+Note that `wss` is WebSockets over over SSL.  You should use that, for a number of reasons including but not limited to security.  However, if you don't use SSL, use `ws` instead.
 
 Now we need to tell the javascript where to connect.  Lets open up `app/views/layouts/application.html.erb` and add this into the `<HEAD>`:
 
@@ -189,7 +191,7 @@ Now we push to heroku itself:
 $ git push heroku master
 ```
 
-If that goes well, lets create the database and the worker process
+If that goes well, lets create the database tables and spin up the worker process
 
 ```
 $ heroku run rake db:migrate
@@ -204,11 +206,11 @@ $ heroku open
 $ heroku log --tail
 ```
 
-We ran open twice, so you could see what was there.  Does it work?
+We ran open twice, so you could see what was there in two windows.  Does it work?  Do 3 windows work?
 
 Do you like talking to yourself as much as I do?
 
-## But does it scale?
+## But does it scale
 
 Right now you have 1 web dyno, running puma with 5 threads, and 1 worker dyno running sidekiq with 2 concurrent worker.  This should be at least 5 redis connections, up to 2 more depending upon how many jobs have gone through sidekiq.  Lets look at the redis info:
 
