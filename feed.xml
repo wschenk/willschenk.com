@@ -5,7 +5,7 @@
   <id>http://willschenk.com/</id>
   <link href="http://willschenk.com/"/>
   <link href="http://willschenk.com/feed.xml" rel="self"/>
-  <updated>2016-07-11T19:09:01-04:00</updated>
+  <updated>2016-07-12T10:58:22-04:00</updated>
   <author>
     <name>Will Schenk</name>
   </author>
@@ -18,7 +18,9 @@
     <author>
       <name>Will Schenk</name>
     </author>
-    <content type="html">&lt;p&gt;ActionCable is WebSockets on rails.  This lets you create realtime systems, where you can push data from one client to another client without reloading or polling.  It&amp;#39;s composed to two main parts: a javascript client library, and a backend pub/sub system built upon Redis.  We&amp;#39;re also going to use ActiveJob to offload the publishing tasks from the main user thread, so we&amp;#39;ll also be setting up sidekiq.&lt;/p&gt;
+    <content type="html">&lt;p&gt;ActionCable is WebSockets on rails.  This lets you create realtime, interactive systems, where you can push data from one client to another client without reloading or polling.  But how do we deploy it on heroku?&lt;/p&gt;
+
+&lt;p&gt;ActionCable is composed to two main parts: a javascript client library, and a backend pub/sub system built upon Redis.  We&amp;#39;re also going to use ActiveJob to offload the publishing tasks from the main user thread, so we&amp;#39;ll also be setting up sidekiq.&lt;/p&gt;
 
 &lt;p&gt;Let&amp;#39;s go through the steps of how to deploy things on heroku.&lt;/p&gt;
 
@@ -35,15 +37,15 @@
 &lt;li&gt;uses a background worker to render the message and broadcast it back to everyone&lt;/li&gt;
 &lt;/ul&gt;
 
-&lt;p&gt;I&amp;#39;ve &lt;a href="https://github.com/HappyFunCorp/actioncable_chatapp/blob/master/README.md"&gt;transcribed it here&lt;/a&gt; if you want to see the basics of the app, but it&amp;#39;ll be easier to t &lt;a href="https://github.com/HappyFunCorp/actioncable_chatapp"&gt;clone the code from github&lt;/a&gt; if you don&amp;#39;t have an app already.&lt;/p&gt;
+&lt;p&gt;I&amp;#39;ve &lt;a href="https://github.com/HappyFunCorp/actioncable_chatapp/blob/master/README.md"&gt;transcribed it here&lt;/a&gt; to see what was added.  The code is available to &lt;a href="https://github.com/HappyFunCorp/actioncable_chatapp"&gt;clone the code from github&lt;/a&gt; if you don&amp;#39;t have an app that you are working on already.&lt;/p&gt;
 
 &lt;h2 id="now-lets-talk-about-deployment"&gt;Now lets talk about deployment&lt;/h2&gt;
 
-&lt;p&gt;The app we generated was done using basic rails 5 commands, and it&amp;#39;s setup to use puma (good) but ActiveJob is in async mode and ActionCable isn&amp;#39;t setup to use redis nor is the websocket going to know where to connect.  Lets walk through everything that needs to get done.&lt;/p&gt;
+&lt;p&gt;The app we generated was done using basic rails 5 commands, and it&amp;#39;s out of the box stuff.  (Unlike most of the walkthroughs on this site which were done with &lt;a href="http://seed.happyfuncorp.com"&gt;seed&lt;/a&gt;.  It&amp;#39;s setup to use puma (good), which will handle the WebSockets.  It&amp;#39;s also setup with ActiveJob and ActionCable, both on which are in async local mode and won&amp;#39;t use redis in development.  ActionCable will also need to know where it&amp;#39;s websocket is going to connect to. Lets walk through everything that needs to get done.&lt;/p&gt;
 
 &lt;h2 id="gemfile"&gt;Gemfile&lt;/h2&gt;
 
-&lt;p&gt;Add the following to your &lt;code&gt;Gemfile&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;First we need to add some things to the Gemfile, specifically redis, postgres, and the sidekiq gems.  Add the following to your &lt;code&gt;Gemfile&lt;/code&gt;&lt;/p&gt;
 
 &lt;pre&gt;&lt;code class="rb"&gt;gem &amp;#39;redis&amp;#39;, &amp;#39;~&amp;gt; 3.0&amp;#39;
 gem &amp;#39;pg&amp;#39;, group: :production
@@ -52,17 +54,17 @@ gem &amp;#39;sidekiq&amp;#39;
 gem &amp;#39;sinatra&amp;#39;, git: &amp;#39;https://github.com/sinatra/sinatra&amp;#39;, :require =&amp;gt; nil
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;p&gt;Make sure you remove the &lt;code&gt;sqlite3&lt;/code&gt; above.  We are installing &lt;code&gt;sinatra&lt;/code&gt; out of the master branch since the current release doesn&amp;#39;t play well with Rails 5.  If you don&amp;#39;t want the web interface to sidekiq you can omit.&lt;/p&gt;
+&lt;p&gt;Make sure you remove the &lt;code&gt;sqlite3&lt;/code&gt; on the top of the file, we only want it in development.  We are installing &lt;code&gt;sinatra&lt;/code&gt; out of the master branch since the current release doesn&amp;#39;t play well with Rails 5.  (If it tries to install Sinatra 1.0 you&amp;#39;ll get rake exception errors.)  If you don&amp;#39;t want the web interface to sidekiq you can omit.&lt;/p&gt;
 
 &lt;h2 id="setup-sidekiq"&gt;Setup sidekiq&lt;/h2&gt;
 
-&lt;p&gt;First we need to create a &lt;code&gt;Procfile&lt;/code&gt; that defines our workers&lt;/p&gt;
+&lt;p&gt;First we need to create a &lt;code&gt;Procfile&lt;/code&gt; that defines our dynos&lt;/p&gt;
 
 &lt;pre&gt;&lt;code&gt;web: bundle exec puma -C config/puma.rb
 worker: bundle exec sidekiq -c 2
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;p&gt;I&amp;#39;m running sidekiq with a concurrency of 2 to limit the number of redis connections.  You&amp;#39;ll probably want that a lot higher in real life.&lt;/p&gt;
+&lt;p&gt;I&amp;#39;m running sidekiq with a concurrency of 2 to limit the number of redis connections.  You&amp;#39;ll probably want that a lot higher in real life if you are using Sidekiq for other things..&lt;/p&gt;
 
 &lt;p&gt;Now create &lt;code&gt;config/initializers/active_job.rb&lt;/code&gt; and tell ActiveJob to use &lt;code&gt;sidekiq&lt;/code&gt;&lt;/p&gt;
 
@@ -75,7 +77,7 @@ worker: bundle exec sidekiq -c 2
   mount Sidekiq::Web =&amp;gt; &amp;#39;/sidekiq&amp;#39;
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;p&gt;You should probably limit who can get to that engine.  If you installed devise, the way to do that is:&lt;/p&gt;
+&lt;p&gt;If this was a real app, you&amp;#39;d limit who can get to that engine.  If you installed devise, the way to do that is:&lt;/p&gt;
 
 &lt;pre&gt;&lt;code class="rb"&gt;  authenticate :admin_user do
     mount Sidekiq::Web =&amp;gt; &amp;#39;/sidekiq&amp;#39;
@@ -84,7 +86,9 @@ worker: bundle exec sidekiq -c 2
 
 &lt;h2 id="a-brief-digression-to-test-locally"&gt;A brief digression to test locally&lt;/h2&gt;
 
-&lt;p&gt;Edit &lt;code&gt;config/cable.yml&lt;/code&gt; to set the dev use to use redis.&lt;/p&gt;
+&lt;p&gt;It&amp;#39;s always nice to change as little as we can, so when everything blows up in our face we can limit our investigations to a small change set.  So lets first migrate our development environment to communicate over redis, so the ActiveJobs are run in a seperate process, and that ActionCable will be able to communicate from that process, back to the main web server, back to the client.&lt;/p&gt;
+
+&lt;p&gt;Edit &lt;code&gt;config/cable.yml&lt;/code&gt; to set the development environment use to use redis.&lt;/p&gt;
 
 &lt;pre&gt;&lt;code&gt;development:
   adapter: redis
@@ -110,25 +114,23 @@ $ foreman start
 
 &lt;p&gt;Using foreman will start both the web interace as well as the sidekiq worker.&lt;/p&gt;
 
-&lt;p&gt;Now you should be able to go to &lt;code&gt;http://localhost:3000&lt;/code&gt; in multiple windows and talk with yourself.&lt;/p&gt;
+&lt;p&gt;Now you should be able to go to &lt;code&gt;http://localhost:3000&lt;/code&gt; in multiple windows and talk with yourself.  I really like talking with myself, and I assume that you do as well.&lt;/p&gt;
 
 &lt;p&gt;And &lt;code&gt;http://localhost:3000/admin&lt;/code&gt; should load up the sidekiq admin console.  Validate that everything is working, since now we are going to spin up everything on heroku!&lt;/p&gt;
 
-&lt;h2 id="setup-the-heroku-app"&gt;Setup the heroku app&lt;/h2&gt;
+&lt;h2 id="heroku-and-redis"&gt;Heroku and Redis&lt;/h2&gt;
 
 &lt;p&gt;Create a new app:&lt;/p&gt;
 
 &lt;pre&gt;&lt;code&gt;$ heroku create
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;h2 id="wire-up-redis"&gt;Wire up redis&lt;/h2&gt;
-
-&lt;p&gt;We need to create a redis instance.&lt;/p&gt;
+&lt;p&gt;Then we create a redis instance&lt;/p&gt;
 
 &lt;pre&gt;&lt;code&gt;$ heroku addons:create heroku-redis:hobby-dev
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;p&gt;We now need to tell ActionCable where it&amp;#39;s redis server is.  Lets find out the answer and put in into the production section of &lt;code&gt;config/cable.yml&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;We now need to tell ActionCable where it&amp;#39;s redis server is.  Lets find out the answer and put in into the production section of &lt;code&gt;config/cable.yml&lt;/code&gt;. &lt;/p&gt;
 
 &lt;pre&gt;&lt;code&gt;$  heroku config | grep REDIS
 REDIS_URL:                redis://h:p75fl9as.........
@@ -143,7 +145,7 @@ REDIS_URL:                redis://h:p75fl9as.........
 
 &lt;h2 id="set-the-right-actioncable-websocket-address"&gt;Set the right ActionCable websocket address&lt;/h2&gt;
 
-&lt;p&gt;We need to tell rails where it&amp;#39;s expected to receive the websocket connection from.  Doing &lt;code&gt;heroku info&lt;/code&gt; will show us our external application.  If you deploy on a custom url, use that as well.&lt;/p&gt;
+&lt;p&gt;We need to tell rails where it&amp;#39;s expected to receive the websocket connection from. &lt;code&gt;heroku info&lt;/code&gt; will show us our external application.  If you deploy on a custom url, you&amp;#39;ll need to add that as well.&lt;/p&gt;
 
 &lt;pre&gt;&lt;code&gt;$ heroku info
 === aqueous-thicket-49913
@@ -165,7 +167,7 @@ Web URL:       https://aqueous-thicket-49913.herokuapp.com/
   config.action_cable.allowed_request_origins = [ &amp;#39;https://aqueous-thicket-49913.herokuapp.com&amp;#39;]
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;p&gt;Note that &lt;code&gt;wss&lt;/code&gt; is secure over SSL.  You should use that.  However, if you don&amp;#39;t, use &lt;code&gt;ws&lt;/code&gt; instead.&lt;/p&gt;
+&lt;p&gt;Note that &lt;code&gt;wss&lt;/code&gt; is WebSockets over over SSL.  You should use that, for a number of reasons including but not limited to security.  However, if you don&amp;#39;t use SSL, use &lt;code&gt;ws&lt;/code&gt; instead.&lt;/p&gt;
 
 &lt;p&gt;Now we need to tell the javascript where to connect.  Lets open up &lt;code&gt;app/views/layouts/application.html.erb&lt;/code&gt; and add this into the &lt;code&gt;&amp;lt;HEAD&amp;gt;&lt;/code&gt;:&lt;/p&gt;
 
@@ -185,7 +187,7 @@ $ git commit -a -m &amp;quot;Added heroku configuration&amp;quot;
 &lt;pre&gt;&lt;code&gt;$ git push heroku master
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;p&gt;If that goes well, lets create the database and the worker process&lt;/p&gt;
+&lt;p&gt;If that goes well, lets create the database tables and spin up the worker process&lt;/p&gt;
 
 &lt;pre&gt;&lt;code&gt;$ heroku run rake db:migrate
 $ heroku ps:scale worker=1
@@ -198,11 +200,11 @@ $ heroku open
 $ heroku log --tail
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;p&gt;We ran open twice, so you could see what was there.  Does it work?&lt;/p&gt;
+&lt;p&gt;We ran open twice, so you could see what was there in two windows.  Does it work?  Do 3 windows work?&lt;/p&gt;
 
 &lt;p&gt;Do you like talking to yourself as much as I do?&lt;/p&gt;
 
-&lt;h2 id="but-does-it-scale?"&gt;But does it scale?&lt;/h2&gt;
+&lt;h2 id="but-does-it-scale"&gt;But does it scale&lt;/h2&gt;
 
 &lt;p&gt;Right now you have 1 web dyno, running puma with 5 threads, and 1 worker dyno running sidekiq with 2 concurrent worker.  This should be at least 5 redis connections, up to 2 more depending upon how many jobs have gone through sidekiq.  Lets look at the redis info:&lt;/p&gt;
 
