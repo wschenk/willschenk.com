@@ -29,3 +29,6 @@ gem "sinatra-contrib"
 
 gem "middleman-react"
 gem "sprockets-coffee-react"
+
+gem "upmark"
+
