@@ -5,10 +5,123 @@
   <id>http://willschenk.com/</id>
   <link href="http://willschenk.com/"/>
   <link href="http://willschenk.com/feed.xml" rel="self"/>
-  <updated>2016-07-12T10:58:22-04:00</updated>
+  <updated>2016-10-27T18:56:20-04:00</updated>
   <author>
     <name>Will Schenk</name>
   </author>
+  <entry>
+    <title>Yes, No, Maybe, Dont Know, WTF</title>
+    <link rel="alternate" href="http://willschenk.com/yes-no-maybe/"/>
+    <id>http://willschenk.com/yes-no-maybe/</id>
+    <published>2016-10-25T12:14:30-04:00</published>
+    <updated>2016-10-25T12:14:30-04:00</updated>
+    <author>
+      <name>Will Schenk</name>
+    </author>
+    <content type="html">&lt;p&gt;Boolean logic is the basis for how computers work — digital means ones and zeroes, and ones and zeros is another way of saying boolean logic. In this world things are either true or they are false, there is no maybe, no hesitant pause,no anxiety provoking second thoughts. This type of logic goes back to Aristotle with the “law of the excluded middle”. Here’s &lt;a href="https://en.wikipedia.org/wiki/Law_of_excluded_middle"&gt;wikipedia weighing in&lt;/a&gt;:&lt;/p&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;In logic, the law of excluded middle (or the principle of excluded middle) is the third of the three classic laws of thought. It states that for any proposition, either that proposition is true, or its negation is true.&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;On the one hand, this works incredibly well. (See Math, Science, going to the moon, etc.) But there are limits to this sort of thinking, especially when we are dealing with partial and unfolding knowledge of the world. We need to build (yet another) layer on top of boolean logic to help understand events as they happen.&lt;/p&gt;
+
+&lt;hr&gt;
+
+&lt;h2 id="are-you-driving"&gt;Are you driving&lt;/h2&gt;
+
+&lt;p&gt;&lt;img class="left_float" src="images/yes_no_maybe_dont_know_wtf_the_limits_of_binary_logic_and_the_importance_of_forgetting_1-8e9d321b.jpeg" /&gt;&lt;/p&gt;
+
+&lt;p&gt;We’re building an app that will track how you use your Tesla. It’s called &lt;a href="http://teslatracks.happyfuncorp.com/"&gt;TeslaTracks&lt;/a&gt; and it looks at your driving habits, battery usage, how efficiently you are using energy and helping you understand the economics and overall awesomeness of electric car ownership.&lt;/p&gt;
+
+&lt;p&gt;Let’s talk the most simple question we could ask and explore some of the challenges of understanding the answer to it.&lt;/p&gt;
+
+&lt;p&gt;Are you driving?&lt;/p&gt;
+
+&lt;p&gt;Logically, this statement could be true or it could be false. But how do we know the answer to this question? The simplified version is&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;We are paying attention.&lt;/li&gt;
+&lt;li&gt;The cloud server tries to connect to your car over the cellular network.&lt;/li&gt;
+&lt;li&gt;If the car is on the network, it returns the transmission state.&lt;/li&gt;
+&lt;li&gt;If the transmission state is either D, N, R then we know you are driving at a specific time.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;&lt;em&gt;(The actual logic coordinates more data-points than this, including phone accelerometer and GPS.)&lt;/em&gt;&lt;/p&gt;
+
+&lt;h2 id="representing-logic"&gt;Representing Logic&lt;/h2&gt;
+
+&lt;p&gt;In the world of boolean logic, the car is driving, or it is not driving. In the real world, if any of those steps fail — the most common reason is that you are driving through an area will no cell reception, which is a huge part of the North Eastern US where I mainly drive, and also plenty of parts inside of New York City where the buildings block things, or maybe that you are in a tunnel or parking underground or whatever — then we don’t know what you re doing. The statement isn’t true or false, the statement has an absence of evidence, it could be truish or falsish, it exists in a limbo state.&lt;/p&gt;
+
+&lt;p&gt;In most programming languages you don’t deal with ones and zeros, you actually deal with variables that have values which is nice because one of those values is “no value set”. The database language SQL even has a nice NULL for those values that just aren’t known yet, and I’m going to use that 70s all caps awesomeness to break it down.&lt;/p&gt;
+
+&lt;p&gt;How do we answer the question, “Is the car driving?” when we can only sample the car at an irregular frequency and some amount communication failure guaranteed?&lt;/p&gt;
+
+&lt;hr&gt;
+
+&lt;h2 id="hypothesis-guides-analysis"&gt;Hypothesis guides analysis&lt;/h2&gt;
+
+&lt;p&gt;First, we need to keep track of when we know something, knowledge of the world must be tied to a time and never exists outside of that. Then we need to decide how long we remember that without a sample. The vast majority of things are temporary, and a theory of the world needs to be constantly propped up with incoming data and slowly unwind itself over time when nothing is there. When nothing is happening we should quietly go hibernate.&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Step 1:&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;This says, remember the knowledge of driving for 10 minutes without an event.&lt;/p&gt;
+
+&lt;p&gt;&lt;img class="left_float" src="images/yes_no_maybe_dont_know_wtf_the_limits_of_binary_logic_and_the_importance_of_forgetting_2-17bab56f.jpeg" /&gt;&lt;/p&gt;
+
+&lt;p&gt;Lets talk though a series of events where someone drove from 8:12 to 8:45 though a cell deadzone into an underground garage where they parked. We get a few events, first that the car was parked, then a few driving events before we enter into a area with really spotty service at 8:20, and finally a few before we leave the thing in the garage for a while. Then the car drove at 11:40 until 12:00, but we only got one measly data point, all listed on the left.&lt;/p&gt;
+
+&lt;p&gt;Lets break down what the system knows now about the existing data. Before we have data, we don’t know anything. Then we know the car is parked, and driving for a while. Since we remember for 10 minutes, at 8:28 we “forget” that the car is driving and go back to not knowing anything. Then we know about that the car is driving from 8:30 but we again forget what’s happening at 8:42 until we know that they car is stopped at 8:45. Similarly the trip around lunch only has limited data. We know something is happening, but its not really clear, just one event at 11:45.&lt;/p&gt;
+
+&lt;h2 id="transition-states"&gt;Transition states&lt;/h2&gt;
+
+&lt;p&gt;&lt;strong&gt;Step 2:&lt;/strong&gt; &lt;/p&gt;
+
+&lt;p&gt;The question now becomes, how do we interpret these changes? What does it mean that we were driving and then we don’t know that we were driving, what do we do in these situations?&lt;/p&gt;
+
+&lt;p&gt;We look at the transitions between states. 2 values with 3 states means that there are 6 total things to think about.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="images/yes_no_maybe_dont_know_wtf_the_limits_of_binary_logic_and_the_importance_of_forgetting_3-29266d78.jpeg" /&gt;&lt;/p&gt;
+
+&lt;p&gt;We can pivot that around to see what’s happening, and based upon our knowledge of the world and what we thing is probable, we can use that to interpret the state changes:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="images/yes_no_maybe_dont_know_wtf_the_limits_of_binary_logic_and_the_importance_of_forgetting_4-8f8dadf2.jpeg" /&gt;&lt;/p&gt;
+
+&lt;h2 id="let-me-tell-you-a-story"&gt;Let me tell you a story&lt;/h2&gt;
+
+&lt;p&gt;So lets take our example above. At 8:12, driving &lt;strong&gt;&lt;code&gt;possibly_stayed_false&lt;/code&gt;&lt;/strong&gt; or &lt;strong&gt;&lt;code&gt;possibly_turned_false&lt;/code&gt;&lt;/strong&gt;, which is all the same to us.&lt;/p&gt;
+
+&lt;p&gt;At 8:14 driving &lt;strong&gt;&lt;code&gt;turned_true&lt;/code&gt;&lt;/strong&gt;, which is super exciting and we can look at other sensors to figure out what’s happening with the battery, if the users phone is near the car, whatever.&lt;/p&gt;
+
+&lt;p&gt;At 8:28 driving &lt;strong&gt;&lt;code&gt;possibly_turned_false&lt;/code&gt;&lt;/strong&gt;, or &lt;strong&gt;&lt;code&gt;possibly_stayed_true&lt;/code&gt;&lt;/strong&gt;. What to do here? Since we know that we don’t know for sure, we’ll tentatively mark the trip as stopped and look for other data streams that will tell us something, such as the GPS data on the phone which is queued up and sent once we get into signal.&lt;/p&gt;
+
+&lt;p&gt;At 8:30 driving &lt;strong&gt;&lt;code&gt;turned_true&lt;/code&gt;&lt;/strong&gt; or &lt;strong&gt;&lt;code&gt;possibly_stayed_true&lt;/code&gt;&lt;/strong&gt;. If there was a trip recently, maybe they are part of the same one? Here’s a place to add in those heuristics. &lt;em&gt;(We do this by looking a phone speed between the potentially new trip and the old trip and comparing start and end odometer values.)&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;At 8:42 driving &lt;strong&gt;&lt;code&gt;possibly_turned_false&lt;/code&gt;&lt;/strong&gt;, or &lt;strong&gt;&lt;code&gt;possibly_stayed_true&lt;/code&gt;&lt;/strong&gt;. We’ve been here before.&lt;/p&gt;
+
+&lt;p&gt;At 8:45 driving &lt;strong&gt;&lt;code&gt;turned_false&lt;/code&gt;&lt;/strong&gt; or &lt;strong&gt;&lt;code&gt;possibly_turned_false&lt;/code&gt;&lt;/strong&gt;. Now the last trip, marked as tentatively closed, is closed for sure. Somewhere the car stopped, between 8:45 and the last knowledge of the car moving at 8:32. We can look at odometer data, gps data, etc to make an educated guess on the actual stopping time.&lt;/p&gt;
+
+&lt;p&gt;At 8:55 driving &lt;strong&gt;&lt;code&gt;possibly_stayed_false&lt;/code&gt;&lt;/strong&gt;, or &lt;strong&gt;&lt;code&gt;possibly_turned_true&lt;/code&gt;&lt;/strong&gt;. We knew that the car was stopped, and now we’ve forgotten that since time 10 minutes has passed. Not driving is the quiescent state, meaning this is what the world looks like when at rest, so we *forget everything that we know. *This way when we start up again it will be as if the first time.&lt;/p&gt;
+
+&lt;p&gt;At 11:45, driving &lt;strong&gt;&lt;code&gt;possibly_turned_true&lt;/code&gt;&lt;/strong&gt;, or &lt;strong&gt;&lt;code&gt;possibly_stayed_true&lt;/code&gt;&lt;/strong&gt;. but we don’t have a potentially open trip to result, so we can deduce that the trip is started. Where? When? Need to pull in other data sources.&lt;/p&gt;
+
+&lt;p&gt;At 11:55, driving &lt;strong&gt;&lt;code&gt;possibly_turned_false&lt;/code&gt;&lt;/strong&gt;, or &lt;strong&gt;&lt;code&gt;possibly_stayed_true&lt;/code&gt;&lt;/strong&gt;. We basically have no good start time and no good end time.** Good luck with that! **Any wacky logic that you need to figure something out is now isolated to this case, while the other cases can rely upon better data.&lt;/p&gt;
+
+&lt;hr&gt;
+
+&lt;h2 id="you-see-what-you-are-looking-for"&gt;You see what you are looking for&lt;/h2&gt;
+
+&lt;p&gt;We touched only upon the logical state changes for binary values. There are other things to track, like increasing things (&lt;strong&gt;odometer&lt;/strong&gt;, &lt;strong&gt;time&lt;/strong&gt;, &lt;strong&gt;car software version&lt;/strong&gt;) plus things that have local ranges, like &lt;strong&gt;speed&lt;/strong&gt;, &lt;strong&gt;battery energy expenditure&lt;/strong&gt;, or &lt;strong&gt;charging rate&lt;/strong&gt;. These require different techniques of dealing with partial and incomplete data. The basic idea is the same:&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;Get a new piece of data.&lt;/li&gt;
+&lt;li&gt;Interpret the new data with your current hypothesis of reality&lt;/li&gt;
+&lt;li&gt;Update that hypothesis based upon the data or the time passed.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;There are plenty of things that are neither true nor false, most of the time you are doing the best to guess. In those times you need to look at other co-occuring things to come up with a theory of what is reality and what you just forgot.&lt;/p&gt;
+</content>
+  </entry>
   <entry>
     <title>Deploying ActionCable on Heroku with Sidekiq</title>
     <link rel="alternate" href="http://willschenk.com/deploying-actioncable-on-heroku/"/>
@@ -223,6 +336,118 @@ blocked_clients:2
 &lt;p&gt;So we see that we have 7 active connections now.  As you get more people listening to redis, those will go up.  Adding more dynos will push the number of active connections up, so you need to be careful in sizing both your postgres install as well as your redis install.&lt;/p&gt;
 
 &lt;p&gt;&lt;em&gt;Image credit &lt;a href="https://www.flickr.com/photos/flintman45/15521201146/in/photolist-pDydmj-4EmYXp-5iGRcG-4KrLFJ-rjnz22-9Cpo2C-azDiP-adi58f-aSgSYP-7Uc2y7-bmGghk-a4pD4T-5wDbbf-a3zri3-7rDRMh-9Z3c6a-471ZjP-8qQ2fX-kYdZ28-9Z6fc9-9ap1TR-2nhNUA-93VFQa-76jVr-4Q3WXY-bbVhbt-9Z3ij2-kx5BP4-59LXDM-nnav37-eTfHYC-p3JqVp-k6dTdF-qxURpr-ay5db9-5vk21b-oC9hPd-n4bS2m-476583-pMvQCn-CffNFE-rbndpL-6QP35H-d1mxVf-9Wrx53-a1LCGS-d1mxZJ-9ugrWA-9XFZPm-46WZVf"&gt;Lee Roberts&lt;/a&gt;&lt;/em&gt;&lt;/p&gt;
+</content>
+  </entry>
+  <entry>
+    <title>Owning a Tesla in Brooklyn</title>
+    <link rel="alternate" href="http://willschenk.com/owning-a-tesla-in-brooklyn/"/>
+    <id>http://willschenk.com/owning-a-tesla-in-brooklyn/</id>
+    <published>2016-03-09T16:33:11-05:00</published>
+    <updated>2016-03-09T16:33:11-05:00</updated>
+    <author>
+      <name>Will Schenk</name>
+    </author>
+    <content type="html">&lt;p&gt;I’ve owned a Tesla in Brooklyn for about 10 months now. This is what I’ve learned so far. A Tesla in Brooklyn isn’t that hard.&lt;/p&gt;
+
+&lt;p&gt;I park my car on the street and have no regular place to plug in the car. This is very much like having a cell phone that you can only charge at the office or in coffee shops — kind of weird, takes a little bit of planning, but it can work. The car is so much fun that dealing with it is actually fun. The city is a tough environment. When I’m worried about leaving it on the street, mainly during snow storms where I don’t want to get buried in by a snow plow, I park it in a garage. See how well that works out when the snow all suddenly melts:&lt;/p&gt;
+
+&lt;p&gt;I picked up the car from the Syosett service center 10 months ago and I’ve put over 11,000 miles on it since then. I drive the car to work everyday, through the soupy New York summers and through the increasingly mild winters. I’ve taken the car camping up in the woods away from the Supercharging network, as well as up in the mountains where we had few days of -20 degree weather. (Coldest it got was -31F, which for the metric folks around is about -34C, which for anyone or anything is not a great temperature to be in. The ice skating was fun.)&lt;/p&gt;
+
+&lt;p&gt;The best thing is flooring it off of a stop sign and going to 40 MPH in a second or so. Faster than a Ferrari, greener than a Prius.&lt;/p&gt;
+
+&lt;h2 id="the-three zones"&gt;The three zones&lt;/h2&gt;
+
+&lt;p&gt;When you own an electric car, you are in one of 3 zones:&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;Radius of home, where you plug in every night and drive less than the range.&lt;/li&gt;
+&lt;li&gt;Road trips, highway driving on the Supercharger network, where you go from charger to charger to final destination, basically taking a bathroom break every 2 hours.&lt;/li&gt;
+&lt;li&gt;Range mode: Repurposing the public electric network, charging from regular outlets, the (suprisingly extensive) RV power network, or public charging stations. &lt;em&gt;This is my Brooklyn tesla experience.&lt;/em&gt;&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h2 id="zone-1:-home zone"&gt;Zone 1: Home Zone&lt;/h2&gt;
+
+&lt;p&gt;I imagine that most Tesla drivers live in Zone 1, where honestly there’s nothing to think about. The Oatmeal wrote a comic about just using the regular 110v outlet to charge his car at &lt;a href="http://theoatmeal.com/comics/tesla_model_s"&gt;http://theoatmeal.com/comics/tesla&lt;em&gt;model&lt;/em&gt;s&lt;/a&gt; not even bothering with a “fancy plug”. This gives you about 4 miles of charge per hour. If you drive for less then 40 miles a day and leave it plugged in for 10 hours at night the car is always full. (And even if it’s not, you probably are at home over the weekend enough to top off the rest.)&lt;/p&gt;
+
+&lt;p&gt;I have a house outside of the city I use in the summer, and I asked an electritian to put a drier plug in my garage, a standard 220volt 40 amp circuit, which cost a couple hundred dollars to install. This puts 17 miles of charge per hour on the car, so an overnight charge puts 170 miles per night on the car. Which is way more than my normal driving day, but cooincidently the distance of the house from Brooklyn, so once I get up there I’m ready to turn around the next morning&lt;/p&gt;
+
+&lt;p&gt;So if you live in Zone 1, charge-wise you never really need to think about anything.&lt;/p&gt;
+
+&lt;h2 id="zone-2:-highway-superchargers"&gt;Zone 2: Highway Superchargers&lt;/h2&gt;
+
+&lt;p&gt;The next thing is the supercharger network, which is amazing. It takes about 20 minutes to fill up halfway, and about 1 hour 10 minutes to fill up the 85 kWh battery. But there’s a better way.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="images/owning_a_tesla_in_brooklyn_1-7360f620.jpeg" /&gt;&lt;/p&gt;
+
+&lt;p&gt;The trick here is that since the battery charge faster when they are empty, you want to only charge what you need to get to the next charger. The more charge that’s in the battery, the slower it charges, which in practice means that you want “just enough” charge in the batteries to get you to the next charger. As a rule of thumb, it takes 20 minutes to go from 0% to 50%, then 20 minutes to go to 75%, then 20 minutes to go to 87%, etc. The return on investment time goes down the higher you charge it.&lt;/p&gt;
+
+&lt;p&gt;I tend to give myself about a 30% buffer, so if the route says I have 100 miles to go I try to get up to 130 miles range so I don’t need to think about driving speed. More buffer (50%) if its cold, if you have a lot of vertical, or if you are planning on speeding.&lt;/p&gt;
+
+&lt;p&gt;Range of the car at 85 mph is roughly half of the range at 55 mph, so speed has the largest factor on range.&lt;/p&gt;
+
+&lt;h2 id="zone-3:-range mode"&gt;Zone 3: Range mode&lt;/h2&gt;
+
+&lt;p&gt;Range anxiety is a real thing, but only for people who don’t own an electric car. You are driving around, slowly watching the battery meter go down down down, there’s no place obvious place to top it off, maybe you won’t charge it for a few days, unless you figure out a plan the car will just stop somewhere, probably in the middle of a highway… When you own a car in Brooklyn, this is the Zone you are in most of the time.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="images/owning_a_tesla_in_brooklyn_2-b5d5e39d.jpeg" /&gt;&lt;/p&gt;
+
+&lt;p&gt;What happens when you are driving and you run out of juice? Answer: no clue. Never happened. Of the Tesla owners that I’ve spoken to — and we are in a secret club where flash our little Tesla car keys to each other in liue of a handshake — they don’t know either. It happens about as much as you run out of gas, which I’ve never done either. It’s does take a little planning to avoid it, and you need to put some thought into it, but they are very simple thoughts to have.&lt;/p&gt;
+
+&lt;p&gt;The biggest difference with a ICE Car, or Internal Combustion Engine, is that there’s a hundred years of infrastructure built out there. You don’t need to think about putting gas in the car because there are gas stations everywhere, with the possible exception of right near where you need to return a rental car where you can never find anything. An while in fact the electric grid is in many many more places, regular outlets take forever to charge and are only practical if you are staying overnight, not if you are on the go.&lt;/p&gt;
+
+&lt;h2 id="brooklyn-charging"&gt;Brooklyn Charging&lt;/h2&gt;
+
+&lt;p&gt;When I need to top off, I’ll park the car in a garage that has a charger in it. There’s one in my neighborhood that is part of the ChargePoint network (&lt;a href="http://www.chargepoint.com"&gt;http://www.chargepoint.com&lt;/a&gt;). I signed up for that, they sent me a little RFID thingie, and I swipe it and plug in. I drop the car before work and head home with a full charge. This can take 8–9 hours to go from 40 mile left to fully charged. I tend to charge to 100%, rather than the recommended 90%, since I also tend to directly drive out of the city and so the battery is only full transiently.&lt;/p&gt;
+
+&lt;p&gt;There are free chargers at the Whole Foods, which are very slow and usually broken. It’s really more of a gimmick, but it works in so far as I shop and find reasons to hang out there which I never did before. It’s a nice place to hang out and talk to other electric car drivers.&lt;/p&gt;
+
+&lt;p&gt;Another in city option is the Supercharger in JFK. If you have phone calls to make, or want some undistracted time to get some work done, or want a nice drive down the belt parkway to enjoy the autopilot and catch up on some podcasts it works, but it’s a 3 hour process and traffic back always sucks.&lt;/p&gt;
+
+&lt;p&gt;Since I live 2 block from the new Brooklyn Tesla dealership I’m hoping there’s a charging solution there for me, but no word yet.&lt;/p&gt;
+
+&lt;h2 id="summer-driving"&gt;Summer Driving&lt;/h2&gt;
+
+&lt;p&gt;In the summer I can go a little more than 2 weeks driving in the city without charging it. However, I tend to go away on the weekends, so I hit a supercharger on my way out. The Paramus supercharger is about 30 miles away, so if I have more than 50 miles of range when I leave I stop there first. Newburgh is about 90 miles away, and it’s got a better resteraunt.&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;If you hit a super charger on the way in and out of the city and you go away every other weekend, you could probably not charge in the city at all during the summer. It’s more convient to top off before long trips though.&lt;/strong&gt;&lt;/p&gt;
+
+&lt;h2 id="winter-driving,-regen-and-phantom drain"&gt;Winter Driving, Regen and Phantom Drain&lt;/h2&gt;
+
+&lt;p&gt;&lt;img src="images/owning_a_tesla_in_brooklyn_3-25f4ae2b.jpeg" /&gt;&lt;/p&gt;
+
+&lt;p&gt;The winters are where things get very different. The regenerative braking only works when the batteries are a certain temperature, and if it’s say 40 degrees outside, the car isn’t going to warm up enough to full use it. I would figure that you need a good 30 minutes of driving to warm up the car. The preconditioning stuff only works if you plug in, and since you don’t plug in, no luck. When the temperature is lower, the regen just turns itself off and you are back to driving a car that &lt;em&gt;coasts&lt;/em&gt;! Quelle horror!&lt;/p&gt;
+
+&lt;p&gt;Between 50 and 30 degrees you lose 2–5 miles a night in phantom drain, which is energy that battery is using to keep itself warm. When it’s windy it seems to lose more drain. Around 20 degrees I’d figure you lose like 15 miles a night, which means that you need to be a lot more agressive in charging the car.&lt;/p&gt;
+
+&lt;p&gt;So when it’s cold, the car drives less effeciently because you lose regen, and then the battery uses a lot more energy keeping itself warm. &lt;strong&gt;You basically you need to plug it in once or twice a week to keep things safe.&lt;/strong&gt;&lt;/p&gt;
+
+&lt;h2 id="charging-in-the cold"&gt;Charging in the cold&lt;/h2&gt;
+
+&lt;p&gt;Everything is slow when it’s cold. I left the car at the airport for a few days, let it get nice and cold, and the supercharger didn’t work well when I returned. The car was probably 40 degrees and it was adding 10 miles per range rather than the normal 300+ miles per hour. I gave it about 15 minutes before I left which probably wasn’t enough for it to warm up.&lt;/p&gt;
+
+&lt;p&gt;To give you a sense of what cold is like, here is some data from a few winter weekends ago when we went up to Lake Placid and it was cold. We left the city with whatever charge we had, made a bathroom pitstop at the Newburgh charger, then had lunch at the Albany supercharger, where we tooled around for a bit and went to LLBean and Whole Foods. (I never went to WholeFoods before this car now that I think about it.) Then from there we went to Lake Placid. If we weren’t in the Tesla we probably would have taken a little less time for lunch, but in Zone 2 travelling the overall trip time is actually very similar.&lt;/p&gt;
+
+&lt;p&gt;Then we were in the mountains, in Zone 3. I emailed the hotel before I left and they provided me an extension cord to a regular wall plug. This was going to have to do. We left the car plugged in while we were there. If plugging in here didn’t work there were a few other options on plugshare.com. This is what the charging looked like, compared to what it should look like:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="images/owning_a_tesla_in_brooklyn_4-9c7c48c6.jpeg" /&gt;&lt;/p&gt;
+
+&lt;p&gt;The difference between the lines represent the energy it takes to keep the batteries in their operating temperature range. This is “phantom drain”. A 110 outlet is the “worst” way to charge, but its still enough to fill up while outside in the coldest weather in 3 days. Parking inside would have helped a lot as well.&lt;/p&gt;
+
+&lt;p&gt;Lake Placid is 133 miles from the Albany supercharger, so with a 50% buffer that’s about 200 miles. In regular weather then, eyeballing the chart you’d be good after 30 hours charging, and super cold weather than was doubled to 60 hours charging. Alternatively, you could change the way you drive and slow down and you don’t need to have quite so much buffer, though the car does need to warm up and that takes a lot of juice.&lt;/p&gt;
+
+&lt;p&gt;Here’s a graph of rate of charge vs outside temperature:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="images/owning_a_tesla_in_brooklyn_5-ada3fda8.jpeg" /&gt;&lt;/p&gt;
+
+&lt;p&gt;I was worried that it would get down to 0, since you aren’t supposed to keep the car below -20F for more than 24 hours, but no issues.&lt;/p&gt;
+
+&lt;p&gt;Handles great in the snow.&lt;/p&gt;
+
+&lt;h2 id="in-conclusion"&gt;In conclusion&lt;/h2&gt;
+
+&lt;p&gt;&lt;img src="images/owning_a_tesla_in_brooklyn_6-955100dc.jpeg" /&gt;&lt;/p&gt;
+
+&lt;p&gt;It totally works.&lt;/p&gt;
 </content>
   </entry>
   <entry>
@@ -845,151 +1070,6 @@ end
 &lt;/ol&gt;
 
 &lt;p&gt;If you are at all interested in this, please let me know!&lt;/p&gt;
-</content>
-  </entry>
-  <entry>
-    <title>Receiving posted JSON with Sinatra</title>
-    <link rel="alternate" href="http://willschenk.com/receiving-posted-json-with-sinatra/"/>
-    <id>http://willschenk.com/receiving-posted-json-with-sinatra/</id>
-    <published>2015-07-26T20:00:00-04:00</published>
-    <updated>2015-07-26T20:00:00-04:00</updated>
-    <author>
-      <name>Will Schenk</name>
-    </author>
-    <content type="html">&lt;p&gt;Here&amp;#39;s some simple code to accept a JSON string posted to a &lt;a href="http://www.sinatrarb.com"&gt;Sinatra&lt;/a&gt; end point rather than a form. I switched from using &lt;a href="http://jquery.com"&gt;jQueries&lt;/a&gt; &lt;code&gt;$.ajax&lt;/code&gt; method to &lt;a href="https://github.com/visionmedia/superagent"&gt;superagent&lt;/a&gt; as part of my exploration of the node javascript package universe, and it has a different way of serializing nest objects when posting as a form.  Specifically, it doesn&amp;#39;t.&lt;/p&gt;
-
-&lt;p&gt;I needed something that could do both.&lt;/p&gt;
-
-&lt;h2 id="code-to-use-form-encoding-or-json-blob"&gt;Code to use form encoding or JSON blob&lt;/h2&gt;
-
-&lt;p&gt;This first tries and loads the parameters using the normal form encoding methods.  If it doesn&amp;#39;t find the &lt;code&gt;path&lt;/code&gt; parameter, it attempts to parse the body&amp;#39;s payload, found in &lt;code&gt;request.body.read&lt;/code&gt;, using &lt;code&gt;JSON.parse&lt;/code&gt;:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;  post &amp;#39;/post&amp;#39; do
-    payload = params 
-    payload = JSON.parse(request.body.read).symbolize_keys unless params[:path]
-
-    logger.info &amp;quot;Saving #{payload[:path]} with #{payload[:meta]}&amp;quot;
-
-    file = load_app.sitemap.find_resource_by_path payload[:path]
-  end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id="javascript"&gt;Javascript&lt;/h2&gt;
-
-&lt;p&gt;The coffeescript that calls this is:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="coffeescript"&gt;request.post &amp;quot;/api/post&amp;quot;
-  .set(&amp;#39;Content-Type&amp;#39;, &amp;#39;application/json&amp;#39;)
-  .send path: @state.path, meta: @state.metadata, body: @state.markdown
-  .end (err, response) =&amp;gt;
-    if response.ok
-      @state.saving = false
-      @state.dirty = false
-      @trigger @state
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;In this case, &lt;code&gt;@state.metadata&lt;/code&gt; is also a complex object, and posting it as JSON ensures that it&amp;#39;s marshalled correctly.&lt;/p&gt;
-
-&lt;p&gt;Not too complicated.&lt;/p&gt;
-</content>
-  </entry>
-  <entry>
-    <title>Bower with Rails</title>
-    <link rel="alternate" href="http://willschenk.com/bower-with-rails/"/>
-    <id>http://willschenk.com/bower-with-rails/</id>
-    <published>2015-07-24T22:01:00-04:00</published>
-    <updated>2015-07-24T22:01:00-04:00</updated>
-    <author>
-      <name>Will Schenk</name>
-    </author>
-    <content type="html">&lt;p&gt;Let&amp;#39;s look at how we can integrate bower with rails and Sprockets. &lt;a href="http://bower.io"&gt;Bower&lt;/a&gt; is one of the two major javascript package managers, the other being the Node Package Manager, or &lt;a href="https://www.npmjs.com"&gt;npm&lt;/a&gt;.  The biggest difference between the two is how the javascript is packaged up.  Bower is the more straightforward of the two, and it mainly a way to distribute javascript and keep things up to date.&lt;/p&gt;
-
-&lt;h2 id="install-bower"&gt;Install Bower&lt;/h2&gt;
-
-&lt;p&gt;The first step is to install bower.  Ironically, we need to use npm to do that!  On OSX, the easiest way is to use the &lt;a href="http://brew.sh"&gt;Homebrew&lt;/a&gt;&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;$ brew install node
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Then let&amp;#39;s install bower in your local command path so you can run it.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;$ npm install -g bower
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id="setup-bower"&gt;Setup Bower&lt;/h2&gt;
-
-&lt;p&gt;Now let&amp;#39;s setup rails to work with bower.  This section assumes that you already have a rails application.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="sh"&gt;cd rails_application
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Create a &lt;code&gt;.bowerrc&lt;/code&gt; file. This is going to tell bower where to install the packages it needs, and we&amp;#39;re going to say put it in &lt;code&gt;vendor/assets/bower_components&lt;/code&gt;:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="json"&gt;{
-  &amp;quot;directory&amp;quot;: &amp;quot;vendor/assets/bower_components&amp;quot;
-}
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Now run &lt;code&gt;bower init&lt;/code&gt; to create a &lt;code&gt;bower.json&lt;/code&gt; file.  This file is similar to a &lt;code&gt;Gemfile&lt;/code&gt;, in that it lists out the dependancies, and when you run bower again, it will download the specific versions from the intertubes.&lt;/p&gt;
-
-&lt;h2 id="tell-rails-where-to-look"&gt;Tell rails where to look&lt;/h2&gt;
-
-&lt;p&gt;Inside of &lt;code&gt;config/application.rb&lt;/code&gt; we&amp;#39;re going to tell spockets and additional directory to look for javascript components.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;config.assets.paths &amp;lt;&amp;lt; Rails.root.join(&amp;#39;vendor&amp;#39;, &amp;#39;assets&amp;#39;, &amp;#39;bower_components&amp;#39;)
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id="small-walk-through"&gt;Small walk through&lt;/h2&gt;
-
-&lt;p&gt;Let&amp;#39;s say you want to use Google Maps with Angular.  &lt;a href="http://angular-ui.github.io/angular-google-maps/#!/"&gt;angular-google-maps&lt;/a&gt; is a package that does a lot of the heavy lifting for you, so lets install that.  We&amp;#39;re going to tell bower to keep track of the packages we want inside of our &lt;code&gt;bower.json&lt;/code&gt; file by passing in the &lt;code&gt;--save&lt;/code&gt; option:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ bower install --save angular-google-maps
-[...]
-angular-google-maps#2.1.5 vendor/assets/bower_components/angular-google-maps
-├── angular#1.4.3
-└── lodash#3.10.0
-
-lodash#3.10.0 vendor/assets/bower_components/lodash
-
-angular#1.4.3 vendor/assets/bower_components/angular
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;I&amp;#39;ve cleaned up some of the output, but you can see that bower installed angular-google-maps and it&amp;#39;s dependancies, angular itself and lodash.  Lets go to our &lt;code&gt;application.js&lt;/code&gt; file now to tell Sprockets that we want to use this awesome stuff:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="js"&gt;//= require lodash
-//= require angular
-//= require angular-google-maps
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Since we&amp;#39;ve added &lt;code&gt;vendor/assets/bower_components&lt;/code&gt; in Sprockets load path, it should be able to find all of these files.  Notice that you don&amp;#39;t need to know where to get all of the dependancies from, but you do need to make sure that you specify them in your &lt;code&gt;application.js&lt;/code&gt; in the right order.  We&amp;#39;ll be talking about &lt;code&gt;browersify&lt;/code&gt; in future posts that assuages this issue.&lt;/p&gt;
-
-&lt;h2 id="to-check-in-or-not-to-check-in"&gt;To check in or not to check in&lt;/h2&gt;
-
-&lt;p&gt;I prefer to check in the dependancies inside of my source control.  This isn&amp;#39;t necessary and in some ways is a waste of disk space, but I think it&amp;#39;s easier to figure out what&amp;#39;s going on if there&amp;#39;s less magic.  This can be confusion if you start to make local tweaks of the javascript, which you should never do.&lt;/p&gt;
-
-&lt;p&gt;However, it&amp;#39;s not necessary to check things in if you expand your build process a bit.  If you look inside of your &lt;code&gt;bower.json&lt;/code&gt; file, you&amp;#39;ll see that it specifies the specific version of the bower package that you installed.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="js"&gt;{
-  &amp;quot;name&amp;quot;: &amp;quot;rails_app&amp;quot;,
-  &amp;quot;version&amp;quot;: &amp;quot;0.0.0&amp;quot;,
-  &amp;quot;authors&amp;quot;: [
-    &amp;quot;Will Schenk &amp;lt;wschenk@gmail.com&amp;gt;&amp;quot;
-  ],
-  &amp;quot;license&amp;quot;: &amp;quot;MIT&amp;quot;,
-  &amp;quot;ignore&amp;quot;: [
-    &amp;quot;**/.*&amp;quot;,
-    &amp;quot;node_modules&amp;quot;,
-    &amp;quot;bower_components&amp;quot;,
-    &amp;quot;test&amp;quot;,
-    &amp;quot;tests&amp;quot;
-  ],
-  &amp;quot;dependencies&amp;quot;: {
-    &amp;quot;angular-google-maps&amp;quot;: &amp;quot;~2.1.5&amp;quot;
-  }
-}
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;This should contain all the information needed so that when you run &lt;code&gt;bower install&lt;/code&gt; again, all of the correct versions of the files will be downloaded.  You could make it part of your build process, much like how running &lt;code&gt;bundle install&lt;/code&gt; is part of the standard rails build pack.  Bundler looks through &lt;code&gt;Gemfile.lock&lt;/code&gt; and installs those specific packages.  The version is always specified inside of &lt;code&gt;bower.json&lt;/code&gt; so there doesn&amp;#39;t need to be two files.&lt;/p&gt;
 </content>
   </entry>
 </feed>
