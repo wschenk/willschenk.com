@@ -1,7 +1,7 @@
 ---
 title: Deploying ActionCable on Heroku with Sidekiq
 subtitle: you're gonna need a bigger redis
-date: 2016-07-11 20:49 UTC
+date: "2016-07-11"
 tags: howto, rails, heroku, sidekiq
 header_image: cables.jpg
 ---
@@ -127,7 +127,7 @@ Then we create a redis instance
 $ heroku addons:create heroku-redis:hobby-dev
 ```
 
-We now need to tell ActionCable where it's redis server is.  Lets find out the answer and put in into the production section of `config/cable.yml`. 
+We now need to tell ActionCable where it's redis server is.  Lets find out the answer and put in into the production section of `config/cable.yml`.
 
 ```
 $  heroku config | grep REDIS

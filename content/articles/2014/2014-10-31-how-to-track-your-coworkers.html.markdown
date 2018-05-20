@@ -1,9 +1,11 @@
 ---
 title: How to track your coworkers
 subtitle: Simple passive network surveillance
-date: 2014-10-31 00:00 UTC
+date: "2014-10-31"
 tags: toys, ruby, redis, howto
 disqus_id: silvrback-wschenk-9332
+aliases:
+  - "/how-to-track-your-coworkers/"
 ---
 
 How much information do you bleed?
@@ -76,7 +78,7 @@ def scan
 
   # If you want to catch the other devices that don't respond to pings
   # but have an arp, you can scan below.  However, arp addresses get
-  # cached for a while, 
+  # cached for a while,
   # Catch the other devices that don't respond to pings but have arp addresses
   # (pinging the broadcast address will help populate the local arp table)
   # `arp -a`.split( /\n/ ).collect do |x|

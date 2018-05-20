@@ -1,8 +1,10 @@
 ---
 title: "Bootstrap: Advanced Grid Tricks"
 subtitle: You really should be defining your own classes
-date: 2014-11-03 00:00 UTC
+date: 2014-11-03
 tags: bootstrap, overview, tools
+aliases:
+  - "/bootstrap-advanced-grid-tricks/"
 ---
 
 We are a big fan of [Bootstrap](http://getbootstrap.com/) here at [HappyFunCorp](http://happyfuncorp.com/).  While there are some arguments to be made if Bootstrap in particular is all that, or if [Foundation](http://foundation.zurb.com/) is better for a given thing, its clear that starting with some sort of CSS framework is smarter than trying to roll everything yourself. [1]
@@ -316,4 +318,4 @@ In someways, the documentation of Bootstrap is great,but it's missing a larger, 
 
 1. If you do want to roll everything yourself, you would do well to read this post by @fat about [how fucking good Medium's CSS is](https://medium.com/@fat/mediums-css-is-actually-pretty-fucking-good-b8e2a6c78b06).  @fat is one of the authors of Bootstrap.
 
-2. [The Subtle Magic Behind Why the Bootstrap 3 Grid Works](http://www.helloerik.com/the-subtle-magic-behind-why-the-bootstrap-3-grid-works) 
+2. [The Subtle Magic Behind Why the Bootstrap 3 Grid Works](http://www.helloerik.com/the-subtle-magic-behind-why-the-bootstrap-3-grid-works)

@@ -1,8 +1,10 @@
 ---
 title: Using seed to explore APIs
 subtitle: overview of what we're working on and how to explore apis
-date: 2015-09-17 14:21 UTC
+date: "2015-09-17"
 tags: happy_seed, rails, howto, github, rake
+aliases:
+  - "/using-seed-to-explore/"
 ---
 
 I've been working to update seed, which is HappyFunCorp's app generator to make it easy to kick off MVPs.  Check out the website for more information.  One of the things that I've started to do is to seperate out the dependancies more, and being tutorials on how to use each of the different features.  After I link to that stuff, let's walk through a way to combine different techniques we've discussed together.
@@ -31,7 +33,7 @@ I could go to each of the repos in github, but there are well over a hundred so 
 
 ## Creating a github application
 
-The first step is to make sure you have a github application. 
+The first step is to make sure you have a github application.
 
 1. Go to [developer applications](https://github.com/settings/developers)
 2. Click _Register New Application_
@@ -112,17 +114,17 @@ Loading development environment (Rails 4.2.3)
   User Load (0.2ms)  SELECT  "users".* FROM "users"  ORDER BY "users"."id" ASC LIMIT 1
   Identity Load (0.4ms)  SELECT  "identities".* FROM "identities" WHERE "identities"."user_id" = ? AND "identities"."provider" = ?  ORDER BY "identities"."id" ASC LIMIT 1  [["user_id", 1], ["provider", "github"]]
   Identity Load (0.4ms)  SELECT  "identities".* FROM "identities" WHERE "identities"."user_id" = ? AND "identities"."provider" = ?  ORDER BY "identities"."id" ASC LIMIT 1  [["user_id", 1], ["provider", "github"]]
- => #<Octokit::Client:0x007fe1f7bec7e8 
+ => #<Octokit::Client:0x007fe1f7bec7e8
 
 2.2.1 :002 > gc.org_repos( 'HappyFunCorp', {:type => 'private'} ).count
- => 30 
+ => 30
 ```
 
 Ok, now we can start figuring out what we need to do to get access to the data.  We have an authenticated user account, and we can start hitting the API.  I know for a fact that I have way more than 30 repos -- I mean, seriously -- so first thing is to figure out why that is and how to get more.  It's probably related to pagination.  
 
 ```
 2.2.1 :003 > gc.org_repos( 'HappyFunCorp', {:type => 'private', per_page: 100} ).count
- => 100 
+ => 100
 ```
 
 OK, looking through the [octokit issues](https://github.com/octokit/octokit.rb/issues/255) this can be dealt with by turning `auto_paginate: true` on when we load up the client.  So let's edit `app/models/user.rb` to do that:
@@ -143,7 +145,7 @@ Reloading...
  => #<Octokit::Client:0x007fe1f7d986f0 @access_token="*.......
 
 2.2.1 :005 > gc.org_repos( 'HappyFunCorp', {:type => 'private'} ).count
- => 169 
+ => 169
 ```
 
 OK, that looks better.  That will give us a list of all the repos, so now we just need to see how to get the contents of our file, and then we can put it all together.
@@ -157,7 +159,7 @@ OK, that looks better.  That will give us a list of all the repos, so now we jus
  .....
 
 2.2.1 :007 > repo.full_name
- => "HappyFunCorp/benchcoach" 
+ => "HappyFunCorp/benchcoach"
 
 2.2.1 :008 > content = gc.contents repo.full_name, path: 'Gemfile'
  => {:name=>"Gemfile",
@@ -325,4 +327,3 @@ Importantly, this is something that you can get up and going with in under 10 mi
 One of the reasons I like having seed around to help prototype and explore ideas!
 
 Source code can be found: https://github.com/wschenk/project_stats_demo
-

@@ -1,8 +1,10 @@
 ---
 title: Bot Design Patterns
 subtitle: different ways to make different bots
-date: 2014-11-11 00:00 UTC
+date: "2014-11-11"
 tags: overview, bots
+aliases:
+  - "/bot-design-patterns/"
 ---
 
 In the antediluvian days before Google found everything for us, personal _software agents_ were going to continuously do our bidding in _cyberspace_, tracking down air fares, making stock trades and otherwise doing futuristic things that we soon wouldn't be able to live without.  The anxiety of Y2K rose and crested, and the messianic aura of _agents_ was washed away by more centralized and effective solutions.
@@ -207,7 +209,7 @@ on_message( message ) = ->
 If you have a HipChat bot and have a room for each company project, and you want to have the bot respond to `wtf` with the last commit message on github.  The first thing that you need to do is look at which room the message came from, and correlate that a list of repositories, then make a Github API call, and finally post the commit message back to the room.
 
 ```rb
-  # This is a lita based bot, which provides dispatching 
+  # This is a lita based bot, which provides dispatching
   # so we find the space inside of the command
   def wtf(response)
     project = find_project response.message.source.room
@@ -407,12 +409,12 @@ class ConversationResponder
     state :new do
       event :process_message,  :transitions_to => :processing_location
     end
-    
+
     state :processing_location do
       event :needs_location,    :transitions_to => :clarify_location
       event :location_clear,    :transitions_to => :has_location
     end
-    
+
     state :clarify_location do
       event :process_message,   :transitions_to => :processing_location
     end
@@ -421,23 +423,23 @@ class ConversationResponder
       event :needs_keywords,    :transitions_to => :clarify_keywords
       event :has_keywords,      :transitions_to => :processing_keywords
     end
-    
+
     state :clarify_keywords do
       event :process_message,   :transitions_to => :processing_keywords
     end
-    
+
     state :processing_keywords do
       event :needs_keywords,    :transitions_to => :clarify_keywords
       event :needs_location,    :transitions_to => :clarify_location
       event :found_places,      :transitions_to => :refining_selection
       event :no_places_found,   :transitions_to => :clarify_keywords
     end
-    
+
     state :refining_selection do
       event :process_message,   :transitions_to => :processing_keywords
     end
   end
-    
+
   # Knowledge Attributes
   def looking_for_location?
     !knows_location? || location_vague?
@@ -530,7 +532,7 @@ _Image from [Lita](https://www.lita.io)_
 [Huginn](https://github.com/cantino/huginn) takes a bit to install, but it's a full on _software agent_ of the old school.
 
 > Huginn is a system for building agents that perform automated tasks for you online. They can read the web, watch for events, and take actions on your behalf. Huginn's Agents create and consume events, propagating them along a directed graph. Think of it as a hackable Yahoo! Pipes plus IFTTT on your own server. You always know who has your data. You do.
-> 
+>
 > We're just getting started, but here are some of the things that you can do with Huginn right now:
 >
 > - Track the weather and get an email when it's going to rain (or snow) tomorrow ("Don't forget your umbrella!")
