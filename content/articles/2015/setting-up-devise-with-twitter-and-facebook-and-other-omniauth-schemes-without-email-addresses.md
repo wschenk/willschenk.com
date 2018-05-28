@@ -2,8 +2,16 @@
 title: Setting up Devise with Twitter and Facebook and other Omniauth schemes without
   email addresses
 subtitle: Connect connect connect
-tags: howto, rails, oauth, happy_seed, ruby
+tags:
+  - howto
+  - rails
+  - oauth
+  - happy_seed
+  - ruby
+historical: true
 date: 2015-01-16
+aliases:
+  - "/setting-up-devise-with-twitter-and-facebook-and-other-omniauth-schemes-without-email-addresses/"
 ---
 Adding social login to your sites really makes it easier to get users onboard.  Devise is great to help get an authentication system up and running, but there are a few tricky things to get right.  The first challenge is that you don't always get the user's email address when the first connect.  The second challenge is that we want to request the minimum permissions first so that the user is more likely to sign up, and gradually ask more as the time arises.
 
@@ -14,7 +22,7 @@ Let's install a few gems.  We'll go through how to install twitter, facebook, an
 
 `Gemfile`:
 
-```rb
+```ruby
 gem 'devise', '~> 3.4'
 gem 'omniauth'
 gem 'omniauth-twitter'
@@ -30,7 +38,7 @@ Now we need to run the `devise` generators.  I like to copy over the views so th
 
 First install devise:
 
-```sh
+```bash
 $ rails generate devise:install
 ```
 
@@ -38,7 +46,7 @@ $ rails generate devise:install
 
 Now create a model, call it user:
 
-```sh
+```bash
 $ rails generate devise User
 ```
 
@@ -46,7 +54,7 @@ This creates a `User` model and configures devise routes to use it.  We will edi
 
 Finally, copy over the views so you can style them as you need:
 
-```sh
+```bash
 $ rails generate devise:views
 ```
 
@@ -54,7 +62,7 @@ $ rails generate devise:views
 
 Lets create a basic controller to see if our login works:
 
-```sh
+```bash
 $ rails g controller welcome index
 $ rake db:migrate
 $ rails s
@@ -62,14 +70,14 @@ $ rails s
 
 Edit `routes.rb`:
 
-```rb
+```ruby
   get 'welcome/index'
   root 'welcome#index'
 ```
 
 And change your `WeclomeController` to require user authentication:
 
-```rb
+```ruby
 class WelcomeController
   before_action :authenticate_user!
 
@@ -93,7 +101,7 @@ Now we can go back and forth.  The `method: :delete` part is something that I of
 
 We need to tell devise and omniauth how to talk to the various outside services.  The first thing you'll need to do is configure those services and collect their app ids and app secrets.  Then you put that information inside of `config/initializers/devise.rb`:
 
-```rb
+```ruby
     config.omniauth :google_oauth2, ENV['GOOGLE_OAUTH2_APP_ID'], ENV['GOOGLE_OAUTH2_APP_SECRET'], scope: "email,profile,offline", prompt: "consent"
     config.omniauth :instagram, ENV['INSTAGRAM_APP_ID'], ENV['INSTAGRAM_APP_SECRET']
     config.omniauth :facebook, ENV['FACEBOOK_APP_ID'], ENV['FACEBOOK_APP_SECRET'], scope: "email"
@@ -110,7 +118,7 @@ We'll go into how to dynamically set that scope later on.
 
 Open up `app/models/user.rb` and add `:omniauthable` to your `devise` line and remove `:validatable`:
 
-```rb
+```ruby
   devise :omniauthable, :database_authenticatable, :registerable,
          :recoverable, :rememberable, :trackable
 ```
@@ -127,16 +135,16 @@ Not all services return email addresses, and by default the devise validations e
 
 Inside of `config/routes.rb`:
 
-```rb
+```ruby
 devise_for :users, class_name: 'FormUser'
 ```
 
 And `app/models/form_user.rb` should look like:
 
-```rb
+```ruby
 class FormUser < User
   attr_accessor :current_password
-  
+
   validates_presence_of   :email, if: :email_required?
   validates_uniqueness_of :email, allow_blank: true, if: :email_changed?
   validates_format_of     :email, with: Devise.email_regexp, allow_blank: true, if: :email_changed?
@@ -173,13 +181,13 @@ Google is slightly more complicated and we'll need to store a `refresh_token` as
 
 Lets create that model now:
 
-```sh
+```bash
 $ rails model identity user:references provider:string accesstoken:string refreshtoken:string uid:string name:string email:string nickname:string image:string phone:string urls:string
 ```
 
 And flesh out `app/models/identity.rb`
 
-```rb
+```ruby
 class Identity < ActiveRecord::Base
   belongs_to :user
   validates_presence_of :uid, :provider
@@ -217,13 +225,13 @@ We're going to build one method to handle the different authentication callbacks
 
 First we need to tell devise about our controller in `routes.rb`
 
-```rb
+```ruby
 devise_for :users, class_name: 'FormUser', :controllers => { omniauth_callbacks: 'omniauth_callbacks' }
 ```
 
 Create `app/controllers/omniauth_callback_controller.rb`:
 
-```rb
+```ruby
 class OmniauthCallbacksController < Devise::OmniauthCallbacksController
   def instagram
     generic_callback( 'instagram' )
@@ -273,13 +281,13 @@ end
 
 We want to let the user add an email address if they haven't already, and also let them set a password if they haven't already set one.  (Otherwise it requires the user to enter in `current_password`.)  Lets first tell devise about our new controller:
 
-```rb
+```ruby
 devise_for :users, class_name: 'FormUser', :controllers => { omniauth_callbacks: 'omniauth_callbacks', registrations: 'registrations'}
 ```
 
 And then create that controller:
 
-```rb
+```ruby
 class RegistrationsController < Devise::RegistrationsController
   def update_resource(resource, params)
     if resource.encrypted_password.blank? # || params[:password].blank?
@@ -305,9 +313,9 @@ And now we should be good!  Give it a go and see how it looks!
 
 This goes into `app/models/user.rb`:
 
-```rb
+```ruby
   has_many :identities
-  
+
   def twitter
     identities.where( :provider => "twitter" ).first
   end
@@ -351,7 +359,7 @@ Now you can access a configured API client using things like `current_user.twitt
 
 In the current scheme above, you have to hard code the scopes that you want to request for the user which doesn't always work.  It would be better to only request write access if the user really needs to have it, and by default only get read-only access.  In order to do this we can leverage the `Omniauth` setup property.  Inside of `devise.rb` add `setup: true` to each of the services you want to be able to upgrade.
 
-```rb
+```ruby
     config.omniauth :google_oauth2, ENV['GOOGLE_OAUTH2_APP_ID'], ENV['GOOGLE_OAUTH2_APP_SECRET'], scope: "email,profile,offline", prompt: "consent", setup: true
     config.omniauth :instagram, ENV['INSTAGRAM_APP_ID'], ENV['INSTAGRAM_APP_SECRET'], setup: true
     config.omniauth :facebook, ENV['FACEBOOK_APP_ID'], ENV['FACEBOOK_APP_SECRET'], scope: "email", setup: true
@@ -360,7 +368,7 @@ In the current scheme above, you have to hard code the scopes that you want to r
 
 Let's add a few routes in `routes.rb` that we can have the user link to:
 
-```rb
+```ruby
   devise_scope :user do
     get '/users/auth/:provider/upgrade' => 'omniauth_callbacks#upgrade', as: :user_omniauth_upgrade
     get '/users/auth/:provider/setup', :to => 'omniauth_callbacks#setup'
@@ -386,7 +394,7 @@ Then it directs the user back to the normal flow.
 
 When you specify `setup: true` inside of the omniauth configuration, there is magic that calls the `setup_path` by default, and this is the method where we change the scope from the default in the strategy:
 
-```rb
+```ruby
   def setup
     request.env['omniauth.strategy'].options['scope'] = flash[:scope] || request.env['omniauth.strategy'].options['scope']
     render :text => "Setup complete.", :status => 404

@@ -1,8 +1,14 @@
 ---
 title: OSX Script for Kiosk Mode
 subtitle: make your own screen saver
-date: 2015-05-20 14:21 UTC
-tags: howto, osx, toys, gaze
+date: 2015-05-20
+tags:
+  - howto
+  - osx
+  - toys
+  - gaze
+aliases:
+  - "/osx-script-for-kiosk-mode/"
 ---
 In the office, we run [Jenkins](http://jenkins-ci.org) on the same machine that we run [Benevolent Gaze](http://gaze.happyfuncorp.com).  During iOS builds, the iOS simulator will take over the screen for the build, and then leave the beautiful screen on the desktop, hiding our smiling faces.  We want to return to Safari in this case, but we also want to make sure that if someone is actually in front of the machine it will let them do their thing.
 

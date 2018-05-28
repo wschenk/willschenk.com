@@ -1,9 +1,16 @@
 ---
 title: 'Scripting Twitter: Collecting Data and Writing Bots'
 subtitle: adding another client to socialinvestigator
-tags: ruby, socialinvestigator, bots, howto
+tags:
+  - ruby
+  - socialinvestigator
+  - bots
+  - howto
 date: 2014-11-20
 header_image: robots.jpg
+historical: true
+aliases:
+  - "/scripting-twitter/"
 ---
 Lets build on our [command line url exploring tool](http://willschenk.com/making-a-command-line-utility-with-gems-and-thor) to look at how we can interact with Twitter.  We are going to cover how to make a script that will pull information out of twitter, how to deal with its rate limiting, and how to interact with users on Twitter itself.
 
@@ -43,19 +50,19 @@ Make note of these variables.
 
 Make sure you have the twitter gem installed by typing:
 
-```sh
+```bash
 $ gem install twitter
 ```
 
 We're eventually going to add this code our CLI gem, and that dependency will be created by adding the line
 
-```rb
+```ruby
   spec.add_dependency 'twitter'
 ```
 
 OK, lets put this in and see what we get:
 
-```rb
+```ruby
 require 'thor'
 require 'twitter'
 require 'httparty'
@@ -107,7 +114,7 @@ end
 
 When we run this, we get:
 
-```
+```bash
 $ ruby lib/socialinvestigator/client/twitter.rb wschenk
 Screenname          : wschenk
 Full Name           : Will Schenk
@@ -132,7 +139,7 @@ If there's one word that describes URL shorteners, that word is _rude_.  This ma
 
 The easiest way to resolve the link is to make a `HEAD` HTTP request to the shortening service and print where they redirect you to.  If there's no location in the response, we'll just return the url that was passed in.
 
-```rb
+```ruby
 def lookup_url( url )
   return url if url.nil? || url == ""
   r = HTTParty.head url, { follow_redirects: false }
@@ -142,7 +149,7 @@ end
 
 and lets add a Thor command for it too, in the `CLI` class, why not:
 
-```rb
+```ruby
   desc "lookup URL", "Resolve a link"
   def lookup( url )
     puts lookup_url( url )
@@ -151,7 +158,7 @@ and lets add a Thor command for it too, in the `CLI` class, why not:
 
 Now we can see that
 
-```
+```bash
 $ ruby twitter.rb lookup  http://t.co/OA0tQaQiAX
 http://happyfuncorp.com
 $ ruby twitter.rb lookup  http://happyfuncorp.com
@@ -160,7 +167,7 @@ http://happyfuncorp.com
 
 So we can update the website `printf` line to be:
 
-```rb
+```ruby
   printf t, "Website", lookup_url( u.website.to_s )
 ```
 
@@ -170,7 +177,7 @@ With read access, you can pull down some basic stuff.
 
 Load the recent tweets this user has made:
 
-```rb
+```ruby
   desc "user_timeline", "Show the authenticated user's tweets"
   def user_timeline
     client.user_timeline.each do |tweet|
@@ -181,7 +188,7 @@ Load the recent tweets this user has made:
 
 Show the tweets of people who they are following:
 
-```rb
+```ruby
   desc "home_timeline", "Show the authenticated user's timeline"
   def home_timeline
     client.home_timeline.each do |tweet|
@@ -192,7 +199,7 @@ Show the tweets of people who they are following:
 
 Show which of their tweets have been retweeted:
 
-```rb
+```ruby
   desc "retweets", "Show the authenticated user's retweets"
   def retweets
     client.retweets_of_me.each do |tweet|
@@ -203,7 +210,7 @@ Show which of their tweets have been retweeted:
 
 Pull down only the tweets that mention the authentication user:
 
-```rb
+```ruby
   desc "mentions", "Show the authenticated user's mentions"
   def mentions
     client.mentions.each do |tweet|
@@ -218,7 +225,7 @@ If you are building a bot, for example, that you wanted to respond when someone 
 
 Unlike Google, who casually has enough computer power to do personalized type ahead search of the _entire internet_ at _a global scale_, Twitter is prickly about [you hammering their site](https://dev.twitter.com/rest/public/rate-limiting).  Personally, I thought that [the fail whale](http://readwrite.com/2008/07/17/the_story_of_the_fail_whale) was really fun.  Let's add a another `CLI` command to print out the current rate limit status, how many calls you have left, and when your counter for that resource will reset:
 
-```rb
+```ruby
   desc "limits", "Print out the current rate limits"
   def limits
     resp = client.get( "/1.1/application/rate_limit_status.json" )
@@ -238,15 +245,9 @@ Note that I'm making the request using `client.get` which will make an arbitrary
 The gem provides methods on top of this `client.get` interface, which may use more API calls then you expect.  Methods like `client.user_timeline` and `client.followers` return `Twitter::Cursor` objects, which you can iterate over in ruby as you'd expect, but may trigger multiple API calls throughout the process which you might not expect.  You'll potentially get an exception in the middle of things, and you'll need to figure a way around this.  In a later post we will get into caching and retry strategies, but since it will dramatically increase the complexity we'll keep things simple for now.  _Punt!_
 
 This basic code will catch the `TooManyRequests` exception and sleep the process until it's ready to go again.  This could take a very very long time.
-<<<<<<< HEAD:source/2014-11-20-scripting-twitter.html.markdown
 
-```rb
+```ruby
 follower_ids = client.follower_ids('justinbieber')
-=======
-          
-```rb
-follower_ids = client.follower_ids( 'justinbieber)
->>>>>>> 67530e9afbddd730c4fe8e19235236777450322a:source/drafts/scripting-twitter.html.markdown
 
 begin
   follower_ids.to_a
@@ -262,7 +263,7 @@ end
 
 To see what that looks like, lets add another `CLI` command for listing a person's followers:
 
-```rb
+```ruby
   desc "followers SCREENNAME", "Prints out all of the users followers"
   def followers( screenname )
     client.followers( screenname ).each do |u|
@@ -273,7 +274,7 @@ To see what that looks like, lets add another `CLI` command for listing a person
 
 And if we run this on someone will a lot of followers, you'll see the `Twitter::Error::TooManyRequests` thrown.  We can look use our limits command above to see how long we have to wait until it resets.  Though, since we don't have any smart retrying logic in place, chances are it will still fail when we try it again.
 
-```
+```bash
 $ ruby twitter.rb limits | grep /followers/list
    /followers/list        0 remaining, resets in 288 seconds
 ```
@@ -282,11 +283,11 @@ $ ruby twitter.rb limits | grep /followers/list
 
 There are different types of URLs on twitter.  Lets look at a specific tweet of mine, 529342690476179456, to see what there is:
 
-```rb
+```ruby
 > tweet = client.status( 529342690476179456 )
- => #<Twitter::Tweet id=529342690476179456> 
+ => #<Twitter::Tweet id=529342690476179456>
 > tweet.uris
- => [#<Twitter::Entity::URI:0x007ff614b0fce0 @attrs={:url=>"http://t.co/frfwwIqrYB", :expanded_url=>"http://willschenk.com/bootstrap-advanced-grid-tricks", :display_url=>"willschenk.com/bootstrap-adva…", :indices=>[67, 89]}>] 
+ => [#<Twitter::Entity::URI:0x007ff614b0fce0 @attrs={:url=>"http://t.co/frfwwIqrYB", :expanded_url=>"http://willschenk.com/bootstrap-advanced-grid-tricks", :display_url=>"willschenk.com/bootstrap-adva…", :indices=>[67, 89]}>]
 ```
 
 `:url` is the actual link that get's clicked, and in your logs, the one that will show up as the referer.
@@ -299,7 +300,7 @@ In the twitter search box we can type in `http://willschenk.com/bootstrap-advanc
 
 Let's write some code:
 
-```rb
+```ruby
   desc "search STRING", "Shows all the tweets that match the string"
   options [:exact, :user_info]
   def search( string )
@@ -337,7 +338,7 @@ Here's how you can watch twitter for different terms, they can be comma separate
 
 The method `filter` takes a block, and will call that block every time it gets a response from twitter.
 
-```rb
+```ruby
   desc "filter TERMS", "Print out tweets that match the terms"
   def filter( terms )
     streaming_client.filter(track: terms) do |object|
@@ -377,7 +378,7 @@ We can also watch the timeline come through for the registered user, and do some
 
 We'll be ignoring most of them:
 
-```rb
+```ruby
   desc "listen", "Prints our the authenticated user's stream as it happens"
   def listen
     streaming_client.user do |object|
@@ -395,7 +396,7 @@ We'll be ignoring most of them:
 
 Running this command will print out tweets and messages as they come in.  If you wanted to make an interactive bot, you'd put logic in here to respond to the tweets coming in, calling something like
 
-```rb
+```ruby
 client.update( "@#{object.user.user_name} my reply", { in_reply_to_status: object.id } )
 ```
 
@@ -429,19 +430,19 @@ Access direct messages is the third.
 
 Depending upon what you chose, you can now post on behalf of the user:
 
-```rb
+```ruby
 client.update( "Hello, World" )
 ```
 
 Read their direct messages:
 
-```rb
+```ruby
 client.direct_messages
 ```
 
 Or send a direct message:
 
-```rb
+```ruby
 client.create_direct_message "wschenk", "Hi there"
 ```
 

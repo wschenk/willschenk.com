@@ -1,10 +1,13 @@
 ---
 title: Bower with Rails
 subtitle: Javascript dependancies and sprockets
-date: 2015-07-25 02:01 UTC
-tags: javascript, rails
+date: 2015-07-25
+tags:
+  - javascript
+  - rails
 header_image: train_hat.jpg
-
+aliases:
+  - "/bower-with-rails/"
 ---
 
 
@@ -14,13 +17,13 @@ Let's look at how we can integrate bower with rails and Sprockets. [Bower](http:
 ## Install Bower
 The first step is to install bower.  Ironically, we need to use npm to do that!  On OSX, the easiest way is to use the [Homebrew](http://brew.sh)
 
-```sh
+```bash
 $ brew install node
 ```
 
 Then let's install bower in your local command path so you can run it.
 
-```sh
+```bash
 $ npm install -g bower
 ```
 
@@ -28,7 +31,7 @@ $ npm install -g bower
 
 Now let's setup rails to work with bower.  This section assumes that you already have a rails application.
 
-```sh
+```bash
 cd rails_application
 ```
 
@@ -46,7 +49,7 @@ Now run `bower init` to create a `bower.json` file.  This file is similar to a `
 
 Inside of `config/application.rb` we're going to tell spockets and additional directory to look for javascript components.
 
-```rb
+```ruby
 config.assets.paths << Rails.root.join('vendor', 'assets', 'bower_components')
 ```
 
@@ -104,4 +107,3 @@ However, it's not necessary to check things in if you expand your build process 
 ```
 
 This should contain all the information needed so that when you run `bower install` again, all of the correct versions of the files will be downloaded.  You could make it part of your build process, much like how running `bundle install` is part of the standard rails build pack.  Bundler looks through `Gemfile.lock` and installs those specific packages.  The version is always specified inside of `bower.json` so there doesn't need to be two files.
-

@@ -1,8 +1,15 @@
 ---
-:title: Using rake for dataflow programming and data science
-:subtitle: Rake it like's hot
-:tags: ruby, tools, howto, rake, data
-:date: 2014-12-19
+title: Using rake for dataflow programming and data science
+subtitle: Rake it like's hot
+tags:
+  - ruby
+  - tools
+  - howto
+  - rake
+  - data
+date: 2014-12-19
+aliases:
+  - "/using-rake-for-dataflow-programming-and-data-science/"
 ---
 I've been using Rake more and more for data collection and processing tasks.  Rake is pretty pretty powerful.  Most people know it as way to add external tasks to a Rails app, but it's actually very powerful build system.  We're going to take advantage of that to build out a [framework](https://github.com/HappyFunCorp/rake-data) that will make it easy to collect, process, and interpret data while keeping it all in sync.
 
@@ -34,7 +41,7 @@ Rake is a a Make-like Ruby program that people know mostly in terms of rails app
   <% end %>
 </div>
 
-```rb
+```ruby
 task :mail_daily_leader_boards => :update_leader_boards do
   User.mail_leader_boards!
 end
@@ -52,7 +59,7 @@ task :environment
 
 When we run `mail_daily_leaderboards` it makes sure that `update_leader_boards` is run first.  This in turn depends upon `environment`, and Rake makes sure that all dependancies are met before executing the task.
 
-```sh
+```bash
 $ rake mail_daily_leaderboards --dry-run
 ** Invoke mail_daily_leader_boards (first_time)
 ** Invoke update_leader_boards (first_time)
@@ -64,7 +71,7 @@ $ rake mail_daily_leaderboards --dry-run
 
 Rake is also smart enough to only run a task once.  Lets look at what happens when we try to run two tasks:
 
-```sh
+```bash
 $ rake flush_data mail_daily_leader_boards --dry-run
 ** Invoke flush_data (first_time)
 ** Invoke environment (first_time)
@@ -72,7 +79,7 @@ $ rake flush_data mail_daily_leader_boards --dry-run
 ** Execute (dry run) flush_data
 ** Invoke mail_daily_leader_boards (first_time)
 ** Invoke update_leader_boards (first_time)
-** Invoke environment 
+** Invoke environment
 ** Execute (dry run) update_leader_boards
 ** Execute (dry run) mail_daily_leader_boards
 ```
@@ -126,7 +133,7 @@ If we think about rake in terms of managing a build process, what we called _dep
 
 Rake also knows about building files.  `Rake::FileTask` is a subtask of `Rake::Task` which will only run the target if the _file is out of date_ : if the source file is newer than the destination file.
 
-```rb
+```ruby
 file "Rakefile.gz" => "Rakefile" do |task|
   sh "gzip -fkv #{task.source}"
 end
@@ -134,7 +141,7 @@ end
 
 This defined as task called `Rakefile.gz` that when invoked will look to see if either the file doesn't exist, or if it's older than the source file `Rakefile`, and gzips it up.
 
-```sh
+```bash
 $ rake Rakefile.gz
 gzip -fkv Rakefile
 Rakefile:   -20.6% -- replaced with Rakefile.gz
@@ -142,14 +149,14 @@ Rakefile:   -20.6% -- replaced with Rakefile.gz
 
 Run it again and nothing happens!
 
-```sh
+```bash
 $ rake Rakefile.gz
 $
 ```
 
 Touch the source file and it gets rebuilt:
 
-```sh
+```bash
 $ touch Rakefile
 $ rake Rakefile.gz
 gzip -fkv Rakefile
@@ -164,7 +171,7 @@ Files and rules come from Rake's `make` heritage.  We can think of regular `Task
 
 The third main bit of magic that Rake gives us is rules.  The file task can magically bring a file into being when invoked, but in a build process its more common to translate files with a certain extention to other files in a different extension.  The canonical example is probably compiling `.c` source files into `.o` objects, but since it's the 21 first century lets look at how to run the Graphviz dot file to process into svg or png files.
 
-```rb
+```ruby
 rule ".svg" => ".dot" do |task|
   sh "dot -Tsvg < #{task.source} > #{task}"
 end
@@ -176,7 +183,7 @@ end
 
 Now we can ask Rake to build a _type_ of file, and will look for a source file based upon the name that you request.  For example, if we were to run the command:
 
-```sh
+```bash
 $ rake bottom.svg
 dot -Tsvg < bottom.dot > bottom.svg
 $
@@ -193,7 +200,7 @@ Note that Rake doesn't know anything specifically about these extension.  It jus
 
 Let's extend the Rake DSL to be able to download files from the internet.  You can put this at the top of your `Rakefile` for now.
 
-```rb
+```ruby
 def url( dest, source )
   file dest do
     puts "Loading #{source}"
@@ -207,7 +214,7 @@ end
 
 Lets use this to download a file from the internet do we can parse it.
 
-```rb
+```ruby
 url "source/weather.json", "http://api.openweathermap.org/data/2.5/weather?id=5128581"
 ```
 
@@ -217,7 +224,7 @@ When we run `rake source/weather.json` the first time, the file is downloaded.  
 
 Lets parse the file:
 
-```rb
+```ruby
 require 'json'
 file "report.txt" => "source/weather.json" do |task|
   puts "Parsing sun times"
@@ -237,7 +244,7 @@ Another common thing to do is to download a webpage and parse through the result
 
 Lets make a function to help us parse html files into CSV files:
 
-```rb
+```ruby
 # Parse an HTML file into CSV
 def parse_html( dest, source, &parser )
   require 'nokogiri'
@@ -259,7 +266,7 @@ This defines a file task to convert one file type into another.  When it needs t
 
 Let's pull out a list of the top 10 popular books on project gutenberg for the last month:
 
-```rb
+```ruby
 # Load the html file with statistics
 url "source/top.html", "http://www.gutenberg.org/browse/scores/top"
 
@@ -282,7 +289,7 @@ We have a few CSV files that contain a list of books.  How would we do something
 
 Let's extend the DSL again to add a command that will loop over a file and call our block for each line:
 
-```rb
+```ruby
 # Loop over a file and yield the block for each line
 # If name ends with .csv, parse the csv and yield each line
 def file_loop( name, source )
@@ -302,7 +309,7 @@ end
 
 Now we can use this to create a task that goes through each of the lines of the file.  We'll do this to define url tasks for the file and then immediately invoke them so make sure that the file was loaded.
 
-```rb
+```ruby
 # Loop through the top ten books and make sure that they exist
 file_loop "processed/top_10_books_text", "processed/month_top_10.csv" do |line|
   path = "#{line[0].gsub( /^\//, "" )}.txt"
@@ -320,7 +327,7 @@ _Note, we are going to be making a bunch of requests to the Project Gutenberg we
 
 Lets create a rule that will give us a count of all the words in a book:
 
-```rb
+```ruby
 # Count and sort the list of words
 rule ".word_count" => ".words" do |dest|
   sh "cat #{dest.source} | sort | uniq -c | sort -nr> #{dest}"
@@ -329,7 +336,7 @@ end
 
 If we try to run this now, say `rake ebooks/1342.word_count` we'll get an error saying it doesn't know how to build that file.  Let's add a rule to go from `.txt` to `.words`:
 
-```rb
+```ruby
 # Covert txt to words
 rule ".words" => ".txt" do |dest|
   sh "cat #{dest.source} | tr -cs '[:alpha:]' '\n' | tr '[:upper:]' '[:lower:]' > #{dest}"

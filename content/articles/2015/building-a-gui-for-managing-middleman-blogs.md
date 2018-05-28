@@ -1,9 +1,14 @@
 ---
-:title: Building a GUI for managing middleman blogs
-:subtitle: the site will still be fast, really fast
-:tags: middleman, static_sites, react
-:date: 2015-07-30
+title: Building a GUI for managing middleman blogs
+subtitle: the site will still be fast, really fast
+tags:
+  - middleman
+  - static_sites
+  - react
+date: 2015-07-30
 header_image: calig.jpg
+aliases:
+  - "/building-a-gui-for-managing-middleman-blogs/"
 ---
 
 Can we make static site generators work like a normal site? Lets take a look at how we'd start to implement [Slow Data and Fast Sites](/slow-data-and-fast-sites/) using the example of building an admin UI for a Middleman blog.
@@ -33,7 +38,7 @@ This is explained in more detail in the  [Slow Data and Fast Sites](/slow-data-a
 Static sites have a huge runtime benefit, but actually setting them up and running them can [really suck unless you already know how to do it](http://veekaybee.github.io/static-sites-suck/).  This is a proof of concept of how to add a CMS to a static site so that it's easier to manage.  This doesn't address the "pain in the ass to setup" part, but it helps with the usability.
 
 Lets walk through what we're doing if we were to implement this in your own app directly.  The gem packages this up with a slightly different directory scheme, but the code below is the same but slightly easier to understand.
- 
+
 ## The basic idea
 
 We're going to add a static JavaScript application in the `source/admin` directory which will interact with the local filesystem and middleman install.  This application will consume data from your middleman app on the local system, in the "development" environment, such as the lists of published and draft articles, and will interact with a API server that will be mounted as part of the middleman preview server.  This will allow the Javascript app to change the filesystem, which will in turn be monitored and rendered by the middleman application.  
@@ -59,7 +64,7 @@ api -> app;
 admin -> api;
 admin -> app;
     }
-<% end %> 
+<% end %>
 
 
 Let go through each of the components as if we were building them in our app directly.  The `gem` does a lot of this for you, but it's always nice to see how it works.
@@ -70,7 +75,7 @@ We're going to add our files in `source/admin`, and `source/javascript/admin` an
 
 Inside of `config.rb`, we tell middleman about our pages, and we tell the build process to ignore these files as part of the build process since we don't want to release them into production:
 
-```rb
+```ruby
 page "/admin/*html", layout: "admin/layout"
 
 # Build-specific configuration
@@ -89,7 +94,7 @@ This will allow us to create files like `/source/admin/drafts.json.erb`:
 <%% d = drafts.collect do |d|
     { path: d.path, title: d.title }
   end
-%><%%= 
+%><%%=
   {drafts: d }.to_json
 %>
 ```
@@ -108,7 +113,7 @@ That's fine for static data, or data that can be exposed using normal middleman 
 
 First we need to `require` and `mount` our app on `config.rb`.  This is done like so:
 
-```rb
+```ruby
 require 'lib/apiserver.rb'
 
 map "/api" do
@@ -131,7 +136,7 @@ The commands we want to support are:
 
 To reiterate right now the code is in more of a proof of concept, butso please feel free to make suggestions. Lets take a look at a few of these methods in `lib/api_server.rb`:
 
-```rb
+```ruby
 require 'sinatra/base'
 require 'sinatra/json'
 
@@ -198,7 +203,7 @@ The main html file simple calls `React.render( React.createElement(App, null), d
 
     <div className="maincontent">
       <h1>Drafts</h1>
-      
+
       <ul className="nav nav-pills nav-stacked">
         {drafts}
       </ul>

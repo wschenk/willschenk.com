@@ -1,9 +1,15 @@
 ---
 title: Making a command line utility with gems and thor
 subtitle: Any excuse to the use the phrase "Hammer of the Gods"
-date: 2014-11-08 00:00 UTC
-tags: ruby, thor, socialinvestigator, howto
+date: "2014-11-08"
+tags:
+  - ruby
+  - thor
+  - socialinvestigator
+  - howto
 header_image: thor.jpg
+aliases:
+  - "/making-a-command-line-utility-with-gems-and-thor/"
 ---
 
 Some scripts work well because they are self contained and don't have a lot of dependancies, like the [hosts on your network tracker](http://willschenk.com/how-to-track-your-coworkers).
@@ -49,14 +55,14 @@ The first file to look at is the `socialinvestigator.gemspec`.  This defines inf
 
 Lets edit the file and add a line
 
-```rb
+```ruby
 spec.add_dependency 'thor'
 spec.add_dependency 'httparty'
 ```
 
 Giving us something like this:
 
-```rb
+```ruby
 # coding: utf-8
 lib = File.expand_path('../lib', __FILE__)
 $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
@@ -93,7 +99,7 @@ Now we need to create a binary in the `bin` folder, which doesn't yet exist.  Th
 
 Lets create `bin/socialinvestigator` now:
 
-```rb
+```ruby
 #!/usr/bin/env ruby -wU
 
 require 'socialinvestigator'
@@ -103,7 +109,7 @@ puts "Hello, world!"
 
 Now we need to make it executable,
 
-```sh
+```bash
 wschenk$ chmod +x bin/socialinvestigator
 ```
 
@@ -113,8 +119,8 @@ Running this binary now by typing `bin/socialinvestigator` will give an error.  
 
 We can run this in the context of the gem itself, by running
 
-```sh
-$ bundle exec bin/socialinvestigator 
+```bash
+$ bundle exec bin/socialinvestigator
 Hello, world!
 ```
 
@@ -128,7 +134,7 @@ You should always run your gem this way.  The `bundle exec` command will load al
 
 We are going to add a new file in `lib/socialinvestigator` called `cli.rb`.
 
-```rb
+```ruby
 require 'thor'
 
 module Socialinvestigator
@@ -138,10 +144,10 @@ module Socialinvestigator
 
     `hello NAME` will print out a message to the person of your choosing.
 
-    Brian Kernighan actually wrote the first "Hello, World!" program 
-    as part of the documentation for the BCPL programming language 
-    developed by Martin Richards. BCPL was used while C was being 
-    developed at Bell Labs a few years before the publication of 
+    Brian Kernighan actually wrote the first "Hello, World!" program
+    as part of the documentation for the BCPL programming language
+    developed by Martin Richards. BCPL was used while C was being
+    developed at Bell Labs a few years before the publication of
     Kernighan and Ritchie's C book in 1972.
 
     http://stackoverflow.com/a/12785204
@@ -155,12 +161,12 @@ module Socialinvestigator
   end
 end
 ```
- 
+
 _The art of naming variables, classes and methods is one that I've honed over years of progressional software engineering, based largely on both my experience as an inheritor of other's inexplicable code, as well as the practical jokes that I, evidently, liked to play on my future self.  Also, I was inspired by [The Bonhamizer](http://static.echonest.com/bonhamizer/go.html?trid=TRSBVUT12F87DF0212)_
 
 Lets make sure that we require that new file in the main `lib/socialinvestigator.rb` file:
 
-```rb
+```ruby
 require "socialinvestigator/version"
 require "socialinvestigator/cli"
 
@@ -171,7 +177,7 @@ end
 
 And now lets change our `bin/socialinvestigator` ruby scripts to:
 
-```rb
+```ruby
 #!/usr/bin/env ruby -U
 
 require 'socialinvestigator'
@@ -183,8 +189,8 @@ This creates a class/ _bon mot_ named `Socialinvestigator::HammerOfTheGods` that
 
 Running it with no arguments will print out a list of all the commands available.  In our case, only the build in `help` command, and our `hello` command:
 
-```sh
-$ bundle exec bin/socialinvestigator 
+```bash
+$ bundle exec bin/socialinvestigator
 Commands:
   socialinvestigator hello NAME      # This will greet you
   socialinvestigator help [COMMAND]  # Describe available commands or one specific command
@@ -192,7 +198,7 @@ Commands:
 
 Lets try running our command with the wrong number of arguments, _i.e. none_.  Here it will print out the short usage of the command that we specified with the `desc` DSL.
 
-```sh
+```bash
 $ bundle exec bin/socialinvestigator hello
 ERROR: "socialinvestigator hello" was called with no arguments
 Usage: "socialinvestigator hello NAME"
@@ -200,7 +206,7 @@ Usage: "socialinvestigator hello NAME"
 
 The built in help command will bring out usage information for the method using the `long_desc` if available and the regular description if not.  These are optional but why not, right?  Notice also how it's smart enough to figure out the command name, in this case `socialinvestigator`
 
-```sh
+```bash
 $ bundle exec bin/socialinvestigator help hello
 Usage:
   socialinvestigator hello NAME
@@ -211,10 +217,10 @@ Options:
 Description:
   `hello NAME` will print out a message to the person of your choosing.
 
-  Brian Kernighan actually wrote the first "Hello, World!" program as part 
-  of the documentation for the BCPL programming language developed 
-  by Martin Richards. BCPL was used while C was being developed at 
-  Bell Labs a few years before the publication of Kernighan and Ritchie's 
+  Brian Kernighan actually wrote the first "Hello, World!" program as part
+  of the documentation for the BCPL programming language developed
+  by Martin Richards. BCPL was used while C was being developed at
+  Bell Labs a few years before the publication of Kernighan and Ritchie's
   C book in 1972.
 
   http://stackoverflow.com/a/12785204
@@ -222,14 +228,14 @@ Description:
 
 Lets now run the command as it was meant to be:
 
-```sh
+```bash
 $ bundle exec bin/socialinvestigator hello world
 Hello, world
 ```
 
 And when passing in an optional tag:
 
-```sh
+```bash
 $ bundle exec bin/socialinvestigator hello world --upcase
 HELLO, WORLD
 ```
@@ -240,7 +246,7 @@ You can also mount Thor classes inside of other ones.  This is handy because gen
 
 This is done with the `subcommand` method.  Inside of `lib/socialinvestigator/cli.rb` lets add the lines in the `HammerOfTheGods` class:
 
-```rb
+```ruby
 require 'thor'
 require 'socialinvestigator/cli/hn'
 
@@ -256,7 +262,7 @@ end
 
 And now lets create that new file `lib/socialinvestigator/cli/hn.rb`:
 
-```rb
+```ruby
 module Socialinvestigator
   module CLI
     class Hn < Thor
@@ -272,8 +278,8 @@ end
 
 And we can now see what we have:
 
-```sh
-$ bundle exec bin/socialinvestigator 
+```bash
+$ bundle exec bin/socialinvestigator
 Commands:
   socialinvestigator hello NAME      # This will greet you
   socialinvestigator help [COMMAND]  # Describe available commands or one specific command
@@ -300,7 +306,7 @@ I wrote a bunch more code and then *[checked it in to github](https://github.com
 
 In order to install the gem, we need to build it:
 
-```sh
+```bash
 $ rake build
 ```
 
@@ -308,13 +314,13 @@ This will create a gem in the `pkg` directory.  The version, in our case, is spe
 
 Lets install the gem locally, and see if we can access what we need ourside of the working directory:
 
-```sh
+```bash
 $ rake install
 ```
 
 This takes the gem located in `pkg` and installs it as part of our local gem set.  Now we can type anywhere on our system:
 
-```sh
+```bash
 $ socialinvestigator hn search willschenk.com/how-to-track-your-coworkers
 1 Hits
 How to track your coworkers – Simple passive network surveillance
@@ -326,7 +332,7 @@ How to track your coworkers – Simple passive network surveillance
 
 Now lets release it.
 
-```
+```bash
 $ rake release
 socialinvestigator 0.0.1 built to pkg/socialinvestigator-0.0.1.gem.
 Tagged v0.0.1.

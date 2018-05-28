@@ -1,8 +1,13 @@
 ---
 title: Yes, No, Maybe, Dont Know, WTF
 subtitle: the limits of Binary Logic and the Importance of Forgetting
-tags: logic, iot, tesla
+tags:
+  - logic
+  - iot
+  - tesla
 date: 2016-10-25
+aliases:
+  - "/yes-no-maybe/"
 ---
 
 Boolean logic is the basis for how computers work — digital means ones and zeroes, and ones and zeros is another way of saying boolean logic. In this world things are either true or they are false, there is no maybe, no hesitant pause,no anxiety provoking second thoughts. This type of logic goes back to Aristotle with the “law of the excluded middle”. Here’s [wikipedia weighing in](https://en.wikipedia.org/wiki/Law_of_excluded_middle):

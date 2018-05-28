@@ -1,11 +1,15 @@
 ---
-:title: Why Engineers build crappy products
-:subtitle: looks like it was designed by an engineer
-:tags: product, overview
-:date: 2015-02-21
+title: Why Engineers build crappy products
+subtitle: looks like it was designed by an engineer
+tags:
+  - product
+  - overview
+date: 2015-02-21
+aliases:
+  - "/why-engineers-build-crappy-products/"
 ---
 
-There's a certain user interface that, when you first see it, screams out of you that it was designed by an engineer. 
+There's a certain user interface that, when you first see it, screams out of you that it was designed by an engineer.
 
 ![designed by an engineer](http://www.pspad.com/img/screen/mainfull.png)
 
@@ -25,7 +29,7 @@ The short version:
 
 ## Being a people person
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/RAY27NU1Jog" frameborder="0" allowfullscreen></iframe>
+<p><iframe width="560" height="315" src="https://www.youtube.com/embed/RAY27NU1Jog" frameborder="0" allowfullscreen></iframe></p>
 
 The process of thinking about a new product begins with an attempt to understand what it is that the software supposed to do, that is, it starts with specifying a solution to a problem. This is assuming that the problem itself is correctly framed, which it often isn't.  These specifications generally take form in things like user stories and wireframes which are ways of specifying both what the user is trying to do and the specific interface that the user will use to achieve those goals.
 
@@ -62,7 +66,7 @@ This is not something that's core to the product.  No one actually cares. In the
 
 If the teams aren't integrated, if the design team "finishes" their work and then lobs it over the fence to the engineering team, this conversation will take the form of engineering requesting designs for something that "was missed and we need to solve".  It may have been missed, but it doesn't need to be solved.  The solution, in this case, is not to "solve it" at all, but to reframe the problem.  And this reframing puts it into a place that engineers don't like to be.  It was not to build out a whole partially-completed-request queuing system that the user could resolve, be alerted of outstanding tasks or whatever, it was instead to simply keep the email interface simple and redirect them to the main flow on the website.
 
-In short, the reason why engineers tend to be crappy product designers is that 
+In short, the reason why engineers tend to be crappy product designers is that
 
 - The most interesting part of engineer's jobs is the obsession with the possibilities in the solution space - all the cool shit you can make computers do.
 - Engineers don't want to make choices that limit power and flexibly.

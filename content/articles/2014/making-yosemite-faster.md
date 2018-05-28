@@ -1,10 +1,14 @@
 ---
 title: Making Yosemite Faster
 subtitle: something is up with WindowServer
-date: 2014-11-07 00:00 UTC
-tags: osx, howto
+date: "2014-11-07"
+tags:
+  - osx
+  - howto
 disqus_id: silvrback-wschenk-9535
 header_image: yosemite.jpg
+aliases:
+  - "/making-yosemite-faster/"
 ---
 
 Since I've upgraded to Yosemite my computer has gotten slower and slower.  When it first boots up, it is it's old fast self, but after a few hours everything slows down.  Remember the days when you needed to restart your computer to keep it working well?  I had forgotten, and I wasn't really into remembering it.

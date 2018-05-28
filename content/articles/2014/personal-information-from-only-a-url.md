@@ -1,14 +1,19 @@
 ---
 title: Personal information from only a URL
 subtitle: what can automated tools find out
-date: 2014-11-14 00:00 UTC
-tags: ruby, socialinvestigator
+date: 2014-11-14
+tags:
+  - ruby
+  - socialinvestigator
 header_image: core_memory.jpg
+historical: true
+aliases:
+  - "/personal-information-from-only-a-url/"
 ---
 
-Ever wonder what you can find out by looking at a url?  How about physical addresses, server location, emails, phone numbers, various links to other profiles (which can in turn be structurally scraped), technology stack, and more. 
+Ever wonder what you can find out by looking at a url?  How about physical addresses, server location, emails, phone numbers, various links to other profiles (which can in turn be structurally scraped), technology stack, and more.
 
-```
+```bash
 $ socialinvestigator net page http://willschenk.com/bio
               domain: willschenk.com
           created_on: 2014-10-31
@@ -16,7 +21,7 @@ $ socialinvestigator net page http://willschenk.com/bio
           updated_on: 2014-10-31
       registrar_name: ENOM, INC.
        registrar_url: www.enom.com
-  registrant_contact: 
+  registrant_contact:
                      name: WILL SCHENK
              organization: HAPPYFUNCORP
                   address: 18 BRIDGE STREET, 2E
@@ -49,7 +54,7 @@ $ socialinvestigator net page http://willschenk.com/bio
 
 _Standalone code as [a gist](https://gist.github.com/wschenk/7d333acb59b7768f2637), the complete socialinvestigator code [available on github](https://github.com/sublimeguile/socialinvestigator) or and is easily installable on your machine as a gem._
 
-```
+```bash
 $ gem install socialinvestigator
 $ socialinvestigator net get_apps_json
 $ socialinvestigator net page_info url
@@ -75,7 +80,7 @@ DNS manages this complexity by delegating authority for different branches of th
 
 This looks like:
 
-```rb
+```ruby
 require 'dnsruby'
 
 hostname = URI(url).hostname
@@ -99,7 +104,7 @@ end
 
 Once we've found the domain, we query the `whois` databases to find out who has owns the domain name.  
 
-```rb
+```ruby
 require 'whois'
 
 whois = Whois.lookup( domain )
@@ -111,14 +116,14 @@ whois.contacts.each { |c| puts c }
 
 One of the challenges here is that there is no standardized format that there is no standardized way of parsing `whois` responses.  The `whois` gem gives it a serious try:
 
-```
+```bash
 $ ls -l `bundle show whois`/lib/whois/record/parser | wc -l
      209
 ```
 
 But there's over 500 different whois servers out there, so you won't always get a parseable response.  In that case we print out that we can't find a parser, and we store the unparsed response in the data object as `unparsed_whois`.
 
-```rb
+```ruby
 whois.parts.each do |p|
   # Check for responses that we couldn't parse
   if Whois::Record::Parser.parser_for(p).is_a? Whois::Record::Parser::Blank
@@ -132,7 +137,7 @@ end
 
 Now we look at the IP address, and then do a reverse lookup on it to see what the server machine name is.
 
-```rb
+```ruby
 ip_address = Dnsruby::Resolv.getaddress uri.host
 
 data.remember :ip_address, ip_address
@@ -147,7 +152,7 @@ Sometimes interesting things are encoded in the server name, like if it's a Rack
 
 Then we try and see where the IP address is located geographically, using [freegeoip.net](http://freegeoip.net/).  If you did a lot of this it would make sense to buy a more detailed database from [Maxmind](https://www.maxmind.com/en/home) but for something quick and dirty this works.  Given that you need to follow the rules of the company you are in, it's interesting to see where the servers are located.
 
-```rb
+```ruby
 location_info = HTTParty.get('http://freegeoip.net/json/' + ip_address)
 
 data.remember :server_country, location_info['country']
@@ -158,7 +163,7 @@ data.remember :server_longitude, location_info['longitude']
 
 We can also do a `whois` lookup on the IP address, to see who owns that IP block.  This should give us an idea of who is hosting the site.  Note that we don't even pretend to parse the `whois` response here in a clever way.
 
-```rb
+```ruby
 ip_whois = Whois.lookup ip_address
 
 ip_whois.to_s.each_line.select { |x| x=~/Organization/ }.each do |org|
@@ -172,7 +177,7 @@ end
 
 Now we load up the page, and look for some basic stuff.  The first thing that we do is load the [meta tags](http://en.wikipedia.org/wiki/Meta_element) into something more accessible.
 
-```rb
+```ruby
 response = HTTParty.get url
 parsed = Nokogiri.parse response.body
 
@@ -190,10 +195,10 @@ end
 
 Now we load up some basic SEO info, including if there are any feeds for this site's content.
 
-```rb
-data.remember( :author, meta['author'] ) 
-data.remember( :description, meta['description'] ) 
-data.remember( :keywords, meta['keywords'] ) 
+```ruby
+data.remember( :author, meta['author'] )
+data.remember( :description, meta['description'] )
+data.remember( :keywords, meta['keywords'] )
 data.remember( :generator, meta['generator'])
 data.remember( :responsive, true )  if meta["viewport"] =~ /width=device-width/
 data.remember( :server, response.headers['server'] )
@@ -216,9 +221,9 @@ end
 
 [Twitter Card meta data](https://dev.twitter.com/cards/overview) is a way to control how your data gets displayed on twitter, which has the benefit of defining some summary meta data around the social graph.  One thing thing to note is that `twitter:creator` is the author of this page, while `twitter:site` is the twitter account for the overall site.
 
-```rb
-data.remember( :twitter_title, meta["twitter:title"] ) 
-data.remember( :twitter_creator, meta["twitter:creator"] ) 
+```ruby
+data.remember( :twitter_title, meta["twitter:title"] )
+data.remember( :twitter_creator, meta["twitter:creator"] )
 if /@(.*)/.match( meta["twitter:creator"] )
   data.another( :twitter_ids, $1 )
 end
@@ -226,7 +231,7 @@ data.remember( :twitter_site_author, meta["twitter:site"] )
 if /@(.*)/.match( meta["twitter:site"] )
   data.another( :twitter_ids, $1 )
 end
-data.remember( :twitter_image, meta["twitter:image"] ) 
+data.remember( :twitter_image, meta["twitter:image"] )
 data.remember( :twitter_description, meta["twitter:description"] )
 ```
 
@@ -234,11 +239,11 @@ data.remember( :twitter_description, meta["twitter:description"] )
 
 [Open Graph meta data](http://ogp.me) is really about what your link looks like when someone shares it on Facebook.
 
-```rb
-data.remember( :og_title, meta["og:title"] ) 
+```ruby
+data.remember( :og_title, meta["og:title"] )
 data.remember( :og_description, meta["og:description"] )
-data.remember( :og_type, meta["og:type"] ) 
-data.remember( :og_image, meta["og:image"] ) 
+data.remember( :og_type, meta["og:type"] )
+data.remember( :og_image, meta["og:image"] )
 ```
 
 ## Social Page Links
@@ -261,7 +266,7 @@ For Twitter, Facebook, and Google+ we are only letting through links that have a
 
 We then look for Twitter Share links, and try and parse out the user names found in there.
 
-```rb
+```ruby
 # Look for twitter shared links
 
 twitter_shared = matching_links( parsed, /twitter.com\/share/ )
@@ -272,7 +277,7 @@ twitter_shared.each do |l|
   # See if there's a "by @user" in the text
   if /by\s*@([^\s]*)/.match text
     data.another( :twitter_ids, $1 )
-    data.remember( :twitter_by, $1 ) 
+    data.remember( :twitter_by, $1 )
   end
 
   # Look for all "@usernames" in the text
@@ -296,13 +301,13 @@ end
 
 There are also twitter intent links:
 
-```rb
+```ruby
 twitter_intent = hrefs( matching_links( parsed, /twitter.com\/intent/ ) )
 
 twitter_intent.each do |t|
-  URI.decode( URI(t.gsub( / /, "+" )).query ).split( /&/ ).select do |x| 
+  URI.decode( URI(t.gsub( / /, "+" )).query ).split( /&/ ).select do |x|
     x =~ /via/
-  end.collect do |x| 
+  end.collect do |x|
     x.gsub( /via=/, "" )
   end.each do |via|
     data.another( :twitter_ids, via )
@@ -318,7 +323,7 @@ The final thing we do is to load the `apps.json` file from [Wappalyzer](https://
 
 The standalone code as [a gist](https://gist.github.com/wschenk/7d333acb59b7768f2637), and you can check out the complete [socialinvestigator code on github](https://github.com/sublimeguile/socialinvestigator).  To run this on your machine:
 
-```
+```bash
 $ gem install socialinvestigator
 $ socialinvestigator net get_apps_json
 $ socialinvestigator net page_info http://willschenk.com/bio
@@ -326,12 +331,12 @@ $ socialinvestigator net page_info http://willschenk.com/bio
 
 It may take a while to get the responses.  If you want to see everything it's doing, use the `--debug` switch
 
-```
+```bash
 $ socialinvestigator net page_info http://willschenk.com/bio --debug
 ```
 
 The reverse lookup can take a while, and if you want to turn that off:
 
-```
+```bash
 $ socialinvestigator net page_info http://willschenk.com/bio --noreverse
 ```

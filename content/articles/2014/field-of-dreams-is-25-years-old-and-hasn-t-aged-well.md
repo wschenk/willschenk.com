@@ -1,9 +1,13 @@
 ---
 title: Field of Dreams is 25 years old and hasn't aged well
 subtitle: if you build it, will anyone really come?
-date: 2014-11-05 00:00 UTC
-tags: product, startupmyths
+date: "2014-11-05"
+tags:
+  - product
+  - startupmyths
 header_image: fods.jpg
+aliases:
+  - "/field-of-dreams-is-25-years-old-and-hasn-t-aged-well/"
 ---
 
 ![left_float](https://silvrback.s3.amazonaws.com/uploads/bc10cbd1-d757-421f-b069-699e2c82911e/fod_medium.jpg)
@@ -29,7 +33,7 @@ _Paul Dirac_
 
 In order to move forward, to make progress in spite of everything, for you to take you vision to the world, you need to be able to find something deep inside of yourself to keep going.  Before things get better there are some dark times.  Paul Graham calls it the _Trough of Sorrow_.  Figuring out how to navigate that emotional experience when you have doubts and are constantly second guessing yourself is major part of being an entrepreneur.
 
---- 
+---
 
 ## Yeah, but what about that baseball field in the middle of a corn field
 
@@ -79,7 +83,7 @@ _Ira Glass, [This America Life #366](http://www.thisamericanlife.org/radio-archi
 
 As an aside, I'm not really sure that I'm smart enough to read Ralph Waldo Emerson, at least the real thing and not the "well known quotes". It's all too damn subtle and I find myself drifting off.  So many rhythmic sentences that just go on and on, and on, and so on.  Nietzsche I'm fascinated by, and I've read most of his books multiple times.  Those I can follow.  I find something new in them every time.  In the beginning of his writing, it's clear that Emerson's essays blew Nietzsche's socks off.  He kept his ragged, annotated, school issued copy of the essays with him throughout his life.  Based on this alone I'm sure good old _Waldo_ deserves his place in the pantheon but in this go-go-go world I just can't get a grasp on it.
 
-The actual Emerson quote that the mousetrap thing started our as is: 
+The actual Emerson quote that the mousetrap thing started our as is:
 > If a man has good corn or wood, or boards, or pigs, to sell, or can make better chairs or knives, crucibles or church organs, than anybody else, you will find a broad hard-beaten road to his house, though it be in the woods.
 
 Such poetry!  Such rhythm!  Such circumlocution!  Yes yes, totally!  Not precisely sure what I can take from Emerson here, as like _an action item_, but I'm certainly jazzed up about it!  Just like _If you build it, he will come._

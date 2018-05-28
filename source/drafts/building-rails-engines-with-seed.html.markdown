@@ -36,7 +36,7 @@ $ rails g controller bundler
 
 Lets add a simple action inside of the newly generated `app/controllers/bundled_ui/bundler_controller.rb`:
 
-```rb
+```ruby
     def index
       @specs = Bundler.definition.specs.to_a
     end
@@ -74,7 +74,7 @@ And some basic ERB in `app/views/bundled_ui/bundler`:
 
 We need to mount the engine in the test server so we can see what's happening.  In `config/routes.rb`:
 
-```rb
+```ruby
 BundledUi::Engine.routes.draw do
   root "bundler#index"
 end
@@ -89,7 +89,7 @@ $ rails s
 
 When you go to [http://localhost:3000](http://localhost:3000) you'll see a standard rails install.  This is because we haven't mounted the engines routes.  Lets do that now and reload, in `spec/dummy/config/routes.rb`:
 
-```rb
+```ruby
 Rails.application.routes.draw do
   mount BundledUi::Engine => "/bundled_ui"
 end
@@ -122,7 +122,7 @@ Helpers work the same way as always.  Inside of `index.html.erb`, replace the fi
 
 And create the helper method in `app/helpers/bundler_ui/bundler_helper.rb`:
 
-```rb
+```ruby
     def badge_image( spec )
       image_tag "https://badge.fury.io/rb/#{ spec.name }.svg"
     end
@@ -134,13 +134,13 @@ Lets make sure that the ui only shows itself on local requests.
 
 First lets generate a controller spec:
 
-```sh
+```bash
 $ rails g rspec:controller bundler
 ```
 
 And write the spec, `spec/controllers/bundled_ui/bundler_controller_spec.rb`:
 
-```rb
+```ruby
 require 'rails_helper'
 
 module BundledUi

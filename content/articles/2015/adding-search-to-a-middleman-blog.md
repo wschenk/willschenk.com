@@ -1,8 +1,13 @@
 ---
 title: Adding search to a middleman blog
 subtitle: slightly simplier than google
-date: 2015-06-07 14:09 UTC
-tags: middleman, howto, ruby
+date: 2015-06-07
+tags:
+  - middleman
+  - howto
+  - ruby
+aliases:
+  - "/adding-search-to-a-middleman-blog/"
 ---
 We're going to build a simple, niave search for middleman blogs.  We're going to build a _search index_ at build time, and then use that index to perform the search itself on the client side.
 
@@ -25,9 +30,9 @@ First thing we're going to do is create a very simple version of this index for 
   index = {}
   blog.articles.each do |article|
     map[:articles][article.url] = {
-      title: article.title, 
-      date: article.date, 
-      tags: article.tags 
+      title: article.title,
+      date: article.date,
+      tags: article.tags
     }
 
     words = "#{article.title} #{article.body}"

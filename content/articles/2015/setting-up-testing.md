@@ -1,8 +1,15 @@
 ---
-:title: Setting up Rails testing with rspec, devise, and the gang
-:subtitle: so much fun
-:tags: rails, happy_seed, testing, ruby
-:date: 2015-01-23
+title: Setting up Rails testing with rspec, devise, and the gang
+subtitle: so much fun
+tags:
+  - rails
+  - happy_seed
+  - testing
+  - ruby
+date: 2015-01-23
+historical: true
+aliases:
+  - "/setting-up-testing/"
 ---
 The goal is to get features out fast, and interate on them quickly.  Does anyone care about it?  What do they care about?  How do we make it better?
 
@@ -16,13 +23,13 @@ This article will go through how the testing environment is set up on [HappySeed
 
 Lets fire up a new rails app, and pass the `-T` option to not include TestUnit.
 
-```sh
+```bash
 $ rails new test_app -T
 ```
 
 Now add some gems to the `Gemfile`.
 
-```rb
+```ruby
 group :development, :test do
   gem 'rspec-rails'
   gem 'factory_girl_rails'
@@ -41,7 +48,7 @@ Lets go through this:
 
 - [`rpsec`](http://rspec.info) (implied as a dependancy) is the testing framework that we are going to use
 - [`factory_girl`](https://github.com/thoughtbot/factory_girl) (implied) lets us code smart database fixtures in ruby, in things called _factories_
-- [`capybara`](https://github.com/jnicklas/capybara) lets helps you test web applications by simulating how a real user would interact with your app. 
+- [`capybara`](https://github.com/jnicklas/capybara) lets helps you test web applications by simulating how a real user would interact with your app.
 - [`guard`](https://github.com/guard/guard) (implied) makes rerunning tests a snap, by watching the filesystem for when you save files and triggering events automatically
 - [`webmock`](https://github.com/bblimke/webmock) locks down your test environment from talking to the internet
 - [`vcr`](https://github.com/vcr/vcr) record your test suite's HTTP interactions and replay them during future test runs for fast, deterministic, accurate tests
@@ -56,7 +63,7 @@ If you are interested in using cucumber, see below for steps to integrate it.
 
 Lets make sure that spring knows about rspec:
 
-```sh
+```bash
 $ bundle install
 $ spring binstub --all
 * bin/rake: spring already present
@@ -66,25 +73,25 @@ $ spring binstub --all
 
 This creates a `bin/rspec` command that lets us run our tests.  Lets create a Guardfile and then tell guard to use this command:
 
-```sh
+```bash
 $ guard init
 ```
 
 Then edit the newly generated `Guardfile` to use the spring version of the rspec runner.  I also like to run all of the tests when I start up guard, because the more the merrier.  In `Guardfile`, change the `guard :rspec` line to:
 
-```rb
+```ruby
 guard :rspec, cmd: "bin/rspec", all_on_start: true do
 ```
 
 Now we install the rspec files:
 
-```sh
+```bash
 $ rails g rspec:install
 ```
 
 This creates 3 files:
 
-```sh
+```bash
 create  .rspec
 create  spec
 create  spec/spec_helper.rb
@@ -93,7 +100,7 @@ create  spec/rails_helper.rb
 
 I like to have the output in documentation format by default, so we can edit the `.rspec` file to be:
 
-```rb
+```ruby
 --color
 --require spec_helper
 --format documentation
@@ -105,13 +112,13 @@ Getting feature and controller specs to work with authentication is a bit tricky
 
 Add devise to `Gemfile`:
 
-```rb
+```ruby
 gem 'devise'
 ```
 
 Create `spec/support/controller_helpers.rb`
 
-```rb
+```ruby
 module ControllerHelpers
   def login_with(user = double('user'), scope = :user)
     current_user = "current_#{scope}".to_sym
@@ -128,14 +135,14 @@ end
 
 At the top of `spec_helper.rb` add:
 
-```rb
+```ruby
 require_relative 'support/controller_helpers'
 require 'devise'
 ```
 
 and in the config block add:
 
-```rb
+```ruby
   config.include ControllerHelpers, type: :controller
   Warden.test_mode!
 
@@ -146,7 +153,7 @@ and in the config block add:
 
 Then edit `rails_helper.rb` and put the following in the config block:
 
-```rb
+```ruby
   config.include FactoryGirl::Syntax::Methods
   config.include Devise::TestHelpers, type: :controller
   config.include Warden::Test::Helpers
@@ -171,20 +178,20 @@ $ rails g devise:install && rails g devise User && rake db:migrate
 
 Assuming that you've already setup devise, lets look at how to implement a controller spec.  First lets create a simple scaffold for a post:
 
-```sh
+```bash
 $ rails g scaffold post name:string
 ```
 
 And lets make it require authentication in `posts_controller.rb`:
 
-```rb
+```ruby
 class PostsController < ApplicationController
   before_action :authenticate_user!
 ```
 
 And replace `posts_controller_spec.rb` with:
 
-```rb
+```ruby
 require 'rails_helper'
 
 RSpec.describe PostsController, :type => :controller do
@@ -206,7 +213,7 @@ When we run `guard`, a few of the scaffold generate things will fail, since we a
 
 Lets now simulate a logged in user:
 
-```rb
+```ruby
   it "should let a user see all the posts" do
     login_with create( :user )
     get :index
@@ -218,7 +225,7 @@ Guard should try and run this tests but fail because we can't configured a user 
 
 Lets set that up now in `spec/factories/user.rb`:
 
-```rb
+```ruby
 FactoryGirl.define do
   sequence :email do |n|
     "person#{n}@example.com"
@@ -241,14 +248,14 @@ Going back to the guard window, press _return_ to run everything again and verif
 
 Feature specs are more interesting, since they let you walk through the site and how it works.  Lets build one now:
 
-```sh
+```bash
 $ rails g rspec:feature add_new_post
       create  spec/features/add_new_posts_spec.rb
 ```
 
 And lets add something there now:
 
-```rb
+```ruby
 require 'rails_helper'
 
 feature "AddNewPosts", :type => :feature do
@@ -288,7 +295,7 @@ This first creates a new user in the database, and then
 
 If you want to skip the steps of manually logging in the user, you can use the `login_as` method like so:
 
-```rb
+```ruby
   it "should create a new post with a logged in user" do
     login_as create( :user ), scope: :user
 
@@ -314,13 +321,13 @@ Webmock stops requests from hitting the network in the test environment.  Lets t
 In `rails_helper.rb`, below `require 'rails/rspec'`:
 
 
-```rb
+```ruby
 require 'webmock/rspec'
 ```
 
 And VCR lets you record and play back tests in the test environment, so the first time it's called it lets it get through, and then on subsequent requests it plays back a known response.  Put this at the bottom of `rails_helper.rb` to configure:
 
-```rb
+```ruby
 VCR.configure do |c|
   c.cassette_library_dir  = Rails.root.join("spec", "vcr")
   c.hook_into :webmock
@@ -335,13 +342,13 @@ This is where webmock and VCR comes in.  Webmock by itself will throw an error w
 
 First lets write our code to look up the phase of the moon on the create post action.  Let's add a field
 
-```rb
+```ruby
 $ rails g migration add_phase_of_moon_to_posts moon_phase:string && rake db:migrate
 ```
 
 Then add the lookup to our `app/controllers/posts_controller.rb` and replace the `def create` method:
 
-```rb
+```ruby
   require 'json'
   require 'net/http'
   def create
@@ -363,7 +370,7 @@ Now lets run our test again.
 
 Lots of unhandled http request errors!  I'm going to ignore the scaffold generate tests and focus on our rspec feature.  So, inside of `spec/features/add_new_posts_spec.rb` we can link the click action inside of a use_cassette block like so::
 
-```rb
+```ruby
   it "should create a new post with a logged in user" do
     login_as create( :user ), scope: :user
 

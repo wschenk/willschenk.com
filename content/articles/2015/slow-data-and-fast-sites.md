@@ -1,8 +1,15 @@
 ---
 title: Slow data and Fast Sites
 subtitle: building fast, searchable, functional sites that fail gracefully
-tags: middleman, ruby, howto, static_sites, overview
+tags:
+  - middleman
+  - ruby
+  - howto
+  - static_sites
+  - overview
 date: 2015-05-08
+aliases:
+  - "/slow-data-and-fast-sites/"
 ---
 This article walks through the motivations driving and benefits of using a the Seed Architecture for building performant websites using Middleman, React, and a seperate API server such as Parse.  The benefits are:
 
@@ -335,7 +342,7 @@ One of the benefits of this is that there are API-as-services out there, like [P
 <div class="diagram_right">
 <% graphviz do %>
 digraph deployment {
-  
+
   "Build Server" -> "Static Files" [label="Deploy"];
   "Static Files" -> "Client" [label="User Access"];
   "Client" -> "Parse" [label="Update Data"];

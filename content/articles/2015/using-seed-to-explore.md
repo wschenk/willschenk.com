@@ -2,7 +2,12 @@
 title: Using seed to explore APIs
 subtitle: overview of what we're working on and how to explore apis
 date: "2015-09-17"
-tags: happy_seed, rails, howto, github, rake
+tags:
+  - happy_seed
+  - rails
+  - howto
+  - github
+  - rake
 aliases:
   - "/using-seed-to-explore/"
 ---

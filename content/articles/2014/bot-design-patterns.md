@@ -2,7 +2,9 @@
 title: Bot Design Patterns
 subtitle: different ways to make different bots
 date: "2014-11-11"
-tags: overview, bots
+tags:
+  - overview
+  - bots
 aliases:
   - "/bot-design-patterns/"
 ---
@@ -50,19 +52,19 @@ _Notifiers_ are the "simplest type"of bots, in the sense that the messaging logi
 
 The trick in _Notifiers_ is in figuring out what to say, not sending the message.
 
-```rb
+```ruby
 # Twitter Example
 message = "Hello, World"
 client.update( message )
 ```
 
-```sh
+```bash
 # AppleScript from the command line example
 $ MESSAGE="Hello, World"
 $ /usr/bin/osascript -e "display notification \"$MESSAGE\""
 ```
 
-```rb
+```ruby
 # Using the terminal-notifier gem
 require 'terminal-notifier'
 TerminalNotifier.notify "\u2705 green!", :title => "Hello, World"
@@ -89,7 +91,7 @@ on_message( message ) = ->
 
 For example, here's something that listens for tweets matching the string `not a feminist` and reacts by tweeting that that user isn't a feminist:
 
-```rb
+```ruby
 streaming_client.filter(track: "not a feminist") do |object|
   if object.is_a?( Twitter::Tweet ) && object.user.user_name != BOT_NAME
     client.update( ". @#{object.user.user_name} is not a feminist" )
@@ -208,7 +210,7 @@ on_message( message ) = ->
 
 If you have a HipChat bot and have a room for each company project, and you want to have the bot respond to `wtf` with the last commit message on github.  The first thing that you need to do is look at which room the message came from, and correlate that a list of repositories, then make a Github API call, and finally post the commit message back to the room.
 
-```rb
+```ruby
   # This is a lita based bot, which provides dispatching
   # so we find the space inside of the command
   def wtf(response)

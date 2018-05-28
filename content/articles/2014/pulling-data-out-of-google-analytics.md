@@ -1,9 +1,16 @@
 ---
-:title: Pulling data out of Google Analytics
-:subtitle: see who's talking about your stuff
-:tags: socialinvestigator, howto, ruby, googleanalytics
-:header_image: lava-lamp.jpg
-:date: 2014-12-04
+title: Pulling data out of Google Analytics
+subtitle: see who's talking about your stuff
+tags:
+  - socialinvestigator
+  - howto
+  - ruby
+  - googleanalytics
+header_image: lava-lamp.jpg
+date: 2014-12-04
+historical: true
+aliases:
+  - "/pulling-data-out-of-google-analytics/"
 ---
 I like staring at the real time stats of [Google Analytics](http://www.google.com/analytics/).  As a dashboard, it's not really as amazing as [Chartbeat](https://chartbeat.com) is, and it doesn't let you drill down into the data as much as [Mixpanel](https://mixpanel.com).  But GA is super simple to setup and it's Google, so everyone uses it.
 
@@ -29,7 +36,7 @@ Working with the Google API is pretty confusing at first, since there's multiple
 
 We're going to be using a few gems to put in your `Gemfile` specifically:
 
-```rb
+```ruby
 source 'https://rubygems.org'
 
 gem 'google-api-client'
@@ -39,7 +46,7 @@ gem 'hirb'
 
 Now we can use the `Google::APIClient::InstalledAppFlow` class to open up a web browser, have the user log in as needed to their Google Accounts, and grant access to the API.  The code below shows the basics of this.  We assume that the file you downloaded in step 1 is called `client_secrets.json` and in the same directory, and we are writing out the granted credentials into the `analytics-oauth2.json` file.
 
-```rb
+```ruby
 #!/usr/bin/env ruby -KU
 #
 # This code has been adapted from
@@ -106,7 +113,7 @@ When we run this the first time, you should be prompted to grant access to your 
 
 Google takes their software development seriously, and it shows.  Not only are there many different APIs available to use, but they all have different versions.  These endpoints are all different, and rather than have them all hard coded into the client access library, you use the _discover api_ to pull in metadata associated with it.  The following code will load up this data and cache it to the filesystem so the next access will be faster.
 
-```rb
+```ruby
   def api
     return @api if @api
 
@@ -131,7 +138,7 @@ Google takes their software development seriously, and it shows.  Not only are t
 In order to pull data from an analytics account, you need to query the management API to get a list of profiles that you user has access to.  We're going to collapse the differences between accounts and properties, and print them all out in a list directly.  The key variable we are looking for is going to be the profile _id_.  This is different from the _web property id_, which is what you use in Javascript to add the tracking code (.e.g `UA-56296045-1`).  We'll also show the _websiteUrl_ associated with the account since that's what people really know.
 
 
-```rb
+```ruby
   def profiles
     client.execute(
       api_method: api.management.profiles.list,
@@ -160,7 +167,7 @@ _Dimensions_ are different ways of slicing up the data.  These include things li
 
 In order to make the query we first need to setup the query parameters.  We've split that off into its own method called `query_template`.  The required fields are _profile id_, _start date_, and _end date_.  We're going to setup some defaults here which we will override in other methods when we use it.
 
-```rb
+```ruby
   def query_template( profile_id, start_date = nil, end_date = nil )
     today = Time.now.strftime( "%Y-%m-%d" )
     {
@@ -178,7 +185,7 @@ Our default here is that we're slicing on `pageTitle`, showing `pageviews`, `new
 
 Let's do an actual query with the parameters:
 
-```rb
+```ruby
   def hotcontent( profile_id, start_date = nil, end_date = nil )
     query = query_template( profile_id, start_date, end_date )
     client.execute(
@@ -189,7 +196,7 @@ Let's do an actual query with the parameters:
 ```
 Now we need a way to print the result.  The result that we get back has two different things, `columnHeaders` which is a reflection of the `query` that we passed in, and the data itself is an array of arrays in `row`.  We're using ` Hirb` helper method here to format the result.
 
-```rb
+```ruby
   def print_query_result( r )
     headers = r.data.columnHeaders.collect { |x| x.name }
     puts Hirb::Helpers::AutoTable.render(r.data.rows, headers: headers )
@@ -198,7 +205,7 @@ Now we need a way to print the result.  The result that we get back has two diff
 
 Let's give it a try:
 
-```rb
+```ruby
 if __FILE__ == $0
   client = AnalyticsClient.new
   results = client.hotcontent ARGV[0]
@@ -207,7 +214,7 @@ end
 ```
 Make sure you've made note of your profile id above, and we can see what it looks like now:
 
-```sh
+```bash
 $ ruby ga.rb 93249816
 +--------------------------------------------------+--------------+-------------+----------+
 | ga:pageTitle                                     | ga:pageviews | ga:newUsers | ga:users |
@@ -249,7 +256,7 @@ Commands:
 
 Here's the CLI code:
 
-```rb
+```ruby
 class HammerOfTheGods < Thor
   desc "profiles", "List Account Profiles"
   def profiles
@@ -317,7 +324,7 @@ end
 
 We have the `profiles` command and the `hotcontent` command, or **what content is getting traffic** working already.  Lets add some code to make the `--csv` option work, this goes into the `AnalyticsClient` class:
 
-```rb
+```ruby
   def print_csv_result(r)
     csv_string = CSV.generate do |csv|
       csv << r.data.columnHeaders.collect { |x| x.name }
@@ -334,7 +341,7 @@ We have the `profiles` command and the `hotcontent` command, or **what content i
 **Who is linking to your site**?
 We can find out by looking at `ga:source` which is basically the domain, `ga:referralPath` which is the path part of the url if it's a link referral, and `ga:medium` which will tell you if it's linking from a direct url, social media link, email link, or ad traffic.
 
-```rb
+```ruby
   def referers( profile_id, start_date = nil, end_date = nil )
     query = query_template( profile_id, start_date, end_date )
     query["dimensions"] = "ga:source,ga:referralPath,ga:medium"
@@ -347,7 +354,7 @@ We can find out by looking at `ga:source` which is basically the domain, `ga:ref
 
 **Who is linking to specific pages on your site** can be dertimined by adding the `ga:landingPagePath` dimension to the above query.  This now breakdown the source of traffic not to the site as a whole, but to a specific landing page.  We're also changing the `sort` query parameter to take this additional dimension into effect.
 
-```rb
+```ruby
   def content_referers( profile_id, start_date = nil, end_date = nil )
     query = query_template( profile_id, start_date, end_date )
     query["dimensions"] = "ga:landingPagePath,ga:source,ga:referralPath,ga:medium"
@@ -362,12 +369,12 @@ We can find out by looking at `ga:source` which is basically the domain, `ga:ref
 
 This works, but we can change the way it's printed out to be visually more useful.  In the `HammerOfTheGods` we can flesh it out a bit, so it only prints out your local path once while listing the referals indented so you can scan and see what's going on grouped by page.
 
-```rb
+```ruby
   desc "content_referers PROFILE_ID", "Show hot content for profile id"
   options [:today, :yesterday, :recently, :month, :table, :csv, :full]
   def content_referers( profile_id )
     result = client.content_referers( profile_id, start_date, end_date )
-    
+
     if options[:table] || options[:csv]
       print_result( result )
     else
@@ -381,14 +388,14 @@ This works, but we can change the way it's printed out to be visually more usefu
     end
   end
 ```
-  
+
 ## Step 8 The timeline
 
 **A timeline of when content was published and people started linking to it** can be created by combinding 2 of the methods that we've already written, `hotcontent` and `referers`, and looping through and querying them one day at a time.
 
 We start 30 days ago, and get a list of content for that day.  If we haven't seen it before, we say that it was posted that day.  We then get a list of referrals for that day.  If we haven't seen them before, we print it out.  I'm also supressing links that have passed in less that 2 visitors, since they tend to be very noisey.
 
-```rb
+```ruby
   def timeline( profile_id )
     one_month_ago = Time.now - 30 * 24 * 60 * 60
 

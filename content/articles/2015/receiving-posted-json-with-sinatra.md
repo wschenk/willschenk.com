@@ -1,8 +1,13 @@
 ---
 title: Receiving posted JSON with Sinatra
 subtitle: small tricks to make things easier
-tags: ruby,sinatra,toys
-date: '2015-07-27'
+tags:
+  - ruby
+  - sinatra
+  - toys
+date: 2015-07-27
+aliases:
+  - "/receiving-posted-json-with-sinatra/"
 ---
 Here's some simple code to accept a JSON string posted to a [Sinatra]( http://www.sinatrarb.com) end point rather than a form. I switched from using [jQueries](http://jquery.com) `$.ajax` method to [superagent](https://github.com/visionmedia/superagent) as part of my exploration of the node javascript package universe, and it has a different way of serializing nest objects when posting as a form.  Specifically, it doesn't.
 
@@ -12,9 +17,9 @@ I needed something that could do both.
 
 This first tries and loads the parameters using the normal form encoding methods.  If it doesn't find the `path` parameter, it attempts to parse the body's payload, found in `request.body.read`, using `JSON.parse`:
 
-```rb
+```ruby
   post '/post' do
-    payload = params 
+    payload = params
     payload = JSON.parse(request.body.read).symbolize_keys unless params[:path]
 
     logger.info "Saving #{payload[:path]} with #{payload[:meta]}"

@@ -1,8 +1,11 @@
 ---
 title: Owning a Tesla in Brooklyn
 subtitle: where do I charge
-tags: tesla
-date: "2016-03-09"
+tags:
+  - tesla
+date: 2016-03-09
+aliases:
+  - "/owning-a-tesla-in-brooklyn/"
 ---
 
 I’ve owned a Tesla in Brooklyn for about 10 months now. This is what I’ve learned so far. A Tesla in Brooklyn isn’t that hard.

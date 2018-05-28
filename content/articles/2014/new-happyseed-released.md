@@ -1,9 +1,15 @@
 ---
 title: New HappySeed released
 subtitle: now with even more awesome
-date: 2014-11-28 19:05 UTC
-tags: happy_seed, ruby, tools
+date: 2014-11-28
+tags:
+  - happy_seed
+  - ruby
+  - tools
 header_image: seeds.jpg
+historical: true
+aliases:
+  - "/new-happyseed-released/"
 ---
 
 ## Make apps faster
@@ -14,7 +20,7 @@ HappySeed is a set of application templates to help you get started building out
 
 You can update your command line tools by doing
 
-```sh
+```bash
 $ gem install happy_seed
 ```
 
@@ -22,28 +28,28 @@ And then create rails apps, plugins, engines, and middleman static sites using t
 
 ## Rails sites
 
-```sh
+```bash
 $ happy_seed rails app_name
 ```
 [Read rails documentation](http://seed.happyfuncorp.com/docs/rails.html)
 
 ## Rails Plugins
 
-```sh
+```bash
 $ happy_seed plugin plugin_name
 ```
 [Read plug-in documentation](http://seed.happyfuncorp.com/docs/plugin.html)
 
 ## Rails Engines
 
-```sh
+```bash
 $ happy_seed engine engine_name
 ```
 [Read engine documentation](http://seed.happyfuncorp.com/docs/plugin.html)
 
 ## Middleman Static Sites
 
-```sh
+```bash
 $ happy_seed static static_site
 [...]
 $ happy_seed static_blog static_site

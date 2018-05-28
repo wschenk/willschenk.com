@@ -1,9 +1,15 @@
 ---
-:title: Building Sites with Middleman
-:subtitle: lean publishing
-:tags: middleman, ruby, howto, tools
-:header_image: books.jpg
-:date: 2014-11-25
+title: Building Sites with Middleman
+subtitle: lean publishing
+tags:
+  - middleman
+  - ruby
+  - howto
+  - tools
+header_image: books.jpg
+date: 2014-11-25
+aliases:
+  - "/building-sites-with-middleman/"
 ---
 I make a lot of websites, and I have a certain toolkit that I use to build them.  The most useful things I use are:
 
@@ -23,13 +29,13 @@ In the node world [Yeoman](http://yeoman.io) does something similar, but I perso
 
 One of the problems with starting with Middleman is that there are so many places to start.  Lets look at how to setup a basic middleman site with bootstrap-sass, haml, and bower.  First thing is to install middleman:
 
-```sh
+```bash
 $ gem install middleman
 ```
 
 And create an app:
 
-```sh
+```bash
 $ middleman new static_site
 [...]
       create  static_site/.gitignore
@@ -52,7 +58,7 @@ This creates 4 files in the main directory, `Gemfile` and `Gemfile.lock`, which 
 
 By default, `middleman` installs the `middleman-livereload` plugin, so in development mode any browers that have a page open with refresh when you save a file.  This makes testing a lot easier.  We can install other gems here to add different functionality.  Let's add a few of these now:
 
-```rb
+```ruby
 gem "middleman-deploy"
 gem 'middleman-bootstrap-navbar'
 gem "bootstrap-sass"
@@ -67,7 +73,7 @@ The file two are including `bootstrap-sass` -- the same that we use for rails si
 
 `config.rb` is where we configure how middleman itself works.
 
-```rb
+```ruby
 # For custom domains on github pages
 page "CNAME", layout: false
 
@@ -131,7 +137,7 @@ The `set` commands are there to configure different middleman settings, here to 
 
 We see an example of that at the bottom of the `config.rb` file, where we configure the `deploy` extension:
 
-```rb
+```ruby
 activate :deploy do |deploy|
   deploy.method = :git
   deploy.build_before = true
@@ -142,7 +148,7 @@ This also takes some configuration, and in this case it set to deploy to github 
 
 There are two sections that each configure a different middleman environment.  The first is used when you run `middleman server` to look at the site locally:
 
-```rb
+```ruby
 configure :development do
   activate :livereload
 end
@@ -150,7 +156,7 @@ end
 
 The final section is configuring the `build` process, when you run `middleman build` and it creates the generated files in the `build` directory.  The entry below ignores certain files for the build, and runs minifiers over the css and javascript, and turns on _cache busting_.
 
-```rb
+```ruby
 # Build-specific configuration
 configure :build do
   # Any files you want to ignore:
@@ -174,7 +180,7 @@ end
 
 The basic way to use bower is to put this in `config.rb`:
 
-```rb
+```ruby
 sprockets.append_path File.join root, 'bower_components'
 ```
 
@@ -186,7 +192,7 @@ And then you can put things in your `all.js` file like
 
 To get all of the assets that are included in the packge, you may need to specify the package in the `config.rb` file, such as:
 
-```rb
+```ruby
 sprockets.import_asset 'jquery'
 ```
 
@@ -227,7 +233,7 @@ Middleman has a concept of nested layouts, which lets you have wrap an a layout 
 	<div class="sidebar">
 		<%= partial "layouts/sidebar" %>
 	</div>
-	
+
 	<div class="content">
 		<%= yield %>
 	</div>
@@ -245,7 +251,7 @@ tags: middleman, ruby, howto
 header_image: books.jpg
 ---
 
-I make a lot of websites, and I have a certain toolkit that I use to build... 
+I make a lot of websites, and I have a certain toolkit that I use to build...
 ```
 
 The `title`, `subtitle`, `tags` and `header_image` attributues are available in the templates as page data, so you can access them like:
@@ -258,11 +264,11 @@ _title_ is built into middleman, _subtitle_ and _header image_ are just some ran
 
 ## How the build works
 
-When you run `middleman server` or `middleman build`, middleman loads up the configuration file in `config.rb`.  It creates a sitemap based upon the files in the `source` directory as well as other directives inside of the config.rb file. 
+When you run `middleman server` or `middleman build`, middleman loads up the configuration file in `config.rb`.  It creates a sitemap based upon the files in the `source` directory as well as other directives inside of the config.rb file.
 
 By default it only includes files like `.html.erb` and `.js`, but you can set it manually include a non-template file (like our `page "CNAME"` above or create other `proxy` files.  Proxy files are a way of seperating out the templates from the source data.
 
-```rb
+```ruby
 # Assumes the file source/about/template.html.erb exists
 ["tom", "dick", "harry"].each do |name|
   proxy "/about/#{name}.html", "/about/template.html", :locals => { :person_name => name }
@@ -277,7 +283,7 @@ This data doesn't need to be hardcoded into the `config.rb` btw, you can also pl
 ```
 And then in your `config.rb` you could access this as:
 
-```rb
+```ruby
 data['employees'].each do |employee|
   proxy "/about/#{name}.html", "/about/template.html", :locals => { :person_name => employee[:name], :title => employee[:title] }
 end
@@ -296,7 +302,7 @@ This does basically the same thing as the server, but the templates are generall
 
 And easy way to check out what you have there is by `cd`ing into the `build/` directory and running a simple webserver to serve the pages.  Relative links don't work when you open the file directly in the browser, so you need to use an actual webserver.
 
-```sh
+```bash
 $ cd build
 $ python -m SimpleHTTPServer
 ```
@@ -316,7 +322,7 @@ More information on [middleman-deploy](https://github.com/karlfreeman/middleman-
 
 There are two good extensions for building a blog with middleman.  The default template for blog is sort of confusing in the way that it's laid out, mainly because it gets rid of the `layouts/` directory, but let's go through it and see how it's supposed to work:
 
-```sh
+```bash
 $ gem install middleman-blog
 $ middleman new static_blog --template=blog
       create  static_blog/.gitignore
@@ -335,12 +341,12 @@ $ middleman new static_blog --template=blog
 
 Now we have another middleman site, with a bunch of files.  It also creates a new command:
 
-```sh
+```bash
 $ middleman article "This is the title of my article"
 ```
 Let's also include the `middleman-blog-drafts` gem into the `Gemfile`, `activate :drafts` in `config.rb, and that will give us a few more commands:
 
-```sh
+```bash
 $ middleman draft "This is amazing"
       create  source/drafts/this-is-amazing.html.markdown
 $ middleman publish source/drafts/this-is-amazing.html.markdown
@@ -368,7 +374,7 @@ I'm putting all of the articles in a list, both drafts and published ones, and o
 
 Here's what gets added to the `config.rb`:
 
-```rb
+```ruby
 activate :blog do |blog|
   # This will add a prefix to all links, template references and source paths
   # blog.prefix = "blog"

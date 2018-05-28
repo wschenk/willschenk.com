@@ -2,8 +2,14 @@
 title: Deploying ActionCable on Heroku with Sidekiq
 subtitle: you're gonna need a bigger redis
 date: "2016-07-11"
-tags: howto, rails, heroku, sidekiq
+tags:
+  - howto
+  - rails
+  - heroku
+  - sidekiq
 header_image: cables.jpg
+aliases:
+  - "/deploying-actioncable-on-heroku/"
 ---
 
 ActionCable is WebSockets on rails.  This lets you create realtime, interactive systems, where you can push data from one client to another client without reloading or polling.  But how do we deploy it on heroku?
@@ -33,7 +39,7 @@ The app we generated was done using basic rails 5 commands, and it's out of the 
 
 First we need to add some things to the Gemfile, specifically redis, postgres, and the sidekiq gems.  Add the following to your `Gemfile`
 
-```rb
+```ruby
 gem 'redis', '~> 3.0'
 gem 'pg', group: :production
 gem 'sqlite3', group: :development
@@ -47,7 +53,7 @@ Make sure you remove the `sqlite3` on the top of the file, we only want it in de
 
 First we need to create a `Procfile` that defines our dynos
 
-```
+```ruby
 web: bundle exec puma -C config/puma.rb
 worker: bundle exec sidekiq -c 2
 ```
@@ -56,20 +62,20 @@ I'm running sidekiq with a concurrency of 2 to limit the number of redis connect
 
 Now create `config/initializers/active_job.rb` and tell ActiveJob to use `sidekiq`
 
-```rb
+```ruby
 Rails.application.config.active_job.queue_adapter = :sidekiq
 ```
 
 And let's add the sidekiq web interace to your `config/routes.rb`:
 
-```rb
+```ruby
   require 'sidekiq/web'
   mount Sidekiq::Web => '/sidekiq'
 ```
 
 If this was a real app, you'd limit who can get to that engine.  If you installed devise, the way to do that is:
 
-```rb
+```ruby
   authenticate :admin_user do
     mount Sidekiq::Web => '/sidekiq'
   end
@@ -81,7 +87,7 @@ It's always nice to change as little as we can, so when everything blows up in o
 
 Edit `config/cable.yml` to set the development environment use to use redis.
 
-```
+```yaml
 development:
   adapter: redis
   url: redis://localhost:6379/1
@@ -89,20 +95,20 @@ development:
 
 If you don't have redis installed, use [homebrew](http://brew.sh) to do that now:
 
-```
+```bash
 $ brew install redis
 $ redis-server
 ```
 
 If you don't have foreman installed, do that now:
 
-```
+```bash
 $ gem install foreman
 ```
 
 Now lets run that app!
 
-```
+```bash
 $ rails db:migrate
 $ foreman start
 ```
@@ -117,26 +123,26 @@ And `http://localhost:3000/admin` should load up the sidekiq admin console.  Val
 
 Create a new app:
 
-```
+```bash
 $ heroku create
 ```
 
 Then we create a redis instance
 
-```
+```bash
 $ heroku addons:create heroku-redis:hobby-dev
 ```
 
 We now need to tell ActionCable where it's redis server is.  Lets find out the answer and put in into the production section of `config/cable.yml`.
 
-```
+```bash
 $  heroku config | grep REDIS
 REDIS_URL:                redis://h:p75fl9as.........
 ```
 
 `config/cable.yml`:
 
-```
+```yml
 production:
   adapter: redis
   url: redis://h:p75fl9as.........
@@ -146,7 +152,7 @@ production:
 
 We need to tell rails where it's expected to receive the websocket connection from. `heroku info` will show us our external application.  If you deploy on a custom url, you'll need to add that as well.
 
-```
+```bash
 $ heroku info
 === aqueous-thicket-49913
 Addons:        heroku-postgresql:hobby-dev
@@ -163,7 +169,7 @@ Web URL:       https://aqueous-thicket-49913.herokuapp.com/
 
 Lets tell rails about it.  Edit `config/environments/production.rb`.  Obviously update the urls for your application.
 
-```
+```ruby
   config.action_cable.url = 'wss://aqueous-thicket-49913.herokuapp.com/cable'
   config.action_cable.allowed_request_origins = [ 'https://aqueous-thicket-49913.herokuapp.com']
 ```
@@ -180,27 +186,27 @@ Now we need to tell the javascript where to connect.  Lets open up `app/views/la
 
 First we add the code to repo
 
-```
+```bash
 $ git add .
 $ git commit -a -m "Added heroku configuration"
 ```
 
 Now we push to heroku itself:
 
-```
+```bash
 $ git push heroku master
 ```
 
 If that goes well, lets create the database tables and spin up the worker process
 
-```
+``` bash
 $ heroku run rake db:migrate
 $ heroku ps:scale worker=1
 ```
 
 And now, lets run the app and look at the logs:
 
-```
+```bash
 $ heroku open
 $ heroku open
 $ heroku log --tail
@@ -214,7 +220,7 @@ Do you like talking to yourself as much as I do?
 
 Right now you have 1 web dyno, running puma with 5 threads, and 1 worker dyno running sidekiq with 2 concurrent worker.  This should be at least 5 redis connections, up to 2 more depending upon how many jobs have gone through sidekiq.  Lets look at the redis info:
 
-```
+```basg
 $ heroku redis:cli
 ec2-54-243-230-243.compute-1.amazonaws.com:24949> info
 

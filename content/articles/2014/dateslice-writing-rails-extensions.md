@@ -1,9 +1,16 @@
 ---
 title: 'Dateslice: Writing rails extensions'
 subtitle: "adding date group_by to ActiveRecord"
-tags: rails, ruby, sql, howto
+date: 2014-12-07
+tags:
+  - rails
+  - ruby
+  - sql
+  - howto
 header_image: train.jpg
 dark_header: true
+aliases:
+  - "/dateslice-writing-rails-extensions/"
 ---
 
 Ruby on Rails is a very modular framework since the merging with Merb in 2008.  The _opinionated conventions_ are implemented under using techniques that let you jump in and build your own components, picking and choosing different parts that let you build Rails apps in the same straightforward way you would if using the official modules.
@@ -51,18 +58,18 @@ The different variants can be found in the sourecode for [mysql](https://github.
 
 We want to add `group_by_second`, `group_by_minute`, `group_by_hour`, `group_by_day`, `group_by_week`, `group_by_day_of_week`, `group_by_month`, `group_by_year` to ActiveRecord classes that we can use either on the model itself:
 
-```rb
+```ruby
 User.group_by_day
 ```
 Or on a scope:
 
-```rb
+```ruby
 Post.unmoderated.group_by_day
 ```
 
 And get a resulting hash back like:
 
-```rb
+```ruby
 {
       "2014-07-12 00:00:00 UTC" => 1,
       "2014-07-18 00:00:00 UTC" => 2,
@@ -72,7 +79,7 @@ And get a resulting hash back like:
 
 Or, in a `rspec` test, something like this:
 
-```rb
+```ruby
   it "should return items grouped by day" do
     expect( User.count ).to eq(0)
 
@@ -93,7 +100,7 @@ Or, in a `rspec` test, something like this:
       "2014-07-19 00:00:00 UTC" => 1})
   end
   ```
-  
+
 ## Building the Rails Extension
 
 Now that we have an idea of what we want to generate, lets take a look at how we build a rails extension.  This is done with the `rails plugin new` command.  We saw the `bundle gem` command before back in the [making a command line utility with gems and thor](/making-a-command-line-utility-with-gems-and-thor/) post, and in many ways they are similar.  But the `rails plugin new` command creates a gem setup for a rails environment for testing and developing your app.
@@ -104,16 +111,16 @@ Either way, now you have a new folder with an empty gem that we need to fill out
 
 We're going to create a `Module`,  `Datelices::Scope`, with our methods and then register our methods with the `ActiveRecord::Base` class.  This looks like so:
 
- ```rb
+ ```ruby
  ActiveRecord::Base.send(:extend, Dateslices::Scopes)
  ```
  This will mixin our methods into all of the classes that extend `ActiveRecord::Base`.
- 
+
 ## Metaprogramming with Ruby
- 
+
 Inside of `lib/dateslices.rb` lets define all of the fields that we want to define.
 
-```rb
+```ruby
 module Dateslices
   FIELDS = [:second, :minute, :hour, :day, :week, :day_of_week, :month, :year ]
 end
@@ -121,7 +128,7 @@ end
 
 Now inside of `lib/dateslices/scopes.rb` we can sketch out our scopes method generator:
 
-```rb
+```ruby
 module Dateslices
   module Scopes
     Dateslices::FIELDS.each do |field|
@@ -143,7 +150,7 @@ We are writing code which generates code, and some of the variables are part of 
 
 The full details can be found in [the repo](https://github.com/HappyFunCorp/dateslices/blob/master/lib/dateslices/scopes.rb) but here's the bit that actually generates the query switching out to the various classes that know how to deal with each of the databases that we saw before.
 
-```rb
+```ruby
 args = args.dup
 
 column = args[0].blank? ? 'created_at' : args[0]
@@ -178,7 +185,7 @@ Let's take a look now at how to test a gem that talks to many different database
 
 Here's our `spec/dummy/spec/models/test_spec.rb`
 
-```rb
+```ruby
 require 'rails_helper'
 require 'dateslice_tester'
 require 'groupdate_tester'
@@ -204,7 +211,7 @@ We first define a set a database configuration for our test databases.  We then 
 
 Lets look at the opening stanzas of `spec/dummy/spec/dateslice_tester.rb`
 
-```rb
+```ruby
 RSpec.shared_examples "dateslice" do |config|
   before :context do
     puts "Setting up #{config}"
@@ -224,7 +231,7 @@ RSpec.shared_examples "dateslice" do |config|
     Dateslices.output_format = :dateslice
     User.delete_all
   end
-  
+
   it "should return items grouped by day"
 end
 ```
@@ -233,7 +240,7 @@ end
 
 Next we need to actually create the database tables that we are going to run tests over.  Since we are switching the databases as part of the testing process itself, it makes no sense to use `rake db:create:test` to create the DDL, since which database would that be creating?  We need to do 3 different ones, and we certainly don't want to have an elaborate process to start any of the tests if you decide to add an additional migration.  So we call a migration directly from the code, turning `:force => true` so even if it already exists we push the current definition there.
 
-```rb
+```ruby
 ActiveRecord::Migration.create_table :users, :force => true
 ```
 

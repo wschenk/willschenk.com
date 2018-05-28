@@ -2,7 +2,10 @@
 title: "Bootstrap: Advanced Grid Tricks"
 subtitle: You really should be defining your own classes
 date: 2014-11-03
-tags: bootstrap, overview, tools
+tags:
+  - bootstrap
+  - overview
+  - tools
 aliases:
   - "/bootstrap-advanced-grid-tricks/"
 ---

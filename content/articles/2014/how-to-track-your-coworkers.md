@@ -2,7 +2,11 @@
 title: How to track your coworkers
 subtitle: Simple passive network surveillance
 date: "2014-10-31"
-tags: toys, ruby, redis, howto
+tags:
+  - toys
+  - ruby
+  - redis
+  - howto
 disqus_id: silvrback-wschenk-9332
 aliases:
   - "/how-to-track-your-coworkers/"
@@ -38,7 +42,7 @@ This code does the following things:
 
 The only `OSX` ism of this script is that its using `osascript` to push a notification to the desktop that a device name has come on or left.  See below for further things to play with:
 
-```
+```ruby
 #!/usr/bin/env ruby -wKU
 
 require 'resolv'

@@ -1,7 +1,12 @@
 ---
 title: Embedding 3d models on your page
 subtitle: Github is awesome
-tags: toys, howto
+date: 2014-11-16
+tags:
+  - toys
+  - howto
+aliases:
+  - "/embedding-3d-models-on-your-page/"
 ---
 
 Github has an [embeddable 3d model viewer](https://help.github.com/articles/3d-file-viewer/) that you can use to display a model on your site.  The model needs to be hosted in a github repo, and the format is
@@ -10,7 +15,7 @@ Github has an [embeddable 3d model viewer](https://help.github.com/articles/3d-f
 
 Here's a model of me that we made using the (Structure 3d scanner)[http://structure.io], which is a fun device that plugs into your iPhone or iPad.
 
-<script src="https://embed.github.com/view/3d/sublimeguile/model_army/master/will%20clean.stl"></script>
+<p><script src="https://embed.github.com/view/3d/sublimeguile/model_army/master/will%20clean.stl"></script></p>
 
 Pretty fun right?
 

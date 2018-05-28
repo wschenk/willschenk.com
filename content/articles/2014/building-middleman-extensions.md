@@ -1,8 +1,13 @@
 ---
-:title: Building Middleman Extensions
-:subtitle: make middleman more awesome
-:tags: middleman, howto, ruby
-:date: 2014-12-17
+title: Building Middleman Extensions
+subtitle: make middleman more awesome
+tags:
+  - middleman
+  - howto
+  - ruby
+date: 2014-12-17
+aliases:
+  - "/building-middleman-extensions/"
 ---
 Middleman extensions, like rails plugins, are packaged as gems.  There are three main ways to extend middleman.  You can add helpers, add middleman commands, or extend the sitemap generation in someway.  Lets go through those in detail.
 
@@ -10,19 +15,19 @@ Middleman extensions, like rails plugins, are packaged as gems.  There are three
 
 Create a gem using `bundle gem _name_`
 
-```sh
+```bash
 $ bundle gem middleman-graphviz
 ```
 
 Add `middleman-core` to your gem dependancies in the `.gemspec` file:
 
-```rb
+```ruby
   spec.add_runtime_dependency     'middleman-core', ['>= 3.0.0']
 ```
 
 Register your extension into middleman.  Our gem will be activated in the sites `config.rb` using `activate :graphviz` and this is how middleman knows what to load.  `lib/middleman/graphviz.rb`:
 
-```rb
+```ruby
 require 'middleman-core'
 require "middleman/graphviz/version"
 require "middleman/graphviz/extension"
@@ -34,7 +39,7 @@ _Replace with your gem name!_
 
 Write the code that actually plugs into middleman.  The we are going to add some helpers to the site, so let's register them here.  Create `lib/middleman/graphviz/extension.rb`
 
-```rb
+```ruby
 require 'middleman/graphviz/helpers'
 
 module Middleman
@@ -56,7 +61,7 @@ _Replace with your gem name!_
 
 Lets create a basic helper method now in the file `lib/middleman/graphviz/helpers.rb`. This is going to accept one parameter and a block. We are going to get the content of that block and then spit it back directly for now.
 
-```rb
+```ruby
 module Middleman
   module Graphviz
     module Helpers
@@ -96,13 +101,13 @@ or as a block
 
 Have bundler reference this new gem inside of an existing middleman project.  `Gemfile`:
 
-```rb
+```ruby
 gem "middleman-graphviz", path: "../middleman-graphviz"
 ```
 
 Inside of the middleman project's `config.rb` activate it:
 
-```rb
+```ruby
 activate :graphviz
 ```
 
@@ -112,13 +117,13 @@ Now startup the middleman server, and use your helper in the page!  Note that, j
 
 If you want to include configurable options in your extension, here's some skeleton code for `extension.rb`:
 
-```rb
+```ruby
 require 'middleman/graphviz/helpers'
 
 module Middleman
   module Graphviz
     cattr_accessor :options
-    
+
     class Extension < Middleman::Extension
       def initialize( app, options_hash = {}, &block)
         super
@@ -157,7 +162,7 @@ end
 
 The middleman command is built on [thor](/making-a-command-line-utility-with-gems-and-thor), which as we know is awesome.  To add a command to the middleman, use the following template for each `command.rb`:
 
-```rb
+```ruby
 require 'middleman-core/cli'
 
 module Middleman
@@ -202,7 +207,7 @@ Lets build an extesion that creates pages from an external datasource.  In this 
 
 First we add an `after_configuration` handler to `Middleman::Graphviz::Extension` to register our class as a `resource_list_manipulator`:
 
-```rb
+```ruby
   def after_configuration
     @csv_pages = Middleman::CSV::Page.new( @app, self )
     @app.sitemap.register_resource_list_manipulator(:"csv_pages", @csv_pages, false)
@@ -211,7 +216,7 @@ First we add an `after_configuration` handler to `Middleman::Graphviz::Extension
 
 Then we create `lib/middleman/csv/page.rb`.
 
-```rb
+```ruby
 require 'csv'
 
 module Middleman
@@ -266,7 +271,7 @@ Here's an example template `page.html.haml`:
 
 ```haml
 %h1= row[1]
-= row[0] 
+= row[0]
 ```
 
 This example is equivelent to looping over a file in `config.rb` and setting up page proxies there.  However in that case we don't have access to the sitemap overall, so we couldn't generate a dynamic list of new pages based upon existing pages.  With this extension we can insert ourselves into the rendering process and add the _awesome_.
