@@ -22,7 +22,7 @@ These are all a reflection of people not really pulling Bootstrap apart enough t
 
 We prefer `SASS`, so let's look at how you would lay out a site like this using [bootstrap-sass](https://github.com/twbs/bootstrap-sass).  (At the level that we will be speaking about it, it's the same when using the `LESS` version.)
 
-![Silvrback blog image](https://silvrback.s3.amazonaws.com/uploads/9a103b21-0076-4c7a-9d0c-4fa690c7b7b8/lg_grid_forum_large.jpg)
+![Large Grid](lg_grid_forum_large.jpg)
 
 # The Twelve Column Grid: How does it work?
 
@@ -55,7 +55,7 @@ Here's the outline of what we want to make right, but isn't:
 
 Lets take a look at how we want it to look like, and a couple of different variants.  The first row here is the "page grid" version, which we want to mimic in our design.  The three rows below it are attempts to make the bootstrap grid work using the built in classes.  None of them really match up:
 
-![Silvrback blog image](https://silvrback.s3.amazonaws.com/uploads/eb72af7d-22db-48a0-88fb-3df2678b980d/grid___custom___Bootstrap_Sass_Examples_large.jpg)
+![Example Sass Grid](grid___custom___Bootstrap_Sass_Examples_large.jpg)
 
 The nest grid doesn't line up with the outer page grid.
 
@@ -230,7 +230,7 @@ The `@include` method is actually calling a SASS function to generate the proper
 
 OK, so this is like our first example above, and it looks like this:
 
-![Silvrback blog image](https://silvrback.s3.amazonaws.com/uploads/f13918cd-db06-47ff-9acc-d9d8740fbfe3/grid___custom___Bootstrap_Sass_Examples_large.jpg)
+![Custom Grid](grid___custom___Bootstrap_Sass_Examples_large.jpg)
 
 So we've managed to clean up the class names, but we still don't have it working.
 
@@ -263,7 +263,7 @@ The trick here is to realize that SCSS is actually evaluated top down, and by th
 
 Which _finally_ yields:
 
-![Silvrback blog image](https://silvrback.s3.amazonaws.com/uploads/a0d213f6-f6ca-4081-8abb-6f430c7024f2/grid___custom___Bootstrap_Sass_Examples_large.jpg)
+![Sass Examples Large](grid___custom___Bootstrap_Sass_Examples_large.jpg)
 
 _It's almost too easy!_
 
