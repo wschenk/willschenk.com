@@ -52,7 +52,7 @@ At this point you should have the _Client ID_ and the _Client Secret_.
 
 Once I create a remote app, I like to put the credentials into the `~/.seed_defaults` file.  This will make it so the next time I generate a seed app, these are the default credentials that are used.
 
-```
+```bash
 GITHUB_APP_ID=replace with client id
 GITHUB_APP_SECRET=replace with client secret
 ```
@@ -63,20 +63,20 @@ If you haven't installed [happy_seed](http://seed.happyfuncorp.com) yet, do so n
 
 Then generate the app:
 
-```
+```bash
 $ happy_seed rails project_stats
 ```
 
 Now it's going to install things.  Inititally, just say no to everything.  Once it's done, install the github generator:
 
-```
+```bash
 $ cd project_status
 $ rails g happy_seed:github
 ```
 
 That will do its thing.  Then we need to create the database and get going:
 
-```
+```bash
 $ rake db:migrate
 ```
 
@@ -84,13 +84,13 @@ $ rake db:migrate
 
 When the _github_ generator is run, it configures the oauth scope that it requests in `config/initializers/devise.rb`.  We need to ask for a bit more permissions, so open up that file and change the scope requested to be `"user,repo,read:org"`, so:
 
-```
+```vash
 config.omniauth :github, ENV['GITHUB_APP_ID'], ENV['GITHUB_APP_SECRET'], scope: "user,repo,read:org"
 ```
 
 Now lets start the server and see what's up:
 
-```
+```bash
 $ rails s
 ```
 
@@ -111,7 +111,7 @@ $ rails s
 
 Lets get in that console and see what we can do.  If you look at `app/models/user.rb` you can see that there's code to setup the github client, and we can access it like so:
 
-```
+```bash
 $ rails c
 Loading development environment (Rails 4.2.3)
 2.2.1 :001 > gc = User.first.github_client
@@ -127,20 +127,20 @@ Loading development environment (Rails 4.2.3)
 
 Ok, now we can start figuring out what we need to do to get access to the data.  We have an authenticated user account, and we can start hitting the API.  I know for a fact that I have way more than 30 repos -- I mean, seriously -- so first thing is to figure out why that is and how to get more.  It's probably related to pagination.  
 
-```
+```ruby
 2.2.1 :003 > gc.org_repos( 'HappyFunCorp', {:type => 'private', per_page: 100} ).count
  => 100
 ```
 
 OK, looking through the [octokit issues](https://github.com/octokit/octokit.rb/issues/255) this can be dealt with by turning `auto_paginate: true` on when we load up the client.  So let's edit `app/models/user.rb` to do that:
 
-```
+```ruby
 @github_client ||= Octokit::Client.new(access_token: github.accesstoken, auto_paginate: true)
 ```
 
 Back to the console, do `reload!` and load up our client again.  Notice that I'm making this a one liner, since we're going to be doing it over and over its nice to use the arrow keys.
 
-```
+```ruby
 2.2.1 :004 > reload!; gc = User.first.github_client
 Reloading...
   User Load (0.1ms)  SELECT  "users".* FROM "users"  ORDER BY "users"."id" ASC LIMIT 1
@@ -155,7 +155,7 @@ Reloading...
 
 OK, that looks better.  That will give us a list of all the repos, so now we just need to see how to get the contents of our file, and then we can put it all together.
 
-```
+```ruby
 2.2.1 :006 > repo = gc.org_repos( 'HappyFunCorp', {:type => 'private'} ).first
  => {:id=>988713,
  :name=>"benchcoach",
@@ -174,7 +174,7 @@ OK, that looks better.  That will give us a list of all the repos, so now we jus
 
 Looking at this, we see that github returns the contents of the file base64 encoded.  I guess that makes sense, so if we want to print it out:
 
-```
+```ruby
 2.2.1 :009 > Base64.decode64 content.content
 ```
 
@@ -189,7 +189,7 @@ Looking at this, we see that github returns the contents of the file base64 enco
 
 Lets use rake to start managing the data.  We're going to be using some of the techniques that were outlined in the [using rake for dataflow programming and data science](/using-rake-for-dataflow-programming-and-data-science/]) post.  First step is to create a `lib/tasks/github.rake` file that we're going to put our tasks.
 
-```
+```ruby
 require 'fileutils'
 
 file "data/projects.json" do
@@ -221,7 +221,7 @@ Now lets run `rake data/projects.json`.  If you run it a second time, notice tha
 
 OK, now lets be able to loop over everything to load the files that we want.  First we define a method that lets us define a task to loop over all the entries in a JSON array, and then we'll call it with our block which loads up the contents.  (Add this to the end of the `github.rake` file)
 
-```
+```ruby
 def for_each_elem( name, file )
   task name => file do
     JSON.parse( File.read( file ) ).each do |record|
@@ -275,7 +275,7 @@ For fun, delete the `data` directly and run the rake task again.  BOOM!
 
 OK, now that we have all the data, lets figure out how to slice and dice it.  Lets just wire together some standard UNIX tools to filter and get some info.
 
-```
+```ruby
 for_each_elem "filter_gemfiles", "data/projects.json" do |repo|
   sourcefile = "data/gemfiles/#{repo['name']}.Gemfile.lock"
   outfile = "data/filtered/#{repo['name']}.gems"
@@ -294,7 +294,7 @@ Running `rake filter_gemfiles` will go through and only show the specific gems t
 
 Lets add a couple of other nifty methods:
 
-```
+```ruby
 file "data/versioned.list" do
   system( "cat data/filtered/* | sort | uniq -c | sort -rn > data/versioned.list" )
 end

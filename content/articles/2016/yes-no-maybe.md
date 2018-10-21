@@ -1,11 +1,12 @@
 ---
-title: Yes, No, Maybe, Dont Know, WTF
+title: Yes, No, Maybe, Don't Know, WTF
 subtitle: the limits of Binary Logic and the Importance of Forgetting
 tags:
   - logic
   - iot
   - tesla
 date: 2016-10-25
+publishDate: 2016-10-25
 aliases:
   - "/yes-no-maybe/"
 ---

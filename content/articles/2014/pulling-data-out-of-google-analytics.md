@@ -8,7 +8,7 @@ tags:
   - googleanalytics
 header_image: lava-lamp.jpg
 date: 2014-12-04
-historical: true
+obsolete: true
 aliases:
   - "/pulling-data-out-of-google-analytics/"
 ---

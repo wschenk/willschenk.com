@@ -7,7 +7,7 @@ tags:
   - ruby
   - tools
 header_image: seeds.jpg
-historical: true
+obsolete: true
 aliases:
   - "/new-happyseed-released/"
 ---

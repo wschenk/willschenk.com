@@ -10,9 +10,7 @@ aliases:
   - "/field-of-dreams-is-25-years-old-and-hasn-t-aged-well/"
 ---
 
-![left_float](https://silvrback.s3.amazonaws.com/uploads/bc10cbd1-d757-421f-b069-699e2c82911e/fod_medium.jpg)
-
-I'm sure you all remember the movie.  A man whose normal life is starting to fall apart.  He's got the wife, family, mortgage and it's both not enough and slipping away.  He needs to do something, something to make him feel alive.  And since it was that era of Hollywood film making, he's also got plenty of daddy issues he's working through.  He becomes seized by a vision, caught in the grip of an _idée fixe_ that he needs to go build something that everyone around him thinks is preposterous.
+<img src="fod_medium.jpg" class="float-left mr-2">I'm sure you all remember the movie.  A man whose normal life is starting to fall apart.  He's got the wife, family, mortgage and it's both not enough and slipping away.  He needs to do something, something to make him feel alive.  And since it was that era of Hollywood film making, he's also got plenty of daddy issues he's working through.  He becomes seized by a vision, caught in the grip of an _idée fixe_ that he needs to go build something that everyone around him thinks is preposterous.
 
 The movie's tagline is: _If you believe the impossible, the incredible can come true._
 
@@ -22,14 +20,16 @@ If you haven't seen this movie in a while and have fuzzy nostalgic memories of s
 
 There's one thing that everyone remembers about this movie.  If there's a reason why I still had fond memories of this movie, it was the signature quote:
 
-> If you build it, he will come.
+<blockquote class="blockquote">If you build it, he will come.</blockquote>
 
 In the face of the odds, clearly stacked against you, this phrase captured the emotional experience of _keeping the faith_ while doing something that wasn't working and no one around was supporting.  In that moment of pushing ahead to follow a dream that _you can see so clearly_, and even your loved ones _don't really get it_, what keeps you going?
 
 The answer is **courage**.  
 
-> Scientific progress is measured in units of courage, not intelligence.
-_Paul Dirac_
+<blockquote class="blockquote">
+  <p class="mb=0">Scientific progress is measured in units of courage, not intelligence.</p>
+  <footer class="blockquote-footer">Paul Dirac</footer>
+</blockquote>
 
 In order to move forward, to make progress in spite of everything, for you to take you vision to the world, you need to be able to find something deep inside of yourself to keep going.  Before things get better there are some dark times.  Paul Graham calls it the _Trough of Sorrow_.  Figuring out how to navigate that emotional experience when you have doubts and are constantly second guessing yourself is major part of being an entrepreneur.
 
@@ -65,17 +65,22 @@ You should sit down with your _idée fixe_ and have a long talk.  What are you a
 
 A lot of aspiring entrepreneurs fall in love with their idea and it hurts them when they need to make a business.  We say that they fall in love with the product, and don't understand what it means to start a business.
 
-> Build a better mouse trap, and the world will beat a path to your door.
-> _not Ralph Waldo Emerson, who is actually awesome but has this dumb-ass platitude associated with his name_
+
+<blockquote class="blockquote">
+  <p class="mb=0">Build a better mouse trap, and the world will beat a path to your door</p>
+  <footer class="blockquote-footer">not Ralph Waldo Emerson, who is actually awesome but has this dumb-ass platitude associated with his name</footer>
+</blockquote>
 
 The idea is important, a necessary but not sufficient component of a successful enterprise.  How does the idea fit in to the rest of the world?  What is it that people actually would like?  How would they ever even find out about it, really?  If it's not what people want, or not what they need, well, maybe your idea has a happier existence as a very elaborate day-dream.  Before you spin up the manufacturing plant, you should check in with some mice before running with that platitude:
 
-> So with all of these people trying to invent a better mousetrap, the dirty secret of trapping mice is mice are really easy to catch. That's why every inventor thinks that he can do it. Catching a mouse is basically playing against a casino where you always win.
->  [...]
-> The regular, old-fashioned, cheap, little mousetrap, Andy says, will usually catch the mouse in 24 to 48 hours. It will kill it 88% of the time. Other traps that aren't much more expensive have 100% lethality. Mice are easy to kill because mice, unlike rats, are incredibly inquisitive animals.
-> [...]
-> So the problem for the mousetrap inventor is the world doesn't need a better mousetrap. You know that old saying, "Build a better mousetrap and the world will beat its way to your door?" Not true. Andy makes a traditional mousetrap that sells two for $0.99. It does the job just fine. But most inventors never understand this.
-_Ira Glass, [This America Life #366](http://www.thisamericanlife.org/radio-archives/episode/366/transcript)_
+<blockquote class="blockquote">
+  <p>So with all of these people trying to invent a better mousetrap, the dirty secret of trapping mice is mice are really easy to catch. That's why every inventor thinks that he can do it. Catching a mouse is basically playing against a casino where you always win.</p>
+  <p>[...]<p>
+  <p>The regular, old-fashioned, cheap, little mousetrap, Andy says, will usually catch the mouse in 24 to 48 hours. It will kill it 88% of the time. Other traps that aren't much more expensive have 100% lethality. Mice are easy to kill because mice, unlike rats, are incredibly inquisitive animals.</p>
+  <p>[...]<p>
+  <p class="mb-0">So the problem for the mousetrap inventor is the world doesn't need a better mousetrap. You know that old saying, "Build a better mousetrap and the world will beat its way to your door?" Not true. Andy makes a traditional mousetrap that sells two for $0.99. It does the job just fine. But most inventors never understand this.</p>
+  <footer class="blockquote-footer">Ira Glass, <a href="http://www.thisamericanlife.org/radio-archives/episode/366/transcript">This America Life #366</a></footer>
+</blockquote>
 
 ---
 
@@ -84,7 +89,8 @@ _Ira Glass, [This America Life #366](http://www.thisamericanlife.org/radio-archi
 As an aside, I'm not really sure that I'm smart enough to read Ralph Waldo Emerson, at least the real thing and not the "well known quotes". It's all too damn subtle and I find myself drifting off.  So many rhythmic sentences that just go on and on, and on, and so on.  Nietzsche I'm fascinated by, and I've read most of his books multiple times.  Those I can follow.  I find something new in them every time.  In the beginning of his writing, it's clear that Emerson's essays blew Nietzsche's socks off.  He kept his ragged, annotated, school issued copy of the essays with him throughout his life.  Based on this alone I'm sure good old _Waldo_ deserves his place in the pantheon but in this go-go-go world I just can't get a grasp on it.
 
 The actual Emerson quote that the mousetrap thing started our as is:
-> If a man has good corn or wood, or boards, or pigs, to sell, or can make better chairs or knives, crucibles or church organs, than anybody else, you will find a broad hard-beaten road to his house, though it be in the woods.
+
+<blockquote class="blockquote">If a man has good corn or wood, or boards, or pigs, to sell, or can make better chairs or knives, crucibles or church organs, than anybody else, you will find a broad hard-beaten road to his house, though it be in the woods.</blockquote>
 
 Such poetry!  Such rhythm!  Such circumlocution!  Yes yes, totally!  Not precisely sure what I can take from Emerson here, as like _an action item_, but I'm certainly jazzed up about it!  Just like _If you build it, he will come._
 
@@ -108,7 +114,7 @@ Still, there's always Iowa.
 > John Kinsella: Is this heaven?
 > Ray Kinsella: It's Iowa.
 
-![Silvrback blog image](https://silvrback.s3.amazonaws.com/uploads/cc64ea20-716c-4238-a3bf-ca06177d0971/6010329940_c7d0b24dd9_b_large.jpg)
+<img src="iowa.jpg" class="img-fluid">
 
 (Image source: [keeve99a](https://www.flickr.com/photos/54159370@N08/6010329940/in/photolist-aa7vGh-5YUB2z-8i5gyw-8XdesP-4r2QNd-tzwz2-2u3Zn-9tVv1A-gT25Tz-b6ixTD-746UmW-aP33La-5WkwXU-4NEa39-6iGa2w-oxpiPX-9cYvE8-hUcRsF-3Wgmz-bzLcHH-a8h1SU-nT93SB-cdmedf-hT1Xgc-9d2BsG-8u5mxh-8DCzJo-47nSFq-fs6j6i-dXvgqN-b43D94-fQoepV-7fADo-nrE8uT-8sABRF-8rG36o-aE7KjU-hUe2it-hjinhV-6umECH-oJfujc-cpMtrS-i7WL3d-aE7pVu-pyZLUw-7AzhL7-9992tA-nf2TZx-32can-8rnGgp) )
 

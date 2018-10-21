@@ -6,7 +6,7 @@ tags:
   - ruby
   - socialinvestigator
 header_image: core_memory.jpg
-historical: true
+obsolete: true
 aliases:
   - "/personal-information-from-only-a-url/"
 ---

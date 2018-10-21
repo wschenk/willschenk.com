@@ -45,7 +45,7 @@ Where `aggregation` is one of `count`, `sum`, and `avg`.
 
 For example, if we want to group by day, this is the SQL that we'd need for the 3 different database variants we are targetting:
 
-<table class="table table-bordered">
+<table class="table table-bordered table-sm table-striped">
   <tr><th>Database</th><th>Time Slice</th></tr>
   <tr><th>Mysql</th><td><code>DATE_FORMAT(#{column}, '%Y-%m-%d 00:00:00 UTC')</code></td></tr>
   <tr><th>Sqlite3</th><td><code>strftime( \"%Y-%m-%d 00:00:00 UTC\", #{column} )</code></td></tr>

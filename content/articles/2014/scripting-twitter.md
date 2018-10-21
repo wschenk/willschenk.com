@@ -8,7 +8,7 @@ tags:
   - howto
 date: 2014-11-20
 header_image: robots.jpg
-historical: true
+obsolete: true
 aliases:
   - "/scripting-twitter/"
 ---
@@ -17,11 +17,8 @@ Lets build on our [command line url exploring tool](http://willschenk.com/making
 Twitter uses [OAuth 1.0A](https://dev.twitter.com/oauth/overview/faq) as a way to authenticate requests.  As a script writer, this is super annoying, because you can't just stick a username and password in the environment and go from there.  You need to:
 
 1. [Register you application with twitter](https://apps.twitter.com).
-
 2. Store the "client key" for your application.
-
 3. Get a user to grant your application access to twitter, and then use that "authorization key" to access the API.
-
 4. Then figure out how to use the API.
 
 This is a bit overkill for building a simple script, especially since the 3 way process of having your application request access on behalf of a specific user on the twitters servers is a pain for a command line interface.  And when you configure your application on twitter you need to specify a "callback URL", which a) is different on development, staging and production webapp environments and b) you don't have a web app.
@@ -31,17 +28,13 @@ Luckily for you twitter has a work around.
 ## Firstly, we create the Twitter App
 
 1. Go to [Create new Twitter App](https://apps.twitter.com/app/new) and fill out the required fields.  Specifically, leave _callback URL_ blank for now.
-
 2. Select _Keys and Access Tokens_.  On this page, create an access token for your user with the _Generate Access Token_ on the bottom of the page.
 
 Now we have four variables that our script needs to access twitter on behalf of your user.  
 
 1. The consumer key represents your application.
-
 2. The consumer secret represents your application's "password".
-
 3. The access token represents an authorization that a user has accepted.
-
 4. The access token secret is there to make sure that access token is valid.
 
 Make note of these variables.
@@ -331,7 +324,6 @@ Twitter search only returns results from the previous 6-9 days, so better act fa
 So far we have been looking at the REST API, which lets us interact with the Twitter services much like a user would: in response to something that the user requests.  The other API type is called the [streaming api](https://dev.twitter.com/streaming/userstreams), which lets us open up a single connection and receive information when Twitter has something new.  This is useful for a few things:
 
 1. We can get notified immediately when our search term is seen
-
 2. We can get notified if someone mentions us, either with an @reply or, when we have more permissions, with Direct Messages.
 
 Here's how you can watch twitter for different terms, they can be comma separated.  Notice that we've added another private method, `streaming_client` which uses a different interface, and we'll need to `^C` the script to start it.
@@ -365,15 +357,10 @@ The method `filter` takes a block, and will call that block every time it gets a
 We can also watch the timeline come through for the registered user, and do something with it.  The pattern is the same as the `filter` method, but it passes an Object of one of the following types:
 
 - `Twitter::Tweet`
-
 - `Twitter::DirectMessage`
-
 - `Twitter::Streaming::DeletedTweet`
-
 - `Twitter::Streaming::Event`
-
 - `Twitter::Streaming::FriendList`
-
 - `Twitter::Streaming::StallWarning`
 
 We'll be ignoring most of them:
@@ -407,9 +394,7 @@ Only, you're not going to get any direct messages, nor are you going to be able 
 In order to
 
 - Update a status
-
 - Read direct messages
-
 - Send direct messages
 
 You need to change the application permission level.  There are three different levels.  Read will let you pull things on behalf of the user.  If they have a private account, or they have access to a private account, your script will be able to see those things.  You will not be able to access or receive direct messages
@@ -419,13 +404,9 @@ Write will let you post public status updates, but not Direct Messages.
 Access direct messages is the third.
 
 1. Go to the [twitter app console](https://apps.twitter.com) and find your application.
-
 2. Go to the "Permissions Tab"
-
 3. Change the settings to "Read, Write" or "Read, Write and Access direct messages"
-
 4. Go to "Keys and Access Settings"
-
 5. Scroll down and "Regenerate My Access Token and Token Secret"
 
 Depending upon what you chose, you can now post on behalf of the user:

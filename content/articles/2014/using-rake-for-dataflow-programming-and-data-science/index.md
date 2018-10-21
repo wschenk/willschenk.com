@@ -27,19 +27,7 @@ In fact, if you just want to start playing with stuff now, head over to the [rak
 
 Rake is a a Make-like Ruby program that people know mostly in terms of rails apps.  We can define a few tasks and define their interdependancies:
 
-<div class="diagram_right">
-  <% graphviz do %>
-    digraph G {
-      a [label="mail daily leaderboards"];
-      b [label="update leader boards"];
-      c [label="environment"];
-      d [label="flush data"];
-      a -> b;
-      b -> c;
-      d -> c;
-    }
-  <% end %>
-</div>
+<img src="1.png" class="img-fluid">
 
 ```ruby
 task :mail_daily_leader_boards => :update_leader_boards do
@@ -102,27 +90,11 @@ What does it mean if we were to reverse the arrows on the graph?
 
   <tr>
     <td style="text-align: center">
-<% graphviz do %>
-  digraph {
-    A -> B
-    A -> C
-    B -> D
-    C -> D
-    C -> E
-  }
-<% end %>
+    <img src="top.png">
     </td>
 
     <td style="text-align: center">
-<% graphviz do %>
-  digraph {
-  E -> C
-  D -> C
-  D -> B
-  C -> A
-  B -> A
-  }
-<% end %>
+    <img src="bottom.png">
     </td>
   </tr>
 </table>

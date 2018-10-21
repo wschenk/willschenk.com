@@ -2,6 +2,7 @@
 title: "Bootstrap: Advanced Grid Tricks"
 subtitle: You really should be defining your own classes
 date: 2014-11-03
+obsolete: true
 tags:
   - bootstrap
   - overview
@@ -22,7 +23,7 @@ These are all a reflection of people not really pulling Bootstrap apart enough t
 
 We prefer `SASS`, so let's look at how you would lay out a site like this using [bootstrap-sass](https://github.com/twbs/bootstrap-sass).  (At the level that we will be speaking about it, it's the same when using the `LESS` version.)
 
-![Large Grid](lg_grid_forum_large.jpg)
+<img src="lg_grid_forum_large.jpg" class="img-fluid">
 
 # The Twelve Column Grid: How does it work?
 
@@ -55,7 +56,7 @@ Here's the outline of what we want to make right, but isn't:
 
 Lets take a look at how we want it to look like, and a couple of different variants.  The first row here is the "page grid" version, which we want to mimic in our design.  The three rows below it are attempts to make the bootstrap grid work using the built in classes.  None of them really match up:
 
-![Example Sass Grid](grid___custom___Bootstrap_Sass_Examples_large.jpg)
+<img src="grid___custom___Bootstrap_Sass_Examples_large.jpg" class="img-fluid">
 
 The nest grid doesn't line up with the outer page grid.
 
@@ -230,7 +231,7 @@ The `@include` method is actually calling a SASS function to generate the proper
 
 OK, so this is like our first example above, and it looks like this:
 
-![Custom Grid](grid___custom___Bootstrap_Sass_Examples_large.jpg)
+<img src="grid___custom___Bootstrap_Sass_Examples_large.jpg" class="img-fluid">
 
 So we've managed to clean up the class names, but we still don't have it working.
 
@@ -263,7 +264,7 @@ The trick here is to realize that SCSS is actually evaluated top down, and by th
 
 Which _finally_ yields:
 
-![Sass Examples Large](grid___custom___Bootstrap_Sass_Examples_large.jpg)
+<img src="grid___custom___Bootstrap_Sass_Examples_large.jpg" class="img-fluid">
 
 _It's almost too easy!_
 

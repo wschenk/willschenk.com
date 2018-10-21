@@ -8,6 +8,7 @@ tags:
   - socialinvestigator
   - howto
 header_image: thor.jpg
+obsolete: true
 aliases:
   - "/making-a-command-line-utility-with-gems-and-thor/"
 ---

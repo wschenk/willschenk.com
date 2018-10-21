@@ -7,6 +7,7 @@ tags:
   - howto
   - tools
 date: 2014-12-13
+obsolete: true
 aliases:
   - "/middleman-tricks-and-hacks/"
 ---
@@ -70,7 +71,7 @@ The top and the bottom of these pages change together.  If the page has a header
 
 In `layouts/_article_header.haml`:
 
-```
+```haml
 - @lighter ||= ""
 - @dark_header = "dark_header" if current_article.data['dark_header']
 - if !current_article.data['header_image'].nil? && current_article.data['header_image'] != ""

@@ -8,7 +8,7 @@ tags:
   - oauth
   - happy_seed
   - ruby
-historical: true
+obsolete: true
 date: 2015-01-16
 aliases:
   - "/setting-up-devise-with-twitter-and-facebook-and-other-omniauth-schemes-without-email-addresses/"

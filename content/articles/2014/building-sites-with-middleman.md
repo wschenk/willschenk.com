@@ -8,6 +8,7 @@ tags:
   - tools
 header_image: books.jpg
 date: 2014-11-25
+obsolete: true
 aliases:
   - "/building-sites-with-middleman/"
 ---

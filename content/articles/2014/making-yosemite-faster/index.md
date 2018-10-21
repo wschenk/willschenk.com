@@ -21,7 +21,7 @@ The only evidence I could find was that the `WindowServer` process was taking up
 
 There are two things to do to fix this.  First go to _System Preferences > Accessibility_ and select _Reduce Transparency_:
 
-![Silvrback blog image](https://silvrback.s3.amazonaws.com/uploads/5da49df8-e23d-4236-9890-67bd040eb19e/Accessibility_large.jpg)
+<img src="Accessibility_large.jpg" class="img-fluid">
 
 Transparency is most noticeable in the menu bar and window titles.  It's a nice effect, but this option will go away.  This matter less than you think, because instead of staring at the pretty pictures while you are waiting switching between windows, you'll just be _doing what you intended to do._
 
@@ -29,7 +29,7 @@ Transparency is most noticeable in the menu bar and window titles.  It's a nice 
 
 Then go to _System Preferences > Mission Control_ and turn off _Displays have separate Spaces_:
 
-![Silvrback blog image](https://silvrback.s3.amazonaws.com/uploads/6cec93bc-e6e9-43dd-ad35-6216a3519ff4/Mission_Control_large.jpg)
+<img src="Mission_Control_large.jpg" class="img-fluid">
 
 You'll need to logout and log back in for the changes to take effect.  If you have an external monitor plugged in this will make it into more of a mirrored effect.  But it's less memory for the WindowServer to have to deal with but frankly, for this build, it seems like the WindowServer is in over its head.
 

@@ -1,6 +1,7 @@
 ---
 title: "Building a hugo site"
 date: 2018-06-04
+publishDate: 2018-06-04
 tags:
   - "hugo"
   - "material-design"
@@ -612,4 +613,4 @@ And then lets add some basic styling for the content pages and the bottom of the
 }
 ```
 
-## Back to Hugo
+## Adding next and back links

@@ -5,6 +5,7 @@ tags:
   - middleman
   - howto
   - ruby
+obsolete: true
 date: 2014-12-17
 aliases:
   - "/building-middleman-extensions/"

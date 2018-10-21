@@ -26,20 +26,27 @@ From this, we can classify bots into one of six types:
 
 Each of these have progressively more complex context that the bot is operating in.  Most chat mediums have different message types, where message can be directed towards or private to a particular user.  Confounding things further, some have a native concept of _spaces_, generally called a _room_ or a _channel_, and as we treat people differently in different context the bot will also need to be aware of the difference context that the conversion is taking place.  We can call those services _Spaced_.
 
-| Service | Spaced | Notes |
-| ------ | ------- | ----- |
-| SMS | No | Groups are a dynamic list of people |
-| Desktop Notifications | No | Stuck on one computer |
-| Push Notifications | No | One way communication |
-| [AIM](https://www.aim.com) | No | Group chat not core usage |
-| [GChat](https://support.google.com/chat/answer/159495?hl=en) | No | Group chat not core usage |
-| [iMessage](https://www.apple.com/ios/messages/) | No | Groups are a dynamic list of people |
-| [Twitter](http://twitter.com/) | No | Lists aren't groups |
-| [Yammer](https://www.yammer.com) | Yes | Sorta |
-| [IRC](http://en.wikipedia.org/wiki/Internet_Relay_Chat) | Yes | _Channels_ |
-| [HipChat](https://www.hipchat.com) | Yes | _Rooms_ |
-| [Slack](https://slack.com) | Yes | |
-| [Campfire](https://campfirenow.com) | Yes | _Rooms_ |
+<table class="table table-sm table-striped table-bordered">
+  <thead>
+    <tr><th>Service</th><th>Spaced</th><th>Notes</th></tr>
+  </thead>
+
+  <tbody>
+    <tr><td>SMS</td><td>No</td><td>Groups are a dynamic list of people</td></tr>
+    <tr><td>Desktop Notifications</td><td>No</td><td>Stuck on one computer</td><tr>
+
+    <tr><td>Push Notifications</td><td>No</td><td>One way communication</td></tr>
+    <tr><td><a href="https://www.aim.com">AIM<a></td><td>No</td><td>Group chat not core usage</td></tr>
+    <tr><td><a href="https://support.google.com/chat/answer/159495?hl=en">GChat</a></td><td>No</td><td>Group chat not core usage</td></tr>
+    <tr><td><a href="https://www.apple.com/ios/messages/">iMessage</a></td><td>No</td><td>Groups are a dynamic list of people</td></tr>
+    <tr><td><a href="http://twitter.com/">Twitter</a></td><td>No</td><td>Lists aren't groups</td></tr>
+    <tr><td><a href="https://www.yammer.com">Yammer</a></td><td>Yes</td><td>Sorta</td></tr>
+    <tr><td><a href="http://en.wikipedia.org/wiki/Internet_Relay_Chat">IRC</a></td><td>Yes</td><td><i>Channels</i></td></tr>
+    <tr><td><a href="https://www.hipchat.com">HipChat</a></td><td>Yes</td><td><i>Rooms</i></td></tr>
+    <tr><td><a href="https://slack.com">Slack</a></td><td>Yes</td></tr>
+    <tr><td><a href="https://campfirenow.com">Campfire</a></td><td>Yes</td><td><i>Rooms</i></td></tr>
+    </tbody>
+  </table>
 
 _Keeping track of User / Space context is more challenging than just User context_
 
@@ -500,7 +507,7 @@ The distinction between a _Spaced_ and _Global_ chat medium is something that ma
 
  [BotSummit](http://tinysubversions.com/botsummit/2014/) was a few days ago, and a bunch of people got together to talk about Twitter bots that they made largely as art projects.  Here's a draft of a taxonomy of Twitter bots made by [Tully Hanson](https://twitter.com/tullyhansen).  In the parlance of this post, these are mainly _Notifiers_ and _Reactors_, with some possible _Responders_ thrown in:
 
-![Twitter Bot Taxonomy](http://i.imgur.com/bKXNQ0V.png)
+<img alt="Twitter Bot Taxonomy" src="bKXNQ0V.png" class="img-fluid">
 
 _Here's the [source document](https://gist.github.com/tullyhansen/7621632)_
 
@@ -512,7 +519,7 @@ _Notifiers_ are interesting not because of their technology, but because of what
 
 ## Hubot from Github is a company chat bot written in Node
 
-![left_float](https://silvrback.s3.amazonaws.com/uploads/5a2b7f44-c37b-4cfc-b0df-16e28a889160/HUBOT_large.jpg)
+<img src="HUBOT_large.jpg" class="img-fluid">
 
 [Hubot from Github](https://hubot.github.com):
 
@@ -524,12 +531,13 @@ _Image from [Hubot site](https://hubot.github.com)_
 
 [Lita homepage](https://www.lita.io)
 
-![left_float](https://silvrback.s3.amazonaws.com/uploads/a1895cd0-8429-4a82-9cd7-2b7557d3c0a3/lita-94f070fbb79e8ec62cc7a21ca39f8448_large.png)
+<img src="lita-94f070fbb79e8ec62cc7a21ca39f8448_large.png" class="img-fluid">
+
 _Image from [Lita](https://www.lita.io)_
 
 ## Huginn is your agent, standing by
 
-![left_float](https://silvrback.s3.amazonaws.com/uploads/4c8d7718-e8a1-4d6f-92b7-e2d1c92cec43/220px-Odin%2C_der_G%C3%B6ttervater_large.jpg)
+<img src="Odin.jpg" class="img-fluid">
 
 [Huginn](https://github.com/cantino/huginn) takes a bit to install, but it's a full on _software agent_ of the old school.
 
