@@ -21,7 +21,7 @@ On the one hand, this works incredibly well. (See Math, Science, going to the mo
 
 ## Are you driving
 
-<%= image_tag 'yes_no_maybe_dont_know_wtf_the_limits_of_binary_logic_and_the_importance_of_forgetting_1.jpeg', class: "left_float" %>
+<img src="yes_no_maybe_dont_know_wtf_the_limits_of_binary_logic_and_the_importance_of_forgetting_1.jpeg" class="float-left mr-2">
 
 We’re building an app that will track how you use your Tesla. It’s called [TeslaTracks](http://teslatracks.happyfuncorp.com/ "") and it looks at your driving habits, battery usage, how efficiently you are using energy and helping you understand the economics and overall awesomeness of electric car ownership.
 
@@ -56,7 +56,7 @@ First, we need to keep track of when we know something, knowledge of the world m
 
 This says, remember the knowledge of driving for 10 minutes without an event.
 
-<%= image_tag 'yes_no_maybe_dont_know_wtf_the_limits_of_binary_logic_and_the_importance_of_forgetting_2.jpeg', class: "left_float" %>
+<img src="yes_no_maybe_dont_know_wtf_the_limits_of_binary_logic_and_the_importance_of_forgetting_2.jpeg" class="img-fluid">
 
 Lets talk though a series of events where someone drove from 8:12 to 8:45 though a cell deadzone into an underground garage where they parked. We get a few events, first that the car was parked, then a few driving events before we enter into a area with really spotty service at 8:20, and finally a few before we leave the thing in the garage for a while. Then the car drove at 11:40 until 12:00, but we only got one measly data point, all listed on the left.
 
@@ -71,11 +71,11 @@ The question now becomes, how do we interpret these changes? What does it mean t
 
 We look at the transitions between states. 2 values with 3 states means that there are 6 total things to think about.
 
-<%= image_tag 'yes_no_maybe_dont_know_wtf_the_limits_of_binary_logic_and_the_importance_of_forgetting_3.jpeg' %>
+<img src="yes_no_maybe_dont_know_wtf_the_limits_of_binary_logic_and_the_importance_of_forgetting_3.jpeg" class="img-fluid">
 
 We can pivot that around to see what’s happening, and based upon our knowledge of the world and what we thing is probable, we can use that to interpret the state changes:
 
-<%= image_tag 'yes_no_maybe_dont_know_wtf_the_limits_of_binary_logic_and_the_importance_of_forgetting_4.jpeg' %>
+<img src="yes_no_maybe_dont_know_wtf_the_limits_of_binary_logic_and_the_importance_of_forgetting_4.jpeg" class="img-fluid">
 
 ## Let me tell you a story
 

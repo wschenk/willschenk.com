@@ -35,12 +35,9 @@ At the end of this meandering article we are going to have a way to build super 
 
 Let's take a step back from how we normally build websites, and see what we can we do better based upon the challenges and current reality of operating sites:
 
-1. The first insight is that once your site is built and running, things change at a different rate than they do in development.  The difference between tooling and run-time evaluation becomes more pronounced, and usage patterns of the data become clearly statified.  Even though we dump everything into the database, there are distinct classes of data that have different change patterns.
-
+1. The first insight is that once your site is built and running, things change at a different rate than they do in development.  The difference between tooling and run-time evaluation becomes more pronounced, and usage patterns of the data become clearly stratified.  Even though we dump everything into the database, there are distinct classes of data that have different change patterns.
 2. The second insight is websites are about sitemaps, not about URLs.  SEO thinks in terms of Sitemaps, and webapps thinks in terms of Routes, but if we could get the best of both worlds if we had a static build process that can pull data from a datastore and understands the concepts of a Sitemap and a Router.
-
 3. The third insight is that we need a templating language that can run equally well on the server and the client in order to keep developers sane and effective.  The bulk of the application needs to be written using the same tooling.
-
 4. The fourth insight is that web services don't need to be hidden behind the server, and with rich client apps we can consume them directly from the client.
 
 I'll walk through these in turn, deconstructing what they mean, and outline a way of building a prerendered website that will let you add all the fancy front-end features and full SEO support - all of the benefits of so-called database backed web-sites with content management systems and complex logic - that will be able to scale up quickly without any ops support, and be able to degrade gracefully under spikes.
@@ -58,87 +55,7 @@ _If the word social bothers you, just replace it with "all views are customized 
 
 Let's look at the rate of change of the different types of data on these sites:
 
-<% graphviz do %>
-digraph Dataflow {
-  node[shape=block];
-  {
-    node[shape=plaintext];
-    Header[label="Timeline"];
-    "Release" -> "Slow Data" -> "Medium Speed Data" -> "Fast Data" -> "Ephemera" -> "Session Data";
-  }
-
-  {
-    rank=same;
-    Header;
-    MHeader[label="Marketing", shape=plaintext];
-    PHeader[label="Publishing", shape=plaintext];
-    EHeader[label="Commerce", shape=plaintext];
-    SHeader[label="Social", shape=plaintext];
-  }
-
-  {
-    rank=same;
-    "Release";
-    MData[label="Data Model",fillcolor="lightgrey",style=filled];
-    PData[label="Data Model",fillcolor="lightgrey",style=filled];
-    EData[label="Data Model",fillcolor="lightgrey",style=filled];
-    SData[label="Data Model",fillcolor="lightgrey",style=filled];
-  }
-
-  {
-    rank=same;
-    "Slow Data";
-    MPages[label="Pages",fillcolor="lightgrey",style=filled];
-    PArticles[label="Articles",fillcolor="lightgrey",style=filled];
-    ECatalog[label="Product Catalog",fillcolor="lightgrey",style=filled];
-    SUsers[label="Users"];
-  }
-
-  {
-    rank=same;
-    "Medium Speed Data";
-    PUsers[label="Accounts"];
-    EUsers[label="Accounts"];
-    SConnections[label="Connections"];
-  }
-
-  {
-    rank=same;
-    "Fast Data";
-    PComments[label="Comments"];
-    EOrders[label="Orders"];
-    SContent[label="Content",fillcolor="lightgrey",style=filled];
-  }
-
-  {
-    rank=same;
-    "Ephemera";
-    PShared[label="Most Shared"];
-    ECross[label="Product Clusters"];
-    SComments[label="Comments"];
-    MEmail[label="Emails"];
-
-  }
-
-  {
-    rank=same;
-    "Session Data";
-    ECart[label="Cart"];
-    SChat[label="Chat"];
-  }
-
-  Header -> "Release" [style=invis];
-  MHeader -> MData [style=invis];
-  PHeader -> PData [style=invis];
-  EHeader -> EData [style=invis];
-  SHeader -> SData [style=invis];
-
-  MData -> MPages -> MEmail;
-  PData -> PArticles -> PUsers -> PComments -> PShared;
-  EData -> ECatalog -> EUsers -> EOrders -> ECross -> ECart;
-  SData -> SUsers -> SConnections -> SContent -> SComments -> SChat;
-}
-<% end %>
+<img src="data.png" class="img-fluid">
 
 
 Lets walk through this.  A _data model_ is the structure that all of the site data fits into.  This represents the heart of what your database model, object model, and product design are all orbiting around.  In the beginning of development this rapidly changes, but once the site is released changes are incremental and relatively rare. It's easy to add functionality that doesn't change the data model, but when you start making drastic changes, the nature of what you are building changes.  Wordpress sites have pages, posts, categories and users, and if you try and jam in a product catalog then it becomes something different than a standard blog.
@@ -171,30 +88,7 @@ _Session Data_ is _specific to the user_ and renders the page differently based 
 
 A website is a series of interconnected webpages.  These pages are referenced by URLs, and the world of linking and SEO demands that these URLs return self-contained data so that you can deep link and get yourself found on the search engines.  From the outside, it looks like:
 
-<% graphviz do %>
-  digraph Sitemaps {
-    a [label="Site Map"];
-    e [label="Javascripts"];
-    f [label="Stylesheets"];
-    g [label="Images"];
-    b [label="Page"];
-    c [label="Page"];
-    d [label="Page"];
-
-    a -> b;
-    a -> c;
-    a -> d;
-    b -> e;
-    c -> e;
-    d -> e;
-    b -> f;
-    c -> f;
-    d -> f;
-    b -> g;
-    c -> g;
-    d -> g;
-  }
-<% end %>
+<img src="sitemap.png" class="img-fluid">
 
 
 The main entry point is the _Sitemap_.  Conceptually, this is the overview of what can be found on the site.  In a specific, SEO sense, a sitemap is a way of communicating to search engines the structure of your site so the search results can be better organized.  But in a more general sense, the sitemap is a collection of all of the pages that make up the site.
@@ -207,37 +101,7 @@ Lets take an example of a _Commerce_ site, and how those URLs are generated.  I 
 
 From the inside of a website, it looks a little more like this:
 
-<% graphviz do %>
-  digraph Routing {
-    rankdir=LR;
-
-    b [label="router"];
-
-    { rank = same;    
-      c [label="controller"];
-      g [label="controller"];
-      e [label="datastore"];
-    }
-
-    { rank = same;
-      d [label="template"];
-      h [label="template"];
-    }
-
-    i [label="result"];
-
-    b -> c;
-    c -> e;
-    c -> d;
-    d -> i;
-
-    b -> g;
-    g -> e;
-    g -> h;
-    h -> i;
-  }
-<% end %>
-
+<img src="routing.png" class="img-fluid">
 
 A request comes into the server and the `router` determines what the user is asking for.  In our example, since the path of the url is `/product/1dbd/`, the router looks at that and says "this is a product page" so let's hand the request off to the `product` controller, which is the part of the code that knows about product stuff.
 
@@ -339,17 +203,8 @@ One of the benefits of this is that there are API-as-services out there, like [P
 
 ## Bringing back a build server
 
-<div class="diagram_right">
-<% graphviz do %>
-digraph deployment {
+<img src="build.png" class="img-fluid">
 
-  "Build Server" -> "Static Files" [label="Deploy"];
-  "Static Files" -> "Client" [label="User Access"];
-  "Client" -> "Parse" [label="Update Data"];
-  "Parse" -> "Build Server" [label="Trigger Update"];
-}
-<% end %>
-</div>
 There still needs to be a way to get new versions of _Structural Data_ onto the site.  For this, we need to host middleman somewhere on a build server, and everytime _Structural Data_ changes we need to trigger another build that pushes up the static content.  Parse has [afterSave triggers](https://parse.com/docs/js/guide#cloud-code-aftersave-triggers) that could, for example, ping your build server to first pull down the data changes, and then push the code out.
 
 

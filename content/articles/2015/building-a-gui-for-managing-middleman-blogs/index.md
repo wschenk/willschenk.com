@@ -6,6 +6,7 @@ tags:
   - static_sites
   - react
 date: 2015-07-30
+obsolete: true
 header_image: calig.jpg
 aliases:
   - "/building-a-gui-for-managing-middleman-blogs/"
@@ -50,21 +51,7 @@ Examples of the commands that can be triggered are:
 - `git status`
 - `bundle exec middleman build`
 
-<% graphviz do %>
-    digraph G {
-rankdir=BT
-node [shape=box ];
-app [label="Static Middleman Site"];
-admin [label="Admin JS FrontEnd App"];
-api [label="Sinatra API Server"];
-cmds [label="Middleman Commands"];
-cmds -> app;
-api -> cmds;
-api -> app;
-admin -> api;
-admin -> app;
-    }
-<% end %>
+<img src="arch.png" class="img-fluid">
 
 
 Let go through each of the components as if we were building them in our app directly.  The `gem` does a lot of this for you, but it's always nice to see how it works.

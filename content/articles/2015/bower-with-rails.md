@@ -6,6 +6,7 @@ tags:
   - javascript
   - rails
 header_image: train_hat.jpg
+obsolete: true
 aliases:
   - "/bower-with-rails/"
 ---

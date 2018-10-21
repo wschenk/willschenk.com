@@ -11,7 +11,7 @@ aliases:
 
 There's a certain user interface that, when you first see it, screams out of you that it was designed by an engineer.
 
-![designed by an engineer](http://www.pspad.com/img/screen/mainfull.png)
+<img src="mainfull.png" class="img-fluid">
 
 (_via [Daring Fireball](http://daringfireball.net) [User Interface of the Week](https://www.google.com/search?client=safari&rls=en&q=daring+fireball+user+interface+of+the+week&ie=UTF-8&oe=UTF-8)_)
 
@@ -45,7 +45,7 @@ The experience is of building little things, putting them together in novel ways
 
 ## Interface ecstasy
 
-<%= image_tag "product/nosql_query.png" %>
+<img src="nosql_query.png" class="img-fluid">
 _Engineers Keeping it Real: Go Fuck Yourself_
 
 The problem is products aren't about technology. Technology is necessary but not sufficient to build products. Technology is just the plumbing, the thing which makes it possible, but not actually the thing that people care about.

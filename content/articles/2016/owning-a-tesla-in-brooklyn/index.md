@@ -36,7 +36,7 @@ So if you live in Zone 1, charge-wise you never really need to think about anyth
 
 The next thing is the supercharger network, which is amazing. It takes about 20 minutes to fill up halfway, and about 1 hour 10 minutes to fill up the 85 kWh battery. But there’s a better way.
 
-<%= image_tag 'owning_a_tesla_in_brooklyn_1.jpeg' %>
+<img src="owning_a_tesla_in_brooklyn_1.jpeg" class="img-fluid">
 
 The trick here is that since the battery charge faster when they are empty, you want to only charge what you need to get to the next charger. The more charge that’s in the battery, the slower it charges, which in practice means that you want “just enough” charge in the batteries to get you to the next charger. As a rule of thumb, it takes 20 minutes to go from 0% to 50%, then 20 minutes to go to 75%, then 20 minutes to go to 87%, etc. The return on investment time goes down the higher you charge it.
 
@@ -48,7 +48,7 @@ Range of the car at 85 mph is roughly half of the range at 55 mph, so speed has 
 
 Range anxiety is a real thing, but only for people who don’t own an electric car. You are driving around, slowly watching the battery meter go down down down, there’s no place obvious place to top it off, maybe you won’t charge it for a few days, unless you figure out a plan the car will just stop somewhere, probably in the middle of a highway… When you own a car in Brooklyn, this is the Zone you are in most of the time.
 
-<%= image_tag 'owning_a_tesla_in_brooklyn_2.jpeg' %>
+<img src="owning_a_tesla_in_brooklyn_2.jpeg" class="img-fluid">
 
 What happens when you are driving and you run out of juice? Answer: no clue. Never happened. Of the Tesla owners that I’ve spoken to — and we are in a secret club where flash our little Tesla car keys to each other in liue of a handshake — they don’t know either. It happens about as much as you run out of gas, which I’ve never done either. It’s does take a little planning to avoid it, and you need to put some thought into it, but they are very simple thoughts to have.
 
@@ -72,7 +72,7 @@ In the summer I can go a little more than 2 weeks driving in the city without ch
 
 ## Winter Driving, Regen and Phantom Drain
 
-<%= image_tag 'owning_a_tesla_in_brooklyn_3.jpeg' %>
+<img src="owning_a_tesla_in_brooklyn_3.jpeg" class="img-fluid">
 
 The winters are where things get very different. The regenerative braking only works when the batteries are a certain temperature, and if it’s say 40 degrees outside, the car isn’t going to warm up enough to full use it. I would figure that you need a good 30 minutes of driving to warm up the car. The preconditioning stuff only works if you plug in, and since you don’t plug in, no luck. When the temperature is lower, the regen just turns itself off and you are back to driving a car that *coasts*! Quelle horror!
 
@@ -88,7 +88,7 @@ To give you a sense of what cold is like, here is some data from a few winter we
 
 Then we were in the mountains, in Zone 3. I emailed the hotel before I left and they provided me an extension cord to a regular wall plug. This was going to have to do. We left the car plugged in while we were there. If plugging in here didn’t work there were a few other options on plugshare.com. This is what the charging looked like, compared to what it should look like:
 
-<%= image_tag 'owning_a_tesla_in_brooklyn_4.jpeg' %>
+<img src="owning_a_tesla_in_brooklyn_4.jpeg" class="img-fluid">
 
 The difference between the lines represent the energy it takes to keep the batteries in their operating temperature range. This is “phantom drain”. A 110 outlet is the “worst” way to charge, but its still enough to fill up while outside in the coldest weather in 3 days. Parking inside would have helped a lot as well.
 
@@ -96,7 +96,7 @@ Lake Placid is 133 miles from the Albany supercharger, so with a 50% buffer that
 
 Here’s a graph of rate of charge vs outside temperature:
 
-<%= image_tag 'owning_a_tesla_in_brooklyn_5.jpeg' %>
+<img src="owning_a_tesla_in_brooklyn_5.jpeg" class="img-fluid">
 
 I was worried that it would get down to 0, since you aren’t supposed to keep the car below -20F for more than 24 hours, but no issues.
 
@@ -104,6 +104,6 @@ Handles great in the snow.
 
 ## In conclusion
 
-<%= image_tag 'owning_a_tesla_in_brooklyn_6.jpeg' %>
+<img src="owning_a_tesla_in_brooklyn_6.jpeg" class="img-fluid">
 
 It totally works.
