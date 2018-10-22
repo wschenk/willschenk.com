@@ -1,616 +1,553 @@
 ---
-title: "Building a hugo site"
-date: 2018-06-04
-publishDate: 2018-06-04
+title: "Building a hugo site and theme with bootstrap"
+subtitle: "hugo is blazing fast"
+date: 2018-10-21
 tags:
-  - "hugo"
-  - "material-design"
-  - "howto"
+  - bootstrap
+  - static_sites
+  - tools
+  - howtwo
 ---
 
-Lets go through the steps of creating a new hugo site and theme.  We will use webpack as our asset pipline, and material-design as our ui framework.  Lets get started!
+Now that's its 2018 its time to retool the blog using hugo.  Why not?  Hugo is built in golang and is blazing fast and everything is cleaner than it was in the middleman years.  
+
+One of the reasons that I liked middleman -- it's usage of the rails' Sprockets library -- is no longer a strength.  The javascript and front-end world has moved over to WebPack and I've personally moved over to create-react-app.  We'll get into that later.  First go and [download hugo from the main site](https://gohugo.io/getting-started/installing/). And then we'll create a blank site and theme.
 
 ```bash
-$ hugo new site testsite
-$ cd testsite
+$ hugo new site mysite
+$ cd mysite
 $ hugo new theme mytheme
 ```
 
-Now lets `config.toml` to point to our new theme:
+Edit the generated `config.toml` to have it point to this new theme.
 
 ```toml
-theme=”mytheme”
+theme = "mytheme"
+relativeURLs = true
 ```
 
-And start up hugo:
+I like to setup all the content sites so the urls are relative so I can host in subdirectories and the like.  (I'll talk about this at a later post, but this makes it easy to stick things in ipfs and load up development builds of the site on an actual mobile device for testing.)  Finally, lets start the server:
 
 ```bash
-$ hugo server --watch -D &
+$ hugo server --watch --verbose --buildDrafts --cleanDestinationDir --disableFastRender
 ```
 
-This tells hugo to watch for changes and to build drafts.
+These are some useful development flags, `---buildDrafts` does what you'd expect and `--disableFastRender` helps make sure that your shift-reloading gets the latest version of the fine.
 
-## Setting up the asset pipeline
+## Layouts, blocks and partials
 
-We are following directions from [the material design documentation](https://github.com/material-components/material-components-web/blob/master/docs/getting-started.md). Inside of the theme directory, lets create a basic `package.json` file:
+First we'll start with the base layout in `themes/mytheme/layouts/_default/baseof.html`
 
-```bash
-$ cd themes/mytheme
-```
-
-`pacakge.json`:
-
-```json
-{
-  "scripts": {
-    "build": "webpack -p",
-    "start": "APP_ENV=dev webpack --watch"
-  }
-}
-```
-
-Now install webpack and sass:
-
-```bash
-$ npm install --save-dev webpack@3 webpack-dev-server@2 css-loader sass-loader node-sass extract-loader file-loader autoprefixer postcss-loader postcss-easy-import
-```
-
-And create `webpack.config.js`
-
-```javascript
-const autoprefixer = require('autoprefixer');
-const importer = require( 'postcss-easy-import' )
-
-module.exports = [{
-  entry: './theme.scss',
-  output: {
-    // This is necessary for webpack to compile
-    // But we never use style-bundle.js
-    filename: 'static/js/style-bundle.js',
-  },
-  module: {
-    rules: [{
-      test: /\.scss$/,
-      use: [{
-          loader: 'file-loader',
-          options: {
-            name: 'static/css/bundle.css',
-          },
-        },
-        {
-          loader: 'extract-loader'
-        },
-        {
-          loader: 'css-loader',
-          options: {
-            includePaths: ['./node_modules']
-          }
-        },
-        {
-          loader: 'postcss-loader',
-          options: {
-            plugins: () => [autoprefixer({
-              grid: false
-            }),
-          importer()]
-          }
-        },
-        {
-          loader: 'sass-loader',
-          options: {
-            includePaths: ['./node_modules']
-          }
-        },
-      ]
-    }]
-  },
-}];
-
-```
-
-This says to watch for `theme.scss`, run it through sass, and output the compiled file into `static/css/bundle.css`.  So lets create `themes/mytheme/theme.scss` now:
-
-```sass
-body {
-  color: blue;
-}
-```
-
-We will expand on that later.
-
-Lets put a basic page in `themes/mytheme/layouts/_default/baseof.html`
-
-```html
+```go-html-template
+<!DOCTYPE html>
 <html>
-<head>
-<title>This is my site</title>
-<link href="/css/bundle.css" rel="stylesheet">
-</head>
-
-<body>
-<h1>This is a title</h1>
-<p>This is a paragraph</p>
-</body>
+  {{- partial "head.html" . -}}
+  <body>
+    {{- partial "header.html" . -}}
+    {{- block "main" . }}{{- end }}
+    {{- partial "footer.html" . -}}
+  </body>
 </html>
 ```
 
-And lets start up webpack!
+This is the `_default` base layout for everything in the site.  You can have specific layouts for different content types, but this is the fallback one that we are going to define for when nothing else is specified.  Inside of this we define a few `partial`s and `block`s.  You can think of partials as included subtemplates that we can use both for structure as well as a convenient place to override the structure of a theme when you want to do big customizations.  `blocks` are replaced with the data from the content of your site, so are better thought of as the _parts where the template is filled with data_.
 
-```bash
-$ npm run start
-```
+The `{{ }}` stuff is the go templating language, so if you want to really figure out how that works you'll eventually find yourself in the golang language docs, which is a little intense sometimes.  The main thing to remember is that for every page that is rendered on the site its passed in a `HugoPage` object which is where you need to pull out all of the data.  So if you want to know what is available to you, that's where you start looking.
 
-and visit http://localhost:1313 and you should see some nice blue text!  This is hugo rendering the html file we created, the `baseof.html`, which points to the css bundle that webpack created, which right now simply renders everything in blue.
+### Head
 
-## Adding some ES2015 goodness to the asset pipeline
+Inside `themes/mytheme/layouts/partials/head.html` add bootstrap and the various bits of awesomeness required for that.
 
-Stop the webpack server using cntr-c, and install some additional development packages:
-
-```bash
-$ npm install --save-dev babel-core babel-loader babel-preset-es2015
-```
-
-Appened the following to `webpack.config.js`:
-
-```javascript
-module.exports.push({
-  entry: './theme.js',
-  output: {
-    filename: 'static/js/bundle.js'
-  },
-  module: {
-    loaders: [{
-      test: /\.js$/,
-      loader: 'babel-loader',
-      query: {
-        presets: ['es2015']
-      }
-    }]
-  },
-});
-```
-
-And then create `theme/mytheme/theme.js`:
-
-```javascript
-console.log( “Hello from theme.js” )
-```
-
-and replace `theme/mytheme/layouts/_default/baseof.html` to include a link to your new javscript bundle:
-
-```html
-<html>
+```go-html-template
 <head>
-<title>This is my site</title>
-<link href="/css/bundle.css" rel="stylesheet">
+  <title>{{ .Title }}</title>
+  <!-- Required meta tags -->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+  <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js" integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" crossorigin="anonymous"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js" integrity="sha384-ChfqqxuZUCnJSK3+MXmPNIyE6ZbWh2IMqE241rYiqJxyMiZ6OW/JmZQ5stwEULTy" crossorigin="anonymous"></script>
+
+  {{ range .AlternativeOutputFormats -}}
+    {{ printf `<link rel="%s" type="%s+%s" href="%s" title="%s" />` .Rel .MediaType.Type .MediaType.Suffix .Permalink $.Site.Title | safeHTML }}
+  {{ end -}}
+
 </head>
-
-<body>
-<h1>This is a title</h1>
-<p>This is a paragraph</p>
-<script type="text/javascript" src="/js/bundle.js"></script>
-</body>
-</html>
 ```
 
-Restart webpack
+This sets up bootstrap to lead from the CDN, as well as adding a link to the generated rss feed.  Here we can see a few other things.  One is that we are setting the `<title>` using `{{ .Title }}`.  We may want to change that later, but what that means is that we are using the current page's title attribute to set the title, and if you wanted to include something from the `.Site` data this is where you'd put the logic.
 
+The other thing here is the `range` function.  In practical terms we are putting in `rss` discovery links, but what this literally is going is looping over the `AlternativeOutputFormats` slice inside of the page.  `range` is the golang looping idiom, which is like a `for` loop but better.
 
-```bash
-$ npm run start
+### Footers
+
+Lets put some of these variables into the footer to help debug a bit.  This is in `themes/mytheme/layouts/partials/footer.html` where we are going to expose to hugo page variables so we know what's happening
+
+```go-html-template
+<footer class="footer mt-5">
+  <div class="container">
+    <table class="table table-sm">
+      <caption>Hugo Variables for current page</caption>
+      <tr><th>Name</th><td>{{ .Name }}</td></tr>
+      <tr><th>Kind</th><td>{{ .Kind }}</td></tr>
+      <tr><th>Type</th><td>{{ .Type }}</td></tr>
+      <tr><th>List Page</th><td>.Pages</td></tr>
+      <tr><th>IsPage</th><td>{{ .IsPage }}</td></tr>
+      <tr><th>IsHome</th><td>{{ .IsPage }}</td></tr>
+      <tr><th>Next</th><td>{{ .Next }}</td></tr>
+      <tr><th>Prev</th><td>{{ .Prev }}</td></tr>
+      <tr><th>Section</th><td>{{ .CurrentSection }}</td></tr>
+    </table>
+  </div>
+</footer>
 ```
 
-and reload the page -- you should see your console log message!
+### Page templates
 
-## Lets start using Hugo
+Now we will define a basic single template, which will be used to render a single object, not a collection of anything.  We are going to demo this with the index page initially.
+`themes/mytheme/layouts/_default/single.html` :
 
-Lets start fleshing out the hugo templates.  Hugo has a couple of concepts to wrap your head around.  Single views, list views, blocks, and partials.  Additionally, you can define default views, lists views and single views by types.  We are going to work with the default types for now.
-
-change `themes/mytheme/_defaults/baseof.html` to include a block:
-
-```html
-<html>
-<head>
-<title>This is my site</title>
-<link href="/css/bundle.css" rel="stylesheet">
-</head>
-
-<body>
-  {{ block "main" . }}
-    <h1>This is the default content in the baseof.html template</h1>
-  {{ end }}
-  <script src="/js/bundle.js"></script>
-</body>
-</html>
-```
-
-`themes/mytheme/index.html`:
-
-```html
+```go-html-template
 {{ define "main" }}
-This is the main block in index.html.
+<div class="container">
+  <p>This from the single page template</p>
+</div>
 {{ end }}
 ```
 
-Lets now build a simple single.html view:
+And out first draft of the `index.html` template for the site.  We'll put in a little little jumbotron in `themes/mytheme/layouts/index.html`:
 
-`themes/mytheme/_default/single.html`:
-
-```html
+```go-html-template
 {{ define "main" }}
-<div class="content">
-  <h1>{{ .Title }}</h1>
+<div class="jumbotron">
+  <div class="container">
+    <h1 class="display-4">This could be the title</h1>
+    <p class="lead">Here's some description stuff</p>
+    <p>There's also other things that are super nice</p>
+  </div>
+</div>
+{{ end }}
+```
+
+At this point you should be able to see the index page when you go to http://localhost:1313 (If hugo didn't create an empty header.html partial the build might fail, so move on the next section if you don't have that.)
+
+## Header and menus
+
+In `config.toml` on the top level of your site (out of the theme) lets define a few menu items.  We will then use that data to fill in the header.
+
+```toml
+[menu]
+  [[menu.main]]
+    identifier = "about"
+    name = "About"
+    url = "/about/"
+
+  [[menu.main]]
+    identifier = "posts"
+    name = "Posts"
+    url = "/posts/"
+```
+
+Then add a header in `themes/mytheme/partials/header.html`.  We are going to use a bootstrap navbar and pull the menu items out of the site configuration.
+
+```go-html-template
+<nav class="navbar navbar-expand-lg navbar-light ">
+  <a class="navbar-brand" href="{{ "/" | relURL}}">{{.Site.Title}}</a>
+  <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+    <span class="navbar-toggler-icon"></span>
+  </button>
+
+  <div class="collapse navbar-collapse" id="navbarSupportedContent">
+    <ul class="navbar-nav ml-auto">
+      {{ $currentPage := . }}
+      {{ range .Site.Menus.main }}
+        <li class="navbar-item {{if or ($currentPage.IsMenuCurrent "main" .) ($currentPage.HasMenuCurrent "main" .) }} active{{end}}">
+          <a class="nav-link" href="{{ .URL }}" title="{{ .Title }}">{{ .Name }}</a>
+        </li>
+      {{ end }}
+    </ul>
+  </div>
+</nav>
+```
+
+There are a couple of new concepts here, the first is `{{ "/" | relURL }}` which is a helper function to transform a variable in somewhat that could make it more palatable to the user.  In this case I'm just translating "/" to a relativeURL, which on subpages will have it be something like "../../index.html" or whatever.
+
+`{{ $currentPage := . }}` is setting a variable so let us refer to the outcontext when we are in the `range` below.  The `range` links over all of the menu items.  The object that `.` refers to changes inside of the `range` to be the current item that it's iterating over, so in order to make any comparisons to the currentPage in this case we need to give it a name.  `:=` is very golang.
+
+Also are `if` statements, which we are using to determine if we include the `active` class on the link.  Note where the operator is, that is the `or` comes first and the data comes afterwards.  So lispy!
+
+## Adding post content
+
+Lets now add some basic posts.  
+
+```
+$ hugo new posts/sample_post.md
+```
+
+If you didn't start hugo with -D, you'll need to make sure that the draft flag isn't true for it to show up
+
+```
+---
+title: "Sample Post"
+date: 2018-10-19T16:04:51-04:00
+draft: false
+---
+
+One of the things I'm very interested in is writing words and seeing them on the page.
+```
+
+This is pretty standard from more static site generators with the front matter on the top and the markdown on the bottom.
+
+## List templates
+
+Create a list template view in `themes/mytheme/layouts/_default/list.html`
+
+```go-html-template
+{{ define "main" }}
+<div class="container">
+  <h1 class="text-center">
+    {{ if eq .Kind "taxonomy" }}
+      {{ .Name | humanize }}
+    {{ else }}
+      {{ .Type | humanize }}
+    {{ end }}
+  </h1>
+  {{ range .Pages }}
+    <div class="row mt-2">
+      <div class="d-none d-sm-block col-sm-2 mt-auto offset-sm-2 text-right">
+        <time class="post-date" datetime="{{ .Date.Format "2006-01-02T15:04:05Z07:00" | safeHTML }}">{{ .Date.Format "Jan 2, 2006" }}</time>
+      </div>
+      <div class="col">
+        <a class="text-body" href="{{ .URL | relURL }}">{{ if .Draft }}DRAFT: {{end}}{{ .Title | markdownify }}</a>
+      </div>
+    </div>
+  {{ end }}
+</div>
+{{ end }}
+```
+
+
+We're using a hugo function `humanize` to capitalize the type of object that we are looking at, and a whole bunch of bootstrap utility classes to align and only show the published date on larger screens.  There's an `if` statement that either displays the name of the taxonomy -- which is the `Kind` of tag pages -- or the object type for list pages.
+
+The `.Date.Format` format string is really weird -- I'm not sure that I really understand it but it expects the year to be 2006 for things to make sense.  This is part of the way that the hugo's underlying go date formating stuff works that.
+
+Now we click on posts in the nav bar you should see the list of posts.  But when we click on the page itself, you'll notice that we have the text "This from the single page template".  So lets update that `themes/mytheme/layouts/_default/single.html` template now:
+
+```go-html-template
+{{ define "main" }}
+<div class="container">
+  <h1>{{ .Title | markdownify}}</h1>
 
   {{ .Content }}
 </div>
 {{ end }}
 ```
 
-and a default list view in `themes/mytheme/_default/list.html`:
+## Adding tags
+
+Since we mentioned tags above, lets go right ahead and add that taxonomy to our theme.  Another common type of taxonomy is categories.  Let's go ahead and add that to the `theme.toml`:
+
+```toml
+tags = ["tags"]
+```
+
+Restart your hugo server to see the magic!
+
+
+Lets add some tags to our first `sample_post.md` file
+
+```
+---
+title: "Sample Post"
+date: 2018-10-19T16:10:36-04:00
+draft: false
+tags: [ "one", "two" ]
+---
+
+This is the first paragraph of what I'd like to say.
+```
+
+And then create another post
+
+```bash
+hugo new posts/sample_post_the_second.md
+```
+
+```
+---
+title: "Sample Post The Second"
+date: 2018-10-19T16:54:29-04:00
+draft: false
+tags: ["two"]
+---
+
+This is the second amazing post that will *blow your mind*!
+```
+
+New lets add tags to our menu so we can put it on the nav bar.  We'll also specify menu weights to fix the order.  This is done in the site configuration `config.toml` where we are configuring how this specific site used the theme that we are defining.
+
+```toml
+[menu]
+  [[menu.main]]
+    identifier = "about"
+    name = "About"
+    url = "/about/"
+    weight = 100
+
+  [[menu.main]]
+    identifier = "tags"
+    name = "Tags"
+    url = "/tags/"
+    weight = 110
+
+  [[menu.main]]
+    identifier = "posts"
+    name = "Posts"
+    url = "/posts/"
+    weight = 120
+```
+
+Finally, lets add some logic to our theme's `theme/mytheme/partials/header.html`.  You can replace the whole thing  
+
+```go-html-template
+<nav class="navbar navbar-expand-lg navbar-light ">
+  <a class="navbar-brand" href="{{ "/" | relURL}}">{{.Site.Title}}</a>
+  <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+    <span class="navbar-toggler-icon"></span>
+  </button>
+
+  <div class="collapse navbar-collapse" id="navbarSupportedContent">
+    <ul class="navbar-nav ml-auto">
+      {{ $currentPage := . }}
+      {{ range .Site.Menus.main }}
+        {{ if not (eq .Identifier "tags") }}
+          <li class="navbar-item {{if or ($currentPage.IsMenuCurrent "main" .) ($currentPage.HasMenuCurrent "main" .) }} active{{end}}">
+            <a class="nav-link" href="{{ .URL | relURL }}" title="{{ .Title }}">{{ .Name }}</a>
+          </li>
+        {{ else }}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="{{ .URL | relURL }}" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              {{ .Name }}
+            </a>
+            <div class="dropdown-menu" aria-labelledby="navbarDropdown">
+              {{ range $name, $taxonomy := $currentPage.Site.Taxonomies.tags }}
+                {{ with $.Site.GetPage (printf "/tags/%s" $name) }}
+                  <a class="dropdown-item" href="{{ .URL | relURL }}">{{ $name }}</a>
+                {{ end }}
+              {{ end }}
+            </div>
+          </li>
+        {{ end }}
+      {{ end }}
+    </ul>
+  </div>
+</nav>
+```
+
+We are checking to see if the menu item is tags, and if so look through the tags taxonomy to display the dropdown with all of the items.  We need to go through some hoops to figure out exactly how to get the name and the url, but things are looking good now!
+
+## Adding code highlight
+
+Hugo comes with pygments built in, so we are going to use that with a custom theme.  Lets first generate the css and put it in our themes `static` folder.
+
+```bash
+$ hugo gen chromastyles --style=tango > themes/mytheme/static/css
+```
+
+And in config.toml add the following lines
+
+```toml
+pygmentsCodeFences = true
+pygmentsUseClasses = true
+```
+
+Finally, add a link to that stylesheet to `themes/mytheme/layouts/partial/head.html`:
 
 ```html
+  <link rel="stylesheet" href="/css/syntax.css"/>
+```
+
+
+## Content types: post
+
+Since we created a post content type, lets add a different single page template for those to show additional post data.  Create `themes/mytheme/layouts/posts/single.html`:
+
+```go-html-template
 {{ define "main" }}
-  {{ $dateFormat := "Jan 21, 2014" }}
-  {{ range .Data.Pages.ByDate }}
-    <h2>
-      <a href='{{ .Permalink | relURL }}' class="title-link">{{- .Title -}}</a>
-      <time>{{ .Date.Format $dateFormat }}</time>
-    </h2>
+<div class="container">
+  <h1 class="mt-5">{{ .Title | markdownify}}</h1>
+
+  {{ if .Params.Subtitle }}
+    <h2 class="font-weight-light font-italic mb-3">{{ .Params.Subtitle | markdownify }}</h2>
   {{ end }}
+
+  <p class="text-muted mt-3">
+    <a class="text-muted" href="{{ .Permalink }}">Published {{ .Date.Format "January 2, 2006"  }}</a>
+
+    {{ range .Params.tags }}
+      <a class="text-muted" href="{{ "/tags/" | relURL }}{{ . | urlize }}">#{{ . }}</a>
+    {{ end }}
+  </p>
+
+  <article class="article mt-5">
+    {{ .Content }}
+  </article>
+</div>
+
+{{ if or .Next .Prev }}
+  <div class="bg-light py-5">
+    <div class="container">
+      <h2 class="text-center">Read next</h2>
+
+      <div class="row">
+        <div class="col-md-6 text-center">
+          {{ if .Prev }}
+            Previous Post:
+            <a href="{{ .Prev.URL | relURL}}">{{ .Prev.Title | markdownify }}</a>
+          {{ end }}
+        </div>
+        <div class="col-md-6 text-center">
+          {{ if .Next }}
+            Next Post:
+            <a href="{{ .Next.URL | relURL }}">{{ .Next.Title | markdownify }}</a>
+          {{ end }}
+        </div>
+      </div>
+    </div>
+  </div>
+{{ end }}
+
+{{ $related := .Site.RegularPages.Related . | first 3 }}
+{{ with $related }}
+<div class="container mt-5">
+  <h2 class="text-center">See also</h2>
+  <div class="row">
+  	{{ range . }}
+      <div class="col">
+        <p class="lead mb-0"><a class="text-body" href="{{ .RelPermalink }}">{{ .Title | markdownify}}</a></p>
+
+        {{ if .Params.Subtitle }}
+          <p class="lead font-italic mb-0">{{ .Params.Subtitle | markdownify }}</p>
+        {{ end }}
+        <p class="font-weight-light mt-3">{{ .Summary }}</p>
+        <a href="{{ .RelPermalink }}" class="btn btn-primary">Read more</a>
+      </div>
+    {{ end }}
+  </div>
+</div>
+{{ end }}
+
 {{ end }}
 ```
 
-lets create a new post and see what we have
+Here we are adding some metadata to the top of the page, showing the subtitle if it's set and putting in the published date and some tags.  We are tweaking the layout a bit using the bootstrap utility classes to add some more spacing.  Then the body content which we wrap it inside of an article.  
 
-```bash
-$ hugo new posts/first-post.md
+We are showing a few other features that hugo gives us.  One is the `Next` and `Prev` posts in the section, which is by date and content type.  Another is the related pages to this particular page.
+
+### Adding some style tweaks to head.html
+
+Here's some small tweaks to the css to make things a little bit more readable on larger screens. We'll get into really expanding on bootstrap later.
+
+```css
+<style>
+  .article p, .article ul, .article ol, .article blockquote {
+    max-width: 45em;
+  }
+
+  .article p:first-child {
+    font-size: 1.25em;
+    font-weight: 300;
+    max-width: 36em; /* 45 / 1.25 */
+  }
+</style>
 ```
 
-edit the file to clean up the date, so something like this:
+## Post list view
 
-```markdown
----
-title: "First post"
-date: 2018-06-04
-tags:
-  - "meta"
-  - "example"
----
+Adding a special list view for posts pages in `themes/mytheme/layouts/posts/list.html`:
 
-# This is my first post
-
-We are here just testing to see how well this renders in our new templates.
-
-Here's a list of stuff:
-
-1. First thing
-2. Second thing
-3. Third thing
-
-## Why things?
-
-> Block quotes are super interesting, don't you think?
-
-So fun!
-
-```
-
-
-Now go to http://localhost:1313/posts to see a list of your site posts!  Click on the title to view it in all of it’s glory!
-
-## Adding tag views
-
-`themes/mytheme/tags/list.html`:
-
-```html
+```go-html-template
 {{ define "main" }}
-
-<div class="archives">
-  {{ $dateFormat := "Jan 2014" }}
-  {{ range .Data.Terms.ByCount }}
-    <h1><a href="{{ "/tags/" | relLangURL }}{{ .Name | urlize }}">#{{ .Name }}</a> - ({{.Count}})</h1>
-  {{ end }}
-  {{ range .Data.Pages.ByDate.Reverse }}
-    <h2>
-      <time>{{ .Date.Format $dateFormat }}</time>
-      <a href='{{ .Permalink | relURL }}' class="title-link">{{- .Title -}}</a>
-    </h2>
-
-    {{ if .Params.tags }}
-      <div class="tagcontainer">
-        <span class="spacer"></span>
-        <ul>
-          {{ range .Params.tags }}
-            <li>
-              <a href="{{ "/tags/" | relLangURL }}{{ . | urlize }}">#{{ . }}</a>
-            </li>
-          {{ end }}
-        </ul>
+{{ $dateFormat := default "Jan 2" (index .Site.Params "date_format") }}
+{{ $.Scratch.Set "lastYear" ""}}
+<div class="container">
+  <h1 class="text-center">{{ .Type | humanize}}</h1>
+  {{ range .Pages }}
+    {{ $year := .Date.Year }}
+    {{ $lastYear := $.Scratch.Get "lastYear"}}
+    <div class="row mt-2">
+      <div class="d-none d-sm-block col-sm-2 mt-auto offset-sm-2 text-right">
+        <time class="post-date" datetime="{{ .Date.Format "2006-01-02T15:04:05Z07:00" | safeHTML }}">{{ .Date.Format "Jan 2, 2006" }}</time>
       </div>
-    {{ end }}
+      <div class="col">
+        {{ if ne $year $lastYear }}
+          <p class="text-muted mt-5">{{ $year }}</p>
+          {{ $.Scratch.Set "lastYear" $year }}
+        {{ end }}
+        <a class="text-body" href="{{ .URL | relURL }}">{{ if .Draft }}DRAFT: {{end}}{{ .Title | markdownify }}</a>
+      </div>
+    </div>
   {{ end }}
 </div>
 {{ end }}
 ```
 
-Now if you go to http://localhost:1313/tags you should see a list of tags and the count of the posts that have those tags.  If you click on a tag itself you will see each of the posts that have those tags.  (Right now you only have one, post, but try creating another an seeing what happens!)
+This uses the `$.Scratch` object to help keep track of the last year that was shown.  When we see a year for the first time, we show a small paragraph with muted text with the year to help split things out.
 
-## Adding prismjs highlighting
+## Cleaning up index page
 
-```bash
-$ npm install prismjs
-```
+Lets cleanup the homepage.  We are going to add recent posts and start filling in the jumbotron based upon site content.
 
-In `themes/mytheme/theme.scss`:
-
-```sass
-@import "prismjs/themes/prism.css";
-@import "prismjs/themes/prism-twilight.css";
-@import "prismjs/plugins/toolbar/prism-toolbar.css";
-```
-
-And then in `themes/mytheme/theme.js` we are going to install prism, the scss language component, and the copy-to-clipboard plugin.
-
-```javascript
-import "prismjs/prism.js";
-import "prismjs/components/prism-scss.js";
-import "prismjs/components/prism-markdown.js";
-import "prismjs/plugins/toolbar/prism-toolbar.js";
-import "prismjs/plugins/copy-to-clipboard/prism-copy-to-clipboard.js";
-
-```
-
-## Adding material design
-
-We're going to use the material design web components as our CSS framework.  I've written before about bootstrap, but I like Google's framework especially if you end up wanting it to look nice on mobile.  Lets install some components, and use the top-app-bar, typography, and drawer components.
-
-```bash
-$ cd themes/mytheme
-$ npm install @material/theme @material/top-app-bar @material/typography @material/drawer normalize.css webfontloader
-```
-
-Update the main page to include some material design markup, here we are adding a default top nav bar which will go away when you scroll with a couple of action items in the header that link to different parts of the site.
-
-`themes/mytheme/layouts/_default/baseof.html`
-
-```html
-<html>
-<head>
-<title>This is my site</title>
-<link href="/css/bundle.css" rel="stylesheet">
-</head>
-
-<body class="mdc-typography">
-  <header class="mdc-top-app-bar">
-    <div class="mdc-top-app-bar__row">
-      <section class="mdc-top-app-bar__section mdc-top-app-bar__section--align-start">
-        <button class="material-icons mdc-top-app-bar__navigation-icon">menu</button>
-        <span class="mdc-top-app-bar__title">{{ .Title }}</span>
-      </section>
-
-      <section class="mdc-top-app-bar__section mdc-top-app-bar__section--align-end">
-        <ul class="bar__navigation">
-          <li><a class="mdc-top-app-bar__navigation-item" href="/posts">Archives</a></li>
-          <li><a class="mdc-top-app-bar__navigation-item" href="/about">About</a></li>
-        </ul>
-      </section>
-    </div>
-  </header>
-
-  <div class="mdc-top-app-bar--fixed-adjust">
-    {{ block "main" . }}
-      <h1>This is the default content in the baseof.html template</h1>
-    {{ end }}
+{{ define "main" }}
+<div class="jumbotron">
+  <div class="container">
+    <h1 class="display-4">{{ .Site.Title}}</h1>
+    <p class="lead">{{ .Site.Params.Description }}</p>
+    {{ .Content }}
   </div>
-  <script src="/js/bundle.js"></script>
-</body>
-</html>
+</div>
 
-```
+<div class="container">
+  {{ $recentposts := 5 }}
+  {{ if .Params.recentposts }}
+    {{ $recentposts = .Params.recentposts }}
+  {{ end }}
 
-We then include the sass templates for the components that we are using in the `theme.scss` file.  We are adjusting the colors of the new `ul` elements that we added in the top bar.
+  <h2 class="text-center">Recent posts</h2>
 
-```scss
-@import "~normalize.css";
-@import "prismjs/themes/prism.css";
-@import "prismjs/themes/prism-twilight.css";
-@import "prismjs/plugins/toolbar/prism-toolbar.css";
+  {{ range first $recentposts .Pages }}
+    <h2 class="mt-5"><a class="text-body" href="{{ .URL | relURL}}">{{ .Title | markdownify}}</a></h2>
+    {{ if .Params.Subtitle }}
+      <h3 class="font-weight-light font-italic mb-3">{{ .Params.Subtitle | markdownify }}</h2>
+    {{ end }}
 
-@import "@material/theme/_color-palette";
+    <p class="text-muted mt-3">
+      <a class="text-muted" href="{{ .Permalink }}">Published {{ .Date.Format "January 2, 2006"  }}</a>
 
-$mdc-theme-primary: $material-color-blue-800;
-$mdc-theme-secondary: $material-color-pink-800;
-$mdc-theme-on-primary: white;
-$mdc-theme-on-secondary: white;
-$mdc-theme-surface: $material-color-lime-50;
+      {{ range .Params.tags }}
+        <a class="text-muted" href="{{ "/tags/" | relURL }}{{ . | urlize }}">#{{ . }}</a>
+      {{ end }}
+    </p>
 
-@import "@material/typography/mdc-typography";
-@import "@material/top-app-bar/mdc-top-app-bar";
-@import "@material/drawer/mdc-drawer";
+    <article class="article">
+      <p>{{ .Summary }}</p>
+    </article>
 
-ul.bar__navigation {
-  @include mdc-typography(overline);
-  list-style: none;
+    <p class="text-muted">Reading time: about {{ .ReadingTime }} minutes</p>
+    <p><a class="btn btn-primary" href="{{ .URL | relURL }}">Read more...</a></p>
+  {{ end }}
 
-  li {
-    display: inline;
-    padding-left: 10px;
 
-    a {
-      color: $mdc-theme-on-primary;
-      text-decoration: none;
+</div>
+{{ end }}
 
-      &:hover {
-        text-decoration: underline;
-      }
-    }
-  }
-}
-```
+Now in the main content part of the site, we are going to create content/_index.md  This file will generate the `.Content` that is displayed as well as showing an example of how to pass variables from the front matter into the template itself
 
-And finally, we need to load in the fonts (which we will get from google) and wire up the javascript for the topbar hiding.
-in `theme.js` append:
+---
+title: "This is a title"
+recentposts: 5
+---
 
-```javascript
-import WebFont from 'webfontloader';
-WebFont.load({
-  google: {
-    families: ['Roboto', 'Material Icons']
-  }
-});
-
-import {MDCTopAppBar} from '@material/top-app-bar/index';
-const topAppBarElement = document.querySelector( '.mdc-top-app-bar' );
-const topAppBar = new MDCTopAppBar(topAppBarElement);
-```
-
-## Adding fonts as assets
-
-Lets explore adding a font installed from npm rather than using WebFont to load it.  We are going to use [Source Serif Pro](https://github.com/adobe-fonts/source-serif-pro) which has a nicer light version then is available on Google Fonts.
-
-```bash
-$ npm install git://github.com/adobe-fonts/source-serif-pro.git#release
-```
-
-In `webpack.config.js` add the following file loader to the main `theme.scss` loader, as an additional `rule`.
-
-```javascript
-    {
-      exclude: [/\.(js|jsx|mjs)$/, /\.html$/, /\.json$/, /\.scss$/],
-      loader: 'file-loader',
-      options: {
-        name: '[name].[hash:8].[ext]',
-        outputPath: 'static/css/fonts',
-        publicPath: 'fonts/'
-      }
-    }
-```
-
-Add a `fonts.scss` file
-
-```scss
-@font-face{
-    font-family: 'Source Serif Pro';
-    font-weight: 200;
-    font-style: normal;
-    font-stretch: normal;
-    src: url('node_modules/source-serif-pro/EOT/SourceSerifPro-ExtraLight.eot') format('embedded-opentype'),
-         url('node_modules/source-serif-pro/WOFF/OTF/SourceSerifPro-ExtraLight.otf.woff') format('woff'),
-         url('node_modules/source-serif-pro/WOFF2/OTF/SourceSerifPro-ExtraLight.otf.woff2') format('woff2'),
-         url('node_modules/source-serif-pro/OTF/SourceSerifPro-ExtraLight.otf') format('opentype'),
-         url('node_modules/source-serif-pro/TTF/SourceSerifPro-ExtraLight.ttf') format('truetype');
-}
-
-@font-face{
-    font-family: 'Source Serif Pro';
-    font-weight: 300;
-    font-style: normal;
-    font-stretch: normal;
-    src: url('node_modules/source-serif-pro/EOT/SourceSerifPro-Light.eot') format('embedded-opentype'),
-         url('node_modules/source-serif-pro/WOFF/OTF/SourceSerifPro-Light.otf.woff') format('woff'),
-         url('node_modules/source-serif-pro/WOFF2/OTF/SourceSerifPro-Light.otf.woff2') format('woff2'),
-         url('node_modules/source-serif-pro/OTF/SourceSerifPro-Light.otf') format('opentype'),
-         url('node_modules/source-serif-pro/TTF/SourceSerifPro-Light.ttf') format('truetype');
-}
-
-@font-face{
-    font-family: 'Source Serif Pro';
-    font-weight: 400;
-    font-style: normal;
-    font-stretch: normal;
-    src: url('node_modules/source-serif-pro/EOT/SourceSerifPro-Regular.eot') format('embedded-opentype'),
-         url('node_modules/source-serif-pro/WOFF/OTF/SourceSerifPro-Regular.otf.woff') format('woff'),
-         url('node_modules/source-serif-pro/WOFF2/OTF/SourceSerifPro-Regular.otf.woff2') format('woff2'),
-         url('node_modules/source-serif-pro/OTF/SourceSerifPro-Regular.otf') format('opentype'),
-         url('node_modules/source-serif-pro/TTF/SourceSerifPro-Regular.ttf') format('truetype');
-}
-
-@font-face{
-    font-family: 'Source Serif Pro';
-    font-weight: 600;
-    font-style: normal;
-    font-stretch: normal;
-    src: url('node_modules/source-serif-pro/EOT/SourceSerifPro-Semibold.eot') format('embedded-opentype'),
-         url('node_modules/source-serif-pro/WOFF/OTF/SourceSerifPro-Semibold.otf.woff') format('woff'),
-         url('node_modules/source-serif-pro/WOFF2/OTF/SourceSerifPro-Semibold.otf.woff2') format('woff2'),
-         url('node_modules/source-serif-pro/OTF/SourceSerifPro-Semibold.otf') format('opentype'),
-         url('node_modules/source-serif-pro/TTF/SourceSerifPro-Semibold.ttf') format('truetype');
-}
-
-@font-face{
-    font-family: 'Source Serif Pro';
-    font-weight: 700;
-    font-style: normal;
-    font-stretch: normal;
-    src: url('node_modules/source-serif-pro/EOT/SourceSerifPro-Bold.eot') format('embedded-opentype'),
-         url('node_modules/source-serif-pro/WOFF/OTF/SourceSerifPro-Bold.otf.woff') format('woff'),
-         url('node_modules/source-serif-pro/WOFF2/OTF/SourceSerifPro-Bold.otf.woff2') format('woff2'),
-         url('node_modules/source-serif-pro/OTF/SourceSerifPro-Bold.otf') format('opentype'),
-         url('node_modules/source-serif-pro/TTF/SourceSerifPro-Bold.ttf') format('truetype');
-}
-
-@font-face{
-    font-family: 'Source Serif Pro';
-    font-weight: 900;
-    font-style: normal;
-    font-stretch: normal;
-    src: url('node_modules/source-serif-pro/EOT/SourceSerifPro-Black.eot') format('embedded-opentype'),
-         url('node_modules/source-serif-pro/WOFF/OTF/SourceSerifPro-Black.otf.woff') format('woff'),
-         url('node_modules/source-serif-pro/WOFF2/OTF/SourceSerifPro-Black.otf.woff2') format('woff2'),
-         url('node_modules/source-serif-pro/OTF/SourceSerifPro-Black.otf') format('opentype'),
-         url('node_modules/source-serif-pro/TTF/SourceSerifPro-Black.ttf') format('truetype');
-}
-```
-
-And now lets tell `theme.scss` to pull stuff in.  I'm including the top part of the file with all of the `@imports` so it's clear.
-
-```scss
-@import "~normalize.css";
-@import "prismjs/themes/prism.css";
-@import "prismjs/themes/prism-twilight.css";
-@import "prismjs/plugins/toolbar/prism-toolbar.css";
-
-@import "./fonts.scss";
-@import "@material/theme/_color-palette";
-
-$mdc-typography-font-family: Source Serif Pro, Roboto, serif;
-
-$mdc-typography-styles-body1: (
-  font-weight: 300
-);
-
-$mdc-theme-primary: $material-color-blue-800;
-$mdc-theme-secondary: $material-color-pink-800;
-$mdc-theme-on-primary: white;
-$mdc-theme-on-secondary: white;
-$mdc-theme-surface: $material-color-lime-50;
-
-@import "@material/typography/mdc-typography";
-@import "@material/top-app-bar/mdc-top-app-bar";
-@import "@material/layout-grid/mdc-layout-grid";
-```
-
-And then lets add some basic styling for the content pages and the bottom of the same file:
-
-```scss
-.content {
-  max-width: 800px;
-  margin-left: auto;
-  margin-right: auto;
-
-  h1 {
-    @include mdc-typography( headline2 );
-  }
-
-  h2 {
-    @include mdc-typography( headline3 );
-    font-family: Source Serif Pro, Roboto, serif;
-  }
-
-  p {
-    @include mdc-typography(body1);
-  }
-}
-```
-
-## Adding next and back links
+Here is a bunch of amazing stuff about what it is that I'd like to see.  It's super amazing.
