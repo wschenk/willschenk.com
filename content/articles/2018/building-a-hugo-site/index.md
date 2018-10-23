@@ -6,7 +6,7 @@ tags:
   - bootstrap
   - static_sites
   - tools
-  - howtwo
+  - howto
 ---
 
 Now that's its 2018 its time to retool the blog using hugo.  Why not?  Hugo is built in golang and is blazing fast and everything is cleaner than it was in the middleman years.
