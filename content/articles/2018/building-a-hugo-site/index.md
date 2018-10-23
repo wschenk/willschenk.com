@@ -717,6 +717,46 @@ The bootstrap header is such an recognizable thing that people might want someth
 
 Now when you refresh the recognizable bootstrap header is gone and a big honking version of your site title is there in place of it!  It's clean.
 
+## Internal templates of Note
+
+Hugo has a bunch of [internal templates](https://gohugo.io/templates/internal/) that can make things easier.  Lets add a few, starting with google analytics.
+
+Inside of `config.toml` set your GA id:
+
+```toml
+googleAnalytics = "UA-xxxxx-1"
+```
+
+and then in `head.html` adding
+
+```go-html-template
+{{ template "_internal/google_analytics_async.html" . }}
+```
+
+
+Also open graph:
+
+```go-html-template
+{{ template "_internal/opengraph.html" . }}
+```
+
+And twitter cards.  For this you need to add your twitter handle to `config.toml`
+
+```toml
+[Social]
+  twitter = "wschenk"
+```
+
+```go-html-template
+{{ template "_internal/twitter_cards.html" . }}
+```
+
+_Note_ These interns use a different concept of `.Site.Authors` which I don't understand so it may be easier just to pull out the code as a partial.  
+
+Finally disqus:
+
+
+
 ## Summary & Recap
 
 1. Themes are composed of `layouts`, `partials`, `single` page templates, `list` templates, and `blocks`.
