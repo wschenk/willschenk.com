@@ -797,10 +797,7 @@ And twitter cards.  For this you need to add your twitter handle to `config.toml
 {{ template "_internal/twitter_cards.html" . }}
 ```
 
-_Note_ These interns use a different concept of `.Site.Authors` which I don't understand so it may be easier just to pull out the code as a partial.  
-
-Finally disqus:
-
+_Note_ These interns use a different concept of `.Site.Authors` which I don't understand so it may be easier just to pull out the code as a partial.
 
 
 ## Summary & Recap

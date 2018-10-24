@@ -7,7 +7,7 @@ tags:
 
 My experiment with the Chromebook has continued longer than I really expected. This machine is fun! Everything is so much faster and less cluttered, and I’m able to focus more.
 
-<img src='living_with_a_chromebook_1.png' class="img-fluid"/>
+<img src="living_with_a_chromebook_1.png" class="img-fluid"/>
 
 This machine is something in between a laptop and a cellphone. Like a cellphone, it starts quickly, so dipping in and out is easy. Its just easy to grab the Chromebook to check something real quick, send out an email, whatever in the same way that unlocking your phone is easy. There’s also less distractions than a regular laptop since the UI basically assumes on big window that’s more or less full screen, again like a cell phone. No menu bar hovering over you, no desktop peeking out from behind, just one focused on one app.
 
@@ -19,15 +19,15 @@ My development career started out in the tail end of the minis and the beginning
 
 Like cell phone apps everything lives in a sandboxed environment, so getting things to work together on the machine itself is a little… weird. Combined with the fact that Chromebook’s security features make the filesystem a little… weird… it’s a situation where you need to work around the constraints. But if you can live with your tmux to manage your terminal settings and, if you need something more, remote desktop off this machine onto a remote machine, then it does basically all you need.
 
-If you want to take the plunge, take a look at my other posts on it, [Writing Code on a Chrome book](/articles/2017/writing_code_on_a_chromebook/), and [More lessons learned](/articles/2017/writing_code_on_a_chromebook/). Here are some usability things that I’v
+If you want to take the plunge, take a look at my other posts on it, [Writing Code on a Chrome book](/articles/2017/writing_code_on_a_chromebook/), and [More lessons learned](/articles/2017/more_lessons_learned_working_on_a_chromebook). Here are some usability things that I’v
 
 Full screen webpages have much fewer distractions. Pin them to the shelf so that you magically have an “app” for them. (And if they are PWAs, then they actually work off line also.
 
-<img src='living_with_a_chromebook_2.png' class="img-fluid"/>
+<img src="living_with_a_chromebook_2.png" class="img-fluid">
 
 One charger to rule them all (USB-C) is actually really really nice. And they are much smaller than the big bricks. It seems silly, but getting rid of all the stupid chargers you need to carry around makes things clearly better.
 
-<code class="markup--code markup--p-code">alt--</code> minimizes the current window
+`alt--` minimizes the current window
 
 Close and reopen tabs often, get rid of the clutter.
 
@@ -36,7 +36,9 @@ Close and reopen tabs often, get rid of the clutter.
 * three fingers swipe goes from tab to tab
 * alt-tab switches between windows
 
-tmux and vi is the easiest way to keep going, especially since you lose your ssh connection to termux when reopening the laptop. much easier to do <code class="markup--code markup--p-code">tmux a</code> and get everything back. [https://medium.com/@peterxjang/a-minimalist-guide-to-tmux-13675fb160fa](https://medium.com/@peterxjang/a-minimalist-guide-to-tmux-13675fb160fa "") is a good write up
+tmux and vi is the easiest way to keep going, especially since you lose your ssh connection to termux when reopening the laptop. much easier to do `tmux a` and get everything back. [https://medium.com/@peterxjang/a-minimalist-guide-to-tmux-13675fb160fa](https://medium.com/@peterxjang/a-minimalist-guide-to-tmux-13675fb160fa "") is a good write up.
+
+`tmux a`
 
 Add Secure Shell to your launch bar and have it open as window. Then you can use CNTL-W to move around in VI [https://chromium.googlesource.com/apps/libapps/+/master/nassh/doc/FAQ.md#How-do-I-send-Ctrl_W_Ctrl_N-or-Ctrl_T-to-the-terminal](https://chromium.googlesource.com/apps/libapps/+/master/nassh/doc/FAQ.md#How-do-I-send-Ctrl_W_Ctrl_N-or-Ctrl_T-to-the-terminal "")
 
