@@ -2,7 +2,7 @@
 title: Getting firebase and grpc working under termux
 date: 2017-12-10T17:36:17.928Z
 tags:
-  - chrombook
+  - chromebook
   - howto
 ---
 
