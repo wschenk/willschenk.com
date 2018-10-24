@@ -1,1075 +1,435 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom">
-  <title>Blank Page Tech</title>
-  <subtitle>Lets build things</subtitle>
-  <id>http://willschenk.com/</id>
-  <link href="http://willschenk.com/"/>
-  <link href="http://willschenk.com/feed.xml" rel="self"/>
-  <updated>2016-10-27T18:56:20-04:00</updated>
-  <author>
-    <name>Will Schenk</name>
-  </author>
-  <entry>
-    <title>Yes, No, Maybe, Dont Know, WTF</title>
-    <link rel="alternate" href="http://willschenk.com/yes-no-maybe/"/>
-    <id>http://willschenk.com/yes-no-maybe/</id>
-    <published>2016-10-25T12:14:30-04:00</published>
-    <updated>2016-10-25T12:14:30-04:00</updated>
-    <author>
-      <name>Will Schenk</name>
-    </author>
-    <content type="html">&lt;p&gt;Boolean logic is the basis for how computers work — digital means ones and zeroes, and ones and zeros is another way of saying boolean logic. In this world things are either true or they are false, there is no maybe, no hesitant pause,no anxiety provoking second thoughts. This type of logic goes back to Aristotle with the “law of the excluded middle”. Here’s &lt;a href="https://en.wikipedia.org/wiki/Law_of_excluded_middle"&gt;wikipedia weighing in&lt;/a&gt;:&lt;/p&gt;
-
-&lt;blockquote&gt;
-&lt;p&gt;In logic, the law of excluded middle (or the principle of excluded middle) is the third of the three classic laws of thought. It states that for any proposition, either that proposition is true, or its negation is true.&lt;/p&gt;
-&lt;/blockquote&gt;
-
-&lt;p&gt;On the one hand, this works incredibly well. (See Math, Science, going to the moon, etc.) But there are limits to this sort of thinking, especially when we are dealing with partial and unfolding knowledge of the world. We need to build (yet another) layer on top of boolean logic to help understand events as they happen.&lt;/p&gt;
-
-&lt;hr&gt;
-
-&lt;h2 id="are-you-driving"&gt;Are you driving&lt;/h2&gt;
-
-&lt;p&gt;&lt;img class="left_float" src="images/yes_no_maybe_dont_know_wtf_the_limits_of_binary_logic_and_the_importance_of_forgetting_1-8e9d321b.jpeg" /&gt;&lt;/p&gt;
-
-&lt;p&gt;We’re building an app that will track how you use your Tesla. It’s called &lt;a href="http://teslatracks.happyfuncorp.com/"&gt;TeslaTracks&lt;/a&gt; and it looks at your driving habits, battery usage, how efficiently you are using energy and helping you understand the economics and overall awesomeness of electric car ownership.&lt;/p&gt;
-
-&lt;p&gt;Let’s talk the most simple question we could ask and explore some of the challenges of understanding the answer to it.&lt;/p&gt;
-
-&lt;p&gt;Are you driving?&lt;/p&gt;
-
-&lt;p&gt;Logically, this statement could be true or it could be false. But how do we know the answer to this question? The simplified version is&lt;/p&gt;
-
-&lt;ol&gt;
-&lt;li&gt;We are paying attention.&lt;/li&gt;
-&lt;li&gt;The cloud server tries to connect to your car over the cellular network.&lt;/li&gt;
-&lt;li&gt;If the car is on the network, it returns the transmission state.&lt;/li&gt;
-&lt;li&gt;If the transmission state is either D, N, R then we know you are driving at a specific time.&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;&lt;em&gt;(The actual logic coordinates more data-points than this, including phone accelerometer and GPS.)&lt;/em&gt;&lt;/p&gt;
-
-&lt;h2 id="representing-logic"&gt;Representing Logic&lt;/h2&gt;
-
-&lt;p&gt;In the world of boolean logic, the car is driving, or it is not driving. In the real world, if any of those steps fail — the most common reason is that you are driving through an area will no cell reception, which is a huge part of the North Eastern US where I mainly drive, and also plenty of parts inside of New York City where the buildings block things, or maybe that you are in a tunnel or parking underground or whatever — then we don’t know what you re doing. The statement isn’t true or false, the statement has an absence of evidence, it could be truish or falsish, it exists in a limbo state.&lt;/p&gt;
-
-&lt;p&gt;In most programming languages you don’t deal with ones and zeros, you actually deal with variables that have values which is nice because one of those values is “no value set”. The database language SQL even has a nice NULL for those values that just aren’t known yet, and I’m going to use that 70s all caps awesomeness to break it down.&lt;/p&gt;
-
-&lt;p&gt;How do we answer the question, “Is the car driving?” when we can only sample the car at an irregular frequency and some amount communication failure guaranteed?&lt;/p&gt;
-
-&lt;hr&gt;
-
-&lt;h2 id="hypothesis-guides-analysis"&gt;Hypothesis guides analysis&lt;/h2&gt;
-
-&lt;p&gt;First, we need to keep track of when we know something, knowledge of the world must be tied to a time and never exists outside of that. Then we need to decide how long we remember that without a sample. The vast majority of things are temporary, and a theory of the world needs to be constantly propped up with incoming data and slowly unwind itself over time when nothing is there. When nothing is happening we should quietly go hibernate.&lt;/p&gt;
-
-&lt;p&gt;&lt;strong&gt;Step 1:&lt;/strong&gt;&lt;/p&gt;
-
-&lt;p&gt;This says, remember the knowledge of driving for 10 minutes without an event.&lt;/p&gt;
-
-&lt;p&gt;&lt;img class="left_float" src="images/yes_no_maybe_dont_know_wtf_the_limits_of_binary_logic_and_the_importance_of_forgetting_2-17bab56f.jpeg" /&gt;&lt;/p&gt;
-
-&lt;p&gt;Lets talk though a series of events where someone drove from 8:12 to 8:45 though a cell deadzone into an underground garage where they parked. We get a few events, first that the car was parked, then a few driving events before we enter into a area with really spotty service at 8:20, and finally a few before we leave the thing in the garage for a while. Then the car drove at 11:40 until 12:00, but we only got one measly data point, all listed on the left.&lt;/p&gt;
-
-&lt;p&gt;Lets break down what the system knows now about the existing data. Before we have data, we don’t know anything. Then we know the car is parked, and driving for a while. Since we remember for 10 minutes, at 8:28 we “forget” that the car is driving and go back to not knowing anything. Then we know about that the car is driving from 8:30 but we again forget what’s happening at 8:42 until we know that they car is stopped at 8:45. Similarly the trip around lunch only has limited data. We know something is happening, but its not really clear, just one event at 11:45.&lt;/p&gt;
-
-&lt;h2 id="transition-states"&gt;Transition states&lt;/h2&gt;
-
-&lt;p&gt;&lt;strong&gt;Step 2:&lt;/strong&gt; &lt;/p&gt;
-
-&lt;p&gt;The question now becomes, how do we interpret these changes? What does it mean that we were driving and then we don’t know that we were driving, what do we do in these situations?&lt;/p&gt;
-
-&lt;p&gt;We look at the transitions between states. 2 values with 3 states means that there are 6 total things to think about.&lt;/p&gt;
-
-&lt;p&gt;&lt;img src="images/yes_no_maybe_dont_know_wtf_the_limits_of_binary_logic_and_the_importance_of_forgetting_3-29266d78.jpeg" /&gt;&lt;/p&gt;
-
-&lt;p&gt;We can pivot that around to see what’s happening, and based upon our knowledge of the world and what we thing is probable, we can use that to interpret the state changes:&lt;/p&gt;
-
-&lt;p&gt;&lt;img src="images/yes_no_maybe_dont_know_wtf_the_limits_of_binary_logic_and_the_importance_of_forgetting_4-8f8dadf2.jpeg" /&gt;&lt;/p&gt;
-
-&lt;h2 id="let-me-tell-you-a-story"&gt;Let me tell you a story&lt;/h2&gt;
-
-&lt;p&gt;So lets take our example above. At 8:12, driving &lt;strong&gt;&lt;code&gt;possibly_stayed_false&lt;/code&gt;&lt;/strong&gt; or &lt;strong&gt;&lt;code&gt;possibly_turned_false&lt;/code&gt;&lt;/strong&gt;, which is all the same to us.&lt;/p&gt;
-
-&lt;p&gt;At 8:14 driving &lt;strong&gt;&lt;code&gt;turned_true&lt;/code&gt;&lt;/strong&gt;, which is super exciting and we can look at other sensors to figure out what’s happening with the battery, if the users phone is near the car, whatever.&lt;/p&gt;
-
-&lt;p&gt;At 8:28 driving &lt;strong&gt;&lt;code&gt;possibly_turned_false&lt;/code&gt;&lt;/strong&gt;, or &lt;strong&gt;&lt;code&gt;possibly_stayed_true&lt;/code&gt;&lt;/strong&gt;. What to do here? Since we know that we don’t know for sure, we’ll tentatively mark the trip as stopped and look for other data streams that will tell us something, such as the GPS data on the phone which is queued up and sent once we get into signal.&lt;/p&gt;
-
-&lt;p&gt;At 8:30 driving &lt;strong&gt;&lt;code&gt;turned_true&lt;/code&gt;&lt;/strong&gt; or &lt;strong&gt;&lt;code&gt;possibly_stayed_true&lt;/code&gt;&lt;/strong&gt;. If there was a trip recently, maybe they are part of the same one? Here’s a place to add in those heuristics. &lt;em&gt;(We do this by looking a phone speed between the potentially new trip and the old trip and comparing start and end odometer values.)&lt;/em&gt;&lt;/p&gt;
-
-&lt;p&gt;At 8:42 driving &lt;strong&gt;&lt;code&gt;possibly_turned_false&lt;/code&gt;&lt;/strong&gt;, or &lt;strong&gt;&lt;code&gt;possibly_stayed_true&lt;/code&gt;&lt;/strong&gt;. We’ve been here before.&lt;/p&gt;
-
-&lt;p&gt;At 8:45 driving &lt;strong&gt;&lt;code&gt;turned_false&lt;/code&gt;&lt;/strong&gt; or &lt;strong&gt;&lt;code&gt;possibly_turned_false&lt;/code&gt;&lt;/strong&gt;. Now the last trip, marked as tentatively closed, is closed for sure. Somewhere the car stopped, between 8:45 and the last knowledge of the car moving at 8:32. We can look at odometer data, gps data, etc to make an educated guess on the actual stopping time.&lt;/p&gt;
-
-&lt;p&gt;At 8:55 driving &lt;strong&gt;&lt;code&gt;possibly_stayed_false&lt;/code&gt;&lt;/strong&gt;, or &lt;strong&gt;&lt;code&gt;possibly_turned_true&lt;/code&gt;&lt;/strong&gt;. We knew that the car was stopped, and now we’ve forgotten that since time 10 minutes has passed. Not driving is the quiescent state, meaning this is what the world looks like when at rest, so we *forget everything that we know. *This way when we start up again it will be as if the first time.&lt;/p&gt;
-
-&lt;p&gt;At 11:45, driving &lt;strong&gt;&lt;code&gt;possibly_turned_true&lt;/code&gt;&lt;/strong&gt;, or &lt;strong&gt;&lt;code&gt;possibly_stayed_true&lt;/code&gt;&lt;/strong&gt;. but we don’t have a potentially open trip to result, so we can deduce that the trip is started. Where? When? Need to pull in other data sources.&lt;/p&gt;
-
-&lt;p&gt;At 11:55, driving &lt;strong&gt;&lt;code&gt;possibly_turned_false&lt;/code&gt;&lt;/strong&gt;, or &lt;strong&gt;&lt;code&gt;possibly_stayed_true&lt;/code&gt;&lt;/strong&gt;. We basically have no good start time and no good end time.** Good luck with that! **Any wacky logic that you need to figure something out is now isolated to this case, while the other cases can rely upon better data.&lt;/p&gt;
-
-&lt;hr&gt;
-
-&lt;h2 id="you-see-what-you-are-looking-for"&gt;You see what you are looking for&lt;/h2&gt;
-
-&lt;p&gt;We touched only upon the logical state changes for binary values. There are other things to track, like increasing things (&lt;strong&gt;odometer&lt;/strong&gt;, &lt;strong&gt;time&lt;/strong&gt;, &lt;strong&gt;car software version&lt;/strong&gt;) plus things that have local ranges, like &lt;strong&gt;speed&lt;/strong&gt;, &lt;strong&gt;battery energy expenditure&lt;/strong&gt;, or &lt;strong&gt;charging rate&lt;/strong&gt;. These require different techniques of dealing with partial and incomplete data. The basic idea is the same:&lt;/p&gt;
-
-&lt;ol&gt;
-&lt;li&gt;Get a new piece of data.&lt;/li&gt;
-&lt;li&gt;Interpret the new data with your current hypothesis of reality&lt;/li&gt;
-&lt;li&gt;Update that hypothesis based upon the data or the time passed.&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;There are plenty of things that are neither true nor false, most of the time you are doing the best to guess. In those times you need to look at other co-occuring things to come up with a theory of what is reality and what you just forgot.&lt;/p&gt;
-</content>
-  </entry>
-  <entry>
-    <title>Deploying ActionCable on Heroku with Sidekiq</title>
-    <link rel="alternate" href="http://willschenk.com/deploying-actioncable-on-heroku/"/>
-    <id>http://willschenk.com/deploying-actioncable-on-heroku/</id>
-    <published>2016-07-11T16:49:00-04:00</published>
-    <updated>2016-07-11T16:49:00-04:00</updated>
-    <author>
-      <name>Will Schenk</name>
-    </author>
-    <content type="html">&lt;p&gt;ActionCable is WebSockets on rails.  This lets you create realtime, interactive systems, where you can push data from one client to another client without reloading or polling.  But how do we deploy it on heroku?&lt;/p&gt;
-
-&lt;p&gt;ActionCable is composed to two main parts: a javascript client library, and a backend pub/sub system built upon Redis.  We&amp;#39;re also going to use ActiveJob to offload the publishing tasks from the main user thread, so we&amp;#39;ll also be setting up sidekiq.&lt;/p&gt;
-
-&lt;p&gt;Let&amp;#39;s go through the steps of how to deploy things on heroku.&lt;/p&gt;
-
-&lt;h2 id="first,-the-app"&gt;First, the app&lt;/h2&gt;
-
-&lt;p&gt;I&amp;#39;m going to use an app that &lt;a href="https://medium.com/@dhh/rails-5-action-cable-demo-8bba4ccfc55e#.q92qfr3c2"&gt;dhh made as a walk through.&lt;/a&gt;  What it does is&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;creates a message model&lt;/li&gt;
-&lt;li&gt;creates a rooms controller with a show action&lt;/li&gt;
-&lt;li&gt;opens a websocket with the server&lt;/li&gt;
-&lt;li&gt;that receives rendered messages on the &lt;code&gt;rooms_channel&lt;/code&gt;&lt;/li&gt;
-&lt;li&gt;and accepts messages to be broadcast to everyone else&lt;/li&gt;
-&lt;li&gt;uses a background worker to render the message and broadcast it back to everyone&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;I&amp;#39;ve &lt;a href="https://github.com/HappyFunCorp/actioncable_chatapp/blob/master/README.md"&gt;transcribed it here&lt;/a&gt; to see what was added.  The code is available to &lt;a href="https://github.com/HappyFunCorp/actioncable_chatapp"&gt;clone the code from github&lt;/a&gt; if you don&amp;#39;t have an app that you are working on already.&lt;/p&gt;
-
-&lt;h2 id="now-lets-talk-about-deployment"&gt;Now lets talk about deployment&lt;/h2&gt;
-
-&lt;p&gt;The app we generated was done using basic rails 5 commands, and it&amp;#39;s out of the box stuff.  (Unlike most of the walkthroughs on this site which were done with &lt;a href="http://seed.happyfuncorp.com"&gt;seed&lt;/a&gt;.  It&amp;#39;s setup to use puma (good), which will handle the WebSockets.  It&amp;#39;s also setup with ActiveJob and ActionCable, both on which are in async local mode and won&amp;#39;t use redis in development.  ActionCable will also need to know where it&amp;#39;s websocket is going to connect to. Lets walk through everything that needs to get done.&lt;/p&gt;
-
-&lt;h2 id="gemfile"&gt;Gemfile&lt;/h2&gt;
-
-&lt;p&gt;First we need to add some things to the Gemfile, specifically redis, postgres, and the sidekiq gems.  Add the following to your &lt;code&gt;Gemfile&lt;/code&gt;&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;gem &amp;#39;redis&amp;#39;, &amp;#39;~&amp;gt; 3.0&amp;#39;
-gem &amp;#39;pg&amp;#39;, group: :production
-gem &amp;#39;sqlite3&amp;#39;, group: :development
-gem &amp;#39;sidekiq&amp;#39;
-gem &amp;#39;sinatra&amp;#39;, git: &amp;#39;https://github.com/sinatra/sinatra&amp;#39;, :require =&amp;gt; nil
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Make sure you remove the &lt;code&gt;sqlite3&lt;/code&gt; on the top of the file, we only want it in development.  We are installing &lt;code&gt;sinatra&lt;/code&gt; out of the master branch since the current release doesn&amp;#39;t play well with Rails 5.  (If it tries to install Sinatra 1.0 you&amp;#39;ll get rake exception errors.)  If you don&amp;#39;t want the web interface to sidekiq you can omit.&lt;/p&gt;
-
-&lt;h2 id="setup-sidekiq"&gt;Setup sidekiq&lt;/h2&gt;
-
-&lt;p&gt;First we need to create a &lt;code&gt;Procfile&lt;/code&gt; that defines our dynos&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;web: bundle exec puma -C config/puma.rb
-worker: bundle exec sidekiq -c 2
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;I&amp;#39;m running sidekiq with a concurrency of 2 to limit the number of redis connections.  You&amp;#39;ll probably want that a lot higher in real life if you are using Sidekiq for other things..&lt;/p&gt;
-
-&lt;p&gt;Now create &lt;code&gt;config/initializers/active_job.rb&lt;/code&gt; and tell ActiveJob to use &lt;code&gt;sidekiq&lt;/code&gt;&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;Rails.application.config.active_job.queue_adapter = :sidekiq
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;And let&amp;#39;s add the sidekiq web interace to your &lt;code&gt;config/routes.rb&lt;/code&gt;:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;  require &amp;#39;sidekiq/web&amp;#39;
-  mount Sidekiq::Web =&amp;gt; &amp;#39;/sidekiq&amp;#39;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;If this was a real app, you&amp;#39;d limit who can get to that engine.  If you installed devise, the way to do that is:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;  authenticate :admin_user do
-    mount Sidekiq::Web =&amp;gt; &amp;#39;/sidekiq&amp;#39;
-  end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id="a-brief-digression-to-test-locally"&gt;A brief digression to test locally&lt;/h2&gt;
-
-&lt;p&gt;It&amp;#39;s always nice to change as little as we can, so when everything blows up in our face we can limit our investigations to a small change set.  So lets first migrate our development environment to communicate over redis, so the ActiveJobs are run in a seperate process, and that ActionCable will be able to communicate from that process, back to the main web server, back to the client.&lt;/p&gt;
-
-&lt;p&gt;Edit &lt;code&gt;config/cable.yml&lt;/code&gt; to set the development environment use to use redis.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;development:
-  adapter: redis
-  url: redis://localhost:6379/1
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;If you don&amp;#39;t have redis installed, use &lt;a href="http://brew.sh"&gt;homebrew&lt;/a&gt; to do that now:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ brew install redis
-$ redis-server
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;If you don&amp;#39;t have foreman installed, do that now:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ gem install foreman
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Now lets run that app!&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ rails db:migrate
-$ foreman start
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Using foreman will start both the web interace as well as the sidekiq worker.&lt;/p&gt;
-
-&lt;p&gt;Now you should be able to go to &lt;code&gt;http://localhost:3000&lt;/code&gt; in multiple windows and talk with yourself.  I really like talking with myself, and I assume that you do as well.&lt;/p&gt;
-
-&lt;p&gt;And &lt;code&gt;http://localhost:3000/admin&lt;/code&gt; should load up the sidekiq admin console.  Validate that everything is working, since now we are going to spin up everything on heroku!&lt;/p&gt;
-
-&lt;h2 id="heroku-and-redis"&gt;Heroku and Redis&lt;/h2&gt;
-
-&lt;p&gt;Create a new app:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ heroku create
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Then we create a redis instance&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ heroku addons:create heroku-redis:hobby-dev
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;We now need to tell ActionCable where it&amp;#39;s redis server is.  Lets find out the answer and put in into the production section of &lt;code&gt;config/cable.yml&lt;/code&gt;. &lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$  heroku config | grep REDIS
-REDIS_URL:                redis://h:p75fl9as.........
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;&lt;code&gt;config/cable.yml&lt;/code&gt;:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;production:
-  adapter: redis
-  url: redis://h:p75fl9as.........
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id="set-the-right-actioncable-websocket-address"&gt;Set the right ActionCable websocket address&lt;/h2&gt;
-
-&lt;p&gt;We need to tell rails where it&amp;#39;s expected to receive the websocket connection from. &lt;code&gt;heroku info&lt;/code&gt; will show us our external application.  If you deploy on a custom url, you&amp;#39;ll need to add that as well.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ heroku info
-=== aqueous-thicket-49913
-Addons:        heroku-postgresql:hobby-dev
-               heroku-redis:hobby-dev
-Dynos:         web: 1, worker: 1
-Git URL:       https://git.heroku.com/aqueous-thicket-49913.git
-Owner:         operations@happyfuncorp.com
-Region:        us
-Repo Size:     34 KB
-Slug Size:     29 MB
-Stack:         cedar-14
-Web URL:       https://aqueous-thicket-49913.herokuapp.com/
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Lets tell rails about it.  Edit &lt;code&gt;config/environments/production.rb&lt;/code&gt;.  Obviously update the urls for your application.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;  config.action_cable.url = &amp;#39;wss://aqueous-thicket-49913.herokuapp.com/cable&amp;#39;
-  config.action_cable.allowed_request_origins = [ &amp;#39;https://aqueous-thicket-49913.herokuapp.com&amp;#39;]
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Note that &lt;code&gt;wss&lt;/code&gt; is WebSockets over over SSL.  You should use that, for a number of reasons including but not limited to security.  However, if you don&amp;#39;t use SSL, use &lt;code&gt;ws&lt;/code&gt; instead.&lt;/p&gt;
-
-&lt;p&gt;Now we need to tell the javascript where to connect.  Lets open up &lt;code&gt;app/views/layouts/application.html.erb&lt;/code&gt; and add this into the &lt;code&gt;&amp;lt;HEAD&amp;gt;&lt;/code&gt;:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt; &amp;lt;%= action_cable_meta_tag %&amp;gt;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id="commit-and-push"&gt;Commit and push&lt;/h2&gt;
-
-&lt;p&gt;First we add the code to repo&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ git add .
-$ git commit -a -m &amp;quot;Added heroku configuration&amp;quot;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Now we push to heroku itself:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ git push heroku master
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;If that goes well, lets create the database tables and spin up the worker process&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ heroku run rake db:migrate
-$ heroku ps:scale worker=1
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;And now, lets run the app and look at the logs:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ heroku open
-$ heroku open
-$ heroku log --tail
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;We ran open twice, so you could see what was there in two windows.  Does it work?  Do 3 windows work?&lt;/p&gt;
-
-&lt;p&gt;Do you like talking to yourself as much as I do?&lt;/p&gt;
-
-&lt;h2 id="but-does-it-scale"&gt;But does it scale&lt;/h2&gt;
-
-&lt;p&gt;Right now you have 1 web dyno, running puma with 5 threads, and 1 worker dyno running sidekiq with 2 concurrent worker.  This should be at least 5 redis connections, up to 2 more depending upon how many jobs have gone through sidekiq.  Lets look at the redis info:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ heroku redis:cli
-ec2-54-243-230-243.compute-1.amazonaws.com:24949&amp;gt; info
-
-....
-# Clients
-connected_clients:7
-client_longest_output_list:0
-client_biggest_input_buf:0
-blocked_clients:2
-....
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;So we see that we have 7 active connections now.  As you get more people listening to redis, those will go up.  Adding more dynos will push the number of active connections up, so you need to be careful in sizing both your postgres install as well as your redis install.&lt;/p&gt;
-
-&lt;p&gt;&lt;em&gt;Image credit &lt;a href="https://www.flickr.com/photos/flintman45/15521201146/in/photolist-pDydmj-4EmYXp-5iGRcG-4KrLFJ-rjnz22-9Cpo2C-azDiP-adi58f-aSgSYP-7Uc2y7-bmGghk-a4pD4T-5wDbbf-a3zri3-7rDRMh-9Z3c6a-471ZjP-8qQ2fX-kYdZ28-9Z6fc9-9ap1TR-2nhNUA-93VFQa-76jVr-4Q3WXY-bbVhbt-9Z3ij2-kx5BP4-59LXDM-nnav37-eTfHYC-p3JqVp-k6dTdF-qxURpr-ay5db9-5vk21b-oC9hPd-n4bS2m-476583-pMvQCn-CffNFE-rbndpL-6QP35H-d1mxVf-9Wrx53-a1LCGS-d1mxZJ-9ugrWA-9XFZPm-46WZVf"&gt;Lee Roberts&lt;/a&gt;&lt;/em&gt;&lt;/p&gt;
-</content>
-  </entry>
-  <entry>
-    <title>Owning a Tesla in Brooklyn</title>
-    <link rel="alternate" href="http://willschenk.com/owning-a-tesla-in-brooklyn/"/>
-    <id>http://willschenk.com/owning-a-tesla-in-brooklyn/</id>
-    <published>2016-03-09T16:33:11-05:00</published>
-    <updated>2016-03-09T16:33:11-05:00</updated>
-    <author>
-      <name>Will Schenk</name>
-    </author>
-    <content type="html">&lt;p&gt;I’ve owned a Tesla in Brooklyn for about 10 months now. This is what I’ve learned so far. A Tesla in Brooklyn isn’t that hard.&lt;/p&gt;
-
-&lt;p&gt;I park my car on the street and have no regular place to plug in the car. This is very much like having a cell phone that you can only charge at the office or in coffee shops — kind of weird, takes a little bit of planning, but it can work. The car is so much fun that dealing with it is actually fun. The city is a tough environment. When I’m worried about leaving it on the street, mainly during snow storms where I don’t want to get buried in by a snow plow, I park it in a garage. See how well that works out when the snow all suddenly melts:&lt;/p&gt;
-
-&lt;p&gt;I picked up the car from the Syosett service center 10 months ago and I’ve put over 11,000 miles on it since then. I drive the car to work everyday, through the soupy New York summers and through the increasingly mild winters. I’ve taken the car camping up in the woods away from the Supercharging network, as well as up in the mountains where we had few days of -20 degree weather. (Coldest it got was -31F, which for the metric folks around is about -34C, which for anyone or anything is not a great temperature to be in. The ice skating was fun.)&lt;/p&gt;
-
-&lt;p&gt;The best thing is flooring it off of a stop sign and going to 40 MPH in a second or so. Faster than a Ferrari, greener than a Prius.&lt;/p&gt;
-
-&lt;h2 id="the-three zones"&gt;The three zones&lt;/h2&gt;
-
-&lt;p&gt;When you own an electric car, you are in one of 3 zones:&lt;/p&gt;
-
-&lt;ol&gt;
-&lt;li&gt;Radius of home, where you plug in every night and drive less than the range.&lt;/li&gt;
-&lt;li&gt;Road trips, highway driving on the Supercharger network, where you go from charger to charger to final destination, basically taking a bathroom break every 2 hours.&lt;/li&gt;
-&lt;li&gt;Range mode: Repurposing the public electric network, charging from regular outlets, the (suprisingly extensive) RV power network, or public charging stations. &lt;em&gt;This is my Brooklyn tesla experience.&lt;/em&gt;&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;h2 id="zone-1:-home zone"&gt;Zone 1: Home Zone&lt;/h2&gt;
-
-&lt;p&gt;I imagine that most Tesla drivers live in Zone 1, where honestly there’s nothing to think about. The Oatmeal wrote a comic about just using the regular 110v outlet to charge his car at &lt;a href="http://theoatmeal.com/comics/tesla_model_s"&gt;http://theoatmeal.com/comics/tesla&lt;em&gt;model&lt;/em&gt;s&lt;/a&gt; not even bothering with a “fancy plug”. This gives you about 4 miles of charge per hour. If you drive for less then 40 miles a day and leave it plugged in for 10 hours at night the car is always full. (And even if it’s not, you probably are at home over the weekend enough to top off the rest.)&lt;/p&gt;
-
-&lt;p&gt;I have a house outside of the city I use in the summer, and I asked an electritian to put a drier plug in my garage, a standard 220volt 40 amp circuit, which cost a couple hundred dollars to install. This puts 17 miles of charge per hour on the car, so an overnight charge puts 170 miles per night on the car. Which is way more than my normal driving day, but cooincidently the distance of the house from Brooklyn, so once I get up there I’m ready to turn around the next morning&lt;/p&gt;
-
-&lt;p&gt;So if you live in Zone 1, charge-wise you never really need to think about anything.&lt;/p&gt;
-
-&lt;h2 id="zone-2:-highway-superchargers"&gt;Zone 2: Highway Superchargers&lt;/h2&gt;
-
-&lt;p&gt;The next thing is the supercharger network, which is amazing. It takes about 20 minutes to fill up halfway, and about 1 hour 10 minutes to fill up the 85 kWh battery. But there’s a better way.&lt;/p&gt;
-
-&lt;p&gt;&lt;img src="images/owning_a_tesla_in_brooklyn_1-7360f620.jpeg" /&gt;&lt;/p&gt;
-
-&lt;p&gt;The trick here is that since the battery charge faster when they are empty, you want to only charge what you need to get to the next charger. The more charge that’s in the battery, the slower it charges, which in practice means that you want “just enough” charge in the batteries to get you to the next charger. As a rule of thumb, it takes 20 minutes to go from 0% to 50%, then 20 minutes to go to 75%, then 20 minutes to go to 87%, etc. The return on investment time goes down the higher you charge it.&lt;/p&gt;
-
-&lt;p&gt;I tend to give myself about a 30% buffer, so if the route says I have 100 miles to go I try to get up to 130 miles range so I don’t need to think about driving speed. More buffer (50%) if its cold, if you have a lot of vertical, or if you are planning on speeding.&lt;/p&gt;
-
-&lt;p&gt;Range of the car at 85 mph is roughly half of the range at 55 mph, so speed has the largest factor on range.&lt;/p&gt;
-
-&lt;h2 id="zone-3:-range mode"&gt;Zone 3: Range mode&lt;/h2&gt;
-
-&lt;p&gt;Range anxiety is a real thing, but only for people who don’t own an electric car. You are driving around, slowly watching the battery meter go down down down, there’s no place obvious place to top it off, maybe you won’t charge it for a few days, unless you figure out a plan the car will just stop somewhere, probably in the middle of a highway… When you own a car in Brooklyn, this is the Zone you are in most of the time.&lt;/p&gt;
-
-&lt;p&gt;&lt;img src="images/owning_a_tesla_in_brooklyn_2-b5d5e39d.jpeg" /&gt;&lt;/p&gt;
-
-&lt;p&gt;What happens when you are driving and you run out of juice? Answer: no clue. Never happened. Of the Tesla owners that I’ve spoken to — and we are in a secret club where flash our little Tesla car keys to each other in liue of a handshake — they don’t know either. It happens about as much as you run out of gas, which I’ve never done either. It’s does take a little planning to avoid it, and you need to put some thought into it, but they are very simple thoughts to have.&lt;/p&gt;
-
-&lt;p&gt;The biggest difference with a ICE Car, or Internal Combustion Engine, is that there’s a hundred years of infrastructure built out there. You don’t need to think about putting gas in the car because there are gas stations everywhere, with the possible exception of right near where you need to return a rental car where you can never find anything. An while in fact the electric grid is in many many more places, regular outlets take forever to charge and are only practical if you are staying overnight, not if you are on the go.&lt;/p&gt;
-
-&lt;h2 id="brooklyn-charging"&gt;Brooklyn Charging&lt;/h2&gt;
-
-&lt;p&gt;When I need to top off, I’ll park the car in a garage that has a charger in it. There’s one in my neighborhood that is part of the ChargePoint network (&lt;a href="http://www.chargepoint.com"&gt;http://www.chargepoint.com&lt;/a&gt;). I signed up for that, they sent me a little RFID thingie, and I swipe it and plug in. I drop the car before work and head home with a full charge. This can take 8–9 hours to go from 40 mile left to fully charged. I tend to charge to 100%, rather than the recommended 90%, since I also tend to directly drive out of the city and so the battery is only full transiently.&lt;/p&gt;
-
-&lt;p&gt;There are free chargers at the Whole Foods, which are very slow and usually broken. It’s really more of a gimmick, but it works in so far as I shop and find reasons to hang out there which I never did before. It’s a nice place to hang out and talk to other electric car drivers.&lt;/p&gt;
-
-&lt;p&gt;Another in city option is the Supercharger in JFK. If you have phone calls to make, or want some undistracted time to get some work done, or want a nice drive down the belt parkway to enjoy the autopilot and catch up on some podcasts it works, but it’s a 3 hour process and traffic back always sucks.&lt;/p&gt;
-
-&lt;p&gt;Since I live 2 block from the new Brooklyn Tesla dealership I’m hoping there’s a charging solution there for me, but no word yet.&lt;/p&gt;
-
-&lt;h2 id="summer-driving"&gt;Summer Driving&lt;/h2&gt;
-
-&lt;p&gt;In the summer I can go a little more than 2 weeks driving in the city without charging it. However, I tend to go away on the weekends, so I hit a supercharger on my way out. The Paramus supercharger is about 30 miles away, so if I have more than 50 miles of range when I leave I stop there first. Newburgh is about 90 miles away, and it’s got a better resteraunt.&lt;/p&gt;
-
-&lt;p&gt;&lt;strong&gt;If you hit a super charger on the way in and out of the city and you go away every other weekend, you could probably not charge in the city at all during the summer. It’s more convient to top off before long trips though.&lt;/strong&gt;&lt;/p&gt;
-
-&lt;h2 id="winter-driving,-regen-and-phantom drain"&gt;Winter Driving, Regen and Phantom Drain&lt;/h2&gt;
-
-&lt;p&gt;&lt;img src="images/owning_a_tesla_in_brooklyn_3-25f4ae2b.jpeg" /&gt;&lt;/p&gt;
-
-&lt;p&gt;The winters are where things get very different. The regenerative braking only works when the batteries are a certain temperature, and if it’s say 40 degrees outside, the car isn’t going to warm up enough to full use it. I would figure that you need a good 30 minutes of driving to warm up the car. The preconditioning stuff only works if you plug in, and since you don’t plug in, no luck. When the temperature is lower, the regen just turns itself off and you are back to driving a car that &lt;em&gt;coasts&lt;/em&gt;! Quelle horror!&lt;/p&gt;
-
-&lt;p&gt;Between 50 and 30 degrees you lose 2–5 miles a night in phantom drain, which is energy that battery is using to keep itself warm. When it’s windy it seems to lose more drain. Around 20 degrees I’d figure you lose like 15 miles a night, which means that you need to be a lot more agressive in charging the car.&lt;/p&gt;
-
-&lt;p&gt;So when it’s cold, the car drives less effeciently because you lose regen, and then the battery uses a lot more energy keeping itself warm. &lt;strong&gt;You basically you need to plug it in once or twice a week to keep things safe.&lt;/strong&gt;&lt;/p&gt;
-
-&lt;h2 id="charging-in-the cold"&gt;Charging in the cold&lt;/h2&gt;
-
-&lt;p&gt;Everything is slow when it’s cold. I left the car at the airport for a few days, let it get nice and cold, and the supercharger didn’t work well when I returned. The car was probably 40 degrees and it was adding 10 miles per range rather than the normal 300+ miles per hour. I gave it about 15 minutes before I left which probably wasn’t enough for it to warm up.&lt;/p&gt;
-
-&lt;p&gt;To give you a sense of what cold is like, here is some data from a few winter weekends ago when we went up to Lake Placid and it was cold. We left the city with whatever charge we had, made a bathroom pitstop at the Newburgh charger, then had lunch at the Albany supercharger, where we tooled around for a bit and went to LLBean and Whole Foods. (I never went to WholeFoods before this car now that I think about it.) Then from there we went to Lake Placid. If we weren’t in the Tesla we probably would have taken a little less time for lunch, but in Zone 2 travelling the overall trip time is actually very similar.&lt;/p&gt;
-
-&lt;p&gt;Then we were in the mountains, in Zone 3. I emailed the hotel before I left and they provided me an extension cord to a regular wall plug. This was going to have to do. We left the car plugged in while we were there. If plugging in here didn’t work there were a few other options on plugshare.com. This is what the charging looked like, compared to what it should look like:&lt;/p&gt;
-
-&lt;p&gt;&lt;img src="images/owning_a_tesla_in_brooklyn_4-9c7c48c6.jpeg" /&gt;&lt;/p&gt;
-
-&lt;p&gt;The difference between the lines represent the energy it takes to keep the batteries in their operating temperature range. This is “phantom drain”. A 110 outlet is the “worst” way to charge, but its still enough to fill up while outside in the coldest weather in 3 days. Parking inside would have helped a lot as well.&lt;/p&gt;
-
-&lt;p&gt;Lake Placid is 133 miles from the Albany supercharger, so with a 50% buffer that’s about 200 miles. In regular weather then, eyeballing the chart you’d be good after 30 hours charging, and super cold weather than was doubled to 60 hours charging. Alternatively, you could change the way you drive and slow down and you don’t need to have quite so much buffer, though the car does need to warm up and that takes a lot of juice.&lt;/p&gt;
-
-&lt;p&gt;Here’s a graph of rate of charge vs outside temperature:&lt;/p&gt;
-
-&lt;p&gt;&lt;img src="images/owning_a_tesla_in_brooklyn_5-ada3fda8.jpeg" /&gt;&lt;/p&gt;
-
-&lt;p&gt;I was worried that it would get down to 0, since you aren’t supposed to keep the car below -20F for more than 24 hours, but no issues.&lt;/p&gt;
-
-&lt;p&gt;Handles great in the snow.&lt;/p&gt;
-
-&lt;h2 id="in-conclusion"&gt;In conclusion&lt;/h2&gt;
-
-&lt;p&gt;&lt;img src="images/owning_a_tesla_in_brooklyn_6-955100dc.jpeg" /&gt;&lt;/p&gt;
-
-&lt;p&gt;It totally works.&lt;/p&gt;
-</content>
-  </entry>
-  <entry>
-    <title>Inflight internet</title>
-    <link rel="alternate" href="http://willschenk.com/inflight-internet/"/>
-    <id>http://willschenk.com/inflight-internet/</id>
-    <published>2015-12-18T10:13:00-05:00</published>
-    <updated>2015-12-18T10:13:00-05:00</updated>
-    <author>
-      <name>Will Schenk</name>
-    </author>
-    <content type="html">&lt;p&gt;Say you are two people on a plane who need access to internet.  A flight pass costs $9.95, so that would be $19.90 for both.  Here&amp;#39;s how to get it for $8.95 instead:&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;Fire up the iOS simulator.&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;div class="row"&gt;&lt;div class="col-sm-4 col-xs-8"&gt;&lt;img src="images/wifi/simulator-233ceba2.jpg" /&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;ul&gt;
-&lt;li&gt;&lt;p&gt;Use the simulator to sign up for the mobile price of $8.95, rather than the computer price of $9.95.  Since you are signing up on your computer, once you have access the whole machine has access.&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;Turn on Internet Sharing over bluetooth in system preferences&lt;/p&gt;&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;div class="row"&gt;&lt;div class="col-sm-8"&gt;&lt;img src="images/wifi/sharing-8799b7fd.jpg" /&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;ul&gt;
-&lt;li&gt;Make your computer discoverable over bluetooth by opening up the blue tooth preferences:&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;div class="row"&gt;&lt;div class="col-sm-8"&gt;&lt;img src="images/wifi/bluetooth-59182088.jpg" /&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;ul&gt;
-&lt;li&gt;&lt;p&gt;On the second computer, turn &lt;em&gt;off&lt;/em&gt; wifi and turn &lt;em&gt;on&lt;/em&gt; bluetooth.  Connect to the first computer using bluetooth.  The first computer will ask if you want to pair, and say yes.&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;Once it&amp;#39;s connected, on the second computer say &amp;quot;Connect to Network&amp;quot; in the bluetooth menu.&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;Now you email in the sky.&lt;/p&gt;&lt;/li&gt;
-&lt;/ul&gt;
-</content>
-  </entry>
-  <entry>
-    <title>Using seed to explore APIs</title>
-    <link rel="alternate" href="http://willschenk.com/using-seed-to-explore/"/>
-    <id>http://willschenk.com/using-seed-to-explore/</id>
-    <published>2015-09-17T10:21:00-04:00</published>
-    <updated>2015-09-17T10:21:00-04:00</updated>
-    <author>
-      <name>Will Schenk</name>
-    </author>
-    <content type="html">&lt;p&gt;I&amp;#39;ve been working to update seed, which is HappyFunCorp&amp;#39;s app generator to make it easy to kick off MVPs.  Check out the website for more information.  One of the things that I&amp;#39;ve started to do is to seperate out the dependancies more, and being tutorials on how to use each of the different features.  After I link to that stuff, let&amp;#39;s walk through a way to combine different techniques we&amp;#39;ve discussed together.&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;Check out &lt;a href="http://seed.happyfuncorp.com"&gt;the site&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;Or watch the video:&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;div class="embed-responsive embed-responsive-16by9"&gt;
-  &lt;iframe src="https://www.youtube.com/embed/hCsPDaKHw6I?rel=0" allowfullscreen&gt;&lt;/iframe&gt;
-&lt;/div&gt;
-
-&lt;h2 id="the-basic-process"&gt;The basic process&lt;/h2&gt;
-
-&lt;ol&gt;
-&lt;li&gt;Get access to the API.&lt;/li&gt;
-&lt;li&gt;Open up a console and start playing with commands.&lt;/li&gt;
-&lt;li&gt;Start storing the data locally once we need to get more.&lt;/li&gt;
-&lt;li&gt;Play around with the data.&lt;/li&gt;
-&lt;li&gt;Design a UI around in.&lt;/li&gt;
-&lt;li&gt;Refactor the test &amp;quot;scripts&amp;quot; into ruby classes that fit that UI.&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;h2 id="using-seed,-oauth,-and-rake-to-explore-github-data"&gt;Using Seed, OAuth, and Rake to explore github data&lt;/h2&gt;
-
-&lt;p&gt;What I want to do is to look at all of the &lt;code&gt;Gemfile&lt;/code&gt;s for all of our projects, and see which gems are the most popular, which versions we are using, and if we can develop some more expertise around it.  But first, I want to get the data.&lt;/p&gt;
-
-&lt;p&gt;I could go to each of the repos in github, but there are well over a hundred so that doesn&amp;#39;t work.  Github has an API, which is great, but I need oauth2 to access it.  Let&amp;#39;s get going.&lt;/p&gt;
-
-&lt;h2 id="creating-a-github-application"&gt;Creating a github application&lt;/h2&gt;
-
-&lt;p&gt;The first step is to make sure you have a github application. &lt;/p&gt;
-
-&lt;ol&gt;
-&lt;li&gt;Go to &lt;a href="https://github.com/settings/developers"&gt;developer applications&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;Click &lt;em&gt;Register New Application&lt;/em&gt;&lt;/li&gt;
-&lt;li&gt;Enter in &lt;code&gt;http://localhost:3000/users/auth/github/callback&lt;/code&gt; as the callback URL.&lt;/li&gt;
-&lt;li&gt;Fill in whatever else.&lt;/li&gt;
-&lt;li&gt;&lt;em&gt;Resister the Application&lt;/em&gt;&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;At this point you should have the &lt;em&gt;Client ID&lt;/em&gt; and the &lt;em&gt;Client Secret&lt;/em&gt;.&lt;/p&gt;
-
-&lt;h2 id="create-a-seed_defaults-file"&gt;Create a seed_defaults file&lt;/h2&gt;
-
-&lt;p&gt;Once I create a remote app, I like to put the credentials into the &lt;code&gt;~/.seed_defaults&lt;/code&gt; file.  This will make it so the next time I generate a seed app, these are the default credentials that are used.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;GITHUB_APP_ID=replace with client id
-GITHUB_APP_SECRET=replace with client secret
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id="generate-the-app"&gt;Generate the app&lt;/h2&gt;
-
-&lt;p&gt;If you haven&amp;#39;t installed &lt;a href="http://seed.happyfuncorp.com"&gt;happy_seed&lt;/a&gt; yet, do so now by typing &lt;code&gt;gem install happy_seed&lt;/code&gt;.&lt;/p&gt;
-
-&lt;p&gt;Then generate the app:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ happy_seed rails project_stats
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Now it&amp;#39;s going to install things.  Inititally, just say no to everything.  Once it&amp;#39;s done, install the github generator:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ cd project_status
-$ rails g happy_seed:github
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;That will do its thing.  Then we need to create the database and get going:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ rake db:migrate
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id="ask-for-more-scope"&gt;Ask for more scope&lt;/h2&gt;
-
-&lt;p&gt;When the &lt;em&gt;github&lt;/em&gt; generator is run, it configures the oauth scope that it requests in &lt;code&gt;config/initializers/devise.rb&lt;/code&gt;.  We need to ask for a bit more permissions, so open up that file and change the scope requested to be &lt;code&gt;&amp;quot;user,repo,read:org&amp;quot;&lt;/code&gt;, so:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;config.omniauth :github, ENV[&amp;#39;GITHUB_APP_ID&amp;#39;], ENV[&amp;#39;GITHUB_APP_SECRET&amp;#39;], scope: &amp;quot;user,repo,read:org&amp;quot;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Now lets start the server and see what&amp;#39;s up:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ rails s
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;ol&gt;
-&lt;li&gt;Point your browser to &lt;a href="http://localhost:3000"&gt;http://localhost:3000&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;Select &amp;quot;Sign up&amp;quot; from the &amp;quot;Account&amp;quot; menu.&lt;/li&gt;
-&lt;li&gt;Press &amp;quot;Sign in with Github&amp;quot;&lt;/li&gt;
-&lt;li&gt;You should be bounced to github and you have to accept.&lt;/li&gt;
-&lt;li&gt;You should be back on localhost with the message &lt;code&gt;Successfully authenticated from Github account.&lt;/code&gt;&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;h2 id="lets-play"&gt;Lets play&lt;/h2&gt;
-
-&lt;ol&gt;
-&lt;li&gt;&lt;del&gt;Get access to the API.&lt;/del&gt;&lt;/li&gt;
-&lt;li&gt;Open up a console and start playing with commands.&lt;/li&gt;
-&lt;li&gt;Start storing the data locally once we need to get more.&lt;/li&gt;
-&lt;li&gt;Play around with the data.&lt;/li&gt;
-&lt;li&gt;Design a UI around in.&lt;/li&gt;
-&lt;li&gt;Refactor the test &amp;quot;scripts&amp;quot; into ruby classes that fit that UI.&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;Lets get in that console and see what we can do.  If you look at &lt;code&gt;app/models/user.rb&lt;/code&gt; you can see that there&amp;#39;s code to setup the github client, and we can access it like so:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;$ rails c
-Loading development environment (Rails 4.2.3)
-2.2.1 :001 &amp;gt; gc = User.first.github_client
-  User Load (0.2ms)  SELECT  &amp;quot;users&amp;quot;.* FROM &amp;quot;users&amp;quot;  ORDER BY &amp;quot;users&amp;quot;.&amp;quot;id&amp;quot; ASC LIMIT 1
-  User Load (0.2ms)  SELECT  &amp;quot;users&amp;quot;.* FROM &amp;quot;users&amp;quot;  ORDER BY &amp;quot;users&amp;quot;.&amp;quot;id&amp;quot; ASC LIMIT 1
-  Identity Load (0.4ms)  SELECT  &amp;quot;identities&amp;quot;.* FROM &amp;quot;identities&amp;quot; WHERE &amp;quot;identities&amp;quot;.&amp;quot;user_id&amp;quot; = ? AND &amp;quot;identities&amp;quot;.&amp;quot;provider&amp;quot; = ?  ORDER BY &amp;quot;identities&amp;quot;.&amp;quot;id&amp;quot; ASC LIMIT 1  [[&amp;quot;user_id&amp;quot;, 1], [&amp;quot;provider&amp;quot;, &amp;quot;github&amp;quot;]]
-  Identity Load (0.4ms)  SELECT  &amp;quot;identities&amp;quot;.* FROM &amp;quot;identities&amp;quot; WHERE &amp;quot;identities&amp;quot;.&amp;quot;user_id&amp;quot; = ? AND &amp;quot;identities&amp;quot;.&amp;quot;provider&amp;quot; = ?  ORDER BY &amp;quot;identities&amp;quot;.&amp;quot;id&amp;quot; ASC LIMIT 1  [[&amp;quot;user_id&amp;quot;, 1], [&amp;quot;provider&amp;quot;, &amp;quot;github&amp;quot;]]
- =&amp;gt; #&amp;lt;Octokit::Client:0x007fe1f7bec7e8 
-
-2.2.1 :002 &amp;gt; gc.org_repos( &amp;#39;HappyFunCorp&amp;#39;, {:type =&amp;gt; &amp;#39;private&amp;#39;} ).count
- =&amp;gt; 30 
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Ok, now we can start figuring out what we need to do to get access to the data.  We have an authenticated user account, and we can start hitting the API.  I know for a fact that I have way more than 30 repos -- I mean, seriously -- so first thing is to figure out why that is and how to get more.  It&amp;#39;s probably related to pagination.  &lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;2.2.1 :003 &amp;gt; gc.org_repos( &amp;#39;HappyFunCorp&amp;#39;, {:type =&amp;gt; &amp;#39;private&amp;#39;, per_page: 100} ).count
- =&amp;gt; 100 
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;OK, looking through the &lt;a href="https://github.com/octokit/octokit.rb/issues/255"&gt;octokit issues&lt;/a&gt; this can be dealt with by turning &lt;code&gt;auto_paginate: true&lt;/code&gt; on when we load up the client.  So let&amp;#39;s edit &lt;code&gt;app/models/user.rb&lt;/code&gt; to do that:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;@github_client ||= Octokit::Client.new(access_token: github.accesstoken, auto_paginate: true)
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Back to the console, do &lt;code&gt;reload!&lt;/code&gt; and load up our client again.  Notice that I&amp;#39;m making this a one liner, since we&amp;#39;re going to be doing it over and over its nice to use the arrow keys.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;2.2.1 :004 &amp;gt; reload!; gc = User.first.github_client
-Reloading...
-  User Load (0.1ms)  SELECT  &amp;quot;users&amp;quot;.* FROM &amp;quot;users&amp;quot;  ORDER BY &amp;quot;users&amp;quot;.&amp;quot;id&amp;quot; ASC LIMIT 1
-  User Load (0.1ms)  SELECT  &amp;quot;users&amp;quot;.* FROM &amp;quot;users&amp;quot;  ORDER BY &amp;quot;users&amp;quot;.&amp;quot;id&amp;quot; ASC LIMIT 1
-  Identity Load (0.2ms)  SELECT  &amp;quot;identities&amp;quot;.* FROM &amp;quot;identities&amp;quot; WHERE &amp;quot;identities&amp;quot;.&amp;quot;user_id&amp;quot; = ? AND &amp;quot;identities&amp;quot;.&amp;quot;provider&amp;quot; = ?  ORDER BY &amp;quot;identities&amp;quot;.&amp;quot;id&amp;quot; ASC LIMIT 1  [[&amp;quot;user_id&amp;quot;, 1], [&amp;quot;provider&amp;quot;, &amp;quot;github&amp;quot;]]
-  Identity Load (0.2ms)  SELECT  &amp;quot;identities&amp;quot;.* FROM &amp;quot;identities&amp;quot; WHERE &amp;quot;identities&amp;quot;.&amp;quot;user_id&amp;quot; = ? AND &amp;quot;identities&amp;quot;.&amp;quot;provider&amp;quot; = ?  ORDER BY &amp;quot;identities&amp;quot;.&amp;quot;id&amp;quot; ASC LIMIT 1  [[&amp;quot;user_id&amp;quot;, 1], [&amp;quot;provider&amp;quot;, &amp;quot;github&amp;quot;]]
- =&amp;gt; #&amp;lt;Octokit::Client:0x007fe1f7d986f0 @access_token=&amp;quot;*.......
-
-2.2.1 :005 &amp;gt; gc.org_repos( &amp;#39;HappyFunCorp&amp;#39;, {:type =&amp;gt; &amp;#39;private&amp;#39;} ).count
- =&amp;gt; 169 
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;OK, that looks better.  That will give us a list of all the repos, so now we just need to see how to get the contents of our file, and then we can put it all together.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;2.2.1 :006 &amp;gt; repo = gc.org_repos( &amp;#39;HappyFunCorp&amp;#39;, {:type =&amp;gt; &amp;#39;private&amp;#39;} ).first
- =&amp;gt; {:id=&amp;gt;988713,
- :name=&amp;gt;&amp;quot;benchcoach&amp;quot;,
- :full_name=&amp;gt;&amp;quot;HappyFunCorp/benchcoach&amp;quot;,
- :owner=&amp;gt;
- .....
-
-2.2.1 :007 &amp;gt; repo.full_name
- =&amp;gt; &amp;quot;HappyFunCorp/benchcoach&amp;quot; 
-
-2.2.1 :008 &amp;gt; content = gc.contents repo.full_name, path: &amp;#39;Gemfile&amp;#39;
- =&amp;gt; {:name=&amp;gt;&amp;quot;Gemfile&amp;quot;,
- :path=&amp;gt;&amp;quot;Gemfile&amp;quot;,
- :sha=&amp;gt;&amp;quot;1d67bb85e43adab5b68ecc0eb3a5304e6ee2588e&amp;quot;,....
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Looking at this, we see that github returns the contents of the file base64 encoded.  I guess that makes sense, so if we want to print it out:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;2.2.1 :009 &amp;gt; Base64.decode64 content.content
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id="using-rake-to-pull-the-data-down"&gt;Using Rake to pull the data down&lt;/h2&gt;
-
-&lt;ol&gt;
-&lt;li&gt;&lt;del&gt;Get access to the API.&lt;/del&gt;&lt;/li&gt;
-&lt;li&gt;&lt;del&gt;Open up a console and start playing with commands.&lt;/del&gt;&lt;/li&gt;
-&lt;li&gt;Start storing the data locally once we need to get more.&lt;/li&gt;
-&lt;li&gt;Play around with the data.&lt;/li&gt;
-&lt;li&gt;Design a UI around in.&lt;/li&gt;
-&lt;li&gt;Refactor the test &amp;quot;scripts&amp;quot; into ruby classes that fit that UI.&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;Lets use rake to start managing the data.  We&amp;#39;re going to be using some of the techniques that were outlined in the &lt;a href="/using-rake-for-dataflow-programming-and-data-science/]"&gt;using rake for dataflow programming and data science&lt;/a&gt; post.  First step is to create a &lt;code&gt;lib/tasks/github.rake&lt;/code&gt; file that we&amp;#39;re going to put our tasks.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;require &amp;#39;fileutils&amp;#39;
-
-file &amp;quot;data/projects.json&amp;quot; do
-  Rake::Task[&amp;quot;environment&amp;quot;].invoke
-  FileUtils.mkdir_p &amp;quot;data&amp;quot;
-
-  gc = User.first.github_client
-
-  data = gc.org_repos( &amp;#39;HappyFunCorp&amp;#39;, {:type =&amp;gt; &amp;#39;private&amp;#39;} ).collect do |x|
-    { name: x[:name],
-      full_name: x[:full_name],
-      url: x[:url] }
-  end
-
-  File.open( &amp;quot;data/projects.json&amp;quot;, &amp;quot;w&amp;quot; ) do |out|
-    out.puts JSON.unparse( data )
-  end
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;&lt;em&gt;Be sure to change the &lt;code&gt;HappyFunCorp&lt;/code&gt; to your organization, or use the &lt;code&gt;repos&lt;/code&gt; call instead of the organization one.&lt;/em&gt;&lt;/p&gt;
-
-&lt;p&gt;Now lets run &lt;code&gt;rake data/projects.json&lt;/code&gt;.  If you run it a second time, notice that rake returns imediately and doesn&amp;#39;t hit the remote server.&lt;/p&gt;
-
-&lt;ol&gt;
-&lt;li&gt;The &lt;code&gt;file&lt;/code&gt; task only runs if the file doesn&amp;#39;t exist.&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;Rake::Task[&amp;quot;environment&amp;quot;].invoke&lt;/code&gt; is a way to ensure that a task as been run without forcing it to run.&lt;/li&gt;
-&lt;li&gt;The API calls are from our console experiments.&lt;/li&gt;
-&lt;li&gt;Just save it to a file.&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;OK, now lets be able to loop over everything to load the files that we want.  First we define a method that lets us define a task to loop over all the entries in a JSON array, and then we&amp;#39;ll call it with our block which loads up the contents.  (Add this to the end of the &lt;code&gt;github.rake&lt;/code&gt; file)&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;def for_each_elem( name, file )
-  task name =&amp;gt; file do
-    JSON.parse( File.read( file ) ).each do |record|
-      yield record
-    end
-  end
-end
-
-for_each_elem &amp;quot;load_gemfiles&amp;quot;, &amp;quot;data/projects.json&amp;quot; do |repo|
-  outfile = &amp;quot;data/gemfiles/#{repo[&amp;#39;name&amp;#39;]}.Gemfile.lock&amp;quot;
-  FileUtils.mkdir_p &amp;quot;data/gemfiles&amp;quot;
-
-  file outfile do
-    Rake::Task[&amp;quot;environment&amp;quot;].invoke
-
-    gc = User.first.github_client
-
-    begin
-      content = gc.contents repo[&amp;#39;full_name&amp;#39;], path: &amp;#39;Gemfile.lock&amp;#39;
-
-      File.open outfile, &amp;quot;w&amp;quot; do |out|
-        out.puts Base64.decode64 content.content
-      end
-    rescue Octokit::NotFound
-      puts &amp;quot;No Gemfile.lock found for #{repo[&amp;#39;full_name&amp;#39;]}&amp;quot;
-    end
-  end
-
-  Rake::Task[outfile].invoke
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;And run it, &lt;code&gt;rake load_gemfiles&lt;/code&gt;.  Depending upon how many repos you have, this could take a few seconds.  (Also make sure you&amp;#39;ve updated the organization!)&lt;/p&gt;
-
-&lt;ol&gt;
-&lt;li&gt;Define a file task for each output file, that we will &lt;code&gt;invoke&lt;/code&gt; at the very end.&lt;/li&gt;
-&lt;li&gt;Inside the task, make sure that the &lt;code&gt;environment&lt;/code&gt; is loaded.&lt;/li&gt;
-&lt;li&gt;Pull down the contents of the Gemfile.lock from the API.&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;If you run this a second time, notice that it only attempts to load from the files that weren&amp;#39;t loaded before.&lt;/p&gt;
-
-&lt;p&gt;For fun, delete the &lt;code&gt;data&lt;/code&gt; directly and run the rake task again.  BOOM!&lt;/p&gt;
-
-&lt;h2 id="massaging-the-data-into-something-usable"&gt;Massaging the data into something usable&lt;/h2&gt;
-
-&lt;ol&gt;
-&lt;li&gt;&lt;del&gt;Get access to the API.&lt;/del&gt;&lt;/li&gt;
-&lt;li&gt;&lt;del&gt;Open up a console and start playing with commands.&lt;/del&gt;&lt;/li&gt;
-&lt;li&gt;&lt;del&gt;Start storing the data locally once we need to get more.&lt;/del&gt;&lt;/li&gt;
-&lt;li&gt;Play around with the data.&lt;/li&gt;
-&lt;li&gt;Design a UI around in.&lt;/li&gt;
-&lt;li&gt;Refactor the test &amp;quot;scripts&amp;quot; into ruby classes that fit that UI.&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;OK, now that we have all the data, lets figure out how to slice and dice it.  Lets just wire together some standard UNIX tools to filter and get some info.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;for_each_elem &amp;quot;filter_gemfiles&amp;quot;, &amp;quot;data/projects.json&amp;quot; do |repo|
-  sourcefile = &amp;quot;data/gemfiles/#{repo[&amp;#39;name&amp;#39;]}.Gemfile.lock&amp;quot;
-  outfile = &amp;quot;data/filtered/#{repo[&amp;#39;name&amp;#39;]}.gems&amp;quot;
-  FileUtils.mkdir_p &amp;quot;data/filtered&amp;quot;
-
-  if File.exists?( sourcefile )
-    file outfile do
-      system( &amp;quot;awk &amp;#39;/^    [^ ]/ { print $1, $2 }&amp;#39; #{sourcefile} &amp;gt; #{outfile}&amp;quot; )
-    end
-    Rake::Task[outfile].invoke
-  end
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Running &lt;code&gt;rake filter_gemfiles&lt;/code&gt; will go through and only show the specific gems that were locked out the Gemfile.locks.  Obviously, filtering the file based on the fact that it has exactly 4 spaces isn&amp;#39;t robust, but it works.&lt;/p&gt;
-
-&lt;p&gt;Lets add a couple of other nifty methods:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;file &amp;quot;data/versioned.list&amp;quot; do
-  system( &amp;quot;cat data/filtered/* | sort | uniq -c | sort -rn &amp;gt; data/versioned.list&amp;quot; )
-end
-
-file &amp;quot;data/gems.list&amp;quot; do
-  system( &amp;quot;awk &amp;#39;{print $1}&amp;#39; data/filtered/* | sort | uniq -c | sort -rn &amp;gt; data/gems.list&amp;quot;)
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;I&amp;#39;m going to stop here, but in case you are wondering the top gems that we use are:&lt;/p&gt;
-
-&lt;ol&gt;
-&lt;li&gt;(82) json&lt;/li&gt;
-&lt;li&gt;(81) tzinfo&lt;/li&gt;
-&lt;li&gt;(81) i18n&lt;/li&gt;
-&lt;li&gt;(81) activesupport&lt;/li&gt;
-&lt;li&gt;(79) rack&lt;/li&gt;
-&lt;li&gt;(79) multi_json&lt;/li&gt;
-&lt;li&gt;(78) sass&lt;/li&gt;
-&lt;li&gt;(77) rack-test&lt;/li&gt;
-&lt;li&gt;(76) tilt&lt;/li&gt;
-&lt;li&gt;(76) mime-types&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;h2 id="repeatable-data-in-10-minutes"&gt;Repeatable data in 10 minutes&lt;/h2&gt;
-
-&lt;p&gt;There&amp;#39;s lots of stuff you can do from there, the most likely one being &amp;quot;sending an email and forgetting about it.&amp;quot;  But lets look at what we have.&lt;/p&gt;
-
-&lt;ol&gt;
-&lt;li&gt;The access key isn&amp;#39;t hard coded anywhere.  When you come back to this, if it expires, you just reconnect on the website.&lt;/li&gt;
-&lt;li&gt;Way easier to get access keys this way, only a few oauth providers make this simple.  (Twitter does, for example, github doesn&amp;#39;t.)&lt;/li&gt;
-&lt;li&gt;There&amp;#39;s a direct process transitioning from &amp;#39;playing around&amp;#39; to automated.&lt;/li&gt;
-&lt;li&gt;Loading the data from the remote API is automated and repeatable.  If you&amp;#39;ve setup the dependancies correctly, you can run the rake tasks and things magically get up to date.&lt;/li&gt;
-&lt;li&gt;If you do want to build a UI around this, you already have a webapp up and running...&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;Importantly, this is something that you can get up and going with in under 10 minutes, at least if you know how the API works.  It takes less that 1 minute to get to the point where you have an authenticated client to the remote service and you can spend time exploring.&lt;/p&gt;
-
-&lt;p&gt;One of the reasons I like having seed around to help prototype and explore ideas!&lt;/p&gt;
-
-&lt;p&gt;Source code can be found: &lt;a href="https://github.com/wschenk/project_stats_demo"&gt;https://github.com/wschenk/project_stats_demo&lt;/a&gt;&lt;/p&gt;
-</content>
-  </entry>
-  <entry>
-    <title>Building a GUI for managing middleman blogs</title>
-    <link rel="alternate" href="http://willschenk.com/building-a-gui-for-managing-middleman-blogs/"/>
-    <id>http://willschenk.com/building-a-gui-for-managing-middleman-blogs/</id>
-    <published>2015-07-29T20:00:00-04:00</published>
-    <updated>2015-07-29T20:00:00-04:00</updated>
-    <author>
-      <name>Will Schenk</name>
-    </author>
-    <content type="html">&lt;p&gt;Can we make static site generators work like a normal site? Lets take a look at how we&amp;#39;d start to implement &lt;a href="/slow-data-and-fast-sites/"&gt;Slow Data and Fast Sites&lt;/a&gt; using the example of building an admin UI for a Middleman blog.&lt;/p&gt;
-
-&lt;h2 id="tldr"&gt;TLDR&lt;/h2&gt;
-
-&lt;p&gt;Given a middleman app with &lt;code&gt;middleman-blog&lt;/code&gt; and &lt;code&gt;middleman-blog-drafts&lt;/code&gt; configured:&lt;/p&gt;
-
-&lt;ol&gt;
-&lt;li&gt;Add &lt;code&gt;middleman-blog-ui&lt;/code&gt; in your &lt;code&gt;Gemfile&lt;/code&gt;.  &lt;em&gt;This document describes how &lt;code&gt;middleman-blog-ui&lt;/code&gt; works.&lt;/em&gt;&lt;/li&gt;
-&lt;li&gt;Add &lt;code&gt;activate :blog_ui&lt;/code&gt; in &lt;code&gt;config.rb&lt;/code&gt;&lt;/li&gt;
-&lt;li&gt;Start &lt;code&gt;middleman server&lt;/code&gt;&lt;/li&gt;
-&lt;li&gt;Visit &lt;a href="http://localhost:4567/admin"&gt;http://localhost:4567/admin&lt;/a&gt;.&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;And now you are living in the fabulous world where you can, from your browser:&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;Edit existing drafts and posts&lt;/li&gt;
-&lt;li&gt;Create new drafts&lt;/li&gt;
-&lt;li&gt;Publish drafts into posts&lt;/li&gt;
-&lt;li&gt;Run some basic &lt;code&gt;git&lt;/code&gt; commands.&lt;/li&gt;
-&lt;li&gt;Run &lt;code&gt;middleman build&lt;/code&gt;&lt;/li&gt;
-&lt;li&gt;Run &lt;code&gt;middleman deploy&lt;/code&gt;&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h2 id="why-do-this"&gt;Why do this&lt;/h2&gt;
-
-&lt;p&gt;This is explained in more detail in the  &lt;a href="/slow-data-and-fast-sites/"&gt;Slow Data and Fast Sites&lt;/a&gt; post, but basically what we&amp;#39;re trying to do it seperate out runtime tooling with development time tooling.  &lt;em&gt;Future work will be around differentiating when components are rendered and from which data source.&lt;/em&gt;&lt;/p&gt;
-
-&lt;p&gt;Static sites have a huge runtime benefit, but actually setting them up and running them can &lt;a href="http://veekaybee.github.io/static-sites-suck/"&gt;really suck unless you already know how to do it&lt;/a&gt;.  This is a proof of concept of how to add a CMS to a static site so that it&amp;#39;s easier to manage.  This doesn&amp;#39;t address the &amp;quot;pain in the ass to setup&amp;quot; part, but it helps with the usability.&lt;/p&gt;
-
-&lt;p&gt;Lets walk through what we&amp;#39;re doing if we were to implement this in your own app directly.  The gem packages this up with a slightly different directory scheme, but the code below is the same but slightly easier to understand.&lt;/p&gt;
-
-&lt;h2 id="the-basic-idea"&gt;The basic idea&lt;/h2&gt;
-
-&lt;p&gt;We&amp;#39;re going to add a static JavaScript application in the &lt;code&gt;source/admin&lt;/code&gt; directory which will interact with the local filesystem and middleman install.  This application will consume data from your middleman app on the local system, in the &amp;quot;development&amp;quot; environment, such as the lists of published and draft articles, and will interact with a API server that will be mounted as part of the middleman preview server.  This will allow the Javascript app to change the filesystem, which will in turn be monitored and rendered by the middleman application.  &lt;/p&gt;
-
-&lt;p&gt;Examples of the commands that can be triggered are:&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;create new draft&lt;/li&gt;
-&lt;li&gt;publish draft into article&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;git status&lt;/code&gt;&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;bundle exec middleman build&lt;/code&gt;&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;&lt;svg width="255pt" height="260pt" viewBox="0.00 0.00 255.34 260.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"&gt;&lt;g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 256)"&gt;&lt;title&gt;G&lt;/title&gt;&lt;polygon fill="white" stroke="none" points="-4,4 -4,-256 251.341,-256 251.341,4 -4,4"/&gt;&amp;lt;!-- app --&amp;gt;&lt;g id="node1" class="node"&gt;&lt;title&gt;app&lt;/title&gt;&lt;polygon fill="none" stroke="black" points="142.136,-252 0.722016,-252 0.722016,-216 142.136,-216 142.136,-252"/&gt;&lt;text text-anchor="middle" x="71.4292" y="-229.8" font-family="Times,serif" font-size="14.00"&gt;Static Middleman Site&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- admin --&amp;gt;&lt;g id="node2" class="node"&gt;&lt;title&gt;admin&lt;/title&gt;&lt;polygon fill="none" stroke="black" points="154.788,-36 0.0707361,-36 0.0707361,-0 154.788,-0 154.788,-36"/&gt;&lt;text text-anchor="middle" x="77.4292" y="-13.8" font-family="Times,serif" font-size="14.00"&gt;Admin JS FrontEnd App&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- admin&amp;#45;&amp;gt;app --&amp;gt;&lt;g id="edge5" class="edge"&gt;&lt;title&gt;admin&amp;#45;&amp;gt;app&lt;/title&gt;&lt;path fill="none" stroke="black" d="M66.8041,-36.444C61.3313,-46.4566 55.2313,-59.4912 52.4292,-72 42.0373,-118.39 53.6295,-173.651 62.7198,-205.883"/&gt;&lt;polygon fill="black" stroke="black" points="59.4841,-207.285 65.6713,-215.885 66.1979,-205.303 59.4841,-207.285"/&gt;&lt;/g&gt;&amp;lt;!-- api --&amp;gt;&lt;g id="node3" class="node"&gt;&lt;title&gt;api&lt;/title&gt;&lt;polygon fill="none" stroke="black" points="181.916,-108 60.9429,-108 60.9429,-72 181.916,-72 181.916,-108"/&gt;&lt;text text-anchor="middle" x="121.429" y="-85.8" font-family="Times,serif" font-size="14.00"&gt;Sinatra API Server&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- admin&amp;#45;&amp;gt;api --&amp;gt;&lt;g id="edge4" class="edge"&gt;&lt;title&gt;admin&amp;#45;&amp;gt;api&lt;/title&gt;&lt;path fill="none" stroke="black" d="M88.3056,-36.3034C93.4208,-44.4411 99.6247,-54.311 105.274,-63.2987"/&gt;&lt;polygon fill="black" stroke="black" points="102.393,-65.2919 110.678,-71.8957 108.319,-61.5667 102.393,-65.2919"/&gt;&lt;/g&gt;&amp;lt;!-- api&amp;#45;&amp;gt;app --&amp;gt;&lt;g id="edge3" class="edge"&gt;&lt;title&gt;api&amp;#45;&amp;gt;app&lt;/title&gt;&lt;path fill="none" stroke="black" d="M109.321,-108.433C102.869,-118.442 95.2835,-131.477 90.4292,-144 82.6849,-163.979 77.8136,-187.768 74.9446,-205.723"/&gt;&lt;polygon fill="black" stroke="black" points="71.4545,-205.398 73.4447,-215.804 78.3783,-206.428 71.4545,-205.398"/&gt;&lt;/g&gt;&amp;lt;!-- cmds --&amp;gt;&lt;g id="node4" class="node"&gt;&lt;title&gt;cmds&lt;/title&gt;&lt;polygon fill="none" stroke="black" points="247.254,-180 99.6049,-180 99.6049,-144 247.254,-144 247.254,-180"/&gt;&lt;text text-anchor="middle" x="173.429" y="-157.8" font-family="Times,serif" font-size="14.00"&gt;Middleman Commands&lt;/text&gt;&lt;/g&gt;&amp;lt;!-- api&amp;#45;&amp;gt;cmds --&amp;gt;&lt;g id="edge2" class="edge"&gt;&lt;title&gt;api&amp;#45;&amp;gt;cmds&lt;/title&gt;&lt;path fill="none" stroke="black" d="M134.283,-108.303C140.454,-116.611 147.966,-126.723 154.753,-135.859"/&gt;&lt;polygon fill="black" stroke="black" points="151.95,-137.955 160.723,-143.896 157.569,-133.781 151.95,-137.955"/&gt;&lt;/g&gt;&amp;lt;!-- cmds&amp;#45;&amp;gt;app --&amp;gt;&lt;g id="edge1" class="edge"&gt;&lt;title&gt;cmds&amp;#45;&amp;gt;app&lt;/title&gt;&lt;path fill="none" stroke="black" d="M148.477,-180.124C135.388,-189.107 119.169,-200.237 104.993,-209.966"/&gt;&lt;polygon fill="black" stroke="black" points="102.742,-207.266 96.4771,-215.81 106.703,-213.038 102.742,-207.266"/&gt;&lt;/g&gt;&lt;/g&gt;&lt;/svg&gt;&lt;/p&gt;
-
-&lt;p&gt;Let go through each of the components as if we were building them in our app directly.  The &lt;code&gt;gem&lt;/code&gt; does a lot of this for you, but it&amp;#39;s always nice to see how it works.&lt;/p&gt;
-
-&lt;h2 id="static-middleman-site"&gt;Static Middleman Site&lt;/h2&gt;
-
-&lt;p&gt;We&amp;#39;re going to add our files in &lt;code&gt;source/admin&lt;/code&gt;, and &lt;code&gt;source/javascript/admin&lt;/code&gt; and &lt;code&gt;source/stylesheets/admin.scss&lt;/code&gt;.  All of these files will be rendered in development mode, so when the server is running locally and you load up &lt;a href="http://localhost:4567/admin"&gt;http://localhost:4567/admin&lt;/a&gt; we can use the middleman build process to load up our UI.  This, in turn, will use AJAX to pull in data from the running middleman instance.&lt;/p&gt;
-
-&lt;p&gt;Inside of &lt;code&gt;config.rb&lt;/code&gt;, we tell middleman about our pages, and we tell the build process to ignore these files as part of the build process since we don&amp;#39;t want to release them into production:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;page &amp;quot;/admin/*html&amp;quot;, layout: &amp;quot;admin/layout&amp;quot;
-
-# Build-specific configuration
-configure :build do
-  ignore &amp;#39;/admin/*&amp;#39;
-  ignore &amp;#39;/stylesheets/admin/*&amp;#39;
-  ignore &amp;#39;/javascripts/admin/*&amp;#39;
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;If they were not ignored, then you would be deploying a read-only version of the admin tools, since the production build would include the javascript application but not the API which is needed to make changes.&lt;/p&gt;
-
-&lt;p&gt;This will allow us to create files like &lt;code&gt;/source/admin/drafts.json.erb&lt;/code&gt;:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="erb"&gt;&amp;lt;% d = drafts.collect do |d|
-    { path: d.path, title: d.title }
-  end
-%&amp;gt;&amp;lt;%= 
-  {drafts: d }.to_json
-%&amp;gt;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;That we can load from our JS app like:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="js"&gt;$.get( &amp;#39;/admin/drafts.json&amp;#39; ).then( function( data ) { console.log( data ) } );
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Note that when we do &lt;code&gt;middleman build&lt;/code&gt; these files &lt;em&gt;will not&lt;/em&gt; be generated, since we&amp;#39;ve specified them as &lt;code&gt;ignore&lt;/code&gt;.  These files only are in the &lt;code&gt;:development&lt;/code&gt; environment.&lt;/p&gt;
-
-&lt;h2 id="the-sinatra-app"&gt;The Sinatra App&lt;/h2&gt;
-
-&lt;p&gt;That&amp;#39;s fine for static data, or data that can be exposed using normal middleman ways of doing things, but we&amp;#39;ll also want to be able to interact with the filesystem and run commands.  It&amp;#39;s also going to be useful to interact with the middleman &lt;em&gt;Sitemap&lt;/em&gt; as it understands it, so we can build a simple sinatra app that acts as a bridge.  The current version of the code I&amp;#39;m using for this blog can be found &lt;a href="https://github.com/HappyFunCorp/middleman-blog-ui/blob/master/lib/middleman/blog/ui/api_server.rb"&gt;on github&lt;/a&gt;.&lt;/p&gt;
-
-&lt;p&gt;First we need to &lt;code&gt;require&lt;/code&gt; and &lt;code&gt;mount&lt;/code&gt; our app on &lt;code&gt;config.rb&lt;/code&gt;.  This is done like so:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;require &amp;#39;lib/apiserver.rb&amp;#39;
-
-map &amp;quot;/api&amp;quot; do
-  run ApiServer
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;The commands we want to support are:&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;&lt;code&gt;get /api/post&lt;/code&gt; - load a specific post and metadata&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;post /api/post&lt;/code&gt; - save a post and update metadata&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;post /api/images&lt;/code&gt; - upload an image (for drag and drop) (not implemented)&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;post /api/draft&lt;/code&gt; - create a new draft post&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;post /api/publish&lt;/code&gt; - change a draft into an article&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;post /api/update&lt;/code&gt; - run &lt;code&gt;git pull origin master 2&amp;gt;&amp;amp;1&lt;/code&gt;&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;post /api/diff&lt;/code&gt; - run &lt;code&gt;git diff 2&amp;gt;$1&lt;/code&gt;&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;post /api/status&lt;/code&gt; - run &lt;code&gt;git status 2&amp;gt;&amp;amp;1&lt;/code&gt;&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;post /api/build&lt;/code&gt; - run &lt;code&gt;bundle exec middleman build 2&amp;gt;&amp;amp;1&lt;/code&gt;&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;post /api/deploy&lt;/code&gt; - run &lt;code&gt;bundle exec middleman deploy 2&amp;gt;&amp;amp;1&lt;/code&gt;&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;To reiterate right now the code is in more of a proof of concept, butso please feel free to make suggestions. Lets take a look at a few of these methods in &lt;code&gt;lib/api_server.rb&lt;/code&gt;:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="rb"&gt;require &amp;#39;sinatra/base&amp;#39;
-require &amp;#39;sinatra/json&amp;#39;
-
-class ApiServer &amp;lt; Sinatra::Base
-  get &amp;#39;/&amp;#39; do
-    &amp;quot;This is the api server&amp;quot;
-  end
-
-  get &amp;#39;/post&amp;#39; do
-    app = load_app
-
-    logger.info &amp;quot;Looking up #{params[:path]}&amp;quot;
-
-    file = app.sitemap.find_resource_by_path params[:path] if params[:path]
-
-    if !file
-      status 404
-      json error: &amp;quot;Unknown path #{params[:path]}&amp;quot;
-    else
-      raw = File.read file.source_file
-      body = raw.gsub( /^---\n.*?---\n*/m, &amp;quot;&amp;quot; ) # Remove the preyaml
-
-      json meta: file.data, content: body
-    end
-  end
-
-  private
-  def load_app
-    opts = {}
-
-    app = ::Middleman::Application.server.inst do
-      set :environment, opts[:environment].to_sym if opts[:environment]
-
-      logger
-    end
-
-    app
-  end
-
-  def logger
-    ::Middleman::Logger.singleton( 1 )
-  end
-end
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id="the-javascript-app"&gt;The Javascript App&lt;/h2&gt;
-
-&lt;p&gt;I also wanted to see how to build this in &lt;a href="http://facebook.github.io/react/index.html"&gt;React&lt;/a&gt; and &lt;a href="https://github.com/reflux/refluxjs"&gt;Reflux&lt;/a&gt; to start exploring how we can start to add build-type rendering into the equation.  While this doesn&amp;#39;t do any server side rendering, its still good to explore how a React app actually works.&lt;/p&gt;
-
-&lt;p&gt;The main html file simple calls &lt;code&gt;React.render( React.createElement(App, null), document.getElementById(&amp;#39;content&amp;#39;) );&lt;/code&gt; to setup the page.  The &lt;a href="https://github.com/HappyFunCorp/middleman-blog-ui/blob/master/source/javascripts/admin/components/app.js.coffee"&gt;App&lt;/a&gt; component works off of the &lt;a href="https://github.com/HappyFunCorp/middleman-blog-ui/blob/master/source/javascripts/admin/stores/article.coffee"&gt;pathStore&lt;/a&gt; component, which keeps track of what page the user is currently editing.  Lets take a quick look at how the &lt;a href="https://github.com/HappyFunCorp/middleman-blog-ui/blob/master/source/javascripts/admin/components/dashboard_draft_list.js.coffee"&gt;DashboardDraftList&lt;/a&gt; component works:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="coffeescript"&gt;@DashboardDraftList = React.createClass
-  mixins: [Reflux.connect(draftStore)],
-
-  getInitialState: -&amp;gt;
-    drafts: []
-
-  componentDidMount: -&amp;gt; updateDraftList()
-
-  render: -&amp;gt;
-    drafts = @state.drafts.map (item) -&amp;gt;
-      &amp;lt;li key={item.path}&amp;gt;&amp;lt;a onClick={viewPath.bind(this, item.path)}&amp;gt;{item.title}&amp;lt;/a&amp;gt;&amp;lt;/li&amp;gt;
-
-    &amp;lt;div className=&amp;quot;maincontent&amp;quot;&amp;gt;
-      &amp;lt;h1&amp;gt;Drafts&amp;lt;/h1&amp;gt;
-
-      &amp;lt;ul className=&amp;quot;nav nav-pills nav-stacked&amp;quot;&amp;gt;
-        {drafts}
-      &amp;lt;/ul&amp;gt;
-    &amp;lt;/div&amp;gt;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;The first thing that this does is wire itself up to the &lt;code&gt;draftStore&lt;/code&gt; store which manages the communication to the server and the state received from the server.  When this changes, &lt;code&gt;draftStore&lt;/code&gt; will trigger a state change and all components that have been connected will receive a &lt;code&gt;setState&lt;/code&gt; message, which will then call the &lt;code&gt;render&lt;/code&gt; method of the component keeping the UI up to date.   As part of the React component life cycle &lt;code&gt;componentDidMount&lt;/code&gt;, we call the &lt;code&gt;updateDraftList()&lt;/code&gt; action when the component is first loaded on the page.  This is defined in &lt;a href="https://github.com/HappyFunCorp/middleman-blog-ui/blob/master/source/javascripts/admin/stores/drafts.coffee"&gt;drafts store&lt;/a&gt;:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class="coffeescript"&gt;@updateDraftList = Reflux.createAction
-  asyncResult: true
-
-@draftStore = Reflux.createStore
-  init: -&amp;gt;
-    @drafts = []
-    @listenTo( updateDraftList, @onUpdateDrafts )
-
-  onUpdateDrafts: -&amp;gt;
-    request.get &amp;quot;/admin/drafts.json&amp;quot;, (err, response) =&amp;gt;
-      if response.ok
-        updateDraftList.completed( response.body )
-        @drafts = response.body
-        @trigger @drafts
-      else
-        updateDraftList.failed(response.error)
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;The first thing we do is to define and export a &lt;code&gt;Reflux&lt;/code&gt; action called &lt;code&gt;updateDraftList&lt;/code&gt;.  This action is what the &lt;code&gt;componentDidMount&lt;/code&gt; function triggeres.  Inside of the &lt;code&gt;draftStore&lt;/code&gt; we listen for that action, and when it get it, call &lt;code&gt;onUpdateDrafts&lt;/code&gt;.  This uses request.get to load up the json from &lt;code&gt;/admin/drafts.json&lt;/code&gt; and then pushes it out to all of the components that have subscribed to it.&lt;/p&gt;
-
-&lt;p&gt;The other components are &lt;a href="https://github.com/HappyFunCorp/middleman-blog-ui/tree/master/source/javascripts/admin/components"&gt;defined here&lt;/a&gt; and the different stores can be &lt;a href="https://github.com/HappyFunCorp/middleman-blog-ui/tree/master/source/javascripts/admin/stores"&gt;found here&lt;/a&gt;.  This is my first real React app so I&amp;#39;m sure there&amp;#39;s cleaner/better ways of doing things...&lt;/p&gt;
-
-&lt;h2 id="putting-it-all-together"&gt;Putting it all together&lt;/h2&gt;
-
-&lt;p&gt;When I was working on this I did it out of the source directory of this blog, but I wanted to package it up into a gem so that other folks could use it.  I pulled the relavent code out from &lt;code&gt;willschenk.com/source&lt;/code&gt; into &lt;code&gt;middleman-blog-ui/source&lt;/code&gt; and then created a middleman extension to put the various templates in the sitemap, tell sprockets where to find the javascript files, and setup coffee script.&lt;/p&gt;
-
-&lt;p&gt;The &lt;a href="https://github.com/HappyFunCorp/middleman-blog-ui/blob/master/lib/middleman/blog/ui/extension.rb"&gt;full code&lt;/a&gt; is found on github, but to explain how it works:&lt;/p&gt;
-
-&lt;ol&gt;
-&lt;li&gt;Define &lt;code&gt;SOURCE_DIR&lt;/code&gt;&lt;/li&gt;
-&lt;li&gt;Map the sinatra app &lt;code&gt;ApiServer&lt;/code&gt; in the extentions &lt;code&gt;initialize&lt;/code&gt; method, using &lt;code&gt;app.map&lt;/code&gt;.&lt;/li&gt;
-&lt;li&gt;Register the CoffeeScript processing using &lt;code&gt;::Sprockets.register_preprocessor &amp;#39;application/javascript&amp;#39;, ::Sprockets::CoffeeReact&lt;/code&gt;&lt;/li&gt;
-&lt;li&gt;Use &lt;code&gt;after_configuration&lt;/code&gt; to register the application templates, by creating &lt;code&gt;Middleman::Sitemap::Resource&lt;/code&gt; objects mapping the sitemap urls with the filesytem paths.&lt;/li&gt;
-&lt;li&gt;Adding each of the javascript and stylesheet files to &lt;code&gt;app.sprockets&lt;/code&gt;.&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;h2 id="next-steps"&gt;Next steps&lt;/h2&gt;
-
-&lt;p&gt;This is mainly a proof of concept, but I&amp;#39;m using it right now to write this post.  The app itself needs&lt;/p&gt;
-
-&lt;ol&gt;
-&lt;li&gt;A decent UI&lt;/li&gt;
-&lt;li&gt;Support for other static generators other than middleman&lt;/li&gt;
-&lt;li&gt;A concept of users&lt;/li&gt;
-&lt;li&gt;Shared drafts&lt;/li&gt;
-&lt;li&gt;Better error handling&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;If you are at all interested in this, please let me know!&lt;/p&gt;
-</content>
-  </entry>
-</feed>
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Blank Page Technology on Will Schenk</title>
+    <link>https://willschenk.com/</link>
+    <description>Recent content in Blank Page Technology on Will Schenk</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-us</language>
+    <lastBuildDate>Sun, 21 Oct 2018 00:00:00 +0000</lastBuildDate>
+    
+	<atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml" />
+    
+    
+    <item>
+      <title>Building a hugo site and theme with Bootstrap</title>
+      <link>https://willschenk.com/articles/2018/building-a-hugo-site/</link>
+      <pubDate>Sun, 21 Oct 2018 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2018/building-a-hugo-site/</guid>
+      <description>Now that&amp;rsquo;s its 2018 its time to retool the blog using hugo. Why not? Hugo is built in golang and is blazing fast and everything is cleaner than it was in the middleman years.
+One of the reasons that I liked middleman &amp;ndash; it&amp;rsquo;s usage of the rails&amp;rsquo; Sprockets library &amp;ndash; is no longer a strength. The javascript and front-end world has moved over to WebPack and I&amp;rsquo;ve personally moved over to create-react-app.</description>
+    </item>
+    
+    <item>
+      <title>Living with a Chromebook</title>
+      <link>https://willschenk.com/articles/2017/living_with_a_chromebook/</link>
+      <pubDate>Fri, 22 Dec 2017 12:37:08 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2017/living_with_a_chromebook/</guid>
+      <description>My experiment with the Chromebook has continued longer than I really expected. This machine is fun! Everything is so much faster and less cluttered, and I’m able to focus more.
+This machine is something in between a laptop and a cellphone. Like a cellphone, it starts quickly, so dipping in and out is easy. Its just easy to grab the Chromebook to check something real quick, send out an email, whatever in the same way that unlocking your phone is easy.</description>
+    </item>
+    
+    <item>
+      <title>Getting firebase and grpc working under termux</title>
+      <link>https://willschenk.com/articles/2017/getting_firebase_and_grpc_working_under_termux/</link>
+      <pubDate>Sun, 10 Dec 2017 17:36:17 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2017/getting_firebase_and_grpc_working_under_termux/</guid>
+      <description>firebase depends on grpc, which isn’t set to build right on the Chromebook. This is because node-pre-gyp, which is used to download precompiled binaries, is not setup correctly. In then uses node-gyp to compile the C++ bindings directly, which is also not setup correctly.
+We are going to adjust the settings of node-gyp to make it compile things right under termux, and then we are going to tweak the grpc package itself in our local cache to make it build correctly.</description>
+    </item>
+    
+    <item>
+      <title>Authenticated routes using react-router</title>
+      <link>https://willschenk.com/articles/2017/authenticated_routes_using_react_router/</link>
+      <pubDate>Tue, 05 Dec 2017 22:19:56 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2017/authenticated_routes_using_react_router/</guid>
+      <description>&lt;p&gt;Here&amp;rsquo;s a simple walk through on how to use authenticated routes with react-router.&lt;/p&gt;
+
+&lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    
+    <item>
+      <title>Styling and theming with material-ui: React &#43; Material Design</title>
+      <link>https://willschenk.com/articles/2017/styling_and_theming_with_material_ui_react__material_design/</link>
+      <pubDate>Mon, 04 Dec 2017 19:35:07 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2017/styling_and_theming_with_material_ui_react__material_design/</guid>
+      <description>We’ve looked at building and styling with rmwc, now lets look a the king of the React Material libraries, Material-UI!
+The implementation strategy here is different — instead of including a generated CSS file that applies to all of the elements, each component includes the CSS that it needs in an isolated way. import Button from ‘material-ui/Button’; will include all of the necessary CSS to render that element. This is done with webpack basically.</description>
+    </item>
+    
+    <item>
+      <title>Styling and theming with rmwc: React &#43; Material Design</title>
+      <link>https://willschenk.com/articles/2017/styling_and_theming_with_rmwc_react__material_design/</link>
+      <pubDate>Wed, 29 Nov 2017 02:11:50 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2017/styling_and_theming_with_rmwc_react__material_design/</guid>
+      <description>There are a couple of good material design libraries out there, and I’m going to build a basic site with create-react-app to test out how to really make them work. Material design released a new version of their web components, and we’re going to look at a few React libraries that will help us use them.
+Material Components For Web These components were written in SASS and JS. There are various ways to customize them and build your design.</description>
+    </item>
+    
+    <item>
+      <title>More lessons learned working on a Chromebook</title>
+      <link>https://willschenk.com/articles/2017/more_lessons_learned_working_on_a_chromebook/</link>
+      <pubDate>Mon, 20 Nov 2017 15:05:48 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2017/more_lessons_learned_working_on_a_chromebook/</guid>
+      <description>The Pixelbook just feels exciting in my lap, so much lighter and zippier than my MacBookPro. The one that I can’t quite bring myself to upgrade. Lets continue down the path of setting up this machine as a dev environment and see how well we can make it work.
+First I should recognize my indebtedness to Kenneth White, who wrote up a great guide to setting up a secure Chromebook environment.</description>
+    </item>
+    
+    <item>
+      <title>Writing code on a chromebook</title>
+      <link>https://willschenk.com/articles/2017/writing_code_on_a_chromebook/</link>
+      <pubDate>Wed, 15 Nov 2017 17:12:09 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2017/writing_code_on_a_chromebook/</guid>
+      <description>I’ve been disappointed with the latest round of MacBooks and it got me wondering what else it out there. (On the phone side the lack of head phone jack have made me jump ship to Android, which has been liberating.)
+Chromebooks are pretty cheap and are super easy to use. I’m writing this on a Asus C100P. It’s small, has a touch screen, and folds into a tablet. There’s no backups to do, no security issues, it turns on immediately and there’s basically nothing to do to keep it working.</description>
+    </item>
+    
+    <item>
+      <title>Why Short Term memory is a thing: forgetting as a creative act</title>
+      <link>https://willschenk.com/articles/2017/why_short_term_memory_is_a_thing_forgetting_as_a_creative_act/</link>
+      <pubDate>Wed, 08 Mar 2017 21:48:09 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2017/why_short_term_memory_is_a_thing_forgetting_as_a_creative_act/</guid>
+      <description>Our new app TezLab pulls in data from your phone and your car to show you how to use your car better. It helps you understand your driving habits, how you use your battery, and shows you what other drivers are up to. In order to do this, we need fairly sophisticated ways of understanding the world.
+ Here, again, the role of the active faculty of forgetfulness, a kind of guardian, a supervisor responsible for maintaining the psychic, tranquility label.</description>
+    </item>
+    
+    <item>
+      <title>Save your Medium articles to your computer in markdown</title>
+      <link>https://willschenk.com/articles/2016/save_your_medium_articles_to_your_computer_in_markdown/</link>
+      <pubDate>Thu, 27 Oct 2016 22:34:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2016/save_your_medium_articles_to_your_computer_in_markdown/</guid>
+      <description>I really like the editing tools and community on Medium, but I want to keep all my writing in a centralized place. So I wrote a script based upon my dataflow programming with Rake post that pulls down my latest medium articles, converts to markdown, and downloads any associated images so I can keep my own copy on my domain.
+I really like the tools, but I want to own my data.</description>
+    </item>
+    
+    <item>
+      <title>Yes, No, Maybe, Don&#39;t Know, WTF</title>
+      <link>https://willschenk.com/articles/2016/yes-no-maybe/</link>
+      <pubDate>Tue, 25 Oct 2016 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2016/yes-no-maybe/</guid>
+      <description>Boolean logic is the basis for how computers work — digital means ones and zeroes, and ones and zeros is another way of saying boolean logic. In this world things are either true or they are false, there is no maybe, no hesitant pause,no anxiety provoking second thoughts. This type of logic goes back to Aristotle with the “law of the excluded middle”. Here’s wikipedia weighing in:
+ In logic, the law of excluded middle (or the principle of excluded middle) is the third of the three classic laws of thought.</description>
+    </item>
+    
+    <item>
+      <title>Deploying ActionCable on Heroku with Sidekiq</title>
+      <link>https://willschenk.com/articles/2016/deploying-actioncable-on-heroku/</link>
+      <pubDate>Mon, 11 Jul 2016 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2016/deploying-actioncable-on-heroku/</guid>
+      <description>ActionCable is WebSockets on rails. This lets you create realtime, interactive systems, where you can push data from one client to another client without reloading or polling. But how do we deploy it on heroku?
+ActionCable is composed to two main parts: a javascript client library, and a backend pub/sub system built upon Redis. We&amp;rsquo;re also going to use ActiveJob to offload the publishing tasks from the main user thread, so we&amp;rsquo;ll also be setting up sidekiq.</description>
+    </item>
+    
+    <item>
+      <title>Owning a Tesla in Brooklyn</title>
+      <link>https://willschenk.com/articles/2016/owning-a-tesla-in-brooklyn/</link>
+      <pubDate>Wed, 09 Mar 2016 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2016/owning-a-tesla-in-brooklyn/</guid>
+      <description>I’ve owned a Tesla in Brooklyn for about 10 months now. This is what I’ve learned so far. A Tesla in Brooklyn isn’t that hard.
+I park my car on the street and have no regular place to plug in the car. This is very much like having a cell phone that you can only charge at the office or in coffee shops — kind of weird, takes a little bit of planning, but it can work.</description>
+    </item>
+    
+    <item>
+      <title>Using seed to explore APIs</title>
+      <link>https://willschenk.com/articles/2015/using-seed-to-explore/</link>
+      <pubDate>Thu, 17 Sep 2015 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2015/using-seed-to-explore/</guid>
+      <description>I&amp;rsquo;ve been working to update seed, which is HappyFunCorp&amp;rsquo;s app generator to make it easy to kick off MVPs. Check out the website for more information. One of the things that I&amp;rsquo;ve started to do is to seperate out the dependancies more, and being tutorials on how to use each of the different features. After I link to that stuff, let&amp;rsquo;s walk through a way to combine different techniques we&amp;rsquo;ve discussed together.</description>
+    </item>
+    
+    <item>
+      <title>Building a GUI for managing middleman blogs</title>
+      <link>https://willschenk.com/articles/2015/building-a-gui-for-managing-middleman-blogs/</link>
+      <pubDate>Thu, 30 Jul 2015 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2015/building-a-gui-for-managing-middleman-blogs/</guid>
+      <description>Can we make static site generators work like a normal site? Lets take a look at how we&amp;rsquo;d start to implement Slow Data and Fast Sites using the example of building an admin UI for a Middleman blog.
+TLDR Given a middleman app with middleman-blog and middleman-blog-drafts configured:
+ Add middleman-blog-ui in your Gemfile. This document describes how middleman-blog-ui works. Add activate :blog_ui in config.rb Start middleman server Visit http://localhost:4567/admin.</description>
+    </item>
+    
+    <item>
+      <title>Receiving posted JSON with Sinatra</title>
+      <link>https://willschenk.com/articles/2015/receiving-posted-json-with-sinatra/</link>
+      <pubDate>Mon, 27 Jul 2015 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2015/receiving-posted-json-with-sinatra/</guid>
+      <description>Here&amp;rsquo;s some simple code to accept a JSON string posted to a Sinatra end point rather than a form. I switched from using jQueries $.ajax method to superagent as part of my exploration of the node javascript package universe, and it has a different way of serializing nest objects when posting as a form. Specifically, it doesn&amp;rsquo;t.
+I needed something that could do both.
+Code to use form encoding or JSON blob This first tries and loads the parameters using the normal form encoding methods.</description>
+    </item>
+    
+    <item>
+      <title>Bower with Rails</title>
+      <link>https://willschenk.com/articles/2015/bower-with-rails/</link>
+      <pubDate>Sat, 25 Jul 2015 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2015/bower-with-rails/</guid>
+      <description>Let&amp;rsquo;s look at how we can integrate bower with rails and Sprockets. Bower is one of the two major javascript package managers, the other being the Node Package Manager, or npm. The biggest difference between the two is how the javascript is packaged up. Bower is the more straightforward of the two, and it mainly a way to distribute javascript and keep things up to date.
+Install Bower The first step is to install bower.</description>
+    </item>
+    
+    <item>
+      <title>Adding search to a middleman blog</title>
+      <link>https://willschenk.com/articles/2015/adding-search-to-a-middleman-blog/</link>
+      <pubDate>Sun, 07 Jun 2015 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2015/adding-search-to-a-middleman-blog/</guid>
+      <description>We&amp;rsquo;re going to build a simple, niave search for middleman blogs. We&amp;rsquo;re going to build a search index at build time, and then use that index to perform the search itself on the client side.
+Building the index When you typed in something in google, it doesn&amp;rsquo;t then go and hit every page on the internet to check to see if there&amp;rsquo;s a match. It doesn&amp;rsquo;t even look at every page that it has squirreled away somewhere in the googleplex.</description>
+    </item>
+    
+    <item>
+      <title>OSX Script for Kiosk Mode</title>
+      <link>https://willschenk.com/articles/2015/osx-script-for-kiosk-mode/</link>
+      <pubDate>Wed, 20 May 2015 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2015/osx-script-for-kiosk-mode/</guid>
+      <description>In the office, we run Jenkins on the same machine that we run Benevolent Gaze. During iOS builds, the iOS simulator will take over the screen for the build, and then leave the beautiful screen on the desktop, hiding our smiling faces. We want to return to Safari in this case, but we also want to make sure that if someone is actually in front of the machine it will let them do their thing.</description>
+    </item>
+    
+    <item>
+      <title>Slow data and Fast Sites</title>
+      <link>https://willschenk.com/articles/2015/slow-data-and-fast-sites/</link>
+      <pubDate>Fri, 08 May 2015 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2015/slow-data-and-fast-sites/</guid>
+      <description>This article walks through the motivations driving and benefits of using a the Seed Architecture for building performant websites using Middleman, React, and a seperate API server such as Parse. The benefits are:
+ You get full SEO with a heavy client JavaScript site without having to do crazy things with PhantomJS or meta fragments. Hosting and operations become both cheap and doesn&amp;rsquo;t require a support team. Scaling out the system is mainly a bandwidth problem, and secondarily a API scaling problem for a subset of behavior.</description>
+    </item>
+    
+    <item>
+      <title>Why Engineers build crappy products</title>
+      <link>https://willschenk.com/articles/2015/why-engineers-build-crappy-products/</link>
+      <pubDate>Sat, 21 Feb 2015 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2015/why-engineers-build-crappy-products/</guid>
+      <description>There&amp;rsquo;s a certain user interface that, when you first see it, screams out of you that it was designed by an engineer.
+(via Daring Fireball User Interface of the Week)
+Why does that happen? What is it in the nature of engineering or software development process that leads to user interfaces that are impossible for the users to actually use?
+Perfect Storm of User Discontent The short version:
+ The most interesting part of engineer&amp;rsquo;s jobs is the obsession with the possibilities in the solution space - all the cool shit you can make computers do.</description>
+    </item>
+    
+    <item>
+      <title>Setting up Rails testing with rspec, devise, and the gang</title>
+      <link>https://willschenk.com/articles/2015/setting-up-testing/</link>
+      <pubDate>Fri, 23 Jan 2015 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2015/setting-up-testing/</guid>
+      <description>The goal is to get features out fast, and iterate on them quickly. Does anyone care about it? What do they care about? How do we make it better?
+As projects get bigger, both in terms of people using the site as well as people working on the site, testing and quality become relatively more important. Adding tests introduces drag, and the theory is that you invest now for payoffs later.</description>
+    </item>
+    
+    <item>
+      <title>Setting up Devise with Twitter and Facebook and other Omniauth schemes without email addresses</title>
+      <link>https://willschenk.com/articles/2015/setting-up-devise-with-twitter-and-facebook-and-other-omniauth-schemes-without-email-addresses/</link>
+      <pubDate>Fri, 16 Jan 2015 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2015/setting-up-devise-with-twitter-and-facebook-and-other-omniauth-schemes-without-email-addresses/</guid>
+      <description>Adding social login to your sites really makes it easier to get users onboard. Devise is great to help get an authentication system up and running, but there are a few tricky things to get right. The first challenge is that you don&amp;rsquo;t always get the user&amp;rsquo;s email address when the first connect. The second challenge is that we want to request the minimum permissions first so that the user is more likely to sign up, and gradually ask more as the time arises.</description>
+    </item>
+    
+    <item>
+      <title>Using rake for dataflow programming and data science</title>
+      <link>https://willschenk.com/articles/2014/using-rake-for-dataflow-programming-and-data-science/</link>
+      <pubDate>Fri, 19 Dec 2014 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2014/using-rake-for-dataflow-programming-and-data-science/</guid>
+      <description>I&amp;rsquo;ve been using Rake more and more for data collection and processing tasks. Rake is pretty pretty powerful. Most people know it as way to add external tasks to a Rails app, but it&amp;rsquo;s actually very powerful build system. We&amp;rsquo;re going to take advantage of that to build out a framework that will make it easy to collect, process, and interpret data while keeping it all in sync.
+In fact, if you just want to start playing with stuff now, head over to the rake-data site to go through some walk throughs.</description>
+    </item>
+    
+    <item>
+      <title>Building Middleman Extensions</title>
+      <link>https://willschenk.com/articles/2014/building-middleman-extensions/</link>
+      <pubDate>Wed, 17 Dec 2014 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2014/building-middleman-extensions/</guid>
+      <description>Middleman extensions, like rails plugins, are packaged as gems. There are three main ways to extend middleman. You can add helpers, add middleman commands, or extend the sitemap generation in someway. Lets go through those in detail.
+Creating the extension Create a gem using bundle gem _name_
+$ bundle gem middleman-graphviz Add middleman-core to your gem dependancies in the .gemspec file:
+spec.add_runtime_dependency &amp;#39;middleman-core&amp;#39;, [&amp;#39;&amp;gt;= 3.0.0&amp;#39;] Register your extension into middleman.</description>
+    </item>
+    
+    <item>
+      <title>Middleman Tricks and Hacks</title>
+      <link>https://willschenk.com/articles/2014/middleman-tricks-and-hacks/</link>
+      <pubDate>Sat, 13 Dec 2014 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2014/middleman-tricks-and-hacks/</guid>
+      <description>As part of the process of getting this site to work, I learned some more things about how to better build a site with middleman. Building off of our foundational article here are a few other things that I found very useful when using middleman to build a static site with a bunch of dynamically generated content.
+Partials The index.html.haml, articles.html.haml, tag.html.haml and calendar.html.haml pages all use the same partial to list out the post archives, which are mostly the same.</description>
+    </item>
+    
+    <item>
+      <title>Dateslice: Writing rails extensions</title>
+      <link>https://willschenk.com/articles/2014/dateslice-writing-rails-extensions/</link>
+      <pubDate>Sun, 07 Dec 2014 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2014/dateslice-writing-rails-extensions/</guid>
+      <description>Ruby on Rails is a very modular framework since the merging with Merb in 2008. The opinionated conventions are implemented under using techniques that let you jump in and build your own components, picking and choosing different parts that let you build Rails apps in the same straightforward way you would if using the official modules.
+Let&amp;rsquo;s go through the dateslices gem which I wrote to extend active record so that we could better interact with the group by sql command when dealing with dates.</description>
+    </item>
+    
+    <item>
+      <title>Pulling data out of Google Analytics</title>
+      <link>https://willschenk.com/articles/2014/pulling-data-out-of-google-analytics/</link>
+      <pubDate>Thu, 04 Dec 2014 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2014/pulling-data-out-of-google-analytics/</guid>
+      <description>I like staring at the real time stats of Google Analytics. As a dashboard, it&amp;rsquo;s not really as amazing as Chartbeat is, and it doesn&amp;rsquo;t let you drill down into the data as much as Mixpanel. But GA is super simple to setup and it&amp;rsquo;s Google, so everyone uses it.
+Another obsessive/fun thing to do is to see where that spike in inbound traffic is coming from. On HappyFunCorp there are days where we get a sudden influx of Happy Thoughts which warms our hearts and floods our inboxes.</description>
+    </item>
+    
+    <item>
+      <title>New HappySeed released</title>
+      <link>https://willschenk.com/articles/2014/new-happyseed-released/</link>
+      <pubDate>Fri, 28 Nov 2014 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2014/new-happyseed-released/</guid>
+      <description>Make apps faster Head on over to the HappySeed website to get the latest version of HappyFunCorp&amp;rsquo;s starter application toolkit.
+HappySeed is a set of application templates to help you get started building out new sites. The main section is a rails application template plus a set of rails generators to help you get started with rails appliations quickly. These generators setup the configuration of the application in a standard way, and the full set of generators include many things for setting up a modern rails app and well as middleman apps.</description>
+    </item>
+    
+    <item>
+      <title>Building Sites with Middleman</title>
+      <link>https://willschenk.com/articles/2014/building-sites-with-middleman/</link>
+      <pubDate>Tue, 25 Nov 2014 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2014/building-sites-with-middleman/</guid>
+      <description>I make a lot of websites, and I have a certain toolkit that I use to build them. The most useful things I use are:
+ layouts and partials so I only need to set things up once haml for writing html, since I don&amp;rsquo;t like closing tags Bootstrap and sass for writing css Markdown for formatting large blogs of content coffeescript for JavaScript  Middleman is a static site generator, which means that it takes a bunch of source files, does some stuff with it, and produces static HTML, CSS, Images, and Javascript that can be hosted on a basic server somewhere, including hosting on S3 or Github Pages so you don&amp;rsquo;t need to consider a server.</description>
+    </item>
+    
+    <item>
+      <title>Scripting Twitter: Collecting Data and Writing Bots</title>
+      <link>https://willschenk.com/articles/2014/scripting-twitter/</link>
+      <pubDate>Thu, 20 Nov 2014 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2014/scripting-twitter/</guid>
+      <description>Lets build on our command line url exploring tool to look at how we can interact with Twitter. We are going to cover how to make a script that will pull information out of twitter, how to deal with its rate limiting, and how to interact with users on Twitter itself.
+Twitter uses OAuth 1.0A as a way to authenticate requests. As a script writer, this is super annoying, because you can&amp;rsquo;t just stick a username and password in the environment and go from there.</description>
+    </item>
+    
+    <item>
+      <title>Embedding 3d models on your page</title>
+      <link>https://willschenk.com/articles/2014/embedding-3d-models-on-your-page/</link>
+      <pubDate>Sun, 16 Nov 2014 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2014/embedding-3d-models-on-your-page/</guid>
+      <description>Github has an embeddable 3d model viewer that you can use to display a model on your site. The model needs to be hosted in a github repo, and the format is
+&amp;lt;script src=&amp;quot;https://embed.github.com/view/3d/&amp;lt;username&amp;gt;/&amp;lt;repo&amp;gt;/&amp;lt;ref&amp;gt;/&amp;lt;path_to_file&amp;gt;&amp;quot;&amp;gt;&amp;lt;/script&amp;gt;
+Here&amp;rsquo;s a model of me that we made using the Structure 3d scanner which is a fun device that plugs into your iPhone or iPad.
+
+Pretty fun right?
+The next thing you need to do is to get a 3d printer, so you can create action figures for your office.</description>
+    </item>
+    
+    <item>
+      <title>Personal information from only a URL</title>
+      <link>https://willschenk.com/articles/2014/personal-information-from-only-a-url/</link>
+      <pubDate>Fri, 14 Nov 2014 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2014/personal-information-from-only-a-url/</guid>
+      <description>Ever wonder what you can find out by looking at a url? How about physical addresses, server location, emails, phone numbers, various links to other profiles (which can in turn be structurally scraped), technology stack, and more.
+$ socialinvestigator net page http://willschenk.com/bio domain: willschenk.com created_on: 2014-10-31 expires_on: 2015-10-31 updated_on: 2014-10-31 registrar_name: ENOM, INC. registrar_url: www.enom.com registrant_contact: name: WILL SCHENK organization: HAPPYFUNCORP address: 18 BRIDGE STREET, 2E city: BROOKLYN zip: 11201 state: NY country_code: US phone: +91.</description>
+    </item>
+    
+    <item>
+      <title>Bot Design Patterns</title>
+      <link>https://willschenk.com/articles/2014/bot-design-patterns/</link>
+      <pubDate>Tue, 11 Nov 2014 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2014/bot-design-patterns/</guid>
+      <description>In the antediluvian days before Google found everything for us, personal software agents were going to continuously do our bidding in cyberspace, tracking down air fares, making stock trades and otherwise doing futuristic things that we soon wouldn&amp;rsquo;t be able to live without. The anxiety of Y2K rose and crested, and the messianic aura of agents was washed away by more centralized and effective solutions.
+The aspirational residue did yield some nuggets, and the idea has found partial success in the form of the bot.</description>
+    </item>
+    
+    <item>
+      <title>Making a command line utility with gems and thor</title>
+      <link>https://willschenk.com/articles/2014/making-a-command-line-utility-with-gems-and-thor/</link>
+      <pubDate>Sat, 08 Nov 2014 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2014/making-a-command-line-utility-with-gems-and-thor/</guid>
+      <description>Some scripts work well because they are self contained and don&amp;rsquo;t have a lot of dependancies, like the hosts on your network tracker.
+Others scripts - have more code than fits into a single file - multiple options and switches - have an extensive set of dependancies
+And on those cases, its better to make a gem and use thor
+Hammer of the Gods Lets figure out how to make some command line tools and package them up so that they can be shared and used by other people.</description>
+    </item>
+    
+    <item>
+      <title>Making Yosemite Faster</title>
+      <link>https://willschenk.com/articles/2014/making-yosemite-faster/</link>
+      <pubDate>Fri, 07 Nov 2014 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2014/making-yosemite-faster/</guid>
+      <description>Since I&amp;rsquo;ve upgraded to Yosemite my computer has gotten slower and slower. When it first boots up, it is it&amp;rsquo;s old fast self, but after a few hours everything slows down. Remember the days when you needed to restart your computer to keep it working well? I had forgotten, and I wasn&amp;rsquo;t really into remembering it.
+I also upgraded to Airmail 2. I get a ton of email and it used it be a lot faster than using Mail.</description>
+    </item>
+    
+    <item>
+      <title>Field of Dreams is 25 years old and hasn&#39;t aged well</title>
+      <link>https://willschenk.com/articles/2014/field-of-dreams-is-25-years-old-and-hasn-t-aged-well/</link>
+      <pubDate>Wed, 05 Nov 2014 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2014/field-of-dreams-is-25-years-old-and-hasn-t-aged-well/</guid>
+      <description>I&amp;rsquo;m sure you all remember the movie. A man whose normal life is starting to fall apart. He&amp;rsquo;s got the wife, family, mortgage and it&amp;rsquo;s both not enough and slipping away. He needs to do something, something to make him feel alive. And since it was that era of Hollywood film making, he&amp;rsquo;s also got plenty of daddy issues he&amp;rsquo;s working through. He becomes seized by a vision, caught in the grip of an idée fixe that he needs to go build something that everyone around him thinks is preposterous.</description>
+    </item>
+    
+    <item>
+      <title>Bootstrap: Advanced Grid Tricks</title>
+      <link>https://willschenk.com/articles/2014/bootstrap-advanced-grid-tricks/</link>
+      <pubDate>Mon, 03 Nov 2014 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2014/bootstrap-advanced-grid-tricks/</guid>
+      <description>We are a big fan of Bootstrap here at HappyFunCorp. While there are some arguments to be made if Bootstrap in particular is all that, or if Foundation is better for a given thing, its clear that starting with some sort of CSS framework is smarter than trying to roll everything yourself. [1]
+There are three major complaints with using bootstrap.
+ All of the sites look the same. There are so many classes in the HTML where they don&amp;rsquo;t strictly belong It&amp;rsquo;s a whole bunch of stuff that you don&amp;rsquo;t need.</description>
+    </item>
+    
+    <item>
+      <title>How to track your coworkers</title>
+      <link>https://willschenk.com/articles/2014/how-to-track-your-coworkers/</link>
+      <pubDate>Fri, 31 Oct 2014 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2014/how-to-track-your-coworkers/</guid>
+      <description>How much information do you bleed?
+Ever wonder who is else is using your network? Or,who has actually showed up at the office?
+Networking primer The simplest thing we can do to make this work is to check to see which devices have registered themselves on the network. As devices come and go, they connect automatically, so we will have a pretty good idea if people are there or not.</description>
+    </item>
+    
+    <item>
+      <title>Contact Me</title>
+      <link>https://willschenk.com/contact/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/contact/</guid>
+      <description> Email: wschenk@gmail.com Twitter: @wschenk Instagram: @wschenk GitHub: @wschenk LinkedIn: Will Schenk  </description>
+    </item>
+    
+    <item>
+      <title>Who am I</title>
+      <link>https://willschenk.com/about/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/about/</guid>
+      <description>Bio tbd.</description>
+    </item>
+    
+  </channel>
+</rss>

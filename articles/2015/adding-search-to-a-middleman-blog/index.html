@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html><head>
+  <title>Adding search to a middleman blog</title>
+  
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  <link rel="stylesheet" href="../../../css/theme.css"/>
+  <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js" integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" crossorigin="anonymous"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js" integrity="sha384-ChfqqxuZUCnJSK3+MXmPNIyE6ZbWh2IMqE241rYiqJxyMiZ6OW/JmZQ5stwEULTy" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="../../../css/syntax.css"/>
+
+  
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-56296045-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  <meta property="og:title" content="Adding search to a middleman blog" />
+<meta property="og:description" content="We&rsquo;re going to build a simple, niave search for middleman blogs. We&rsquo;re going to build a search index at build time, and then use that index to perform the search itself on the client side.
+Building the index When you typed in something in google, it doesn&rsquo;t then go and hit every page on the internet to check to see if there&rsquo;s a match. It doesn&rsquo;t even look at every page that it has squirreled away somewhere in the googleplex." />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://willschenk.com/articles/2015/adding-search-to-a-middleman-blog/" /><meta property="article:published_time" content="2015-06-07T00:00:00&#43;00:00"/>
+<meta property="article:modified_time" content="2015-06-07T00:00:00&#43;00:00"/>
+
+  <meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="Adding search to a middleman blog"/>
+<meta name="twitter:description" content="We&rsquo;re going to build a simple, niave search for middleman blogs. We&rsquo;re going to build a search index at build time, and then use that index to perform the search itself on the client side.
+Building the index When you typed in something in google, it doesn&rsquo;t then go and hit every page on the internet to check to see if there&rsquo;s a match. It doesn&rsquo;t even look at every page that it has squirreled away somewhere in the googleplex."/>
+<meta name="twitter:site" content="@wschenk"/>
+
+
+  <style>
+    .article p, .article ul, .article ol, .article table {
+      max-width: 45em;
+    }
+
+    article.article p:first-child, .article blockquote {
+      font-size: 1.25em;
+      font-weight: 300;
+      max-width: 36em;  
+    }
+  </style>
+</head>
+<body><nav class="container my-5">
+  <h1 class="pt-5 display-3"><a class="text-dark" href="../../../">Will Schenk</a></h1>
+  <p>
+    
+      <a class="text-dark h4 mr-3 font-weight-light" href="../../../articles/" title="">Articles</a>
+    
+      <a class="text-dark h4 mr-3 font-weight-light" href="../../../contact" title="">Contact</a>
+    
+      <a class="text-dark h4 mr-3 font-weight-light" href="../../../tags/" title="">Tags</a>
+    
+    <a href="../../../feed.xml" class="mr-3 h4 text-light"><img src="../../../img/rss.svg" alt="rss" height="20" width="20"/></a>
+    
+      <a href="https://twitter.com/@wschenk" class="mr-3 h4 text-light"><img src="../../../img/twitter.svg" alt="twitter" height="20" width="20"/></a>
+    
+    
+      <a href="https://instagram.com/wschenk" class="mr-3 h4 text-light"><img src="../../../img/instagram.svg" alt="instagram" height="20" width="20"/></a>
+    
+    
+      <a href="https://linkedin.com/in/will-schenk-420266" class="mr-3 h4 text-light"><img src="../../../img/linkedin.svg" alt="linkedin" height="20" width="20"/></a>
+    
+  </p>
+</nav>
+
+<div class="container">
+  <h1 class="mt-5">Adding search to a middleman blog</h1>
+
+  
+    <h2 class="font-weight-light font-italic mb-3">slightly simplier than google</h2>
+  
+
+  <p class="text-muted mt-3">
+    <a class="text-muted" href="https://willschenk.com/articles/2015/adding-search-to-a-middleman-blog/">Published June 7, 2015</a>
+
+    
+      <a class="text-muted" href="../../../tags/middleman">#middleman</a>
+    
+      <a class="text-muted" href="../../../tags/howto">#howto</a>
+    
+      <a class="text-muted" href="../../../tags/ruby">#ruby</a>
+    
+  </p>
+
+  
+
+  <article class="article mt-5">
+    
+
+<p>We&rsquo;re going to build a simple, niave search for middleman blogs.  We&rsquo;re going to build a <em>search index</em> at build time, and then use that index to perform the search itself on the client side.</p>
+
+<h2 id="building-the-index">Building the index</h2>
+
+<p>When you typed in something in google, it doesn&rsquo;t then go and hit every page on the internet to check to see if there&rsquo;s a match.  It doesn&rsquo;t even look at every page that it has squirreled away somewhere in the googleplex.  What it consults is an <em>index</em> of the documents out there, and the index points to the page information.  (We all know that it&rsquo;s a lot more complicated than that really, but run with it.)</p>
+
+<p>First thing we&rsquo;re going to do is create a very simple version of this index for your site.  This is going to be in a file called <code>source/article.index.json.erb</code>.</p>
+
+<ol>
+<li>Go through all of the articles.</li>
+<li>Add meta data for the article into the master map.</li>
+<li>Find all of the words in the article, by stripping out all of the html tags, making things lowercase, and breaking it apart by white space.</li>
+<li>Insert all of those words into our index.</li>
+<li>Convert the whole sucker to JSON.</li>
+</ol>
+<div class="highlight"><pre class="chroma"><code class="language-erb" data-lang="erb">&lt;%
+  map = {articles:{}}
+  index = {}
+  blog.articles.each do |article|
+    map[:articles][article.url] = {
+      title: article.title,
+      date: article.date,
+      tags: article.tags
+    }
+
+    words = &#34;#{article.title} #{article.body}&#34;
+    words = words
+      .downcase              # make lowercase
+      .gsub( /&lt;.*?&gt;/, &#34;&#34; )   # get rid of tags
+      .gsub( /[^\w ]/, &#34;&#34; )  # get rid of not letters
+      .split( /\s+/ )        # split by words
+      .sort.uniq
+
+    words.each do |w|
+      index[w] ||= []
+      index[w] &lt;&lt; article.url
+    end
+  end
+  map[:index] = index
+%&gt;
+&lt;%= map.to_json %&gt;</code></pre></div>
+<h2 id="now-lets-add-some-markup-to-the-blog">Now lets add some markup to the blog</h2>
+
+<p>I&rsquo;m sticking this in the header, as you see above:</p>
+<div class="highlight"><pre class="chroma"><code class="language-haml" data-lang="haml">%form.navbar-form.navbar-right#search{ role: &#34;search&#34; }
+  .form-group.dropdown
+    .input-group
+      %input.form-control#search_box{ type: &#34;text&#34;, placeholder: &#34;Search&#34;, autocomplete: &#34;off&#34; }
+      %span.input-group-btn
+        %button.btn.btn-default
+          %span.glyphicon.glyphicon-search
+    %ul.dropdown-menu.dropdown-menu-left.results
+      = link_to &#34;Title&#34;, &#34;/url&#34;</code></pre></div>
+<h2 id="loading-and-querying-the-index">Loading and Querying the index</h2>
+
+<p>Ok, lets build this from the ground up.  All this goes into <code>application.js</code>.First we&rsquo;re create a method that loads up the index if we need it.  We&rsquo;re going to use a promise here, so if multiple request come in at the same time only one will go to the server:</p>
+<div class="highlight"><pre class="chroma"><code class="language-js" data-lang="js"><span class="kd">var</span> <span class="nx">article_index</span> <span class="o">=</span> <span class="kd">function</span><span class="p">()</span> <span class="p">{</span>
+  <span class="k">if</span><span class="p">(</span> <span class="nb">window</span><span class="p">.</span><span class="nx">article_promise</span> <span class="o">===</span> <span class="kc">undefined</span> <span class="p">)</span> <span class="p">{</span>
+    <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;Loading article index&#34;</span> <span class="p">);</span>
+    <span class="nb">window</span><span class="p">.</span><span class="nx">article_promise</span> <span class="o">=</span> <span class="nx">$</span><span class="p">.</span><span class="nx">Deferred</span><span class="p">();</span>
+
+    <span class="nx">$</span><span class="p">.</span><span class="nx">get</span><span class="p">(</span> <span class="s2">&#34;/articles.index.json&#34;</span> <span class="p">).</span><span class="nx">done</span><span class="p">(</span> <span class="kd">function</span><span class="p">(</span><span class="nx">data</span><span class="p">)</span> <span class="p">{</span>
+      <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;Loaded article index&#34;</span> <span class="p">);</span>
+      <span class="nb">window</span><span class="p">.</span><span class="nx">article_promise</span><span class="p">.</span><span class="nx">resolve</span><span class="p">(</span> <span class="nx">data</span> <span class="p">);</span>
+    <span class="p">}</span> <span class="p">);</span>
+  <span class="p">}</span>
+
+  <span class="k">return</span> <span class="nb">window</span><span class="p">.</span><span class="nx">article_promise</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>This is called like <code>article_index().done( function( index ) { console.log( index )})</code>  The second time it calls, it returns the first promise again so everything is nice and fast.</p>
+
+<p>To query the index itself we need to look through all of the words and return a list of urls that match:</p>
+<div class="highlight"><pre class="chroma"><code class="language-js" data-lang="js"><span class="kd">var</span> <span class="nx">match_index</span> <span class="o">=</span> <span class="kd">function</span><span class="p">(</span> <span class="nx">word</span><span class="p">,</span> <span class="nx">index</span> <span class="p">)</span> <span class="p">{</span>
+  <span class="kd">var</span> <span class="nx">result</span> <span class="o">=</span> <span class="p">[];</span>
+  <span class="kd">var</span> <span class="nx">matcher</span> <span class="o">=</span> <span class="k">new</span> <span class="nb">RegExp</span><span class="p">(</span> <span class="nx">word</span> <span class="p">);</span>
+
+  <span class="nx">$</span><span class="p">.</span><span class="nx">each</span><span class="p">(</span> <span class="nx">index</span><span class="p">.</span><span class="nx">index</span><span class="p">,</span> <span class="kd">function</span><span class="p">(</span> <span class="nx">i</span> <span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span><span class="p">(</span> <span class="nx">matcher</span><span class="p">.</span><span class="nx">exec</span><span class="p">(</span> <span class="nx">i</span> <span class="p">)</span> <span class="p">)</span> <span class="p">{</span>
+      <span class="nx">$</span><span class="p">.</span><span class="nx">each</span><span class="p">(</span> <span class="nx">index</span><span class="p">.</span><span class="nx">index</span><span class="p">[</span><span class="nx">i</span><span class="p">],</span> <span class="kd">function</span><span class="p">(</span> <span class="nx">idx</span><span class="p">,</span> <span class="nx">url</span> <span class="p">)</span> <span class="p">{</span>
+        <span class="k">if</span><span class="p">(</span> <span class="nx">result</span><span class="p">.</span><span class="nx">indexOf</span><span class="p">(</span> <span class="nx">url</span> <span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="p">)</span> <span class="p">{</span>
+          <span class="nx">result</span><span class="p">.</span><span class="nx">push</span><span class="p">(</span> <span class="nx">url</span> <span class="p">);</span>
+        <span class="p">}</span>
+      <span class="p">}</span> <span class="p">);</span>
+    <span class="p">}</span>
+  <span class="p">});</span>
+
+  <span class="k">return</span> <span class="nx">result</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Now lets build a simple search.  This is a little complicated, since we need to compute the intersection of the results if the user types in multiple words.  Here&rsquo;s what&rsquo;s happening:</p>
+
+<ol>
+<li>We create a promise, since we may need wait for the index to load.</li>
+<li>We split the search term into multiple words.</li>
+<li>Collect the results of the <code>match_index</code> function.</li>
+<li>Compute the intersections of all the results</li>
+<li>Look up the meta data based on the url.</li>
+<li>Resolve the promise with the results.</li>
+</ol>
+<div class="highlight"><pre class="chroma"><code class="language-js" data-lang="js"><span class="kd">var</span> <span class="nx">find_article</span> <span class="o">=</span> <span class="kd">function</span><span class="p">(</span> <span class="nx">search</span> <span class="p">)</span> <span class="p">{</span>
+  <span class="kd">var</span> <span class="nx">search_results</span> <span class="o">=</span> <span class="nx">$</span><span class="p">.</span><span class="nx">Deferred</span><span class="p">();</span>
+
+  <span class="nx">article_index</span><span class="p">().</span><span class="nx">done</span><span class="p">(</span> <span class="kd">function</span><span class="p">(</span> <span class="nx">index</span> <span class="p">)</span> <span class="p">{</span>
+    <span class="c1">// Split the search by widespace
+</span><span class="c1"></span>    <span class="kd">var</span> <span class="nx">words</span> <span class="o">=</span> <span class="nx">search</span><span class="p">.</span><span class="nx">toLowerCase</span><span class="p">().</span><span class="nx">replace</span><span class="p">(</span><span class="sr">/\s+$/</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">).</span><span class="nx">split</span><span class="p">(</span> <span class="sr">/\s+/</span> <span class="p">);</span>
+
+    <span class="c1">// Lookup the matches for each word
+</span><span class="c1"></span>    <span class="c1">// Note using $.map seems to flatten the result.
+</span><span class="c1"></span>    <span class="kd">var</span> <span class="nx">full_results</span> <span class="o">=</span> <span class="p">[];</span>
+    <span class="nx">$</span><span class="p">.</span><span class="nx">each</span><span class="p">(</span> <span class="nx">words</span><span class="p">,</span> <span class="kd">function</span><span class="p">(</span> <span class="nx">i</span><span class="p">,</span> <span class="nx">word</span> <span class="p">)</span> <span class="p">{</span>
+      <span class="nx">full_results</span><span class="p">.</span><span class="nx">push</span><span class="p">(</span> <span class="nx">match_index</span><span class="p">(</span> <span class="nx">word</span><span class="p">,</span> <span class="nx">index</span> <span class="p">)</span> <span class="p">);</span>
+    <span class="p">}</span> <span class="p">);</span>
+
+    <span class="kd">var</span> <span class="nx">urls</span> <span class="o">=</span> <span class="nx">full_results</span><span class="p">[</span><span class="mi">0</span><span class="p">];</span>
+
+    <span class="c1">// If there are multiple words, compute the intersection
+</span><span class="c1"></span>    <span class="k">if</span><span class="p">(</span> <span class="nx">full_results</span><span class="p">.</span><span class="nx">length</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="p">)</span> <span class="p">{</span>
+      <span class="kd">var</span> <span class="nx">url_counts</span> <span class="o">=</span> <span class="p">{}</span>
+      <span class="nx">$</span><span class="p">.</span><span class="nx">each</span><span class="p">(</span> <span class="nx">full_results</span><span class="p">,</span> <span class="kd">function</span><span class="p">(</span> <span class="nx">i</span><span class="p">,</span> <span class="nx">set</span> <span class="p">)</span> <span class="p">{</span>
+        <span class="nx">$</span><span class="p">.</span><span class="nx">each</span><span class="p">(</span> <span class="nx">set</span><span class="p">,</span> <span class="kd">function</span><span class="p">(</span> <span class="nx">i</span><span class="p">,</span> <span class="nx">url</span> <span class="p">)</span> <span class="p">{</span>
+          <span class="nx">url_counts</span><span class="p">[</span><span class="nx">url</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="nx">url_counts</span><span class="p">[</span><span class="nx">url</span><span class="p">]</span><span class="o">||</span><span class="mi">0</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">;</span>
+        <span class="p">}</span> <span class="p">)</span>
+      <span class="p">}</span> <span class="p">);</span>
+
+      <span class="nx">urls</span> <span class="o">=</span> <span class="p">[];</span>
+      <span class="nx">$</span><span class="p">.</span><span class="nx">each</span><span class="p">(</span> <span class="nx">url_counts</span><span class="p">,</span> <span class="kd">function</span><span class="p">(</span> <span class="nx">url</span><span class="p">,</span> <span class="nx">count</span> <span class="p">)</span> <span class="p">{</span>
+        <span class="k">if</span><span class="p">(</span> <span class="nx">count</span> <span class="o">==</span> <span class="nx">full_results</span><span class="p">.</span><span class="nx">length</span> <span class="p">)</span> <span class="p">{</span>
+          <span class="nx">urls</span><span class="p">.</span><span class="nx">push</span><span class="p">(</span> <span class="nx">url</span> <span class="p">);</span>
+        <span class="p">}</span>
+      <span class="p">}</span> <span class="p">);</span>
+    <span class="p">}</span>
+
+    <span class="c1">// Pull in the metadata
+</span><span class="c1"></span>    <span class="kd">var</span> <span class="nx">results</span> <span class="o">=</span> <span class="p">{};</span>
+    <span class="nx">$</span><span class="p">.</span><span class="nx">each</span><span class="p">(</span> <span class="nx">urls</span><span class="p">,</span> <span class="kd">function</span><span class="p">(</span> <span class="nx">i</span><span class="p">,</span> <span class="nx">url</span> <span class="p">)</span> <span class="p">{</span>
+      <span class="nx">results</span><span class="p">[</span><span class="nx">url</span><span class="p">]</span> <span class="o">=</span> <span class="nx">index</span><span class="p">.</span><span class="nx">articles</span><span class="p">[</span><span class="nx">url</span><span class="p">];</span>
+    <span class="p">}</span> <span class="p">);</span>
+
+    <span class="nx">search_results</span><span class="p">.</span><span class="nx">resolve</span><span class="p">(</span> <span class="nx">results</span> <span class="p">);</span>
+  <span class="p">});</span>
+
+  <span class="k">return</span> <span class="nx">search_results</span><span class="p">;</span>
+<span class="p">};</span>
+</code></pre></div>
+<h2 id="wiring-it-up">Wiring it up</h2>
+
+<p>First we need to call our code when the user inputs something in the text area:</p>
+<div class="highlight"><pre class="chroma"><code class="language-js" data-lang="js"><span class="nx">$</span><span class="p">(</span><span class="kd">function</span><span class="p">()</span> <span class="p">{</span>
+  <span class="nx">$</span><span class="p">(</span> <span class="s2">&#34;#search_box&#34;</span> <span class="p">).</span><span class="nx">on</span><span class="p">(</span> <span class="s1">&#39;input&#39;</span><span class="p">,</span> <span class="nx">search_typing</span> <span class="p">);</span>
+<span class="p">});</span>
+</code></pre></div>
+<p>Then we wire everything together:</p>
+
+<ol>
+<li>If the field is empty, hide the dropdown.</li>
+<li>Otherwise show the dropdown and a loading message</li>
+<li>Call <code>find_article</code> and when it returns</li>
+<li>Put the results in the result dropdown.</li>
+</ol>
+<div class="highlight"><pre class="chroma"><code class="language-js" data-lang="js"><span class="kd">var</span> <span class="nx">search_typing</span> <span class="o">=</span> <span class="kd">function</span><span class="p">()</span> <span class="p">{</span>
+  <span class="kd">var</span> <span class="nx">val</span> <span class="o">=</span> <span class="nx">$</span><span class="p">(</span><span class="k">this</span><span class="p">).</span><span class="nx">val</span><span class="p">();</span>
+
+  <span class="k">if</span><span class="p">(</span> <span class="nx">val</span> <span class="o">==</span> <span class="s2">&#34;&#34;</span> <span class="p">)</span> <span class="p">{</span>
+    <span class="nx">$</span><span class="p">(</span><span class="s2">&#34;#search .dropdown&#34;</span><span class="p">).</span><span class="nx">removeClass</span><span class="p">(</span> <span class="s2">&#34;open&#34;</span> <span class="p">);</span>
+  <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+    <span class="nx">$</span><span class="p">(</span><span class="s2">&#34;#search .dropdown&#34;</span><span class="p">).</span><span class="nx">addClass</span><span class="p">(</span> <span class="s2">&#34;open&#34;</span> <span class="p">);</span>
+    <span class="nx">$</span><span class="p">(</span><span class="s2">&#34;#search .dropdown-menu&#34;</span><span class="p">).</span><span class="nx">html</span><span class="p">(</span><span class="s2">&#34;&lt;li class=&#39;disabled&#39;&gt;&lt;a href=&#39;#&#39;&gt;Loading &#34;</span> <span class="o">+</span> <span class="nx">val</span> <span class="o">+</span><span class="s2">&#34;&lt;/a&gt;&lt;/li&gt;&#34;</span><span class="p">)</span>
+    <span class="nx">find_article</span><span class="p">(</span> <span class="nx">val</span> <span class="p">).</span><span class="nx">done</span><span class="p">(</span> <span class="kd">function</span><span class="p">(</span><span class="nx">results</span><span class="p">)</span> <span class="p">{</span>
+      <span class="kd">var</span> <span class="nx">menu</span> <span class="o">=</span> <span class="nx">$</span><span class="p">(</span><span class="s2">&#34;#search .dropdown-menu&#34;</span><span class="p">).</span><span class="nx">html</span><span class="p">(</span><span class="s2">&#34;&#34;</span><span class="p">);</span>
+      <span class="k">if</span><span class="p">(</span> <span class="nx">$</span><span class="p">.</span><span class="nx">isEmptyObject</span><span class="p">(</span> <span class="nx">results</span> <span class="p">)</span> <span class="p">)</span> <span class="p">{</span>
+        <span class="nx">$</span><span class="p">(</span><span class="s2">&#34;#search .dropdown-menu&#34;</span><span class="p">).</span><span class="nx">html</span><span class="p">(</span><span class="s2">&#34;&lt;li class=&#39;disabled&#39;&gt;&lt;a href=&#39;#&#39;&gt;No results for: &#34;</span> <span class="o">+</span> <span class="nx">val</span> <span class="o">+</span><span class="s2">&#34;&lt;/a&gt;&lt;/li&gt;&#34;</span><span class="p">)</span>
+      <span class="p">}</span>
+      <span class="nx">$</span><span class="p">.</span><span class="nx">each</span><span class="p">(</span> <span class="nx">results</span><span class="p">,</span> <span class="kd">function</span><span class="p">(</span> <span class="nx">url</span><span class="p">,</span> <span class="nx">info</span> <span class="p">)</span> <span class="p">{</span>
+        <span class="nx">menu</span><span class="p">.</span><span class="nx">append</span><span class="p">(</span> <span class="s2">&#34;&lt;li&gt;&lt;a href=\&#34;&#34;</span> <span class="o">+</span> <span class="nx">url</span> <span class="o">+</span> <span class="s2">&#34;\&#34;&gt;&#34;</span> <span class="o">+</span> <span class="nx">info</span><span class="p">.</span><span class="nx">title</span> <span class="o">+</span> <span class="s2">&#34;&lt;/a&gt;&lt;/li&gt;&#34;</span><span class="p">);</span>
+      <span class="p">});</span>
+    <span class="p">});</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="next-steps">Next steps</h2>
+
+<ol>
+<li>Language stemming</li>
+<li>Logical operations</li>
+<li>Showing more metadata in the search results.</li>
+</ol>
+
+  </article>
+</div>
+
+
+  <div class="bg-light py-5">
+    <div class="container">
+      <h2 class="text-center">Read next</h2>
+
+      <div class="row">
+        <div class="col-md-6 text-center">
+          
+            Next Post:
+            <a href="../../../articles/2015/bower-with-rails/">Bower with Rails</a>
+          
+        </div>
+        <div class="col-md-6 text-center">
+          
+            Previous Post:
+            <a href="../../../articles/2015/osx-script-for-kiosk-mode/">OSX Script for Kiosk Mode</a>
+          
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+
+
+<div class="container mt-5">
+  <h2 class="text-center">See also</h2>
+  <div class="row">
+  	
+      <div class="col-md mb-3">
+        <p class="lead mb-0"><a class="text-body" href="../../../articles/2015/slow-data-and-fast-sites/">Slow data and Fast Sites</a></p>
+
+        
+          <p class="lead font-italic mb-0">building fast, searchable, functional sites that fail gracefully</p>
+        
+        <p class="font-weight-light mt-3">This article walks through the motivations driving and benefits of using a the Seed Architecture for building performant websites using Middleman, React, and a seperate API server such as Parse. The benefits are:
+ You get full SEO with a heavy client JavaScript site without having to do crazy things with PhantomJS or meta fragments. Hosting and operations become both cheap and doesn&rsquo;t require a support team. Scaling out the system is mainly a bandwidth problem, and secondarily a API scaling problem for a subset of behavior.</p>
+        <a href="../../../articles/2015/slow-data-and-fast-sites/" class="btn btn-primary">Read more</a>
+      </div>
+    
+      <div class="col-md mb-3">
+        <p class="lead mb-0"><a class="text-body" href="../../../articles/2014/building-middleman-extensions/">Building Middleman Extensions</a></p>
+
+        
+          <p class="lead font-italic mb-0">make middleman more awesome</p>
+        
+        <p class="font-weight-light mt-3">Middleman extensions, like rails plugins, are packaged as gems. There are three main ways to extend middleman. You can add helpers, add middleman commands, or extend the sitemap generation in someway. Lets go through those in detail.
+Creating the extension Create a gem using bundle gem _name_
+$ bundle gem middleman-graphviz Add middleman-core to your gem dependancies in the .gemspec file:
+spec.add_runtime_dependency &#39;middleman-core&#39;, [&#39;&gt;= 3.0.0&#39;] Register your extension into middleman.</p>
+        <a href="../../../articles/2014/building-middleman-extensions/" class="btn btn-primary">Read more</a>
+      </div>
+    
+      <div class="col-md mb-3">
+        <p class="lead mb-0"><a class="text-body" href="../../../articles/2014/middleman-tricks-and-hacks/">Middleman Tricks and Hacks</a></p>
+
+        
+          <p class="lead font-italic mb-0">specific tricks I used to build this site</p>
+        
+        <p class="font-weight-light mt-3">As part of the process of getting this site to work, I learned some more things about how to better build a site with middleman. Building off of our foundational article here are a few other things that I found very useful when using middleman to build a static site with a bunch of dynamically generated content.
+Partials The index.html.haml, articles.html.haml, tag.html.haml and calendar.html.haml pages all use the same partial to list out the post archives, which are mostly the same.</p>
+        <a href="../../../articles/2014/middleman-tricks-and-hacks/" class="btn btn-primary">Read more</a>
+      </div>
+    
+  </div>
+</div>
+
+
+<footer class="footer bg-dark text-light mt-3">
+  <div class="container">
+    <h2 class="py-5 font-weight-light my-0">Made in Brooklyn NY</h2>
+  </div>
+</footer>
+</body>
+</html>

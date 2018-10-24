@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html><head>
+  <title>Slow data and Fast Sites</title>
+  
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  <link rel="stylesheet" href="../../../css/theme.css"/>
+  <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js" integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" crossorigin="anonymous"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js" integrity="sha384-ChfqqxuZUCnJSK3+MXmPNIyE6ZbWh2IMqE241rYiqJxyMiZ6OW/JmZQ5stwEULTy" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="../../../css/syntax.css"/>
+
+  
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-56296045-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  <meta property="og:title" content="Slow data and Fast Sites" />
+<meta property="og:description" content="This article walks through the motivations driving and benefits of using a the Seed Architecture for building performant websites using Middleman, React, and a seperate API server such as Parse. The benefits are:
+ You get full SEO with a heavy client JavaScript site without having to do crazy things with PhantomJS or meta fragments. Hosting and operations become both cheap and doesn&rsquo;t require a support team. Scaling out the system is mainly a bandwidth problem, and secondarily a API scaling problem for a subset of behavior." />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://willschenk.com/articles/2015/slow-data-and-fast-sites/" /><meta property="article:published_time" content="2015-05-08T00:00:00&#43;00:00"/>
+<meta property="article:modified_time" content="2015-05-08T00:00:00&#43;00:00"/>
+
+  <meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="Slow data and Fast Sites"/>
+<meta name="twitter:description" content="This article walks through the motivations driving and benefits of using a the Seed Architecture for building performant websites using Middleman, React, and a seperate API server such as Parse. The benefits are:
+ You get full SEO with a heavy client JavaScript site without having to do crazy things with PhantomJS or meta fragments. Hosting and operations become both cheap and doesn&rsquo;t require a support team. Scaling out the system is mainly a bandwidth problem, and secondarily a API scaling problem for a subset of behavior."/>
+<meta name="twitter:site" content="@wschenk"/>
+
+
+  <style>
+    .article p, .article ul, .article ol, .article table {
+      max-width: 45em;
+    }
+
+    article.article p:first-child, .article blockquote {
+      font-size: 1.25em;
+      font-weight: 300;
+      max-width: 36em;  
+    }
+  </style>
+</head>
+<body><nav class="container my-5">
+  <h1 class="pt-5 display-3"><a class="text-dark" href="../../../">Will Schenk</a></h1>
+  <p>
+    
+      <a class="text-dark h4 mr-3 font-weight-light" href="../../../articles/" title="">Articles</a>
+    
+      <a class="text-dark h4 mr-3 font-weight-light" href="../../../contact" title="">Contact</a>
+    
+      <a class="text-dark h4 mr-3 font-weight-light" href="../../../tags/" title="">Tags</a>
+    
+    <a href="../../../feed.xml" class="mr-3 h4 text-light"><img src="../../../img/rss.svg" alt="rss" height="20" width="20"/></a>
+    
+      <a href="https://twitter.com/@wschenk" class="mr-3 h4 text-light"><img src="../../../img/twitter.svg" alt="twitter" height="20" width="20"/></a>
+    
+    
+      <a href="https://instagram.com/wschenk" class="mr-3 h4 text-light"><img src="../../../img/instagram.svg" alt="instagram" height="20" width="20"/></a>
+    
+    
+      <a href="https://linkedin.com/in/will-schenk-420266" class="mr-3 h4 text-light"><img src="../../../img/linkedin.svg" alt="linkedin" height="20" width="20"/></a>
+    
+  </p>
+</nav>
+
+<div class="container">
+  <h1 class="mt-5">Slow data and Fast Sites</h1>
+
+  
+    <h2 class="font-weight-light font-italic mb-3">building fast, searchable, functional sites that fail gracefully</h2>
+  
+
+  <p class="text-muted mt-3">
+    <a class="text-muted" href="https://willschenk.com/articles/2015/slow-data-and-fast-sites/">Published May 8, 2015</a>
+
+    
+      <a class="text-muted" href="../../../tags/middleman">#middleman</a>
+    
+      <a class="text-muted" href="../../../tags/ruby">#ruby</a>
+    
+      <a class="text-muted" href="../../../tags/howto">#howto</a>
+    
+      <a class="text-muted" href="../../../tags/static_sites">#static_sites</a>
+    
+      <a class="text-muted" href="../../../tags/overview">#overview</a>
+    
+  </p>
+
+  
+
+  <article class="article mt-5">
+    
+
+<p>This article walks through the motivations driving and benefits of using a the Seed Architecture for building performant websites using Middleman, React, and a seperate API server such as Parse.  The benefits are:</p>
+
+<ol>
+<li>You get full SEO with a heavy client JavaScript site without having to do crazy things with PhantomJS or meta fragments.</li>
+<li>Hosting and operations become both cheap and doesn&rsquo;t require a support team.</li>
+<li>Scaling out the system is mainly a bandwidth problem, and secondarily a API scaling problem for a subset of behavior.</li>
+<li>The system breaks gracefully. If you overwhelm the API server the site is still available for browsing.  Assuming that most usage of the sites are reads, this means that if you try to <em>break the internet</em> with <a href="http://www.papermag.com/2014/11/kim_kardashian.php">Kim Kardashian&rsquo;s ass</a> maybe user login will slow down, but everything else is still available.</li>
+<li>You are able to build your front end using modern and clean fancy JavaScript technologies and don&rsquo;t need to mess around with back-end coding.</li>
+</ol>
+
+<h2 id="motivation">Motivation</h2>
+
+<p>Sometimes I feel bad for what we make servers do.  I will occasionally get a cringing feeling because we&rsquo;re just not being very nice to the fancy machines around us.  It&rsquo;s similar to being in the car with someone who is learning how to drive a standard transmission and they grind the gears lurching the car into a stall.  Ahhh!</p>
+
+<p>I especially get this feeling when trying to make poorly built websites scale, e.g.  wordpress sites that jam up the server when the slightest breeze of traffic wafts in, or Rails sites that are slamming the database with N+1 unindexed queries of largely static data.  I really enjoyed the <a href="https://medium.com/message/how-paper-magazines-web-engineers-scaled-kim-kardashians-back-end-sfw-6367f8d37688">backstory to the back-end</a>, but surely there has to be a better way to do this.</p>
+
+<p>The reality is the computer is mostly doing the same exact thing, over and over again.  For a lot of sites, there are only a few parts of the page that change based upon who is looking or when they are looking at it, and the bulk of what everyone seems is the same same same.  The computer doesn&rsquo;t complain about it but silently and stoically gets crushed under the load.  But we can fix it.  If we can break down the data on the page into different categories based upon its rate of change the bulk of the processing can happen at &ldquo;compile&rdquo; or &ldquo;build&rdquo; time, while only a small part of it needs to happen at run-time.  And when a wave of people come in the servers are fully prepared to serve them up what they need.</p>
+
+<p>There is so much computer power available both in desktop browsers and mobile browsers, and we should use it.  If we can find a way to precompute the repetitive stuff and push the computing of the dynamic stuff out to the edges, we vastly lower the load on the servers which simplifies operations and scaling.  There are some challenges with doing this; how to deal with SEO, increasing the &ldquo;build&rdquo; frequency to handle the &ldquo;slow data&rdquo; updates, and how to make it easy to do front-end development.  We&rsquo;ll go through a strategy below to address those challenges.</p>
+
+<p>At the end of this meandering article we are going to have a way to build super scalable sites that give you SEO and full client side interactivity without having any servers (or at least only a small cheap one) which will nevertheless be able to scale to huge amounts of traffic cheaply.</p>
+
+<h2 id="the-outline">The Outline</h2>
+
+<p>Let&rsquo;s take a step back from how we normally build websites, and see what we can we do better based upon the challenges and current reality of operating sites:</p>
+
+<ol>
+<li>The first insight is that once your site is built and running, things change at a different rate than they do in development.  The difference between tooling and run-time evaluation becomes more pronounced, and usage patterns of the data become clearly stratified.  Even though we dump everything into the database, there are distinct classes of data that have different change patterns.</li>
+<li>The second insight is websites are about sitemaps, not about URLs.  SEO thinks in terms of Sitemaps, and webapps thinks in terms of Routes, but if we could get the best of both worlds if we had a static build process that can pull data from a datastore and understands the concepts of a Sitemap and a Router.</li>
+<li>The third insight is that we need a templating language that can run equally well on the server and the client in order to keep developers sane and effective.  The bulk of the application needs to be written using the same tooling.</li>
+<li>The fourth insight is that web services don&rsquo;t need to be hidden behind the server, and with rich client apps we can consume them directly from the client.</li>
+</ol>
+
+<p>I&rsquo;ll walk through these in turn, deconstructing what they mean, and outline a way of building a prerendered website that will let you add all the fancy front-end features and full SEO support - all of the benefits of so-called database backed web-sites with content management systems and complex logic - that will be able to scale up quickly without any ops support, and be able to degrade gracefully under spikes.</p>
+
+<h2 id="data-changes-at-different-rates">Data changes at different rates</h2>
+
+<p>Lets take 4 classes of sites that we all build regularly:</p>
+
+<ul>
+<li><strong>Marketing Sites</strong>, which after they launch rarely change, but may have a form that&rsquo;s the beginning of a sales or conversion funnel.  <em>e.g. Mobile App landing pages, like <a href="http://getpyne.com">getpyne.com</a></em></li>
+<li><strong>Publishing Sites</strong>, which change when new content is created, comments get posted, or with changes in a list of most emailed or most read articles.  Blogs, magazines and newspapers fit in here, though they have different user types and publishing schedules. <em>e.g. Newspapers, like <a href="http://nytimes.com">nytimes.com</a></em></li>
+<li><strong>Ecommerce Sites</strong>, which change when the product catalog gets updated, orders are placed, inventory changes, cross and up sells are calculated, and people add things to their cart. <em>e.g. <a href="http://teepublic.com">teepublic.com</a></em></li>
+<li><strong>Social Sites</strong>, which you only can access as a user, who your connections are, what gets added by other users, how you interact with that content, and any real time messaging between them. <em>e.g. <a href="http://instagram.com">instagram.com</a></em></li>
+</ul>
+
+<p><em>If the word social bothers you, just replace it with &ldquo;all views are customized to the user and you need to log in to see anything&rdquo;.</em></p>
+
+<p>Let&rsquo;s look at the rate of change of the different types of data on these sites:</p>
+
+<p><img src="data.png" class="img-fluid"></p>
+
+<p>Lets walk through this.  A <em>data model</em> is the structure that all of the site data fits into.  This represents the heart of what your database model, object model, and product design are all orbiting around.  In the beginning of development this rapidly changes, but once the site is released changes are incremental and relatively rare. It&rsquo;s easy to add functionality that doesn&rsquo;t change the data model, but when you start making drastic changes, the nature of what you are building changes.  Wordpress sites have pages, posts, categories and users, and if you try and jam in a product catalog then it becomes something different than a standard blog.</p>
+
+<p>The next level is the bulk of the data on the site.  <em>Marketing</em> sites have pages that change rarely.  <em>Publishing</em> sites keep adding more articles, but these really don&rsquo;t change that much and the bulk of the access pattern is read only.  <em>Commerce</em> sites have product catalogs, and while merchandizers add and remove things from time to time, you largely expect to have things on there forever.  Again this is mostly, though not completely, read-only.</p>
+
+<p>For SEO to work correctly, the data in the gray boxes really should be rendered on the server.  The <em>Social Site</em> is a bit of an outlier here, in that the root object is actually the user and the user&rsquo;s content.</p>
+
+<p>Let&rsquo;s compare <a href="https://medium.com">medium.com</a> with <a href="http://facebook.com">facebook.com</a>.  Since the bulk of the content of Medium is accessable to anyone once it&rsquo;s published.  For this discussion its considered to be a publishing site rather than a social site.  Bits and elements of the page change based upon who is accessing the site, but for the most part, everyone sees the same stuff.  Facebook on the other hand looks different for each of the users.  Individual items may be public, but the main consumption is through the feed and that&rsquo;s based upon your friends <em>and magic</em>, so scaling has a whole different set of challenges.  Probably involving something very esoteric.</p>
+
+<h2 id="towards-a-more-nerdy-taxonomy-of-data">Towards a more nerdy taxonomy of data</h2>
+
+<p>We can look at each of the elements on a website and break down the type of data source it came from:</p>
+
+<ul>
+<li><strong>Static Data</strong>: Templates, Images, Fonts, Assets</li>
+<li><strong>Structural Data</strong>: Pages, Articles, Product Catalog, Categories, &ldquo;Content&rdquo;</li>
+<li><strong>Dynamic Data</strong>: Inventory, Comments</li>
+<li><strong>Session Data</strong>: User names, Items in cart, Likes, etc.</li>
+</ul>
+
+<p>As we go down the list, the rate in which these things change increases.  <em>Static data</em>, as the name implies, rarely changes.  Most of these are artifacts that come out of the development process or development tooling.  Templates, for example, are created during the site development process and once the site is deployed they change only in response to bug fixes or feature requests.</p>
+
+<p><em>Structural Data</em> changes during the operations of the business, but not very frequently, and generally in response to things that are outside of the site <em>per se</em>.  These include things like marketing material, product pages (less inventory information), categories, articles, and really the bulk of the content on a site.  There are many reasons why you want to generate these pages using some sort of CMS, but rarely does this data change at <em>run-time</em>.  This stuff doesn&rsquo;t really need to be in a run-time database as such, but it&rsquo;s convient to stick this stuff there if you have one laying around.</p>
+
+<p><em>Dynamic Data</em> is <em>run-time</em> data, that is to say, things that change as part of site operations, things like newsletter signups, orders and credit card transactions.  Most <em>User Generated Content</em> falls in the this category, and depending upon your feature set, that could be the majority of the pages.  Unlike <em>Structural Data</em>, where it&rsquo;s merely a good idea to use a database, this is <em>neccessarily</em> stored in some sort of database.</p>
+
+<p><em>Session Data</em> is <em>specific to the user</em> and renders the page differently based upon their session, such as their name, whether they&rsquo;ve added an item into the cart or not, etc.  One of the things that makes straight <em>page caching</em> useless in practice is that the header is different on most sites based on if you are logged in or not, or if there are items in the cart.  This gets persisted from page to page, but generally can get thrown away if the user wanders off.</p>
+
+<h2 id="what-do-we-need-to-assemble-a-website">What do we need to assemble a website</h2>
+
+<p>A website is a series of interconnected webpages.  These pages are referenced by URLs, and the world of linking and SEO demands that these URLs return self-contained data so that you can deep link and get yourself found on the search engines.  From the outside, it looks like:</p>
+
+<p><img src="sitemap.png" class="img-fluid"></p>
+
+<p>The main entry point is the <em>Sitemap</em>.  Conceptually, this is the overview of what can be found on the site.  In a specific, SEO sense, a sitemap is a way of communicating to search engines the structure of your site so the search results can be better organized.  But in a more general sense, the sitemap is a collection of all of the pages that make up the site.</p>
+
+<p>The conceptual sitemap is a list of URLs that makes up your site.  If you have a completely static <em>Marketing</em> site, then the sitemaps is just the collection of the static HTML files that is on the webserver filesystem.  If you have a <em>Publishing</em> or <em>Commerce</em> site, the list of page urls depend upon the templates and the data in the database: even if they use the same template, every individual post has it&rsquo;s own permalink or <em>canonical URL</em>, every product in the catalog has it&rsquo;s own product detail page.</p>
+
+<h2 id="how-urls-are-made-on-the-inside">How urls are made on the inside</h2>
+
+<p>Lets take an example of a <em>Commerce</em> site, and how those URLs are generated.  I don&rsquo;t know the actual details, but lets look at how <code>http://www.thinkgeek.com/product/1dbd/</code> could be generated.</p>
+
+<p>From the inside of a website, it looks a little more like this:</p>
+
+<p><img src="routing.png" class="img-fluid"></p>
+
+<p>A request comes into the server and the <code>router</code> determines what the user is asking for.  In our example, since the path of the url is <code>/product/1dbd/</code>, the router looks at that and says &ldquo;this is a product page&rdquo; so let&rsquo;s hand the request off to the <code>product</code> controller, which is the part of the code that knows about product stuff.</p>
+
+<p>The controller would load up the product with the id <code>1dbd</code> from the product catalog in the database, in this case <em>Flux Capacitor USB Car Charger</em>, which we can all agree is a necessary car accessory, and then use those details to fill out the product template.</p>
+
+<p>The developers of this site didn&rsquo;t code up each of these product pages, they coded up one <code>template</code> that represents all of the possible product pages that could be served up, they coded up a <code>controller</code> which knows how to pull the data from the database, and they wired up the whole thing using a <code>router</code>.</p>
+
+<h2 id="sitemaps-in-static-site-generators">Sitemaps in static site generators</h2>
+
+<p>Our conceptual sitemap then is composed then of the set routes and database ids.  The pages themselves are a cross product of the templates and the data for each of the pages:</p>
+
+<p><strong>Data x Templates = Pages</strong></p>
+
+<p>One of the things that&rsquo;s exciting about <a href="https://middlemanapp.com">Middleman</a> is that it has a <a href="../../../building-middleman-extensions/#manipulating-the-sitemap">manipulatable concept of a sitemap</a>.</p>
+
+<p>The main thing that middleman does it to give front-end developers tooling to build sites, so you get the benefits of layouts and partials and SASS and helper methods and javascript minification all the other front-end tooling that you get with rails, but without needing to run a server.  This lets you build fancy sites using the &ldquo;normal&rdquo; tools and you can still host them on github pages or divshot or a cheap server.</p>
+
+<p>I&rsquo;ve written about Middleman before:</p>
+
+<ul>
+<li><a href="../../../building-sites-with-middleman/">Building Sites with Middleman</a></li>
+<li><a href="../../../middleman-tricks-and-hacks/">Middleman Tricks and Hacks</a></li>
+<li><a href="../../../building-middleman-extensions/">Building Middleman Extensions</a></li>
+</ul>
+
+<p>If we want to pre-render the pages on the server at build time we&rsquo;ll need both the routes as well as the &ldquo;database IDs&rdquo;.  That gives us the list of files, and to generate the files themselves we&rsquo;ll need the data for each specific page.  In a basic way, this can be done using <a href="../../../advanced/dynamic_pages/">page proxies</a>, excerpt from the Middleman docs:</p>
+
+<pre><code>[&quot;tom&quot;, &quot;dick&quot;, &quot;harry&quot;].each do |name|
+  proxy &quot;/about/#{name}.html&quot;, &quot;/about/template.html&quot;, :locals =&gt; { :person_name =&gt; name }, :ignore =&gt; true
+end
+</code></pre>
+
+<p>If you put that code in your <code>config.rb</code> it will create 3 pages in the middleman sitemap. (Found on <code>http://localhost:4567/__middleman/sitemap/</code> if you have a local build running.) These files will be named <code>/about/tom.html</code>, <code>/about/dick.html</code>, and <code>/about/tom.html</code>, all generated from the <code>/about/template.html</code> template.</p>
+
+<p>You could imagine instead passing in a complex object instead of a string.  I touched on this in a basic way before in the <a href="../../../middleman-tricks-and-hacks/#site-data-as-database">Using Site Data as a Database</a>.</p>
+
+<p>In the simpliest form, you could dump your data in the <code>data/</code> directory as <code>books.json</code>, and then put this in your <code>config.rb</code> to generate a product catalog:</p>
+
+<pre><code>data.books.each do |book|
+  proxy &quot;/book/#{book.slug}.html&quot;, &quot;/book.html&quot;, locals: { book: book }, ignore: true
+end
+</code></pre>
+
+<p>As a proof of concept this works, but for a real system there would at least need to be a mechanism to sync the json from the database.  For a more robust mechanism, remember that Middleman exposes a <a href="../../../building-middleman-extensions/#manipulating-the-sitemap">manipulatable concept of a sitemap</a> to extensions.</p>
+
+<h2 id="making-front-end-development-easy">Making front-end development easy</h2>
+
+<p>The story thus far is that we can split out data into static, dynamic, and session data, and we can use Middleman&rsquo;s sitemap concept to generate static pages that can be served straight from S3 for all we care and it will all be indexable by Google.  Sweet!!!</p>
+
+<p>Now lets talk about how we can actually implement some of these templates.</p>
+
+<p>We&rsquo;ve broken down pages and split out when different parts will be rendered based upon our <a href="#towards-a-more-nerdy-taxonomy-of-data">taxonomy of data</a>.  We&rsquo;ve figured out a basic structure of how to render the <em>Structural Data</em> into the page, and now we need to figure out a good way to render the <em>Dynamic</em> and <em>Session</em> data in there too. And we also want to make this friendly for front-end developers.  It&rsquo;s not practical to have different templating engines and coding styles for bits of data that, during the development process, may turn out to be <em>Site</em> or <em>Dynamic</em> data.</p>
+
+<p>This is different than using Varnish, CloudFront or Rails Page Level caching.  In those scenarios, there&rsquo;s no easy way to distinguish between elements on the page that everyone can see, vs elements that only specific people can see.  It&rsquo;s all or nothing.</p>
+
+<p>For example, when Admins are logged into wordpress sites, they have a toolbar that regular browsers don&rsquo;t see, so the page caching mechanisms need to have a way to subvert the caching process for logged in users.  In this mechanism, we are going to send the same basic page data to all of the users, and then use client side javascript templating to change the DOM for the user based upon API calls that we make on their request.</p>
+
+<h2 id="enter-react">Enter React</h2>
+
+<p><a href="https://facebook.github.io/react/">React</a> is a javascript view framework from Facebook that focuses solely on the view layer.  (We&rsquo;re only going to be talking about the React part, and you can use <a href="https://facebook.github.io/flux/">flux</a> or not, up to you.)</p>
+
+<p>React works by enforcing a specific dataflow model on how components are rendered into the DOM.  React lets you build heirachies of components that know how to render themselves and deal with different user actions.  Much of what we&rsquo;ve been talking about above thinking about page generation from a dataflow perspective, splitting the data up into different sources based upon their rate of change, and breaking up the page based upon how the data flows into it.With the goal of trying to prerender all of the stuff that&rsquo;s the same for everyone.</p>
+
+<p>React has a more focused dataflow model, working by passing in a component, data, and a DOM element, and it render out the HTML in that element.  Components can be nested and have complex logic, and when you change the state of a particular component, all of the subcomponents will be refreshed as needed.</p>
+
+<p>React has two concepts of data, one is called <em>properties</em> which is inherited from above and considered to be immutable.  The other is called <em>state</em>, which is owned by a component and can be changed and passed to any children components.  In React, this is about data ownership and to keep the page updates efficient.</p>
+
+<h2 id="rendering-react-on-the-server-side">Rendering React on the server side</h2>
+
+<p>One of the most interesting things about React is that you can render the HTML on the server side as well as the client side.  Rendering on the server will include data attributes on the DOM so that the client Javascript can pick it up from there.  In other words, if the data is available, you can render a template on the server or the client and it will <em>work the exact same way</em>.  This is the one templating system that will be easy to move from <em>Structural Data on the server</em> to <em>Dynamic Data on the client</em>!</p>
+
+<p>Obviously you need to have the data available on the server at render time, and you&rsquo;ll pass it to the precompiler in a different way than you would on the client (one is passed to the JavaScript engine and the other is probably a result of a JSON AJAX call but all of the interaction and user logic remains the same), but outside of the wiring the business and interaction logic completely shared.</p>
+
+<p>If you are using <a href="https://github.com/reactjs/react-rails"><code>react-rails</code></a> this looks like:</p>
+
+<pre><code>&lt;%%= react_component('HelloMessage', {name: 'John'}, {prerender: true}) %&gt;
+&lt;!-- becomes: --&gt;
+&lt;div data-react-class=&quot;HelloMessage&quot; data-react-props=&quot;{&amp;quot;name&amp;quot;:&amp;quot;John&amp;quot;}&quot;&gt;
+  &lt;h1&gt;Hello, John!&lt;/h1&gt;
+&lt;/div&gt;
+</code></pre>
+
+<p>When you instantiate the javascript environment in the client, it will look for the <code>data-react-*</code> attributes and plug in your components there.</p>
+
+<p>I&rsquo;ve ported this functionality over to HappyFunCorp&rsquo;s fork of the <a href="https://github.com/HappyFunCorp/middleman-react">middleman-react gem</a> that you can use in middleman.</p>
+
+<h2 id="javascript-and-web-services-sitting-in-a-tree">Javascript and web services sitting in a tree</h2>
+
+<p>The trick is that React can also be rendered on the server, and then the javascript that&rsquo;s run on the client side can pick it up from there.  At this point in the process all of the <em>Structural Data</em> is available both in rendered HTML and also in the React components themselves, passed in as <em>properties</em> or <em>state</em>.</p>
+
+<p>Our components are ready to go!  They&rsquo;ve either rendered <em>Site Data</em> from the server, or they can pull in <em>Dynamic and Session Data</em> in from an API, and use that to render the page.  These components are written in the same way, using the same technology, so you don&rsquo;t need to have a different style of building or constructing the front end, other than breaking down where the components get data from.  Which ones get rendered on the server?  Do they have enough data to render what they need?  Do they need to have additional data that can be loaded in at client-run-time?  Or is it all straight from an API?</p>
+
+<h2 id="enter-parse">Enter Parse</h2>
+
+<p>One of the benefits of this is that there are API-as-services out there, like <a href="https://parse.com">Parse</a> or <a href="https://www.firebase.com">Firebase</a>.  All of your data could live in these systems, and you can pull certain stuff out during the build process, and other data out at Runtime, and they handle both security, user accounts, and, more importantly, operational scaling support.  From an ops perspective, you don&rsquo;t need to do anything other than build the site and pay the hosting builds, and all of the tricky scaling stuff handled is by a third party.</p>
+
+<p>&lt;%= image_tag &ldquo;seed_sequence.png&rdquo;, class: &ldquo;img-responsive&rdquo; %&gt;</p>
+
+<h2 id="bringing-back-a-build-server">Bringing back a build server</h2>
+
+<p><img src="build.png" class="img-fluid"></p>
+
+<p>There still needs to be a way to get new versions of <em>Structural Data</em> onto the site.  For this, we need to host middleman somewhere on a build server, and everytime <em>Structural Data</em> changes we need to trigger another build that pushes up the static content.  Parse has <a href="https://parse.com/docs/js/guide#cloud-code-aftersave-triggers">afterSave triggers</a> that could, for example, ping your build server to first pull down the data changes, and then push the code out.</p>
+
+<p>Remember, this would only be for <em>Structural Data</em> updates, for example if an Admin user updated a product description.  If a customer added an item to their cart or placed an order, this would all be dynamic data inside of the data store and managed on the client site.  It would only update Parse, not the site that everyone would access.</p>
+
+<h2 id="advantages">Advantages</h2>
+
+<p>The advantages of this way of building things are:</p>
+
+<ol>
+<li>You get full SEO with a heavy client JavaScript site without having to do crazy things with PhantomJS or meta fragments.</li>
+<li>Hosting and operations become both cheap and doesn&rsquo;t require a support team.</li>
+<li>Scaling out the system is mainly a bandwidth problem, and secondarily a API scaling problem for a subset of behavior.</li>
+<li>The system breaks gracefully. If you overwhelm the API server the site is still available for browsing.  Assuming that most usage of the sites are reads, this means that if you try to <em>break the internet</em> with <a href="http://www.papermag.com/2014/11/kim_kardashian.php">Kim Kardashian&rsquo;s ass</a> maybe user login will slow down, but everything else is still available.</li>
+<li>You are able to build your front end using modern and clean fancy JavaScript technologies and don&rsquo;t need to mess around with back-end coding.</li>
+</ol>
+
+  </article>
+</div>
+
+
+  <div class="bg-light py-5">
+    <div class="container">
+      <h2 class="text-center">Read next</h2>
+
+      <div class="row">
+        <div class="col-md-6 text-center">
+          
+            Next Post:
+            <a href="../../../articles/2015/osx-script-for-kiosk-mode/">OSX Script for Kiosk Mode</a>
+          
+        </div>
+        <div class="col-md-6 text-center">
+          
+            Previous Post:
+            <a href="../../../articles/2015/why-engineers-build-crappy-products/">Why Engineers build crappy products</a>
+          
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+
+
+<div class="container mt-5">
+  <h2 class="text-center">See also</h2>
+  <div class="row">
+  	
+      <div class="col-md mb-3">
+        <p class="lead mb-0"><a class="text-body" href="../../../articles/2014/building-middleman-extensions/">Building Middleman Extensions</a></p>
+
+        
+          <p class="lead font-italic mb-0">make middleman more awesome</p>
+        
+        <p class="font-weight-light mt-3">Middleman extensions, like rails plugins, are packaged as gems. There are three main ways to extend middleman. You can add helpers, add middleman commands, or extend the sitemap generation in someway. Lets go through those in detail.
+Creating the extension Create a gem using bundle gem _name_
+$ bundle gem middleman-graphviz Add middleman-core to your gem dependancies in the .gemspec file:
+spec.add_runtime_dependency &#39;middleman-core&#39;, [&#39;&gt;= 3.0.0&#39;] Register your extension into middleman.</p>
+        <a href="../../../articles/2014/building-middleman-extensions/" class="btn btn-primary">Read more</a>
+      </div>
+    
+      <div class="col-md mb-3">
+        <p class="lead mb-0"><a class="text-body" href="../../../articles/2014/middleman-tricks-and-hacks/">Middleman Tricks and Hacks</a></p>
+
+        
+          <p class="lead font-italic mb-0">specific tricks I used to build this site</p>
+        
+        <p class="font-weight-light mt-3">As part of the process of getting this site to work, I learned some more things about how to better build a site with middleman. Building off of our foundational article here are a few other things that I found very useful when using middleman to build a static site with a bunch of dynamically generated content.
+Partials The index.html.haml, articles.html.haml, tag.html.haml and calendar.html.haml pages all use the same partial to list out the post archives, which are mostly the same.</p>
+        <a href="../../../articles/2014/middleman-tricks-and-hacks/" class="btn btn-primary">Read more</a>
+      </div>
+    
+      <div class="col-md mb-3">
+        <p class="lead mb-0"><a class="text-body" href="../../../articles/2014/building-sites-with-middleman/">Building Sites with Middleman</a></p>
+
+        
+          <p class="lead font-italic mb-0">lean publishing</p>
+        
+        <p class="font-weight-light mt-3">I make a lot of websites, and I have a certain toolkit that I use to build them. The most useful things I use are:
+ layouts and partials so I only need to set things up once haml for writing html, since I don&rsquo;t like closing tags Bootstrap and sass for writing css Markdown for formatting large blogs of content coffeescript for JavaScript  Middleman is a static site generator, which means that it takes a bunch of source files, does some stuff with it, and produces static HTML, CSS, Images, and Javascript that can be hosted on a basic server somewhere, including hosting on S3 or Github Pages so you don&rsquo;t need to consider a server.</p>
+        <a href="../../../articles/2014/building-sites-with-middleman/" class="btn btn-primary">Read more</a>
+      </div>
+    
+  </div>
+</div>
+
+
+<footer class="footer bg-dark text-light mt-3">
+  <div class="container">
+    <h2 class="py-5 font-weight-light my-0">Made in Brooklyn NY</h2>
+  </div>
+</footer>
+</body>
+</html>

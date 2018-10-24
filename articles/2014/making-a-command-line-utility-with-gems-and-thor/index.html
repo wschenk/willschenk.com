@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html><head>
+  <title>Making a command line utility with gems and thor</title>
+  
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  <link rel="stylesheet" href="../../../css/theme.css"/>
+  <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js" integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" crossorigin="anonymous"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js" integrity="sha384-ChfqqxuZUCnJSK3+MXmPNIyE6ZbWh2IMqE241rYiqJxyMiZ6OW/JmZQ5stwEULTy" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="../../../css/syntax.css"/>
+
+  
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-56296045-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  <meta property="og:title" content="Making a command line utility with gems and thor" />
+<meta property="og:description" content="Some scripts work well because they are self contained and don&rsquo;t have a lot of dependancies, like the hosts on your network tracker.
+Others scripts - have more code than fits into a single file - multiple options and switches - have an extensive set of dependancies
+And on those cases, its better to make a gem and use thor
+Hammer of the Gods Lets figure out how to make some command line tools and package them up so that they can be shared and used by other people." />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://willschenk.com/articles/2014/making-a-command-line-utility-with-gems-and-thor/" /><meta property="article:published_time" content="2014-11-08T00:00:00&#43;00:00"/>
+<meta property="article:modified_time" content="2014-11-08T00:00:00&#43;00:00"/>
+
+  <meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="Making a command line utility with gems and thor"/>
+<meta name="twitter:description" content="Some scripts work well because they are self contained and don&rsquo;t have a lot of dependancies, like the hosts on your network tracker.
+Others scripts - have more code than fits into a single file - multiple options and switches - have an extensive set of dependancies
+And on those cases, its better to make a gem and use thor
+Hammer of the Gods Lets figure out how to make some command line tools and package them up so that they can be shared and used by other people."/>
+<meta name="twitter:site" content="@wschenk"/>
+
+
+  <style>
+    .article p, .article ul, .article ol, .article table {
+      max-width: 45em;
+    }
+
+    article.article p:first-child, .article blockquote {
+      font-size: 1.25em;
+      font-weight: 300;
+      max-width: 36em;  
+    }
+  </style>
+</head>
+<body><nav class="container my-5">
+  <h1 class="pt-5 display-3"><a class="text-dark" href="../../../">Will Schenk</a></h1>
+  <p>
+    
+      <a class="text-dark h4 mr-3 font-weight-light" href="../../../articles/" title="">Articles</a>
+    
+      <a class="text-dark h4 mr-3 font-weight-light" href="../../../contact" title="">Contact</a>
+    
+      <a class="text-dark h4 mr-3 font-weight-light" href="../../../tags/" title="">Tags</a>
+    
+    <a href="../../../feed.xml" class="mr-3 h4 text-light"><img src="../../../img/rss.svg" alt="rss" height="20" width="20"/></a>
+    
+      <a href="https://twitter.com/@wschenk" class="mr-3 h4 text-light"><img src="../../../img/twitter.svg" alt="twitter" height="20" width="20"/></a>
+    
+    
+      <a href="https://instagram.com/wschenk" class="mr-3 h4 text-light"><img src="../../../img/instagram.svg" alt="instagram" height="20" width="20"/></a>
+    
+    
+      <a href="https://linkedin.com/in/will-schenk-420266" class="mr-3 h4 text-light"><img src="../../../img/linkedin.svg" alt="linkedin" height="20" width="20"/></a>
+    
+  </p>
+</nav>
+
+<div class="container">
+  <h1 class="mt-5">Making a command line utility with gems and thor</h1>
+
+  
+    <h2 class="font-weight-light font-italic mb-3">Any excuse to the use the phrase &ldquo;Hammer of the Gods&rdquo;</h2>
+  
+
+  <p class="text-muted mt-3">
+    <a class="text-muted" href="https://willschenk.com/articles/2014/making-a-command-line-utility-with-gems-and-thor/">Published November 8, 2014</a>
+
+    
+      <a class="text-muted" href="../../../tags/ruby">#ruby</a>
+    
+      <a class="text-muted" href="../../../tags/thor">#thor</a>
+    
+      <a class="text-muted" href="../../../tags/socialinvestigator">#socialinvestigator</a>
+    
+      <a class="text-muted" href="../../../tags/howto">#howto</a>
+    
+  </p>
+
+  
+  <div class="alert alert-danger">This article was published a while ago and may contain obsolete information!</div>
+  
+
+  <article class="article mt-5">
+    
+
+<p>Some scripts work well because they are self contained and don&rsquo;t have a lot of dependancies, like the <a href="http://willschenk.com/how-to-track-your-coworkers">hosts on your network tracker</a>.</p>
+
+<p>Others scripts
+- have more code than fits into a single file
+- multiple options and switches
+- have an extensive set of dependancies</p>
+
+<p>And on those cases, its better to make a gem and use thor</p>
+
+<h2 id="hammer-of-the-gods">Hammer of the Gods</h2>
+
+<p>Lets figure out how to make some command line tools and package them up so that they can be shared and used by other people.  Being able to write a script for one off tasks or simple automation is often a lot easier than building out a full app.  There are a lot of libraries and gems out there that make it easy to get information from out there on <em>the web</em>, and they generally require a little glue to make it work.</p>
+
+<p>This article is a walk through in building out a command line utility that will let you pass in a URL that will search <a href="https://news.ycombinator.com">hacker news</a> for any mentions.  In further postings, we&rsquo;ll see how to integrate twitter and google analytics searching.</p>
+
+<h2 id="first-building-a-beautiful-gem">First, building a beautiful gem</h2>
+
+<p><a href="http://rubygems.org">Rubygems</a> is the standard package manage for ruby, and <a href="http://bundler.io">Bundler</a> is the best way to manage dependancies for your application.  <code>Bundler</code> is what makes you <code>Gemfile</code>s work.</p>
+
+<p>If you don&rsquo;t have the <code>bundler</code> gem installed, you probably don&rsquo;t have <a href="http://rvm.io">rvm installed.</a>.  You should go ahead and do that.</p>
+
+<p><code>bundle gem</code> is a command that will generate a template for building a gem.  It will create a standard directory structure, create a git repo, and make it easy to build out gems, install them locally, and push them up to <a href="http://rubygems.org/">the central gem repository</a>.</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ bundle gem socialinvestigator
+      create  socialinvestigator/Gemfile
+      create  socialinvestigator/Rakefile
+      create  socialinvestigator/LICENSE.txt
+      create  socialinvestigator/README.md
+      create  socialinvestigator/.gitignore
+      create  socialinvestigator/socialinvestigator.gemspec
+      create  socialinvestigator/lib/socialinvestigator.rb
+      create  socialinvestigator/lib/socialinvestigator/version.rb
+Initializing git repo in /Users/wschenk/src/socialinvestigator</code></pre></div>
+<p>The first file to look at is the <code>socialinvestigator.gemspec</code>.  This defines information about your gem, a description, homepage url, the files that are included, and all of it&rsquo;s dependancies.  There are two types of dependencies:</p>
+
+<ol>
+<li><strong>Runtime dependencies</strong> are what the gem needs to be installed and functional when its running.</li>
+<li><strong>Development dependencies</strong> are additional gems needed for building the gem, which normally mean gems needed for testing and building.</li>
+</ol>
+
+<p>Lets edit the file and add a line</p>
+<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="n">spec</span><span class="o">.</span><span class="n">add_dependency</span> <span class="s1">&#39;thor&#39;</span>
+<span class="n">spec</span><span class="o">.</span><span class="n">add_dependency</span> <span class="s1">&#39;httparty&#39;</span></code></pre></div>
+<p>Giving us something like this:</p>
+<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="c1"># coding: utf-8</span>
+<span class="n">lib</span> <span class="o">=</span> <span class="no">File</span><span class="o">.</span><span class="n">expand_path</span><span class="p">(</span><span class="s1">&#39;../lib&#39;</span><span class="p">,</span> <span class="bp">__FILE__</span><span class="p">)</span>
+<span class="vg">$LOAD_PATH</span><span class="o">.</span><span class="n">unshift</span><span class="p">(</span><span class="n">lib</span><span class="p">)</span> <span class="k">unless</span> <span class="vg">$LOAD_PATH</span><span class="o">.</span><span class="n">include?</span><span class="p">(</span><span class="n">lib</span><span class="p">)</span>
+<span class="nb">require</span> <span class="s1">&#39;socialinvestigator/version&#39;</span>
+
+<span class="no">Gem</span><span class="o">::</span><span class="no">Specification</span><span class="o">.</span><span class="n">new</span> <span class="k">do</span> <span class="o">|</span><span class="n">spec</span><span class="o">|</span>
+  <span class="n">spec</span><span class="o">.</span><span class="n">name</span>          <span class="o">=</span> <span class="s2">&#34;socialinvestigator&#34;</span>
+  <span class="n">spec</span><span class="o">.</span><span class="n">version</span>       <span class="o">=</span> <span class="no">Socialinvestigator</span><span class="o">::</span><span class="no">VERSION</span>
+  <span class="n">spec</span><span class="o">.</span><span class="n">authors</span>       <span class="o">=</span> <span class="o">[</span><span class="s2">&#34;Will Schenk&#34;</span><span class="o">]</span>
+  <span class="n">spec</span><span class="o">.</span><span class="n">email</span>         <span class="o">=</span> <span class="o">[</span><span class="s2">&#34;wschenk@gmail.com&#34;</span><span class="o">]</span>
+  <span class="n">spec</span><span class="o">.</span><span class="n">summary</span>       <span class="o">=</span> <span class="sx">%q{Simple command line tool to look at urls.}</span>
+  <span class="n">spec</span><span class="o">.</span><span class="n">description</span>   <span class="o">=</span> <span class="sx">%q{Simple command line tool to look at urls.}</span>
+  <span class="n">spec</span><span class="o">.</span><span class="n">homepage</span>      <span class="o">=</span> <span class="s2">&#34;&#34;</span>
+  <span class="n">spec</span><span class="o">.</span><span class="n">license</span>       <span class="o">=</span> <span class="s2">&#34;MIT&#34;</span>
+
+  <span class="n">spec</span><span class="o">.</span><span class="n">files</span>         <span class="o">=</span> <span class="sb">`git ls-files -z`</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&#34;</span><span class="se">\x0</span><span class="s2">&#34;</span><span class="p">)</span>
+  <span class="n">spec</span><span class="o">.</span><span class="n">executables</span>   <span class="o">=</span> <span class="n">spec</span><span class="o">.</span><span class="n">files</span><span class="o">.</span><span class="n">grep</span><span class="p">(</span><span class="sr">%r{^bin/}</span><span class="p">)</span> <span class="p">{</span> <span class="o">|</span><span class="n">f</span><span class="o">|</span> <span class="no">File</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="p">}</span>
+  <span class="n">spec</span><span class="o">.</span><span class="n">test_files</span>    <span class="o">=</span> <span class="n">spec</span><span class="o">.</span><span class="n">files</span><span class="o">.</span><span class="n">grep</span><span class="p">(</span><span class="sr">%r{^(test|spec|features)/}</span><span class="p">)</span>
+  <span class="n">spec</span><span class="o">.</span><span class="n">require_paths</span> <span class="o">=</span> <span class="o">[</span><span class="s2">&#34;lib&#34;</span><span class="o">]</span>
+
+  <span class="n">spec</span><span class="o">.</span><span class="n">add_dependency</span> <span class="s1">&#39;thor&#39;</span>
+  <span class="n">spec</span><span class="o">.</span><span class="n">add_dependency</span> <span class="s1">&#39;httparty&#39;</span>
+
+  <span class="n">spec</span><span class="o">.</span><span class="n">add_development_dependency</span> <span class="s2">&#34;bundler&#34;</span><span class="p">,</span> <span class="s2">&#34;~&gt; 1.6&#34;</span>
+  <span class="n">spec</span><span class="o">.</span><span class="n">add_development_dependency</span> <span class="s2">&#34;rake&#34;</span>
+<span class="k">end</span></code></pre></div>
+<p>And run <code>bundle</code> to install.</p>
+
+<h2 id="creating-a-binary">Creating a binary</h2>
+
+<p>Now we need to create a binary in the <code>bin</code> folder, which doesn&rsquo;t yet exist.  The line <code>spec.executables</code> in the <code>.gemspec</code> is what tells rubygems which files are being included and installed with the gem.  The definition that the bundler gem template gives you will include all files in the <code>bin</code> directory which are checked into <code>git</code>.</p>
+
+<p>Lets create <code>bin/socialinvestigator</code> now:</p>
+<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="ch">#!/usr/bin/env ruby -wU</span>
+
+<span class="nb">require</span> <span class="s1">&#39;socialinvestigator&#39;</span>
+
+<span class="nb">puts</span> <span class="s2">&#34;Hello, world!&#34;</span></code></pre></div>
+<p>Now we need to make it executable,</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">wschenk$ chmod +x bin/socialinvestigator</code></pre></div>
+<h2 id="running-the-binary">Running the binary</h2>
+
+<p>Running this binary now by typing <code>bin/socialinvestigator</code> will give an error.  This is because it&rsquo;s being called in your normal user context.  The first line in the file does <code>require 'socialinvestigator'</code>, which is the <em>gem we are writing</em>, and that <em>gem hasn&rsquo;t been installed</em>.</p>
+
+<p>We can run this in the context of the gem itself, by running</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ bundle <span class="nb">exec</span> bin/socialinvestigator
+Hello, world!</code></pre></div>
+<p>You should always run your gem this way.  The <code>bundle exec</code> command will load all of the gems specified in the <code>Gemfile.lock</code> and then start your script in that context.  This is also going to be important later on, when you are working on a new version while you have an older version installed.</p>
+
+<hr />
+
+<h2 id="thor">Thor</h2>
+
+<p><a href="http://whatisthor.com">Thor</a> is a toolkit for building command-line interfaces.  The <code>bundle</code> command itself is implemented in <code>thor</code>.  Thor makes it easy to expose methods in your class, with parameters and options, to the command line.  Let&rsquo;s see how it works.</p>
+
+<p>We are going to add a new file in <code>lib/socialinvestigator</code> called <code>cli.rb</code>.</p>
+<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="nb">require</span> <span class="s1">&#39;thor&#39;</span>
+
+<span class="k">module</span> <span class="nn">Socialinvestigator</span>
+  <span class="k">class</span> <span class="nc">HammerOfTheGods</span> <span class="o">&lt;</span> <span class="no">Thor</span>
+    <span class="n">desc</span> <span class="s2">&#34;hello NAME&#34;</span><span class="p">,</span> <span class="s2">&#34;This will greet you&#34;</span>
+    <span class="n">long_desc</span> <span class="s">&lt;&lt;-HELLO_WORLD
+</span><span class="s"></span>
+    <span class="sb">`hello NAME`</span> <span class="n">will</span> <span class="nb">print</span> <span class="n">out</span> <span class="n">a</span> <span class="n">message</span> <span class="n">to</span> <span class="n">the</span> <span class="n">person</span> <span class="n">of</span> <span class="n">your</span> <span class="n">choosing</span><span class="o">.</span>
+
+    <span class="no">Brian</span> <span class="no">Kernighan</span> <span class="n">actually</span> <span class="n">wrote</span> <span class="n">the</span> <span class="n">first</span> <span class="s2">&#34;Hello, World!&#34;</span> <span class="n">program</span>
+    <span class="n">as</span> <span class="n">part</span> <span class="n">of</span> <span class="n">the</span> <span class="n">documentation</span> <span class="k">for</span> <span class="n">the</span> <span class="no">BCPL</span> <span class="n">programming</span> <span class="n">language</span>
+    <span class="n">developed</span> <span class="n">by</span> <span class="no">Martin</span> <span class="no">Richards</span><span class="o">.</span> <span class="no">BCPL</span> <span class="n">was</span> <span class="n">used</span> <span class="k">while</span> <span class="n">C</span> <span class="n">was</span> <span class="n">being</span>
+    <span class="n">developed</span> <span class="n">at</span> <span class="no">Bell</span> <span class="no">Labs</span> <span class="n">a</span> <span class="n">few</span> <span class="n">years</span> <span class="n">before</span> <span class="n">the</span> <span class="n">publication</span> <span class="n">of</span>
+    <span class="no">Kernighan</span> <span class="ow">and</span> <span class="no">Ritchie</span><span class="err">&#39;</span><span class="n">s</span> <span class="n">C</span> <span class="n">book</span> <span class="k">in</span> <span class="mi">1972</span><span class="o">.</span>
+
+    <span class="ss">http</span><span class="p">:</span><span class="sr">//s</span><span class="n">tackoverflow</span><span class="o">.</span><span class="n">com</span><span class="sr">/a/</span><span class="mi">12785204</span>
+    <span class="no">HELLO_WORLD</span>
+    <span class="n">option</span> <span class="ss">:upcase</span>
+    <span class="k">def</span> <span class="nf">hello</span><span class="p">(</span> <span class="nb">name</span> <span class="p">)</span>
+      <span class="n">greeting</span> <span class="o">=</span> <span class="s2">&#34;Hello, </span><span class="si">#{</span><span class="nb">name</span><span class="si">}</span><span class="s2">&#34;</span>
+      <span class="n">greeting</span><span class="o">.</span><span class="n">upcase!</span> <span class="k">if</span> <span class="n">options</span><span class="o">[</span><span class="ss">:upcase</span><span class="o">]</span>
+      <span class="nb">puts</span> <span class="n">greeting</span>
+    <span class="k">end</span>
+  <span class="k">end</span>
+<span class="k">end</span></code></pre></div>
+<p><em>The art of naming variables, classes and methods is one that I&rsquo;ve honed over years of progressional software engineering, based largely on both my experience as an inheritor of other&rsquo;s inexplicable code, as well as the practical jokes that I, evidently, liked to play on my future self.  Also, I was inspired by <a href="http://static.echonest.com/bonhamizer/go.html?trid=TRSBVUT12F87DF0212">The Bonhamizer</a></em></p>
+
+<p>Lets make sure that we require that new file in the main <code>lib/socialinvestigator.rb</code> file:</p>
+<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="nb">require</span> <span class="s2">&#34;socialinvestigator/version&#34;</span>
+<span class="nb">require</span> <span class="s2">&#34;socialinvestigator/cli&#34;</span>
+
+<span class="k">module</span> <span class="nn">Socialinvestigator</span>
+  <span class="c1"># Your code goes here...</span>
+<span class="k">end</span></code></pre></div>
+<p>And now lets change our <code>bin/socialinvestigator</code> ruby scripts to:</p>
+<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="ch">#!/usr/bin/env ruby -U</span>
+
+<span class="nb">require</span> <span class="s1">&#39;socialinvestigator&#39;</span>
+
+<span class="no">Socialinvestigator</span><span class="o">::</span><span class="no">HammerOfTheGods</span><span class="o">.</span><span class="n">start</span><span class="p">(</span> <span class="no">ARGV</span> <span class="p">)</span></code></pre></div>
+<p>This creates a class/ <em>bon mot</em> named <code>Socialinvestigator::HammerOfTheGods</code> that we can now place our code in.  We&rsquo;ve changed our script to call the class method <code>Socialinvestigator::HammerOfTheGods.start( ARGV )</code>, which passes in the command like arguments into the Thor base class.  These arguments are parsed, and Thor looks for public method on our class, with the right number of arguments, to run when passed on the command line.</p>
+
+<p>Running it with no arguments will print out a list of all the commands available.  In our case, only the build in <code>help</code> command, and our <code>hello</code> command:</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ bundle <span class="nb">exec</span> bin/socialinvestigator
+Commands:
+  socialinvestigator hello NAME      <span class="c1"># This will greet you
+</span><span class="c1"></span>  socialinvestigator <span class="nb">help</span> <span class="o">[</span>COMMAND<span class="o">]</span>  # Describe available commands or one specific command</code></pre></div>
+<p>Lets try running our command with the wrong number of arguments, <em>i.e. none</em>.  Here it will print out the short usage of the command that we specified with the <code>desc</code> DSL.</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ bundle <span class="nb">exec</span> bin/socialinvestigator hello
+ERROR: <span class="s2">&#34;socialinvestigator hello&#34;</span> was called with no arguments
+Usage: <span class="s2">&#34;socialinvestigator hello NAME&#34;</span></code></pre></div>
+<p>The built in help command will bring out usage information for the method using the <code>long_desc</code> if available and the regular description if not.  These are optional but why not, right?  Notice also how it&rsquo;s smart enough to figure out the command name, in this case <code>socialinvestigator</code></p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ bundle <span class="nb">exec</span> bin/socialinvestigator <span class="nb">help</span> hello
+Usage:
+  socialinvestigator hello NAME
+
+Options:
+  <span class="o">[</span>--upcase<span class="o">=</span>UPCASE<span class="o">]</span>  
+
+Description:
+  <span class="sb">`</span>hello NAME<span class="sb">`</span> will print out a message to the person of your choosing.
+
+  Brian Kernighan actually wrote the first <span class="s2">&#34;Hello, World!&#34;</span> program as part
+  of the documentation <span class="k">for</span> the BCPL programming language developed
+  by Martin Richards. BCPL was used <span class="k">while</span> C was being developed at
+  Bell Labs a few years before the publication of Kernighan and Ritchie<span class="err">&#39;</span>s
+  C book in <span class="m">1972</span>.
+
+  http://stackoverflow.com/a/12785204</code></pre></div>
+<p>Lets now run the command as it was meant to be:</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ bundle <span class="nb">exec</span> bin/socialinvestigator hello world
+Hello, world</code></pre></div>
+<p>And when passing in an optional tag:</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ bundle <span class="nb">exec</span> bin/socialinvestigator hello world --upcase
+HELLO, WORLD</code></pre></div>
+<h2 id="multi-thor">Multi-Thor</h2>
+
+<p>You can also mount Thor classes inside of other ones.  This is handy because generally you want a few top level functions that do broad sweeping things, and then many more very specific method that do fiddly things with an API that you don&rsquo;t often use.</p>
+
+<p>This is done with the <code>subcommand</code> method.  Inside of <code>lib/socialinvestigator/cli.rb</code> lets add the lines in the <code>HammerOfTheGods</code> class:</p>
+<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="nb">require</span> <span class="s1">&#39;thor&#39;</span>
+<span class="nb">require</span> <span class="s1">&#39;socialinvestigator/cli/hn&#39;</span>
+
+<span class="k">module</span> <span class="nn">Socialinvestigator</span>
+  <span class="k">class</span> <span class="nc">HammerOfTheGods</span> <span class="o">&lt;</span> <span class="no">Thor</span>
+    <span class="o">[...]</span>
+
+    <span class="n">desc</span> <span class="s2">&#34;hn COMMANDS&#34;</span><span class="p">,</span> <span class="s2">&#34;Hacker News Control Module&#34;</span>
+    <span class="n">subcommand</span> <span class="s2">&#34;hn&#34;</span><span class="p">,</span> <span class="no">Socialinvestigator</span><span class="o">::</span><span class="no">CLI</span><span class="o">::</span><span class="no">Hn</span>
+  <span class="k">end</span>
+<span class="k">end</span></code></pre></div>
+<p>And now lets create that new file <code>lib/socialinvestigator/cli/hn.rb</code>:</p>
+<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="k">module</span> <span class="nn">Socialinvestigator</span>
+  <span class="k">module</span> <span class="nn">CLI</span>
+    <span class="k">class</span> <span class="nc">Hn</span> <span class="o">&lt;</span> <span class="no">Thor</span>
+      <span class="n">desc</span> <span class="s2">&#34;search URL&#34;</span><span class="p">,</span> <span class="s2">&#34;Search hn.algolia.com for a url mentioned on Hackernews&#34;</span>
+      <span class="n">option</span> <span class="ss">:tags</span>
+      <span class="k">def</span> <span class="nf">search</span><span class="p">(</span> <span class="n">url</span> <span class="p">)</span>
+        <span class="nb">puts</span> <span class="s2">&#34;Looks like you are looking for </span><span class="si">#{</span><span class="n">url</span><span class="si">}</span><span class="s2"> with tags </span><span class="si">#{</span><span class="n">options</span><span class="o">[</span><span class="ss">:tags</span><span class="o">]</span><span class="si">}</span><span class="s2">&#34;</span>
+      <span class="k">end</span>
+    <span class="k">end</span>
+  <span class="k">end</span>
+<span class="k">end</span></code></pre></div>
+<p>And we can now see what we have:</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ bundle <span class="nb">exec</span> bin/socialinvestigator
+Commands:
+  socialinvestigator hello NAME      <span class="c1"># This will greet you
+</span><span class="c1"></span>  socialinvestigator <span class="nb">help</span> <span class="o">[</span>COMMAND<span class="o">]</span>  <span class="c1"># Describe available commands or one specific command
+</span><span class="c1"></span>  socialinvestigator hn COMMANDS     <span class="c1"># Hacker News Control Module
+</span><span class="c1"></span>
+$ bundle <span class="nb">exec</span> bin/socialinvestigator <span class="nb">help</span> hn
+Commands:
+  socialinvestigator hn <span class="nb">help</span> <span class="o">[</span>COMMAND<span class="o">]</span>  <span class="c1"># Describe subcommands or one specific subcommand
+</span><span class="c1"></span>  socialinvestigator hn search URL      <span class="c1"># Search hn.algolia.com for a url mentioned on Hackernews
+</span><span class="c1"></span>
+$ bundle <span class="nb">exec</span> bin/socialinvestigator hn search http://google.com --tags post
+Looks like you are looking <span class="k">for</span> http://google.com with tags post</code></pre></div>
+<hr />
+
+<h2 id="api-interlude">API Interlude</h2>
+
+<p>I wrote a bunch more code and then <em><a href="https://github.com/sublimeguile/socialinvestigator">checked it in to github</a></em>.</p>
+
+<hr />
+
+<h2 id="getting-the-gem-out-there-build-install-release">Getting the gem out there: Build install release</h2>
+
+<p>In order to install the gem, we need to build it:</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ rake build</code></pre></div>
+<p>This will create a gem in the <code>pkg</code> directory.  The version, in our case, is specified in <code>lib/socialinvestigator/version.rb</code> and will need to bump it up everytime we push a release out.</p>
+
+<p>Lets install the gem locally, and see if we can access what we need ourside of the working directory:</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ rake install</code></pre></div>
+<p>This takes the gem located in <code>pkg</code> and installs it as part of our local gem set.  Now we can type anywhere on our system:</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ socialinvestigator hn search willschenk.com/how-to-track-your-coworkers
+<span class="m">1</span> Hits
+How to track your coworkers – Simple passive network surveillance
+  http://willschenk.com/how-to-track-your-coworkers
+  <span class="m">40</span> points
+  <span class="m">18</span> comments
+  https://news.ycombinator.com/item?id<span class="o">=</span><span class="m">8541102</span></code></pre></div>
+<p>Now lets release it.</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ rake release
+socialinvestigator <span class="m">0</span>.0.1 built to pkg/socialinvestigator-0.0.1.gem.
+Tagged v0.0.1.
+Pushed git commits and tags.
+Pushed socialinvestigator <span class="m">0</span>.0.1 to rubygems.org.</code></pre></div>
+<p>This command tags the repo, pushes the commits and tags onto github, and then pushes the code to rubygems.org, where it gets its <a href="http://rubygems.org/gems/socialinvestigator">own shiny page</a>.</p>
+
+<p><em>Image Credit: <a href="https://www.flickr.com/photos/jdhancock/4756872724/in/photolist-7E5DeZ-8fmdwY">JD Hancock</a></em></p>
+
+  </article>
+</div>
+
+
+  <div class="bg-light py-5">
+    <div class="container">
+      <h2 class="text-center">Read next</h2>
+
+      <div class="row">
+        <div class="col-md-6 text-center">
+          
+            Next Post:
+            <a href="../../../articles/2014/bot-design-patterns/">Bot Design Patterns</a>
+          
+        </div>
+        <div class="col-md-6 text-center">
+          
+            Previous Post:
+            <a href="../../../articles/2014/making-yosemite-faster/">Making Yosemite Faster</a>
+          
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+
+
+<div class="container mt-5">
+  <h2 class="text-center">See also</h2>
+  <div class="row">
+  	
+      <div class="col-md mb-3">
+        <p class="lead mb-0"><a class="text-body" href="../../../articles/2014/how-to-track-your-coworkers/">How to track your coworkers</a></p>
+
+        
+          <p class="lead font-italic mb-0">Simple passive network surveillance</p>
+        
+        <p class="font-weight-light mt-3">How much information do you bleed?
+Ever wonder who is else is using your network? Or,who has actually showed up at the office?
+Networking primer The simplest thing we can do to make this work is to check to see which devices have registered themselves on the network. As devices come and go, they connect automatically, so we will have a pretty good idea if people are there or not.</p>
+        <a href="../../../articles/2014/how-to-track-your-coworkers/" class="btn btn-primary">Read more</a>
+      </div>
+    
+      <div class="col-md mb-3">
+        <p class="lead mb-0"><a class="text-body" href="../../../articles/2014/making-yosemite-faster/">Making Yosemite Faster</a></p>
+
+        
+          <p class="lead font-italic mb-0">something is up with WindowServer</p>
+        
+        <p class="font-weight-light mt-3">Since I&rsquo;ve upgraded to Yosemite my computer has gotten slower and slower. When it first boots up, it is it&rsquo;s old fast self, but after a few hours everything slows down. Remember the days when you needed to restart your computer to keep it working well? I had forgotten, and I wasn&rsquo;t really into remembering it.
+I also upgraded to Airmail 2. I get a ton of email and it used it be a lot faster than using Mail.</p>
+        <a href="../../../articles/2014/making-yosemite-faster/" class="btn btn-primary">Read more</a>
+      </div>
+    
+  </div>
+</div>
+
+
+<footer class="footer bg-dark text-light mt-3">
+  <div class="container">
+    <h2 class="py-5 font-weight-light my-0">Made in Brooklyn NY</h2>
+  </div>
+</footer>
+</body>
+</html>

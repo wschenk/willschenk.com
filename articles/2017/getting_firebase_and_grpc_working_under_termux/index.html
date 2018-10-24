@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html><head>
+  <title>Getting firebase and grpc working under termux</title>
+  
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  <link rel="stylesheet" href="../../../css/theme.css"/>
+  <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js" integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" crossorigin="anonymous"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js" integrity="sha384-ChfqqxuZUCnJSK3+MXmPNIyE6ZbWh2IMqE241rYiqJxyMiZ6OW/JmZQ5stwEULTy" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="../../../css/syntax.css"/>
+
+  
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-56296045-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  <meta property="og:title" content="Getting firebase and grpc working under termux" />
+<meta property="og:description" content="firebase depends on grpc, which isn’t set to build right on the Chromebook. This is because node-pre-gyp, which is used to download precompiled binaries, is not setup correctly. In then uses node-gyp to compile the C&#43;&#43; bindings directly, which is also not setup correctly.
+We are going to adjust the settings of node-gyp to make it compile things right under termux, and then we are going to tweak the grpc package itself in our local cache to make it build correctly." />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://willschenk.com/articles/2017/getting_firebase_and_grpc_working_under_termux/" /><meta property="article:published_time" content="2017-12-10T17:36:17&#43;00:00"/>
+<meta property="article:modified_time" content="2017-12-10T17:36:17&#43;00:00"/>
+
+  <meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="Getting firebase and grpc working under termux"/>
+<meta name="twitter:description" content="firebase depends on grpc, which isn’t set to build right on the Chromebook. This is because node-pre-gyp, which is used to download precompiled binaries, is not setup correctly. In then uses node-gyp to compile the C&#43;&#43; bindings directly, which is also not setup correctly.
+We are going to adjust the settings of node-gyp to make it compile things right under termux, and then we are going to tweak the grpc package itself in our local cache to make it build correctly."/>
+<meta name="twitter:site" content="@wschenk"/>
+
+
+  <style>
+    .article p, .article ul, .article ol, .article table {
+      max-width: 45em;
+    }
+
+    article.article p:first-child, .article blockquote {
+      font-size: 1.25em;
+      font-weight: 300;
+      max-width: 36em;  
+    }
+  </style>
+</head>
+<body><nav class="container my-5">
+  <h1 class="pt-5 display-3"><a class="text-dark" href="../../../">Will Schenk</a></h1>
+  <p>
+    
+      <a class="text-dark h4 mr-3 font-weight-light" href="../../../articles/" title="">Articles</a>
+    
+      <a class="text-dark h4 mr-3 font-weight-light" href="../../../contact" title="">Contact</a>
+    
+      <a class="text-dark h4 mr-3 font-weight-light" href="../../../tags/" title="">Tags</a>
+    
+    <a href="../../../feed.xml" class="mr-3 h4 text-light"><img src="../../../img/rss.svg" alt="rss" height="20" width="20"/></a>
+    
+      <a href="https://twitter.com/@wschenk" class="mr-3 h4 text-light"><img src="../../../img/twitter.svg" alt="twitter" height="20" width="20"/></a>
+    
+    
+      <a href="https://instagram.com/wschenk" class="mr-3 h4 text-light"><img src="../../../img/instagram.svg" alt="instagram" height="20" width="20"/></a>
+    
+    
+      <a href="https://linkedin.com/in/will-schenk-420266" class="mr-3 h4 text-light"><img src="../../../img/linkedin.svg" alt="linkedin" height="20" width="20"/></a>
+    
+  </p>
+</nav>
+
+<div class="container">
+  <h1 class="mt-5">Getting firebase and grpc working under termux</h1>
+
+  
+
+  <p class="text-muted mt-3">
+    <a class="text-muted" href="https://willschenk.com/articles/2017/getting_firebase_and_grpc_working_under_termux/">Published December 10, 2017</a>
+
+    
+      <a class="text-muted" href="../../../tags/chromebook">#chromebook</a>
+    
+      <a class="text-muted" href="../../../tags/howto">#howto</a>
+    
+  </p>
+
+  
+
+  <article class="article mt-5">
+    
+
+<p><code>firebase</code> depends on <code>grpc</code>, which isn’t set to build right on the Chromebook. This is because <code>node-pre-gyp</code>, which is used to download precompiled binaries, is not setup correctly. In then uses <code>node-gyp</code> to compile the C++ bindings directly, which is also not setup correctly.</p>
+
+<p>We are going to adjust the settings of node-gyp to make it compile things right under <code>termux</code>, and then we are going to tweak the <code>grpc</code> package itself in our local cache to make it build correctly.</p>
+
+<p>This took way to long to sort out.</p>
+
+<h3 id="installing-the-basics">Installing the Basics</h3>
+
+<ol>
+<li><code>pkg install nodejs python2 make clang pkg-config</code></li>
+<li><code>termux-chroot</code></li>
+<li><code>cd /bin; ln -s python2 python</code></li>
+<li><code>mkdir /tmp/t; cd /tmp/t</code></li>
+<li><code>npm install -g yarn</code></li>
+</ol>
+
+<h3 id="start-the-grpc-install">Start the grpc install</h3>
+
+<ol>
+<li><code>yarn add grpc</code></li>
+<li>This should take a long time but then fail because <code>-zdefs</code> is not a valid option.</li>
+</ol>
+
+<h3 id="update-node-gyp-settings">Update node-gyp settings</h3>
+
+<p>First we update node-gyp, as <a href="http://blog.akehir.com/2017/05/building-node-sass-libsass-python.html">talked about here</a>.</p>
+
+<ol>
+<li><code>cd ~/. node-gyp/8.9.3/include/node</code> (or whatever version you have)</li>
+<li>Update <code>common.gpyi</code> to change references of <code>-fPIE</code> to <code>-fPIC</code>, and get rid of <code>-pie</code></li>
+</ol>
+
+<h3 id="update-the-grpc-npm-package-in-the-yarn-cache">Update the grpc npm package in the yarn cache</h3>
+
+<ol>
+<li><code>cd ~/.cache/yarn/v1/npm-grpc</code> (tab tab to find the actual version)</li>
+<li>open up <code>bindings.gyp</code> and remove the line ‘<code>-zdefs</code>’ which for me is line 941</li>
+<li>Also in <code>deps/grpc/bindings.gyp</code> remove <code>-zdefs</code> again. Not sure where this is coming from but <code>clang</code> doesn’t like it.</li>
+</ol>
+
+<p>Note that every time there’s another version of grpc released, you’ll need to update that version in your yarn cache!</p>
+
+<h3 id="try-to-add-again">Try to add again</h3>
+
+<ol>
+<li><code>cd /tmp/t</code></li>
+<li><code>rm -rf node_modules/grpc</code></li>
+<li><code>yarn add grpc</code></li>
+</ol>
+
+<p>And there you go. Does anyone have a better fix that they could share?</p>
+
+  </article>
+</div>
+
+
+  <div class="bg-light py-5">
+    <div class="container">
+      <h2 class="text-center">Read next</h2>
+
+      <div class="row">
+        <div class="col-md-6 text-center">
+          
+            Next Post:
+            <a href="../../../articles/2017/living_with_a_chromebook/">Living with a Chromebook</a>
+          
+        </div>
+        <div class="col-md-6 text-center">
+          
+            Previous Post:
+            <a href="../../../articles/2017/authenticated_routes_using_react_router/">Authenticated routes using react-router</a>
+          
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+
+
+<div class="container mt-5">
+  <h2 class="text-center">See also</h2>
+  <div class="row">
+  	
+      <div class="col-md mb-3">
+        <p class="lead mb-0"><a class="text-body" href="../../../articles/2017/authenticated_routes_using_react_router/">Authenticated routes using react-router</a></p>
+
+        
+        <p class="font-weight-light mt-3"><p>Here&rsquo;s a simple walk through on how to use authenticated routes with react-router.</p>
+
+<p></p></p>
+        <a href="../../../articles/2017/authenticated_routes_using_react_router/" class="btn btn-primary">Read more</a>
+      </div>
+    
+      <div class="col-md mb-3">
+        <p class="lead mb-0"><a class="text-body" href="../../../articles/2017/styling_and_theming_with_material_ui_react__material_design/">Styling and theming with material-ui: React + Material Design</a></p>
+
+        
+        <p class="font-weight-light mt-3">We’ve looked at building and styling with rmwc, now lets look a the king of the React Material libraries, Material-UI!
+The implementation strategy here is different — instead of including a generated CSS file that applies to all of the elements, each component includes the CSS that it needs in an isolated way. import Button from ‘material-ui/Button’; will include all of the necessary CSS to render that element. This is done with webpack basically.</p>
+        <a href="../../../articles/2017/styling_and_theming_with_material_ui_react__material_design/" class="btn btn-primary">Read more</a>
+      </div>
+    
+      <div class="col-md mb-3">
+        <p class="lead mb-0"><a class="text-body" href="../../../articles/2017/styling_and_theming_with_rmwc_react__material_design/">Styling and theming with rmwc: React + Material Design</a></p>
+
+        
+        <p class="font-weight-light mt-3">There are a couple of good material design libraries out there, and I’m going to build a basic site with create-react-app to test out how to really make them work. Material design released a new version of their web components, and we’re going to look at a few React libraries that will help us use them.
+Material Components For Web These components were written in SASS and JS. There are various ways to customize them and build your design.</p>
+        <a href="../../../articles/2017/styling_and_theming_with_rmwc_react__material_design/" class="btn btn-primary">Read more</a>
+      </div>
+    
+  </div>
+</div>
+
+
+<footer class="footer bg-dark text-light mt-3">
+  <div class="container">
+    <h2 class="py-5 font-weight-light my-0">Made in Brooklyn NY</h2>
+  </div>
+</footer>
+</body>
+</html>
