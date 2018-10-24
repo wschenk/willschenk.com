@@ -7,6 +7,7 @@ tags:
   - static_sites
   - tools
   - howto
+  - hugo
 ---
 
 Now that's its 2018 its time to retool the blog using hugo.  Why not?  Hugo is built in golang and is blazing fast and everything is cleaner than it was in the middleman years.
@@ -208,11 +209,7 @@ Create a list template view in `themes/mytheme/layouts/_default/list.html`
 {{ define "main" }}
 <div class="container">
   <h1 class="text-center">
-    {{ if eq .Kind "taxonomy" }}
-      {{ .Name | humanize }}
-    {{ else }}
-      {{ .Type | humanize }}
-    {{ end }}
+    {{ .Type | humanize }}
   </h1>
   {{ range .Pages }}
     <div class="row mt-2">
@@ -229,7 +226,7 @@ Create a list template view in `themes/mytheme/layouts/_default/list.html`
 ```
 
 
-We're using a hugo function `humanize` to capitalize the type of object that we are looking at, and a whole bunch of bootstrap utility classes to align and only show the published date on larger screens.  There's an `if` statement that either displays the name of the taxonomy -- which is the `Kind` of tag pages -- or the object type for list pages.
+We're using a hugo function `humanize` to capitalize the type of object that we are looking at, and a whole bunch of bootstrap utility classes to align and only show the published date on larger screens.
 
 The `.Date.Format` format string is really weird -- I'm not sure that I really understand it but it expects the year to be 2006 for things to make sense.  This is part of the way that the hugo's underlying go date formating stuff works that.
 
@@ -254,7 +251,6 @@ tags = ["tags"]
 ```
 
 Restart your hugo server to see the magic!
-
 
 Lets add some tags to our first `sample_post.md` file
 
@@ -348,6 +344,56 @@ Finally, lets add some logic to our theme's `theme/mytheme/partials/header.html`
 
 We are checking to see if the menu item is tags, and if so look through the tags taxonomy to display the dropdown with all of the items.  We need to go through some hoops to figure out exactly how to get the name and the url, but things are looking good now!
 
+## Tag list page
+
+If we look at the http://localhost:1313/tags we see that its showing the tags by date.  Which doesn't make sense.  So lets create a list page for the tags.  There are two types of things -- one is the list of tags, and one is the list of posts that for a specific tag.  `themes/mytheme/tag/list.html`:
+
+```go-html-template
+{{ define "main" }}
+<div class="container">
+  <h1 class="text-center">
+    {{ .Name | humanize }}
+  </h1>
+
+  {{ if eq .Kind "taxonomyTerm" }}
+    {{ range $.Site.Taxonomies.tags.ByCount }}
+      <div class="row mt-2">
+        <div class="d-none d-sm-block col-sm-2 mt-auto offset-sm-2 text-right">
+           {{ .Count }} Articles
+        </div>
+        <div class="col">
+          <a class="text-body" href="/tags{{ .Name | relURL }}">{{ .Name | markdownify }}</a>
+        </div>
+      </div>
+    {{ end }}
+  {{ else }}
+    {{ $dateFormat := default "Jan 2" (index .Site.Params "date_format") }}
+    {{ $.Scratch.Set "lastYear" ""}}
+    {{ range .Pages }}
+      {{ $year := .Date.Year }}
+      {{ $lastYear := $.Scratch.Get "lastYear"}}
+      <div class="row mt-2">
+        <div class="d-none d-sm-block col-sm-2 mt-auto offset-sm-2 text-right">
+          <time class="post-date" datetime="{{ .Date.Format "2006-01-02T15:04:05Z07:00" | safeHTML }}">{{ .Date.Format "Jan 2, 2006" }}</time>
+        </div>
+        <div class="col">
+          {{ if ne $year $lastYear }}
+            <p class="text-muted mt-5">{{ $year }}</p>
+            {{ $.Scratch.Set "lastYear" $year }}
+          {{ end }}
+          <a class="text-body" href="{{ .URL | relURL }}">{{ if .Draft }}DRAFT: {{end}}{{ .Title | markdownify }}</a>
+        </div>
+      </div>
+    {{ end }}
+  {{ end }}
+
+</div>
+{{ end }}
+```
+
+We first look to see if we are on a the term page, and if so we get a list of tags based upon the count.  He were list the number of posts per tag.  If we are on the tag page itself, we use the same logic at the `posts/list.html` page to show the articles for that tag by date.
+
+
 ## Adding code highlight
 
 Hugo comes with pygments built in, so we are going to use that with a custom theme.  Lets first generate the css and put it in our themes `static` folder.
@@ -425,7 +471,7 @@ Since we created a post content type, lets add a different single page template 
   <h2 class="text-center">See also</h2>
   <div class="row">
   	{{ range . }}
-      <div class="col">
+      <div class="col-md mb-3">
         <p class="lead mb-0"><a class="text-body" href="{{ .RelPermalink }}">{{ .Title | markdownify}}</a></p>
 
         {{ if .Params.Subtitle }}

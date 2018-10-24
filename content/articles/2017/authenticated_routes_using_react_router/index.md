@@ -6,6 +6,10 @@ tags:
   - howto
 ---
 
+Here's a simple walk through on how to use authenticated routes with react-router.
+
+ <!--more-->
+ 
 1. `create-react-app route-test`
 2. `cd route-test`
 3. `yarn add react-router-dom`
