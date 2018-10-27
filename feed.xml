@@ -6,10 +6,172 @@
     <description>Recent content in Blank Page Technology on Will Schenk</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
-    <lastBuildDate>Sun, 21 Oct 2018 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Sat, 27 Oct 2018 00:00:00 +0000</lastBuildDate>
     
         <atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml" />
     
+    
+    <item>
+      <title>Adding a CMS and build server to hugo</title>
+      <link>https://willschenk.com/articles/2018/adding_a_cms_to_hugo/</link>
+      <pubDate>Sat, 27 Oct 2018 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2018/adding_a_cms_to_hugo/</guid>
+      <description>
+
+&lt;p&gt;Just because we have a static site doesn&amp;rsquo;t mean that we can&amp;rsquo;t have an admin tool to write and edit posts!  Lets go through how we can &lt;a href=&#34;https://www.netlifycms.org/docs/add-to-your-site/&#34;&gt;add the NetlifyCMS&lt;/a&gt; to the site and host it wherever we want.&lt;/p&gt;
+
+&lt;p&gt;In my case I&amp;rsquo;m storing the code on &lt;a href=&#34;https://github.com&#34;&gt;GitHub&lt;/a&gt; and also serving the pages from &lt;a href=&#34;https://pages.github.com/&#34;&gt;GitHub Pages&lt;/a&gt;.  &lt;a href=&#34;https://www.netlify.com/&#34;&gt;Netlify&lt;/a&gt; also seems like a really promising company with a number of other services that they offer, so I&amp;rsquo;d encourage you to check it out.  But since I&amp;rsquo;m changing one thing at a time, I&amp;rsquo;ll leave that for a later exercise.&lt;/p&gt;
+
+&lt;p&gt;The CMS works by loading the code and it&amp;rsquo;s configuration from your site.  These are 100% static so nothing needs to happen at build time.  The configuration tells the admin &amp;ndash; which again runs totally in your browser &amp;ndash; where to get authentication and the data for your site.  Once that&amp;rsquo;s done you&amp;rsquo;ll need to figure out how to setup the build process.&lt;/p&gt;
+
+&lt;h2 id=&#34;install-the-admin&#34;&gt;Install the admin&lt;/h2&gt;
+
+&lt;p&gt;in &lt;code&gt;/static/admin/index.html&lt;/code&gt;:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-html&#34; data-lang=&#34;html&#34;&gt;&lt;span class=&#34;cp&#34;&gt;&amp;lt;!doctype html&amp;gt;&lt;/span&gt;
+&lt;span class=&#34;p&#34;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;html&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;&lt;/span&gt;
+&lt;span class=&#34;p&#34;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;head&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;&lt;/span&gt;
+  &lt;span class=&#34;p&#34;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;meta&lt;/span&gt; &lt;span class=&#34;na&#34;&gt;charset&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;utf-8&amp;#34;&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;/&amp;gt;&lt;/span&gt;
+  &lt;span class=&#34;p&#34;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;meta&lt;/span&gt; &lt;span class=&#34;na&#34;&gt;name&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;viewport&amp;#34;&lt;/span&gt; &lt;span class=&#34;na&#34;&gt;content&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;width=device-width, initial-scale=1.0&amp;#34;&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;/&amp;gt;&lt;/span&gt;
+  &lt;span class=&#34;p&#34;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;title&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;&lt;/span&gt;Content Manager&lt;span class=&#34;p&#34;&gt;&amp;lt;/&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;title&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;&lt;/span&gt;
+&lt;span class=&#34;p&#34;&gt;&amp;lt;/&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;head&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;&lt;/span&gt;
+&lt;span class=&#34;p&#34;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;body&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;&lt;/span&gt;
+  &lt;span class=&#34;c&#34;&gt;&amp;lt;!-- Include the script that builds the page and powers Netlify CMS --&amp;gt;&lt;/span&gt;
+  &lt;span class=&#34;p&#34;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;script&lt;/span&gt; &lt;span class=&#34;na&#34;&gt;src&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;https://unpkg.com/netlify-cms@^2.0.0/dist/netlify-cms.js&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;&amp;lt;/&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;script&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;&lt;/span&gt;
+&lt;span class=&#34;p&#34;&gt;&amp;lt;/&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;body&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;&lt;/span&gt;
+&lt;span class=&#34;p&#34;&gt;&amp;lt;/&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;html&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Then in `&lt;code&gt;/static/admin/config.yml&lt;/code&gt;:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-yml&#34; data-lang=&#34;yml&#34;&gt;backend&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;  &lt;/span&gt;name&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;github&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;  &lt;/span&gt;repo&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;wschenk/willschenk.com&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;&lt;/span&gt;publish_mode&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;editorial_workflow&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;&lt;/span&gt;media_folder&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;static/img/uploads&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;&lt;/span&gt;public_folder&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;img/uploads&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;&lt;/span&gt;collections&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;  &lt;/span&gt;-&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;name&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;s2&#34;&gt;&amp;#34;articles&amp;#34;&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;    &lt;/span&gt;label&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;s2&#34;&gt;&amp;#34;Articles&amp;#34;&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;    &lt;/span&gt;folder&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;s2&#34;&gt;&amp;#34;content/articles&amp;#34;&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;    &lt;/span&gt;create&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;kc&#34;&gt;true&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;    &lt;/span&gt;fields&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;      &lt;/span&gt;-&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;{&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;label&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;s2&#34;&gt;&amp;#34;Title&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;name&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;s2&#34;&gt;&amp;#34;title&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;widget&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;s2&#34;&gt;&amp;#34;string&amp;#34;&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;}&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;      &lt;/span&gt;-&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;{&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;label&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;s2&#34;&gt;&amp;#34;Date&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;name&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;s2&#34;&gt;&amp;#34;date&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;widget&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;s2&#34;&gt;&amp;#34;date&amp;#34;&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;}&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;      &lt;/span&gt;-&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;{&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;label&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;s2&#34;&gt;&amp;#34;Body&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;name&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;s2&#34;&gt;&amp;#34;body&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;widget&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;s2&#34;&gt;&amp;#34;markdown&amp;#34;&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;}&lt;span class=&#34;w&#34;&gt;    &lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;h2 id=&#34;what-if-i-don-t-have-a-netlify-account&#34;&gt;What if I don&amp;rsquo;t have a netlify account?&lt;/h2&gt;
+
+&lt;p&gt;There are a number of ways to do this, but we are going to&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;&lt;a href=&#34;https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/&#34;&gt;Create a GitHub application&lt;/a&gt; that will do the granting&lt;/li&gt;
+&lt;li&gt;Create a firebase application to handle the accounts&lt;/li&gt;
+&lt;li&gt;Wire everything together.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h3 id=&#34;creating-the-github-app&#34;&gt;Creating the GitHub app&lt;/h3&gt;
+
+&lt;p&gt;Go to &lt;a href=&#34;https://github.com/settings/developers&#34;&gt;GitHub developer settings&lt;/a&gt;.  You can access this by clicking on your profile, selecting &lt;code&gt;Settings&lt;/code&gt;, and then selecting &lt;code&gt;Developer Settings&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;Create a &lt;code&gt;New OAuth App&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;Leave the callback URL blank for now &amp;ndash; we&amp;rsquo;ll set that up with a url that we will get from firebase shortly.&lt;/p&gt;
+
+&lt;p&gt;&lt;em&gt;Take note of the client ID and client secret, we&amp;rsquo;ll need those shortly&lt;/em&gt;&lt;/p&gt;
+
+&lt;h3 id=&#34;creating-the-firebase-application&#34;&gt;Creating the firebase application&lt;/h3&gt;
+
+&lt;p&gt;We will spin up something on firebase to help handle the oauth dance.&lt;/p&gt;
+
+&lt;p&gt;First lets checkout some code that will handle the api interactions.  We are going to install this code on firebase.&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;$ git clone https://github.com/Herohtar/netlify-cms-oauth-firebase
+$ &lt;span class=&#34;nb&#34;&gt;cd&lt;/span&gt; netlify-cms-oauth-firebase/functions/
+$ npm i
+$ &lt;span class=&#34;nb&#34;&gt;cd&lt;/span&gt; ..&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Then install  &lt;code&gt;firebase-tools&lt;/code&gt; if you haven&amp;rsquo;t already&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;$ npm add -g firebase-tools&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Next log in to firebase&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;$ firebase login&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Go to the &lt;a href=&#34;https://console.firebase.google.com/&#34;&gt;firebase console&lt;/a&gt; and create an application.  Then configure firebase to use that project&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ firebase use projectname
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now lets setup the client id and secret that we got from GitHub:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ firebase functions:config:set oauth.client_id=yourclientid oauth.client_secret=yourclientsecret
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;This will take a few seconds to finish.  Now we can deploy our functions, and get the URL that GitHub will use to pass back the authentication.&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;$ firebase deploy --only functions&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Note the url of the application deployed, in my case it is &lt;code&gt;https://us-central1-willschenkcom.cloudfunctions.net/oauth&lt;/code&gt;&lt;/p&gt;
+
+&lt;h3 id=&#34;wiring-it-all-up&#34;&gt;Wiring it all up&lt;/h3&gt;
+
+&lt;p&gt;Go back to the GitHub app page and change your app&amp;rsquo;s callback to the hostname/oauth/callback &amp;ndash; in my case &lt;code&gt;https://us-central1-willschenkcom.cloudfunctions.net/oauth/callback&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;Then in &lt;code&gt;static/admin/config.yml&lt;/code&gt; set the &lt;code&gt;baseURL&lt;/code&gt; to your firebase application.  In my case the relavent section looks like:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-yml&#34; data-lang=&#34;yml&#34;&gt;backend&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;  &lt;/span&gt;name&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;github&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;  &lt;/span&gt;repo&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;wschenk/willschenk.com&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;  &lt;/span&gt;base_url&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;https&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;//us-central1-willschenkcom.cloudfunctions.net&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;  &lt;/span&gt;auth_endpoint&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;/oauth/auth&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;h2 id=&#34;automate-builds-using-circleci&#34;&gt;Automate builds using CircleCI&lt;/h2&gt;
+
+&lt;p&gt;Now that we are able to edit the content of the site, we&amp;rsquo;ll need a way to build it.  I&amp;rsquo;m going to use CircleCI to trigger the build.  Let&amp;rsquo;s set that up, following &lt;a href=&#34;https://circleci.com/blog/automate-your-static-site-deployment-with-circleci/&#34;&gt;their documentation on how configure CircleCI to build static sites&lt;/a&gt;.&lt;/p&gt;
+
+&lt;p&gt;Create &lt;code&gt;.circleci/config.yml&lt;/code&gt;&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-yml&#34; data-lang=&#34;yml&#34;&gt;version&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;m&#34;&gt;2&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;&lt;/span&gt;jobs&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;  &lt;/span&gt;build&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;    &lt;/span&gt;docker&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;      &lt;/span&gt;-&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;image&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;cibuilds/hugo&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;latest&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;    &lt;/span&gt;working_directory&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;~/hugo&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;    &lt;/span&gt;environment&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;      &lt;/span&gt;HUGO_BUILD_DIR&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;~/hugo/public&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;    &lt;/span&gt;steps&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;      &lt;/span&gt;&lt;span class=&#34;c&#34;&gt;# install git&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;      &lt;/span&gt;-&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;run&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;apk&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;update&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;cp&#34;&gt;&amp;amp;&amp;amp;&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;apk&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;add&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;git&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;      &lt;/span&gt;&lt;span class=&#34;c&#34;&gt;# checkout the repository&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;      &lt;/span&gt;-&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;checkout&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;      &lt;/span&gt;&lt;span class=&#34;c&#34;&gt;# install git submodules for managing third-party dependencies&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;      &lt;/span&gt;-&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;run&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;git&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;submodule&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;sync&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;cp&#34;&gt;&amp;amp;&amp;amp;&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;git&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;submodule&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;update&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;--init&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;      &lt;/span&gt;&lt;span class=&#34;c&#34;&gt;# Link the public dir to the gh-pages branch&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;      &lt;/span&gt;-&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;run&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;rm&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;-fr&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;$HUGO_BUILD_DIR&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;cp&#34;&gt;&amp;amp;&amp;amp;&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;git&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;worktree&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;add&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;-B&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;gh-pages&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;$HUGO_BUILD_DIR&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;origin/gh-pages&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;      &lt;/span&gt;&lt;span class=&#34;c&#34;&gt;# build with Hugo&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;      &lt;/span&gt;-&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;run&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;HUGO_ENV=production&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;hugo&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;-v&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;-d&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;$HUGO_BUILD_DIR&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;      &lt;/span&gt;&lt;span class=&#34;c&#34;&gt;# Set some variables to add to the commit message&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;      &lt;/span&gt;-&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;run&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;git&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;config&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;--global&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;user.email&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;s2&#34;&gt;&amp;#34;noreply@example.com&amp;#34;&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;cp&#34;&gt;&amp;amp;&amp;amp;&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;git&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;config&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;--global&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;user.name&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;s2&#34;&gt;&amp;#34;CircleCI Bot&amp;#34;&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;      &lt;/span&gt;&lt;span class=&#34;c&#34;&gt;# Push the generated files back to github&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;      &lt;/span&gt;-&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;run&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;cd&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;$HUGO_BUILD_DIR&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;cp&#34;&gt;&amp;amp;&amp;amp;&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;git&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;add&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;--all&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;cp&#34;&gt;&amp;amp;&amp;amp;&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;git&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;commit&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;-m&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;s2&#34;&gt;&amp;#34;Automated publish to gh-pages&amp;#34;&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;cp&#34;&gt;&amp;amp;&amp;amp;&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;git&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;push&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Commit and add this file to your reposity on GitHub.  This runs the hugo build image.  It installs git, and then checkout the repo from GitHub.  We pull down any submodules if you are using that for themes.  We then configure the &lt;code&gt;$HUGO_BUILD_DIR&lt;/code&gt; to be a &lt;code&gt;worktree&lt;/code&gt; of the &lt;code&gt;gh-pages&lt;/code&gt; branch &amp;ndash; this is where we are going to host the files in GitHub pages.  Then it runs the build itself, adds and commits those files in the &lt;code&gt;gh-pages&lt;/code&gt; branch back into the repository, and pushes back to &lt;code&gt;GitHub&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;For this to work you need to grant &lt;code&gt;CircleCI&lt;/code&gt; write access to your repo which is done by setting it up with your user&amp;rsquo;s key.  Lets get CircleCI working now.&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;Go to &lt;a href=&#34;https://circleci.com/&#34;&gt;CircleCI&lt;/a&gt; and create an account.&lt;/li&gt;
+&lt;li&gt;Select the single linux container plan.&lt;/li&gt;
+&lt;li&gt;Add your repository from GitHub that you want to build.&lt;br /&gt;&lt;/li&gt;
+&lt;li&gt;Go to project settings, and under Permissions go to &lt;code&gt;Checkout SSH Keys&lt;/code&gt;.&lt;br /&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;Add User Key&lt;/code&gt; to grant permission.&lt;/li&gt;
+&lt;li&gt;Remove the previous deploy key.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;Now when you push your commits to &lt;code&gt;GitHub&lt;/code&gt;, you&amp;rsquo;ll be able to watch CircleCI build them and hopefully see your new content go up shortly!&lt;/p&gt;
+
+&lt;h2 id=&#34;summary&#34;&gt;Summary&lt;/h2&gt;
+
+&lt;p&gt;The NetlifyCMS is really interesting, though its still a work in progress.  With this setup, we are using a couple of external services &amp;ndash; GitHub, Firebase, CircleCI &amp;ndash; all within their free tiers to edit and push out a website. This process would probably be even easier if we went all in with Netlify, so that&amp;rsquo;s another great service to start checking out.&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>Building a hugo site and theme with Bootstrap</title>
