@@ -178,6 +178,9 @@ Commit and add this file to your reposity on GitHub.  This runs the hugo build i
 
 For this to work you need to grant `CircleCI` write access to your repo which is done by setting it up with your user's key.  Lets get CircleCI working now.
 
-Then go to [CircleCI](https://circleci.com/) and create an account.  Select the single linux container plan.  Add your project.  
-
-Then go to project settings, and under Permissions go to `Checkout SSH Keys`.  Go to `Add User Key` to grant permission.  Then remove the previous deploy key.
+1. Go to [CircleCI](https://circleci.com/) and create an account.
+2. Select the single linux container plan.
+3. Add your repository from GitHub that you want to build.  
+4. Go to project settings, and under Permissions go to `Checkout SSH Keys`.  
+5. `Add User Key` to grant permission.
+6. Remove the previous deploy key.
