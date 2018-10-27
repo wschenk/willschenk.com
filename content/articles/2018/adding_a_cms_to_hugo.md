@@ -162,15 +162,22 @@ jobs:
 
       # Link the public dir to the gh-pages branch
 
-      - run: rm -r public && git worktree add -B gh-pages public origin/gh-pages
+      - run: rm -fr $HUGO_BUILD_DIR && git worktree add -B gh-pages $HUGO_BUILD_DIR origin/gh-pages
 
       # build with Hugo
       - run: HUGO_ENV=production hugo -v -d $HUGO_BUILD_DIR
 
-      - run: cd public && git add --all && git commit -m "Publishing to gh-pages" && cd ..
+      # Set some variables to add to the commit message
+      - run: git config --global user.email "noreply@example.com" && git config --global user.name "CircleCI Bot"
 
+      # Push the generated files back to github
+      - run: cd $HUGO_BUILD_DIR && git add --all && git commit -m "Automated publish to gh-pages" && git push
 ```
 
-Commit and add this file to your reposity on GitHub.
+Commit and add this file to your reposity on GitHub.  This runs the hugo build image.  It installs git, and then checkout the repo from GitHub.  We pull down any submodules if you are using that for themes.  We then configure the `$HUGO_BUILD_DIR` to be a `worktree` of the `gh-pages` branch -- this is where we are going to host the files in GitHub pages.  Then it runs the build itself, adds and commits those files in the `gh-pages` branch back into the repository, and pushes back to `GitHub`.
 
-Then go to [CircleCI](https://circleci.com/) and create an account.  Select the single linux container plan.  Add your project.
+For this to work you need to grant `CircleCI` write access to your repo which is done by setting it up with your user's key.  Lets get CircleCI working now.
+
+Then go to [CircleCI](https://circleci.com/) and create an account.  Select the single linux container plan.  Add your project.  
+
+Then go to project settings, and under Permissions go to `Checkout SSH Keys`.  Go to `Add User Key` to grant permission.  Then remove the previous deploy key.
