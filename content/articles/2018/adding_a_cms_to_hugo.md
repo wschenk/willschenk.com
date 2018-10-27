@@ -1,12 +1,11 @@
 ---
-title: "Adding a CMS to hugo"
-date: 2018-10-26T11:26:54Z
+title: "Adding a CMS and build server to hugo"
+date: 2018-10-27
 tags:
   - hugo
   - howto
   - static_sites
   - netlify
-draft: true
 ---
 
 Just because we have a static site doesn't mean that we can't have an admin tool to write and edit posts!  Lets go through how we can [add the NetlifyCMS](https://www.netlifycms.org/docs/add-to-your-site/) to the site and host it wherever we want.
@@ -184,3 +183,9 @@ For this to work you need to grant `CircleCI` write access to your repo which is
 4. Go to project settings, and under Permissions go to `Checkout SSH Keys`.  
 5. `Add User Key` to grant permission.
 6. Remove the previous deploy key.
+
+Now when you push your commits to `GitHub`, you'll be able to watch CircleCI build them and hopefully see your new content go up shortly!
+
+## Summary
+
+The NetlifyCMS is really interesting, though its still a work in progress.  With this setup, we are using a couple of external services -- GitHub, Firebase, CircleCI -- all within their free tiers to edit and push out a website. This process would probably be even easier if we went all in with Netlify, so that's another great service to start checking out.
