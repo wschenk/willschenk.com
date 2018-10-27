@@ -33,7 +33,7 @@ I like to setup all the content sites so the urls are relative so I can host in 
 $ hugo server --watch --verbose --buildDrafts --cleanDestinationDir --disableFastRender
 ```
 
-These are some useful development flags, `---buildDrafts` does what you'd expect and `--disableFastRender` helps make sure that your shift-reloading gets the latest version of the fine.
+These are some useful development flags, `---buildDrafts` does what you'd expect and `--disableFastRender` helps make sure that your shift-reloading gets the latest version of the file.
 
 ## Layouts, blocks and partials
 
@@ -78,13 +78,13 @@ Inside `themes/mytheme/layouts/partials/head.html` add bootstrap and the various
 </head>
 ```
 
-This sets up bootstrap to lead from the CDN, as well as adding a link to the generated rss feed.  Here we can see a few other things.  One is that we are setting the `<title>` using `{{ .Title }}`.  We may want to change that later, but what that means is that we are using the current page's title attribute to set the title, and if you wanted to include something from the `.Site` data this is where you'd put the logic.
+This sets up bootstrap to load from the CDN, as well as adding a link to the generated rss feed.  Here we can see a few other things.  One is that we are setting the `<title>` using `{{ .Title }}`.  We may want to change that later, but what that means is that we are using the current page's title attribute to set the title, and if you wanted to include something from the `.Site` data this is where you'd put the logic.
 
-The other thing here is the `range` function.  In practical terms we are putting in `rss` discovery links, but what this literally is going is looping over the `AlternativeOutputFormats` slice inside of the page.  `range` is the golang looping idiom, which is like a `for` loop but better.
+The other thing here is the `range` function.  In practical terms we are putting in `rss` discovery links, but what this literally is doing is looping over the `AlternativeOutputFormats` slice inside of the page.  `range` is the golang looping idiom, which is like a `for` loop but better.
 
 ### Footers
 
-Lets put some of these variables into the footer to help debug a bit.  This is in `themes/mytheme/layouts/partials/footer.html` where we are going to expose to hugo page variables so we know what's happening
+Lets put some of these variables into the footer to help debug a bit.  This is in `themes/mytheme/layouts/partials/footer.html` where we are going to expose the hugo page variables so we know what's happening
 
 ```go-html-template
 <footer class="footer mt-5">
@@ -118,7 +118,7 @@ Now we will define a basic single template, which will be used to render a singl
 {{ end }}
 ```
 
-And out first draft of the `index.html` template for the site.  We'll put in a little little jumbotron in `themes/mytheme/layouts/index.html`:
+And out first draft of the `index.html` template for the site.  We'll put in a little jumbotron in `themes/mytheme/layouts/index.html`:
 
 ```go-html-template
 {{ define "main" }}
@@ -199,7 +199,7 @@ draft: false
 One of the things I'm very interested in is writing words and seeing them on the page.
 ```
 
-This is pretty standard from more static site generators with the front matter on the top and the markdown on the bottom.
+This is pretty standard from most static site generators with the front matter on the top and the markdown on the bottom.
 
 ## List templates
 
@@ -747,7 +747,7 @@ And now your site should look slightly different!  I'm not going to go into all 
 
 When you think about how you want to break things into partials you should consider how the end site might want to override things.  One way is to pass in variables inside of the main site `config.toml` that can switch features on and off, but another way is to override the partials themselves.
 
-The bootstrap header is such an recognizable thing that people might want something all together different, so lets see how we can change that.  Create `layouts/partials/header.html` in the top level site directory:
+The bootstrap header is such a recognizable thing that people might want something all together different, so lets see how we can change that.  Create `layouts/partials/header.html` in the top level site directory:
 
 ```go-html-template
 <nav class="container my-5">
