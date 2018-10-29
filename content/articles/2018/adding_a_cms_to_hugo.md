@@ -1,5 +1,6 @@
 ---
-title: "Adding a CMS and build server to hugo"
+title: "Adding a CMS to hugo"
+subtitle: "Static doesn't mean dead"
 date: 2018-10-27
 tags:
   - hugo
@@ -53,7 +54,7 @@ collections:
     fields:
       - { label: "Title", name: "title", widget: "string" }
       - { label: "Date", name: "date", widget: "date" }
-      - { label: "Body", name: "body", widget: "markdown" }    
+      - { label: "Body", name: "body", widget: "markdown" }
 ```
 
 ## What if I don't have a netlify account?
@@ -68,7 +69,7 @@ There are a number of ways to do this, but we are going to
 
 Go to [GitHub developer settings](https://github.com/settings/developers).  You can access this by clicking on your profile, selecting `Settings`, and then selecting `Developer Settings`.
 
-Create a `New OAuth App`.  
+Create a `New OAuth App`.
 
 Leave the callback URL blank for now -- we'll set that up with a url that we will get from firebase shortly.
 
@@ -133,62 +134,9 @@ backend:
   auth_endpoint: /oauth/auth
 ```
 
-## Automate builds using CircleCI
-
-Now that we are able to edit the content of the site, we'll need a way to build it.  I'm going to use CircleCI to trigger the build.  Let's set that up, following [their documentation on how configure CircleCI to build static sites](https://circleci.com/blog/automate-your-static-site-deployment-with-circleci/).
-
-Create `.circleci/config.yml`
-
-```yml
-version: 2
-jobs:
-  build:
-    branches:
-      ignore:
-        - gh-pages
-    docker:
-      - image: cibuilds/hugo:latest
-    working_directory: ~/hugo
-    environment:
-      HUGO_BUILD_DIR: ~/hugo/public
-    steps:
-
-      # install git
-      - run: apk update && apk add git
-
-      # checkout the repository
-      - checkout
-
-      # install git submodules for managing third-party dependencies
-      - run: git submodule sync && git submodule update --init
-
-      # Link the public dir to the gh-pages branch
-
-      - run: rm -fr $HUGO_BUILD_DIR && git worktree add -B gh-pages $HUGO_BUILD_DIR origin/gh-pages
-
-      # build with Hugo
-      - run: HUGO_ENV=production hugo -v -d $HUGO_BUILD_DIR
-
-      # Set some variables to add to the commit message
-      - run: git config --global user.email "noreply@example.com" && git config --global user.name "CircleCI Bot"
-
-      # Push the generated files back to github
-      - run: cd $HUGO_BUILD_DIR && git add --all && git commit -m "Automated publish to gh-pages" && git push
-```
-
-Commit and add this file to your reposity on GitHub.  This runs the hugo build image.  It installs git, and then checkout the repo from GitHub.  We pull down any submodules if you are using that for themes.  We then configure the `$HUGO_BUILD_DIR` to be a `worktree` of the `gh-pages` branch -- this is where we are going to host the files in GitHub pages.  Then it runs the build itself, adds and commits those files in the `gh-pages` branch back into the repository, and pushes back to `GitHub`.
-
-For this to work you need to grant `CircleCI` write access to your repo which is done by setting it up with your user's key.  Lets get CircleCI working now.
-
-1. Go to [CircleCI](https://circleci.com/) and create an account.
-2. Select the single linux container plan.
-3. Add your repository from GitHub that you want to build.  
-4. Go to project settings, and under Permissions go to `Checkout SSH Keys`.  
-5. `Add User Key` to grant permission.
-6. Remove the previous deploy key.
-
-Now when you push your commits to `GitHub`, you'll be able to watch CircleCI build them and hopefully see your new content go up shortly!
 
 ## Summary
 
-The NetlifyCMS is really interesting, though its still a work in progress.  With this setup, we are using a couple of external services -- GitHub, Firebase, CircleCI -- all within their free tiers to edit and push out a website. This process would probably be even easier if we went all in with Netlify, so that's another great service to start checking out.
+The NetlifyCMS is really interesting, though its still a work in progress.  With this setup, we are using a couple of external services -- GitHub, Firebase -- all within their free tiers to edit and push out a website. This process would probably be even easier if we went all in with Netlify, so that's another great service to start checking out.
+
+Originally I had [configuring CircleCI](automating_hugo_with_circle_ci) in this post, but I moved it to its own!  Read next!
