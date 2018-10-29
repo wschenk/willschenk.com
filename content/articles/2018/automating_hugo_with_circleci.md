@@ -8,7 +8,9 @@ tags:
   - howto
 ---
 
-Here's a simple CircleCI configuration to pull down the latest version of your hugo site on GitHub commits, build it, and then push it to github pages.
+<p class="lead">Here's a simple CircleCI configuration to pull down the latest version of your hugo site on GitHub commits, build it, and then push it to github pages.</p>
+
+<!--more-->
 
 Let's set that up, following [their documentation on how configure CircleCI to build static sites](https://circleci.com/blog/automate-your-static-site-deployment-with-circleci/).
 
