@@ -48,7 +48,7 @@ jobs:
       - run: git config --global user.email "noreply@example.com" && git config --global user.name "CircleCI Bot"
 
       # Push the generated files back to github
-      - run: cd $HUGO_BUILD_DIR && git add --all && git commit -m "Automated publish to gh-pages" && git push
+      - run: cd $HUGO_BUILD_DIR && git add --all && git commit -m "Automated publish to gh-pages [ci skip]" && git push
 ```
 
 Commit and add this file to your reposity on GitHub.  This runs the hugo build image.  It installs git, and then checkout the repo from GitHub.  We pull down any submodules if you are using that for themes.  We then configure the `$HUGO_BUILD_DIR` to be a `worktree` of the `gh-pages` branch -- this is where we are going to host the files in GitHub pages.  Then it runs the build itself, adds and commits those files in the `gh-pages` branch back into the repository, and pushes back to `GitHub`.
