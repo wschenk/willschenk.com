@@ -9,7 +9,7 @@ tags:
 Here's a simple walk through on how to use authenticated routes with react-router.
 
  <!--more-->
- 
+
 1. `create-react-app route-test`
 2. `cd route-test`
 3. `yarn add react-router-dom`
@@ -87,10 +87,8 @@ export default App;
 ```
 
 * We are using [Stateless Functional Components](https://hackernoon.com/react-stateless-functional-components-nine-wins-you-might-have-overlooked-997b0d933dbc "") to model out our nav bar, and a few pages.
-*
-`Link` is what we use to create a link to something that we define in our router. This needs to be a child of a `Router`, so our `Nav` component must be a child of that.
-*
-`Switch` is where we are putting out routes to keep everything nice and tidy.
+* `Link` is what we use to create a link to something that we define in our router. This needs to be a child of a `Router`, so our `Nav` component must be a child of that.
+* `Switch` is where we are putting out routes to keep everything nice and tidy.
 * We have a very simple login system here, where if you go to `/session` and push a button, you are considered logged in.
 
 ### Secret isn’t so secret
