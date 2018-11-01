@@ -51,7 +51,7 @@ Examples of the commands that can be triggered are:
 - `git status`
 - `bundle exec middleman build`
 
-<img src="arch.png" class="img-fluid">
+<img src="arch.dot.svg" class="img-fluid">
 
 
 Let go through each of the components as if we were building them in our app directly.  The `gem` does a lot of this for you, but it's always nice to see how it works.

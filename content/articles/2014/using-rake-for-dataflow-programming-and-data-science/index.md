@@ -27,7 +27,7 @@ In fact, if you just want to start playing with stuff now, head over to the [rak
 
 Rake is a a Make-like Ruby program that people know mostly in terms of rails apps.  We can define a few tasks and define their interdependancies:
 
-<img src="1.png" class="img-fluid">
+<img src="1.dot.svg" class="img-fluid">
 
 ```ruby
 task :mail_daily_leader_boards => :update_leader_boards do
@@ -90,11 +90,11 @@ What does it mean if we were to reverse the arrows on the graph?
 
   <tr>
     <td style="text-align: center">
-    <img src="top.png">
+    <img src="top.dot.svg">
     </td>
 
     <td style="text-align: center">
-    <img src="bottom.png">
+    <img src="bottom.dot.svg">
     </td>
   </tr>
 </table>
@@ -141,15 +141,15 @@ Files and rules come from Rake's `make` heritage.  We can think of regular `Task
 
 ## Tasks defined as Rules
 
-The third main bit of magic that Rake gives us is rules.  The file task can magically bring a file into being when invoked, but in a build process its more common to translate files with a certain extention to other files in a different extension.  The canonical example is probably compiling `.c` source files into `.o` objects, but since it's the 21 first century lets look at how to run the Graphviz dot file to process into svg or png files.
+The third main bit of magic that Rake gives us is rules.  The file task can magically bring a file into being when invoked, but in a build process its more common to translate files with a certain extention to other files in a different extension.  The canonical example is probably compiling `.c` source files into `.o` objects, but since it's the 21 first century lets look at how to run the Graphviz dot file to process into svg or.dot.svg files.
 
 ```ruby
 rule ".svg" => ".dot" do |task|
   sh "dot -Tsvg < #{task.source} > #{task}"
 end
 
-rule ".png" => ".dot" do |task|
-  sh "dot -Tpng < #{task.source} > #{task}"
+rule ".dot.svg" => ".dot" do |task|
+  sh "dot -.dot.svg < #{task.source} > #{task}"
 end
 ```
 

@@ -1,6 +1,8 @@
 ---
 title: "Using Firebase to authenticate only to a specific domain"
 subtitle: "Build internal only apps"
+draft: true
+date: 2018-10-31
 tags:
   - howto
   - firebase

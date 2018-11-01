@@ -55,7 +55,7 @@ _If the word social bothers you, just replace it with "all views are customized 
 
 Let's look at the rate of change of the different types of data on these sites:
 
-<img src="data.png" class="img-fluid">
+<img src="data.dot.svg" class="img-fluid">
 
 
 Lets walk through this.  A _data model_ is the structure that all of the site data fits into.  This represents the heart of what your database model, object model, and product design are all orbiting around.  In the beginning of development this rapidly changes, but once the site is released changes are incremental and relatively rare. It's easy to add functionality that doesn't change the data model, but when you start making drastic changes, the nature of what you are building changes.  Wordpress sites have pages, posts, categories and users, and if you try and jam in a product catalog then it becomes something different than a standard blog.
@@ -88,7 +88,7 @@ _Session Data_ is _specific to the user_ and renders the page differently based 
 
 A website is a series of interconnected webpages.  These pages are referenced by URLs, and the world of linking and SEO demands that these URLs return self-contained data so that you can deep link and get yourself found on the search engines.  From the outside, it looks like:
 
-<img src="sitemap.png" class="img-fluid">
+<img src="sitemap.dot.svg" class="img-fluid">
 
 
 The main entry point is the _Sitemap_.  Conceptually, this is the overview of what can be found on the site.  In a specific, SEO sense, a sitemap is a way of communicating to search engines the structure of your site so the search results can be better organized.  But in a more general sense, the sitemap is a collection of all of the pages that make up the site.
@@ -101,7 +101,7 @@ Lets take an example of a _Commerce_ site, and how those URLs are generated.  I 
 
 From the inside of a website, it looks a little more like this:
 
-<img src="routing.png" class="img-fluid">
+<img src="routing.dot.svg" class="img-fluid">
 
 A request comes into the server and the `router` determines what the user is asking for.  In our example, since the path of the url is `/product/1dbd/`, the router looks at that and says "this is a product page" so let's hand the request off to the `product` controller, which is the part of the code that knows about product stuff.
 
@@ -199,11 +199,11 @@ Our components are ready to go!  They've either rendered _Site Data_ from the se
 
 One of the benefits of this is that there are API-as-services out there, like [Parse](https://parse.com) or [Firebase](https://www.firebase.com).  All of your data could live in these systems, and you can pull certain stuff out during the build process, and other data out at Runtime, and they handle both security, user accounts, and, more importantly, operational scaling support.  From an ops perspective, you don't need to do anything other than build the site and pay the hosting builds, and all of the tricky scaling stuff handled is by a third party.
 
-<%= image_tag "seed_sequence.png", class: "img-responsive" %>
+<%= image_tag "seed_sequence.dot.svg", class: "img-responsive" %>
 
 ## Bringing back a build server
 
-<img src="build.png" class="img-fluid">
+<img src="build.dot.svg" class="img-fluid">
 
 There still needs to be a way to get new versions of _Structural Data_ onto the site.  For this, we need to host middleman somewhere on a build server, and everytime _Structural Data_ changes we need to trigger another build that pushes up the static content.  Parse has [afterSave triggers](https://parse.com/docs/js/guide#cloud-code-aftersave-triggers) that could, for example, ping your build server to first pull down the data changes, and then push the code out.
 
