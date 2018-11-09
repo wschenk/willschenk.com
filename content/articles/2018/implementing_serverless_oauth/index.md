@@ -1,5 +1,5 @@
 ---
-title: "Implementing Servless OAuth"
+title: "Implementing Serverless OAuth"
 subtitle: "for JAM Stacks and static sites"
 date: 2018-11-01
 draft: true
@@ -114,11 +114,128 @@ $ firebase deploy # Push everything to firebase
 
 And open your browser to the url that was `firebase deploy` spit out at the end.  If you see a blank screen, double check that in `firebase.json` you have `build` set as the `public` directory in hosting.
 
+### Set the secrets for your firebase functions
+
+We are going to store the oauth secrets inside of firebase to keep them seperate from your code. These are the application id and application secret that we got from unsplash above that you should have taken note off.  Lets set those in firebase now (and be sure you enter in your own secrets!)
+
+```bash
+$ firebase functions:config:set oauth.client_id=yourclientid
+$ firebase functions:config:set oauth.client_secret=yourclientsecret
+```
+
+We can then pull these secrets back down locally into a firebase env file so that when we are testing out our firebase code it will behave like it will in production.
+
+
+```bash
+$ firebase functions:config:get > functions/.runtimeconfig.json
+```
+
+We don't want these files to go into git so
+
+```
+$ echo functions/.runtimeconfig.json >> .gitignore
+```
+
+
+### Setup firebase functions
+
+Lets go into the `functions` directory and add a few npm modules.  One for the http, and the other for the oauth flow.
+
+```bash
+$ cd functions
+$ yarn add express simple-oauth2 randomstring
+```
+
+Now lets create a simple app that we can use to test out our install.  Replace `functions/index.js` with:
+
+```js
+const functions = require('firebase-functions');
+const express = require('express');
+
+const oauth = functions.config().oauth;
+const webApp = express()
+
+webApp.get( '/auth', (req, res) => {
+
+  res.send( "my client id is: " + oauth.client_id  )
+})
+
+exports.oauth = functions.https.onRequest( webApp )
+```
+
+Then run `firebase serve --only functions` to start up the api locally.  Be sure to check out the url that the proxy code is running on.  In my case, it's `http://localhost:5001/honey-b6642/us-central1/oauth`.  Once this is running you should be able to go to the url listed and see the client id from the configuration.
+
+## Setup the react app
+
+We need to point our react code to our firebase functions, and we are going to put that information into `env` files so that there is one place to swap them out later.  These need to be prefaced with `REACT_APP_` in order to play well with the `create-react-app` build process. Create a `.env.development` file with your information in it
+
+```
+REACT_APP_BASE_URL="http://localhost:5001/honey-b6642/us-central1/oauth"
+```
+
+We also don't want this file in source control:
+
+```bash
+$ echo .env.development >> .gitignore
+```
+
+Once we deploy the server to fire base, we can point this to our production instances.  Also, we will create another `.env.production` file for build time information.  Note that we don't want the oauth secrets here, since this is for the JavaScript code, not for the server functions.
+
+
+First lets add some small styling to that our eyes won't hurt during development.
+
+
+```bash
+$ yarn add node-sass bootstrap reactstrap dotenv
+```
+
+Rename `src/index.css` to `src/index.scss`, and include the bootstrap sass files.  This is a bit overkill at the moment, but it will set things up for easy customization going forward.
+
+```scss
+@import "~bootstrap/scss/bootstrap.scss"
+```
+
+Be sure to update `src/index.js` to point to the correct style sheet, change `index.css` to `index.scss`
+
+Now we can build out a scaffolding for `src/App.js`:
+
+```jsx
+import React, { Component } from 'react';
+import { Jumbotron, Container } from 'reactstrap';
+
+
+const LoginWindow = (props) => {
+  return (
+    <Jumbotron>
+      <Container>
+        <h1 className="display-3">Unsplash browser</h1>
+        <p className="lead">This is an example of how to do something amazing</p>
+        <p><a className="btn btn-primary" href={process.env.REACT_APP_BASE_URL + "/auth"}>Connect</a></p>
+      </Container>
+    </Jumbotron>
+  )
+}
+
+class App extends Component {
+  render() {
+    return (
+      <LoginWindow/>
+    );
+  }
+}
+
+export default App;
+```
+
+Now start up the server using `yarn start`, and press the `Connect` button.  You should now see the response from the firebase function running locally!
+
 
 
 ---
 
 ### References
 
-1. https://www.netlify.com/blog/2018/07/30/how-to-setup-serverless-oauth-flows-with-netlify-functions--intercom/
-2. https://github.com/Herohtar/netlify-cms-oauth-firebase
+1. https://firebase.google.com/docs/functions/get-started
+2. https://firebase.google.com/docs/functions/local-emulator
+2. https://www.netlify.com/blog/2018/07/30/how-to-setup-serverless-oauth-flows-with-netlify-functions--intercom/
+3. https://github.com/Herohtar/netlify-cms-oauth-firebase
