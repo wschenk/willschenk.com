@@ -1,8 +1,7 @@
 ---
 title: "Implementing Serverless OAuth"
 subtitle: "for JAM Stacks and static sites"
-date: 2018-11-01
-draft: true
+date: 2018-11-12
 tags:
   - howto
   - static_sites
@@ -136,14 +135,13 @@ We don't want these files to go into git so
 $ echo functions/.runtimeconfig.json >> .gitignore
 ```
 
-
 ### Setup firebase functions
 
 Lets go into the `functions` directory and add a few npm modules.  One for the http, and the other for the oauth flow.
 
 ```bash
 $ cd functions
-$ yarn add express simple-oauth2 randomstring
+$ yarn add express
 ```
 
 Now lets create a simple app that we can use to test out our install.  Replace `functions/index.js` with:
@@ -229,13 +227,306 @@ export default App;
 
 Now start up the server using `yarn start`, and press the `Connect` button.  You should now see the response from the firebase function running locally!
 
+## Implementing the OAuth Flow
 
+Now that all the pieces are in place, it's time to start implementing the oauth logic inside of the firebase functions.  
+
+First lets add a few libraries to the `functions/package.json`:
+
+```
+$ cd functions
+$ yarn add simple-oauth2 randomstring
+```
+
+Also edit the local `functions/.runtimeconfig.json` to include the callback url that we are going to pass to unsplash.  Mine looks like:
+
+```json
+{
+  "oauth": {
+    "client_secret": "56efa3a9c3ddc8ff50beab6.....",
+    "client_id": "d69d777a78a53b95523cc4cbf.....",
+    "redirect_uri": "http://localhost:5000/honey-b6642/us-central1/oauth/callback"
+  }
+}
+```
+
+Now lets write some code! Lets replace what we have in `functions/index.js` with a method to create a authorization request to unplash and then redirect the user's browser to it.
+
+```js
+const functions = require('firebase-functions');
+const express = require('express');
+const simpleOauth = require('simple-oauth2');
+const randomstring = require('randomstring');
+
+const oauth = functions.config().oauth;
+const webApp = express();
+
+const oauth2 = simpleOauth.create({
+  client: {
+    id: oauth.client_id,
+    secret: oauth.client_secret
+  },
+  auth: {
+    tokenHost: 'https://unsplash.com/',
+    tokenPath: oauth.token_path || '/oauth/token',
+    authorizePath: oauth.authorize_path || '/oauth/authorize'
+  }
+})
+
+webApp.get('/auth', (req, res) => {
+  const authorizationUri = oauth2.authorizationCode.authorizeURL({
+    redirect_uri: oauth.redirect_uri,
+    scope: oauth.scopes || 'public',
+    state: randomstring.generate(32)
+  })
+
+  res.redirect(authorizationUri)
+})
+
+exports.oauth = functions.https.onRequest( webApp )
+```
+
+First we setup `simpleOauth`.  We are using the configuration id and secret that we got from unsplash, and the endpoints that are specified in the documentation for the `token` and `authorize` path.  When we get a `/auth` request we use create an authorization request using that configuration and then redirect the browser to it.
+
+We haven't written a callback handler yet, but lets try it out.  First go to [unsplash](https://unsplash.com/) and log out of your account to see the whole flow.  Then go to http://localhost:3000 and press the auth button.  You'll be prompted to log in, and when you do you should see:
+
+<img src="unsplash_auth.png" class="img-fluid"/>
+
+If you don't, a couple of things to check
+
+- Is your client id and secret being set correctly?
+- Is your redirect_uri configured correctly?
+- Are you passing the correct scope? (In this case, `public`)
+
+
+OK, now it's time to write the callback method!
+
+```js
+webApp.get('/callback', (req, res) => {
+  console.log( req.query );
+
+  var options = {
+    code: req.query.code,
+    scope: oauth.scopes || 'public',
+    redirect_uri: oauth.redirect_uri
+  }
+
+  return oauth2.authorizationCode.getToken(options).then((result) => {
+    const token = oauth2.accessToken.create(result)
+
+    // We could also ask unplash about the user profile here if we wanted
+    // to setup a firebase user for this authorization
+    res.setHeader('Content-Type', 'application/json');
+    return res.send(JSON.stringify({ token: token.token.access_token }));
+  }).catch((error) => {
+    console.error('Access Token Error', error.messsage)
+    res.send( error )
+  })
+})
+```
+
+When you press "Grant Access" on Unsplash, it will generate an authorization code and redirect the user's browser back to this function.  Here we use that code to get an access token from unsplash that we can then use to make requests on the user's behalf.
+
+## Using the token
+
+In the scenario we outlined at the top, the server would store the access_token and connect to the server with authenticated requests from there.  In the case of firebase, we'd great something like an Anaonymous account, store the token there, and then proxy requests from the server to the third party service never exposing the access_token to the browser.  This is a clean way to do this so that the access_token is never exposed.
+
+But it makes it more complicated, so we are going to hack through it for demo purposes to just finish up the demo.  The code that we are writing is going to connect to the unsplash api from the browser directly, so we'll change our fireback function code to redirect back to our static app with an url that contains the access_token.
+
+So, lets have the code redirect back to our react site with the query string as the parameter.
+
+First lets add where we'd like it to go to the configuration in `functions/.runtimeconfig.json`:
+
+```json
+{
+  "oauth": {
+    "client_secret": "56efa3a9c3ddc8ff50beab69bd530....",
+    "client_id": "d69d777a78a53b95523cc4cbf8921....",
+    "redirect_uri": "http://localhost:5000/honey-b6642/us-central1/oauth/callback",
+    "static_site_url": "http://localhost:3000"
+  }
+}
+```
+
+Then lets change our function to redirect instead of spitting out json.  So in `functions/index.js` change:
+
+```js
+    res.setHeader('Content-Type', 'application/json');
+    return res.send(JSON.stringify({ token: token.token.access_token }));
+```
+
+to:
+
+```js
+    return res.redirect( oauth.static_site_url + "?access_token=" +token.token.access_token );
+```
+
+Now we need to update our react code so that it knows what to do with that access token.  Lets first add a node module that understands how to parse query strings:
+
+```bash
+$ yarn add query-string
+```
+
+And replace the App class in `src/App.js` with the following:
+
+```jsx
+class App extends Component {
+  state = {access_token:null}
+
+  componentDidMount() {
+    const values = QueryString.parse(window.location.search)
+
+    if( values.access_token !== undefined ){
+      console.log( "looks like we've got an access_token!", values.access_token )
+      this.setState( {...this.state, access_token: values.access_token } )
+    } else {
+      console.log( "No token")
+    }
+  }
+  render() {
+    if( this.state.access_token ) {
+      return <Unsplash access_token={this.state.access_token}/>
+    } else {
+      return (
+        <LoginWindow/>
+      );
+    }
+  }
+}
+```
+
+We need to create that `Unsplash` component, so lets do that now inside of `src/Unsplash.js` (and don't forget to `import` this at the top of `App.js`!)
+
+```jsx
+import React from 'react';
+import { Container, Progress } from 'reactstrap'
+
+const authedGet = (access_token, endpoint) => {
+  const headers = {
+    'Accept': 'application/json',
+    'Content-Type': 'application/json',
+    'Accept-Version': 'v1',
+    'Authorization': `Bearer ${access_token}`
+  }
+  console.log( "headers", headers)
+  const fetchInit = {
+    method: 'GET',
+    headers,
+    credentials: 'omit',
+  }
+  return fetch("https://api.unsplash.com" + endpoint, fetchInit);
+}
+
+const Loading = () => {
+  return (
+    <Container>
+      <h1>Fetching from the unsplash api</h1>
+      <Progress animated color="primary" value={100}/>
+    </Container>
+  )
+}
+
+const Profile = ({user}) => {
+  return (
+    <Container>
+      <h1>Hello {user.name}!</h1>
+      <img src={user.profile_image.large} alt="profile photo"/>
+    </Container>
+  )
+}
+
+export default class Unsplash extends React.Component {
+  state = {loading: true}
+
+  componentDidMount() {
+    const {access_token} = this.props;
+
+    authedGet( access_token, "/me" ).then( (response) => {
+      console.log( "Got response " + response.status_code)
+      return response.json()
+    }).then( (data) => {
+      this.setState( {loading: false, user: data})
+    })
+  }
+  render() {
+    if( this.state.loading ) {
+      return (<Loading/>)
+    } else if ( this.state.user ) {
+      return (<Profile user={this.state.user}/>)
+    } else {
+      return (<p>Horrible error</p>)
+    }
+  }
+}
+```
+
+The first thing that we are doing is creating a utility function that uses the `fetch` function and passes the `Bearer` token, a/k/a `access_token` to the api.  In the `componentDidMount` method of the `Unsplash` class, we use that function to initiate the request.  Once we get that data, we show the rather bare bones `Profile` component that has a name and a picture in it.
+
+<img src="profile.png" alt="profile image"/>
+
+Proof of concept: working locally!
+
+## Deploying everything to firebase
+
+Now lets package this up to run on production.  First we need to tell the react app where the firebase functions are.  Go to the [FireBase Console](https://console.firebase.google.com), select your project, and find the functions admin panel on the left side.  See where the are deployed.  Mine is `https://us-central1-honey-b6642.cloudfunctions.net/oauth`, so in `.env.production` lets add:
+
+```
+REACT_APP_BASE_URL="https://us-central1-honey-b6642.cloudfunctions.net/oauth"
+```
+
+Now lets kick off a production build of the react app:
+
+```bash
+$ yarn build
+```
+
+Now we need to setup the config for the firebase functions.  Lets make sure that we have an entry for everything that is in our `functions/.runtimeconfig.json` file.  First set the static_site_url value to the url you are looking at, in my case `https://honey-b6642.firebaseapp.com/`
+
+```bash
+$ firebase functions:config:set oauth.static_site_url=https://honey-b6642.firebaseapp.com/
+```
+
+For the redirect_uri, use the same as the `REACT_APP_BASE_URL` above but add `/callback`.  Mine is `https://us-central1-honey-b6642.cloudfunctions.net/oauth`, so
+
+```bash
+$ firebase functions:config:set oauth.redirect_uri=https://us-central1-honey-b6642.cloudfunctions.net/oauth/callback
+```
+
+Once that is done, lets push both the html/css/js code as well as the functions to firebase:
+
+```bash
+$ firebase deploy
+```
+
+If you have the [problem listed here](https://github.com/firebase/firebase-tools/issues/775), update `functions/package.json` to downgrade `simple-oauth2` to `^1.6.0`, return `yarn` in the `functions` directory, and retry the firebase deploy.
+
+Finally, we need to whitelist our callback URL inside of the [Unsplash Application](https://unsplash.com/oauth/applications).  Follow that link, select your application, and add that same callback url from above after the localhost one that should already be there.
+
+Now lets test it out!  Make sure that you have billing enabled in FireBase, otherwise you won't be able to make external requests and you will get a host not found error.
+
+## Final thoughts
+
+The code is available on GitHub here:  https://github.com/wschenk/unsplash_api_firebase
+
+We've covered a lot of ground here!
+
+1. Overview of the OAuth protocol
+2. Hosting a static create-react-app site on firebase
+3. Building firebase functions and testing them locally
+4. Environment config with create-react-app in production and development
+5. Environment config with firebase functions, also in production and development
+6. Using `simple-oauth2`
+7. A quick and easy way to pass the access_token back to our react app
+8. How to use the `Bearer` token using `window.fetch` to get authenticated data from an API.
 
 ---
 
 ### References
 
+1. https://github.com/wschenk/unsplash_api_firebase
 1. https://firebase.google.com/docs/functions/get-started
-2. https://firebase.google.com/docs/functions/local-emulator
-2. https://www.netlify.com/blog/2018/07/30/how-to-setup-serverless-oauth-flows-with-netlify-functions--intercom/
-3. https://github.com/Herohtar/netlify-cms-oauth-firebase
+1. https://firebase.google.com/docs/functions/local-emulator
+1. https://www.netlify.com/blog/2018/07/30/how-to-setup-serverless-oauth-flows-with-netlify-functions--intercom/
+1. https://github.com/Herohtar/netlify-cms-oauth-firebase
+1. https://unsplash.com/documentation
+1. https://github.com/unsplash/unsplash-js
