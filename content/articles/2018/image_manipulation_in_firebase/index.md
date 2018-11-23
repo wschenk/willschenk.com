@@ -1,59 +1,73 @@
 ---
 title: "Image Manipulation in Firebase"
 subtitle: "its all javascript"
-draft: true
-date: 2018-11-16
+date: 2018-11-23
 tags:
   - firebase
-  - howtwo
+  - howwo
   - javascript
+  - images
 ---
 
+We can manipulate images using JavaScript directly, which can be run both on the server or browser environment.  Lets take a look at how we'd do this using create-react-app and firebase.  We will deploy a function on firebase that will download the user's avatar, manipulate the image and overlay it with a mask, and then spit out an image.
 
-npx create-react-app honey
-cd honey
-yarn add firebase
-firebase login
-firebase init
+## Project Setup
+First make sure that you have `nvm` installed.  We'll need a different version of node for `create-react-app` then we will for firebase functions.
 
-store, functions, hosting
+```bash
+$ npx create-react-app honey
+$ cd honey
+$ firebase login
+$ firebase init
+```
 
-say TypeScript
+- Select functions, hosting
+- Select your proejct if you've already created it
+- JavaScript
+- Yes to ESLint
+- No to install dependancies
+- `build` instead of `public` directory
+- Yes to single page app
 
+Now we will create our functions to generate the image.  Firebase only supports node 6, so we'll need to set that up.  If you don't already have node 6 installed, make sure you do that with `nvm install 6`.
 
-choose a project
+```bash
+$ cd functions
+$ nvm use 6
+$ npm install firebase-functions@latest firebase-admin@latest express jimp tempfile node-fetch blueimp-md5 --save
+```
 
-build instead of public
+Since that's installing another `node_modules` directory inside of the `functions` folder, be sure to add that to `.gitignore` in the project root:
 
-cd functions
+```bash
+echo /functions/node_modules >> ../.gitignore
+```
 
-??
-add "engines": { "node": "8" } to /functions/package.json
+## Write and test our function
 
-nvm install 8
-nvm use 8
+We are going to combine an avatar.jpg like this:
 
-npm install firebase-functions@latest firebase-admin@latest express jimp tempfile node-fetch --save
+<img src="avatar.jpg"/>
 
-npm rebuild
+with a mask image like this:
 
-add /functions/node_modules to .gitignore
+<div><span style="background:#aaa;height:480px;width:480px;display:inline-block"><img src="results_mask.png"/></span></div>
 
+to make an image like this:
 
-copy and avatar.jpg results_mask.png into functions
+<img src="output.png"/>
 
-`functions/merge.js`:
+So right click and save the two images `avatar.jpg` and `results_mask.png` into your `functions` directory.  Then create the `functions/applyMask.js`:
 
 ```js
 const Jimp = require( 'jimp' )
 const Tempfile = require( 'tempfile' )
 
 var maskFile = __dirname+"/results_mask.png";
-var avatarFile = __dirname+"/avatar.jpg";
 
 var font = Jimp.loadFont( Jimp.FONT_SANS_32_WHITE );
 
-function applyMask( text ) {
+function applyMask( text, avatarFile ) {
   return Jimp.read( maskFile ).then( (mask) => {
     return Jimp.read( avatarFile ).then( (image) => {
       return Jimp.loadFont( Jimp.FONT_SANS_32_WHITE ).then( (font) => {
@@ -85,19 +99,37 @@ function applyMask( text ) {
   } )
 }
 
-exports.applyMask = applyMask
+if( process.argv.slice(-1)[0] === '--test' ) {
+  applyMask( "Will S", __dirname+"/avatar.jpg" )
+    .then( console.log )
+    .catch( console.log )
+}
 
-```
-
-This uses Jimp to load in the avatar, resize it, apply the mask and then add the users name into the attached box.
-
-Run this with `node merge.js | xargs open` to test.  Adjust as necessary.  When you are finished, replace the last line with
-
-```js
 exports.applyMask = applyMask
 ```
 
-Then in `index.js`:
+We can test this function using `node avatarMask.js --test`, this will run the method directly so we can test out the results and print the output filename.  To open that file directly, you can do `open $(node avatarMask.js --test)`
+
+This uses Jimp to:
+
+1. Load in the mask using `Jimp.read`
+2. Load in the avatar again using `Jimp.read`
+3. Load in a font file that we will use for running
+4. Clone the original image
+5. Resize, blur and darken the avatar
+6. Copy the original avatar onto the center point at 238, 275
+7. Apply the mask on top
+8. Write the user's name into the attached box
+9. Create a tempfile to write the final image into
+10. Resolve the promise at the end with the name of the tempfile.
+
+The `Jimp` library is written in pure JavaScript so this code should be runnable in the browser also with some limited modifications.
+
+## Write a Firebase function that returns the image
+
+Lets first create a simple express function just to make sure that we can get the firebase functions to run inside of the emulator and attach to a https handler.
+
+In `functions/index.js`:
 
 ```js
 const functions = require('firebase-functions');
@@ -105,18 +137,22 @@ const express = require('express');
 
 const webApp = express();
 
-webApp.get( '/createImage', (req, res) => {
+webApp.get( '/', (req, res) => {
   res.send( "Hello world")
 })
 
 exports.createImage = functions.https.onRequest( webApp )
 ```
 
+The run
+
+```bash
 $ npm run serve
+```
 
-to test.
+To run the function locally.  If it starts up correctly, you should see an `localhost` url that you can use, in my case `http://localhost:5000/honey-b6642/us-central1/createImage/`
 
-Then lets wire up our actually call:
+Once that works, lets actually wire up our function to use our method (again this is `functions/index.js`)
 
 ```js
 const functions = require('firebase-functions');
@@ -127,7 +163,7 @@ const webApp = express();
 
 webApp.get( '/', (req, res) => {
   console.log( "Generating image")
-  applyMask( req.query.name ).then( (tempfile) => {
+  applyMask( "Will S", __dirname+"/avatar.jpg" ).then( (tempfile) => {
     console.log( "Uploading file", tempfile)
     res.sendFile( tempfile )
   }).catch( (err) => {
@@ -137,25 +173,40 @@ webApp.get( '/', (req, res) => {
 })
 
 exports.createImage = functions.https.onRequest( webApp )
-
 ```
-firebase serve --only functions
 
+Again test with `node run serve`.  When you go the url, you should now see the image in the browser!
 
+## Check to see that it works on firebase itself
 
-Pass in the avatar and the name
+`firebase deploy` will push the code to the firebase servers.  If you don't get any errors, you can see where the function is deployed either in the output logs, or by going to the [Firebase Console](https://console.firebase.google.com) and click on the `Functions` tab:
+
+<img src="functions.png" class="img-fluid"/>
+
+If you go to that url, https://us-central1-honey-b6642.cloudfunctions.net/createImage/ in the image above, (add a / at the end if you have a problem) you should see the image generated and loaded from the firebase function.
+
+## Passing in the email and name and loading from gravatar
+
+Lets change the code a bit to pass in the email and name, load the avatar from gravatar, and customize the image:
 
 ```js
 const functions = require('firebase-functions');
 const express = require('express');
-const fetch = require( 'node-fetch' )
-const Tempfile = require( 'tempfile' )
+const { applyMask } = require('./applyMask');
+const Tempfile = require('tempfile')
+const fetch = require('node-fetch')
+const md5 = require('blueimp-md5')
 const fs = require('fs')
-const { applyMask } = require('./merge');
 
 const webApp = express();
 
+function downloadGravatar( email ) {
+  const hash = md5(email);
+  return downloadUrl("https://www.gravatar.com/avatar/" + hash + ".jpg" )
+}
+
 function downloadUrl( url ) {
+  console.log( "downloading " + url )
   return fetch( url ).then(res => {
     const outputFile = Tempfile( ".jpg" )
     console.log( "Streaming to ", outputFile )
@@ -166,14 +217,22 @@ function downloadUrl( url ) {
 }
 
 webApp.get( '/', (req, res) => {
-  console.log( "Generating image" )
-  downloadUrl( req.query.avatar ).then( (avatar) => {
-    return applyMask( req.query.name, avatar ).then( (tempfile) => {
-      console.log( "Uploading file", tempfile)
-      res.sendFile( tempfile )
-      // Cleanup the mess
-      fs.unlink( avatar )
-    })
+  const email = req.query.email;
+  let name = req.query.name;
+
+  if( email === "" || email === undefined ) {
+    return res.status(404).send( "Email not passed in")
+  }
+
+  if( name === "" || name === undefined ) {
+    name = email
+  }
+
+  downloadGravatar( email ).then( (avatarFile) => {
+    return applyMask( name, avatarFile )
+  } ).then( (tempfile) => {
+    console.log( "Uploading file " + tempfile )
+    return res.sendFile( tempfile )
   }).catch( (err) => {
     console.log( err )
     res.send( {error: err})
@@ -183,12 +242,22 @@ webApp.get( '/', (req, res) => {
 exports.createImage = functions.https.onRequest( webApp )
 ```
 
+Then start up your local firebase function with `npm run serve` and test it out with an email and name, for example: http://localhost:5000/honey-b6642/us-central1/createImage?email=wschenk@gmail.com&name=Will+S
+
+Finally, deploy it all to firebase!
+
+```
+$ firebase deploy
+```
+
+The final code can be found https://github.com/wschenk/image_building_in_firebase
 
 ---
 
 References
 
-1. https://github.com/oliver-moran/jimp
-2. https://medium.com/@rossbulat/image-processing-in-nodejs-with-jimp-174f39336153
-3. https://stackoverflow.com/questions/43117124/how-to-read-local-files-in-the-google-cloud-functions-emulator
-4. https://howtofirebase.com/cloud-functions-migrating-to-node-8-9640731a8acc
+1. https://github.com/wschenk/image_building_in_firebase
+2. https://github.com/oliver-moran/jimp
+3. https://medium.com/@rossbulat/image-processing-in-nodejs-with-jimp-174f39336153
+4. https://stackoverflow.com/questions/43117124/how-to-read-local-files-in-the-google-cloud-functions-emulator
+5. https://en.gravatar.com/site/implement/images/
