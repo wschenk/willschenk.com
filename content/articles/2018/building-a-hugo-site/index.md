@@ -151,7 +151,7 @@ In `config.toml` on the top level of your site (out of the theme) lets define a 
     url = "/posts/"
 ```
 
-Then add a header in `themes/mytheme/partials/header.html`.  We are going to use a bootstrap navbar and pull the menu items out of the site configuration.
+Then add a header in `themes/mytheme/layouts/partials/header.html`.  We are going to use a bootstrap navbar and pull the menu items out of the site configuration.
 
 ```go-html-template
 <nav class="navbar navbar-expand-lg navbar-light ">
@@ -346,7 +346,7 @@ We are checking to see if the menu item is tags, and if so look through the tags
 
 ## Tag list page
 
-If we look at the http://localhost:1313/tags we see that its showing the tags by date.  Which doesn't make sense.  So lets create a list page for the tags.  There are two types of things -- one is the list of tags, and one is the list of posts that for a specific tag.  `themes/mytheme/tag/list.html`:
+If we look at the http://localhost:1313/tags we see that its showing the tags by date.  Which doesn't make sense.  So lets create a list page for the tags.  There are two types of things -- one is the list of tags, and one is the list of posts that for a specific tag.  `themes/mytheme/layouts/tag/list.html`:
 
 ```go-html-template
 {{ define "main" }}
@@ -399,7 +399,7 @@ We first look to see if we are on a the term page, and if so we get a list of ta
 Hugo comes with pygments built in, so we are going to use that with a custom theme.  Lets first generate the css and put it in our themes `static` folder.
 
 ```bash
-$ hugo gen chromastyles --style=tango > themes/mytheme/static/css
+$ hugo gen chromastyles --style=tango > themes/mytheme/static/css/syntax.css
 ```
 
 And in config.toml add the following lines
@@ -409,7 +409,7 @@ pygmentsCodeFences = true
 pygmentsUseClasses = true
 ```
 
-Finally, add a link to that stylesheet to `themes/mytheme/layouts/partial/head.html`:
+Finally, add a link to that stylesheet to `themes/mytheme/layouts/partials/head.html`:
 
 ```html
   <link rel="stylesheet" href="/css/syntax.css"/>
