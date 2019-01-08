@@ -6,10 +6,86 @@
     <description>Recent content in Blank Page Technology on Will Schenk</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
-    <lastBuildDate>Fri, 23 Nov 2018 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Mon, 07 Jan 2019 00:00:00 +0000</lastBuildDate>
     
         <atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml" />
     
+    
+    <item>
+      <title>Setting up IPFS on a chromebook</title>
+      <link>https://willschenk.com/articles/2019/setting_up_ipfs_on_chromebook/</link>
+      <pubDate>Mon, 07 Jan 2019 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2019/setting_up_ipfs_on_chromebook/</guid>
+      <description>
+
+&lt;p&gt;Lets look at how to run an ipfs node on a chromebook.  We are using the linux container for this, and in order to get the experience right we&amp;rsquo;ll need to install some chrome extensions to make it work seamlessly.&lt;/p&gt;
+
+&lt;p&gt;IPFS is a &lt;a href=&#34;https://ipfs.io&#34;&gt;distributed hypermedia protocal&lt;/a&gt; that is a way to access and share data using it&amp;rsquo;s cryptographic key.  This way, it doesn&amp;rsquo;t matter where you get the data from, since you know that if it matches the key, then the data is what you requested.  Once you request the data, you make it available to other computers on the network.  As a result, the data doesn&amp;rsquo;t really live on any particular server, and the more people that access it the faster is it.  Also, the data moves to where people access it, so if you publish something in New York and it becomes popular in New Zealand, the folks in New Zealand will end up downloading it from each other rather than over the underocean cables.&lt;/p&gt;
+
+&lt;p&gt;Here&amp;rsquo;s the outline:&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;Download the ipfs binary&lt;/li&gt;
+&lt;li&gt;Init your repository&lt;/li&gt;
+&lt;li&gt;Change the config to open up the linux container to the chromebook&lt;/li&gt;
+&lt;li&gt;Start the daemon&lt;/li&gt;
+&lt;li&gt;Install the chrome extension that maps localhost:5001 to penguin.linux.test:5001&lt;/li&gt;
+&lt;li&gt;Install the IPFS companion chrome extenstion&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;Lets get started.&lt;/p&gt;
+
+&lt;h2 id=&#34;download-ipfs&#34;&gt;Download IPFS&lt;/h2&gt;
+
+&lt;p&gt;The &lt;a href=&#34;https://docs.ipfs.io/introduction/install/&#34;&gt;instuctions for installing IPFS&lt;/a&gt; are pretty simple.  First download the binary from the &lt;a href=&#34;https://dist.ipfs.io/#go-ipfs&#34;&gt;prebuilt repository&lt;/a&gt;, unpack it, and run the install script.&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;$ &lt;span class=&#34;nb&#34;&gt;cd&lt;/span&gt; /tmp
+$ curl -O https://dist.ipfs.io/go-ipfs/v0.4.18/go-ipfs_v0.4.18_linux-amd64.tar.gz
+$ tar xzf go-ipfs_v0.4.18_linux-amd64.tar.gz
+$ &lt;span class=&#34;nb&#34;&gt;cd&lt;/span&gt; go-ipfs/
+$ sudo ./install.sh
+Moved ./ipfs to /usr/local/bin&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;h2 id=&#34;init-the-repository&#34;&gt;Init the repository&lt;/h2&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;$ ipfs init&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;h2 id=&#34;change-the-config-to-open-up-the-linux-container-to-the-chromebook&#34;&gt;Change the config to open up the linux container to the chromebook&lt;/h2&gt;
+
+&lt;p&gt;We&amp;rsquo;ll need to edit the configuration so that the daemon binds to any network address, rather than being hardcoded to &lt;code&gt;127.0.0.1&lt;/code&gt;.  Inside of &lt;code&gt;.ipfs/config&lt;/code&gt; changes the &lt;code&gt;&amp;quot;Addresses&amp;quot;&lt;/code&gt; stanza so that it looks like this when you run &lt;code&gt;ipfs config Addreesses&lt;/code&gt;:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;$ ipfs config Addresses
+&lt;span class=&#34;o&#34;&gt;{&lt;/span&gt;
+  &lt;span class=&#34;s2&#34;&gt;&amp;#34;API&amp;#34;&lt;/span&gt;: &lt;span class=&#34;s2&#34;&gt;&amp;#34;/ip4/0.0.0.0/tcp/5001&amp;#34;&lt;/span&gt;,
+  &lt;span class=&#34;s2&#34;&gt;&amp;#34;Announce&amp;#34;&lt;/span&gt;: &lt;span class=&#34;o&#34;&gt;[]&lt;/span&gt;,
+  &lt;span class=&#34;s2&#34;&gt;&amp;#34;Gateway&amp;#34;&lt;/span&gt;: &lt;span class=&#34;s2&#34;&gt;&amp;#34;/ip4/0.0.0.0/tcp/8080&amp;#34;&lt;/span&gt;,
+  &lt;span class=&#34;s2&#34;&gt;&amp;#34;NoAnnounce&amp;#34;&lt;/span&gt;: &lt;span class=&#34;o&#34;&gt;[]&lt;/span&gt;,
+  &lt;span class=&#34;s2&#34;&gt;&amp;#34;Swarm&amp;#34;&lt;/span&gt;: &lt;span class=&#34;o&#34;&gt;[&lt;/span&gt;
+    &lt;span class=&#34;s2&#34;&gt;&amp;#34;/ip4/0.0.0.0/tcp/4001&amp;#34;&lt;/span&gt;,
+    &lt;span class=&#34;s2&#34;&gt;&amp;#34;/ip6/::/tcp/4001&amp;#34;&lt;/span&gt;
+  &lt;span class=&#34;o&#34;&gt;]&lt;/span&gt;
+&lt;span class=&#34;o&#34;&gt;}&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;h2 id=&#34;start-the-daemon&#34;&gt;Start the Daemon&lt;/h2&gt;
+
+&lt;p&gt;I&amp;rsquo;m enabling a few experimental features, but those are optional.  Also, I prefer to have it run manually rather than in a start script, so I&amp;rsquo;m happy to do this by hand everytime I want to access the network but you may want to look into a writing it as a service to run whenever the container starts.&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;$ ipfs daemon --enable-pubsub-experiment --enable-namesys-pubsub&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;h2 id=&#34;install-connection-forwarder&#34;&gt;Install connection forwarder&lt;/h2&gt;
+
+&lt;p&gt;Now we go to chrome and install &lt;a href=&#34;https://chrome.google.com/webstore/detail/connection-forwarder/ahaijnonphgkgnkbklchdhclailflinn/reviews&#34;&gt;the connection forwarder&lt;/a&gt;.  What we want to do is to make &amp;ldquo;localhost:5001&amp;rdquo; redirect on the local box to &amp;ldquo;penguin.linux.test:5001&amp;rdquo; so that we can look at the web ui.&lt;/p&gt;
+
+&lt;p&gt;Once it&amp;rsquo;s installed, select &amp;ldquo;Add a Rule&amp;rdquo;.  The source address is &lt;code&gt;localhost:5001&lt;/code&gt;.  For destination, select custom, and have the target address be &lt;code&gt;penguin.linux.test:5001&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&#34;screenshot.png&#34; class=&#34;img-fluid&#34; alt=&#34;config screenshot&#34;/&gt;&lt;/p&gt;
+
+&lt;p&gt;Now if you go to &lt;a href=&#34;http://localhost:5001/webui&#34;&gt;localhost:5001/webui&lt;/a&gt; you should be able to see your local node running! Note that you need to keep the Connection Forwarder window open for this to keep working, or manually turn on &amp;ldquo;run in background&amp;rdquo;&lt;/p&gt;
+
+&lt;h2 id=&#34;install-ipfs-companion&#34;&gt;Install ipfs companion&lt;/h2&gt;
+
+&lt;p&gt;Go to the chromestore again and &lt;a href=&#34;https://chrome.google.com/webstore/detail/ipfs-companion/nibjojkomfdiaoajekhjakgkdhaomnch?hl=en&#34;&gt;install IPFS companion&lt;/a&gt;.  Once this is running you should be able to see the number of connected peers in the tab of the browser window:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&#34;extension.png&#34; class=&#34;img-fluid&#34; alt=&#34;extension screenshot&#34;/&gt;&lt;/p&gt;
+
+&lt;h2 id=&#34;and-that-s-it&#34;&gt;And that&amp;rsquo;s it&lt;/h2&gt;
+
+&lt;p&gt;It takes up a fair amount of ram and slows the computer down a bit, which is why I don&amp;rsquo;t have it running all the time.  But its very fun to experiment with!&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>Image Manipulation in Firebase</title>
