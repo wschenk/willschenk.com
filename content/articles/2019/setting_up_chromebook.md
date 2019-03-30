@@ -176,8 +176,8 @@ Test out using `gcloud auth login`
 3. Open up the Files app
 4. Drag into linux files
 5. In the terminal, unzip the file. (In my case `unzip android-studio-ide-182.5314842-linux.zip`)
-6. cd android-studio/bin
-7. ./studio.sh
+6. `cd android-studio/bin`
+7. `./studio.sh`
 
 ## Actually it's all standard stuff
 
