@@ -4,7 +4,7 @@ subtitle: "its all javascript"
 date: 2018-11-23
 tags:
   - firebase
-  - howwo
+  - howto
   - javascript
   - images
 ---

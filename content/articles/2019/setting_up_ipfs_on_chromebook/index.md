@@ -5,6 +5,7 @@ date: 2019-01-07
 tags:
   - howto
   - ipfs
+  - chromebook
 ---
 
 Lets look at how to run an ipfs node on a chromebook.  We are using the linux container for this, and in order to get the experience right we'll need to install some chrome extensions to make it work seamlessly.
