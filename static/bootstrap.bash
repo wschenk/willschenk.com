@@ -1,12 +1,27 @@
 #!/bin/bash
 
-function check() {
+function check_orig() {
   if command -v $1 > /dev/null; then
-    echo -n $1 :\ 
     $2
   else
     return 1
   fi
+}
+
+function check() {
+  echo Alias for $1
+  echo "alias $1=\"$1_check\"" >> ~/.bootstrap_functions
+  cat >> ~/.bootstrap_functions <<CHECKER
+    function $1_check() {
+      bin_location=\$(which $1)
+      if [ -z "\$bin_location" ]; then
+        echo Installing $1
+        $3
+        bin_location=\$(which $1)
+      fi
+      \$bin_location \$@
+    }
+CHECKER
 }
 
 function apt_install() {
@@ -57,7 +72,9 @@ function git_config_check() {
   fi
 }
 
+cat >> ~/.bootstrap_functions <<END_ALIASES
 function install_ipfs() {
+  (
   echo
   echo "Installing ipfs"
   cd /tmp
@@ -65,6 +82,7 @@ function install_ipfs() {
   tar xzvf go-ipfs_v0.4.15_linux-amd64.tar.gz
   cd go-ipfs
   sudo ./install.sh
+  )
 }
 
 function install_docker() {
@@ -104,6 +122,7 @@ function install_docker() {
 }
 
 function install_atom() {
+  (
   echo
   echo Installing atom
   cd /tmp
@@ -111,15 +130,18 @@ function install_atom() {
   wget https://atom.io/download/deb
   mv deb atom.deb
   sudo apt install -y ./atom.deb
+  )
 }
 
 function install_nvm() {
+  (
   echo
   echo Installing NVM
   curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.34.0/install.sh | bash
   source ~/.profile
   nvm install 10
   nvm global 10
+  )
 }
 
 function install_rbenv() {
@@ -137,6 +159,7 @@ function install_rbenv() {
 }
 
 function install_go() {
+  (
   echo
   echo Installing go
   cd /tmp
@@ -144,15 +167,18 @@ function install_go() {
   sudo tar -C /usr/local -xzf go1.12.1.linux-amd64.tar.gz
   echo 'export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin' >> $HOME/.profile
   source ~/.profile
+  )
 }
 
 function install_hugo() {
+  (
   echo
   echo Installing hugo
   cd /tmp
   git clone https://github.com/gohugoio/hugo.git
   cd hugo
   go install
+  )
 }
 
 function install_heroku() {
@@ -174,20 +200,28 @@ function install_gcloud() {
   # Update the package list and install the Cloud SDK
   sudo apt-get update && sudo apt-get install -y google-cloud-sdk
 }
+END_ALIASES
 
 check_ssh
 
 check "git" "git --version" || apt_install "git"
 git_config_check
-check "tmux" "tmux -V" || apt_install "tmux"
-check "wget" "echo wget found" || apt_install "wget"
-check "ipfs" "ipfs version" || install_ipfs
-check "docker" "docker -v" || install_docker
-check "atom" "atom --version | head -1" || install_atom
-check "node" "node --version" || install_nvm
-# check "node" "node -v" || install_node
-check "rbenv" "rbenv --version" || install_rbenv
-check "go" "go version" || install_go
-check "hugo" "hugo version" || install_hugo
-check "heroku" "heroku version" || install_heroku
-check "gcloud" "echo gcloud found" || install_gcloud
+
+echo Installing on demand installers
+echo "if [ -f ~/.bootstrap_functions ]; then . ~/.bootstrap_functions; fi" >> ~/.bashrc
+
+check "tmux" "tmux -V" "apt_install 'tmux'"
+check "wget" "echo wget found" "apt_install 'wget'"
+check "ipfs" "ipfs version" "install_ipfs"
+check "docker" "docker -v" "install_docker"
+check "atom" "atom --version | head -1" "install_atom"
+check "node" "node --version" "install_nvm"
+check "rbenv" "rbenv --version" "install_rbenv"
+check "go" "go version" "install_go"
+check "hugo" "hugo version" "install_hugo"
+check "heroku" "heroku version" "install_heroku"
+check "gcloud" "echo gcloud found" "install_gcloud"
+
+. ~/.bootstrap_functions
+
+echo Installers installed at ~/.bootstrap_functions
