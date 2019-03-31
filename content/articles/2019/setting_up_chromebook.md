@@ -179,6 +179,17 @@ Test out using `gcloud auth login`
 6. `cd android-studio/bin`
 7. `./studio.sh`
 
+## Installing ipfs
+
+```
+wget https://dist.ipfs.io/go-ipfs/v0.4.15/go-ipfs_v0.4.15_linux-amd64.tar.gz
+tar xzvf go-ipfs_v0.4.15_linux-amd64.tar.gz
+cd go-ipfs
+sudo ./install.sh
+```
+
+Test out using `ipfs`
+
 ## Actually it's all standard stuff
 
 There's nothing specifically Chromebook about this, but its easier for me to keep this all written down in one place.
