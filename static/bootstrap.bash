@@ -30,7 +30,7 @@ function install_docker() {
   sudo apt-get update
   sudo apt-get upgrade
 
-  sudo apt-get install \
+  sudo apt-get install -y \
        apt-transport-https \
        ca-certificates \
        curl \
@@ -48,7 +48,7 @@ function install_docker() {
 
   # Update and add docker-ce
   sudo apt-get update
-  sudo apt-get install docker-ce
+  sudo apt-get install -y docker-ce
 
   # Install docker-compose
   sudo curl -L "https://github.com/docker/compose/releases/download/1.24.0/docker-compose-$(uname -s)-$(uname -m)" \
@@ -66,7 +66,7 @@ function install_atom() {
   sudo apt-get install wget
   wget https://atom.io/download/deb
   mv deb atom.deb
-  sudo apt install ./atom.deb
+  sudo apt install -y ./atom.deb
 }
 
 function install_nvm() {
