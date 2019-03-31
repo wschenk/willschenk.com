@@ -2,6 +2,7 @@
 
 function check() {
   if command -v $1 > /dev/null; then
+    echo -n $1 :\ 
     $2
   else
     return 1
@@ -11,6 +12,49 @@ function check() {
 function apt_install() {
   echo Installing $@
   sudo apt-get install -y $@
+}
+
+function check_or_prompt_file() {
+  dir=$1
+  file=$2
+
+  if ! test -f $file; then
+    echo $file not found
+    read -p "Enter anything to cat into it blank to skip: " file_data
+    if ! test -z "$file_data"; then
+      mkdir -p $dir
+      cat > $file
+    else
+      echo Skipping
+    fi
+  else
+    echo Found $file
+  fi
+}
+
+function check_ssh() {
+  check_or_prompt_file ~/.ssh ~/.ssh/id_rsa
+  check_or_prompt_file ~/.ssh ~/.ssh/id_rsa.pub
+
+  # Set permissions
+  if test -d ~/.ssh; then
+    chmod 700 ~/.ssh
+    chmod 600 ~/.ssh/*
+  fi
+}
+
+function git_config_check() {
+  if test -z $(git config --get user.email); then
+    read -p "Email Address (for git): " gitemail
+    echo Setting email to $gitemail
+    git config --global user.email $gitemail
+  fi
+
+  if test -z $(git config --get user.name); then
+    read -p "Full name (for git)    : " gitname
+    echo Setting name to $gitname
+    git config --global user.name $gitname
+  fi
 }
 
 function install_ipfs() {
@@ -78,15 +122,11 @@ function install_nvm() {
   nvm global 10
 }
 
-function install_node() {
-  echo
-  echo Install node
-  echo Not yet
-}
-
 function install_rbenv() {
   echo
   echo Installing rbenv
+
+  sudo apt-get install -y libssl-dev libreadline-dev zlib1g-dev
 
   curl -fsSL https://github.com/rbenv/rbenv-installer/raw/master/bin/rbenv-installer | bash
   echo 'export PATH=$PATH:$HOME/.rbenv/bin' >> $HOME/.profile
@@ -132,23 +172,22 @@ function install_gcloud() {
   curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
 
   # Update the package list and install the Cloud SDK
-  sudo apt-get update && sudo apt-get install google-cloud-sdk
+  sudo apt-get update && sudo apt-get install -y google-cloud-sdk
 }
 
+check_ssh
+
+check "git" "git --version" || apt_install "git"
+git_config_check
+check "tmux" "tmux -V" || apt_install "tmux"
 check "wget" "echo wget found" || apt_install "wget"
 check "ipfs" "ipfs version" || install_ipfs
 check "docker" "docker -v" || install_docker
 check "atom" "atom --version | head -1" || install_atom
-# check "nvm" "nvm --version" || install_nvm
-check "node" "node -v" || install_node
+check "node" "node --version" || install_nvm
+# check "node" "node -v" || install_node
 check "rbenv" "rbenv --version" || install_rbenv
 check "go" "go version" || install_go
 check "hugo" "hugo version" || install_hugo
 check "heroku" "heroku version" || install_heroku
 check "gcloud" "echo gcloud found" || install_gcloud
-exit
-
-```
-git config --global user.email "you@example.com"
-git config --global user.name "Your Name"
-```
