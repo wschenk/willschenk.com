@@ -1,4 +1,7 @@
 #!/bin/bash
+#
+# Written by Will Schenk <wschenk@gmail.com>
+# https://willschenk.com
 
 cat <<WELCOME
 Welcome to the chromebook/debian bootstrapper.
@@ -64,6 +67,10 @@ echo Creating ~/.bootstrap_functions
 
 echo "if [ -f ~/.bootstrap_functions ]; then . ~/.bootstrap_functions; fi" >> ~/.profile
 
+echo Final step, update your shells environmet by running
+echo
+echo source ~/.profile
+
 cat > ~/.bootstrap_functions <<'END_ALIASES'
 alias tmux='verify_tmux'
 alias ipfs='verify_ipfs'
@@ -71,11 +78,11 @@ alias docker='verify_docker'
 alias atom='verify_atom'
 alias go='verify_go'
 alias hugo='verify_hugo'
-# nvm
-# node
-# rbenv
-# heroku
-# gcloud
+alias nvm='verify_nvm'
+# alias node='verify_node'
+alias rbenv='verify_rbenv'
+alias heroku='verify_heroku'
+alias gcloud='verify_gcloud'
 
 function verify_tmux() {
   cmd=$(which tmux)
@@ -89,34 +96,6 @@ function verify_ipfs() {
   $(which ipfs) $@
 }
 
-function verify_docker() {
-  cmd=$(which docker)
-  if [ -z "$cmd" ]; then install_docker; fi
-  if [ -z "$(groups | docker)" ]; then
-    echo You need to log out and back in to make sure that you are in the docker groups
-  else
-    $(which docker) $@
-  fi
-}
-
-function verify_atom() {
-  cmd=$(which atom)
-  if [ -z "$cmd" ]; then install_atom; fi
-  $(which atom) $@
-}
-
-function verify_go {
-  cmd=$(which go)
-  if [ -z "$cmd" ]; then install_go; fi
-  $(which go) $@
-}
-
-function verify_hugo {
-  cmd=$(which hugo)
-  if [ -z "$cmd" ]; then install_hugo; fi
-  $(which hugo) $@
-}
-
 function install_ipfs() {
   (
   echo
@@ -127,6 +106,16 @@ function install_ipfs() {
   cd go-ipfs
   sudo ./install.sh
   )
+}
+
+function verify_docker() {
+  cmd=$(which docker)
+  if [ -z "$cmd" ]; then install_docker; fi
+  if [ -z "$(groups | docker)" ]; then
+    echo You need to log out and back in to make sure that you are in the docker groups
+  else
+    $(which docker) $@
+  fi
 }
 
 function install_docker() {
@@ -165,6 +154,12 @@ function install_docker() {
   sudo usermod -aG docker $USER
 }
 
+function verify_atom() {
+  cmd=$(which atom)
+  if [ -z "$cmd" ]; then install_atom; fi
+  $(which atom) $@
+}
+
 function install_atom() {
   (
   echo
@@ -177,6 +172,12 @@ function install_atom() {
   )
 }
 
+function verify_nvm() {
+  cmd=$(which nvm)
+  if [ -z "$cmd" ]; then install_nvm; fi
+  $(which nvm) $@
+}
+
 function install_nvm() {
   (
   echo
@@ -186,6 +187,12 @@ function install_nvm() {
   source ~/.profile
   nvm install 10
   nvm global 10
+}
+
+function verify_rbenv() {
+  cmd=$(which rbenv)
+  if [ -z "$cmd" ]; then install_rbenv; fi
+  $(which rbenv) $@
 }
 
 function install_rbenv() {
@@ -202,6 +209,13 @@ function install_rbenv() {
   rbenv global 2.5.5
 }
 
+
+function verify_go {
+  cmd=$(which go)
+  if [ -z "$cmd" ]; then install_go; fi
+  $(which go) $@
+}
+
 function install_go() {
   (
   echo
@@ -212,6 +226,12 @@ function install_go() {
   echo 'export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin' >> $HOME/.profile
   )
   source ~/.profile
+}
+
+function verify_hugo {
+  cmd=$(which hugo)
+  if [ -z "$cmd" ]; then install_hugo; fi
+  $(which hugo) $@
 }
 
 function install_hugo() {
@@ -226,10 +246,22 @@ function install_hugo() {
   )
 }
 
+function verify_heroku() {
+  cmd=$(which heroku)
+  if [ -z "$cmd" ]; then install_heroku; fi
+  $(which heroku) $@
+}
+
 function install_heroku() {
   echo
   echo Installing heroku
   curl https://cli-assets.heroku.com/install-ubuntu.sh | sh
+}
+
+function verify_gcloud() {
+  cmd=$(which gcloud)
+  if [ -z "$cmd" ]; then install_gcloud; fi
+  $(which gcloud) $@
 }
 
 function install_gcloud() {
@@ -246,29 +278,3 @@ function install_gcloud() {
   sudo apt-get update && sudo apt-get install -y google-cloud-sdk
 }
 END_ALIASES
-
-exit
-
-check_ssh
-
-check "git" "git --version" || apt_install "git"
-git_config_check
-
-echo Installing on demand installers
-echo "if [ -f ~/.bootstrap_functions ]; then . ~/.bootstrap_functions; fi" >> ~/.bashrc
-
-check "tmux" "tmux -V" "apt_install 'tmux'"
-check "wget" "echo wget found" "apt_install 'wget'"
-check "ipfs" "ipfs version" "install_ipfs"
-check "docker" "docker -v" "install_docker"
-check "atom" "atom --version | head -1" "install_atom"
-check "node" "node --version" "install_nvm"
-check "rbenv" "rbenv --version" "install_rbenv"
-check "go" "go version" "install_go"
-check "hugo" "hugo version" "install_hugo"
-check "heroku" "heroku version" "install_heroku"
-check "gcloud" "echo gcloud found" "install_gcloud"
-
-. ~/.bootstrap_functions
-
-echo Installers installed at ~/.bootstrap_functions
