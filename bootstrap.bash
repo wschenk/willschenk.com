@@ -1,78 +1,122 @@
 #!/bin/bash
 
-function check_orig() {
-  if command -v $1 > /dev/null; then
-    $2
+cat <<WELCOME
+Welcome to the chromebook/debian bootstrapper.
+
+This will create aliases for a number of common utilities that I use that will
+install and configure the packages when run for the first time.
+
+At the end of this, be sure to run
+. ~/.profile
+to make sure that your environment is up to date.
+
+WELCOME
+
+if ! command -v git > /dev/null; then
+  echo Installing git
+  sudo apt-get install git
+fi
+
+if test -z $(git config --get user.email); then
+  read -p "Email Address (for git): " gitemail
+  git config --global user.email $gitemail
+fi
+
+if test -z $(git config --get user.name); then
+  read -p "Full name (for git)    : " gitname
+  git config --global user.name $gitname
+fi
+
+function yesno() {
+	read -p "$1 " YN
+
+	[ "$YN" == "y" ]
+}
+
+if [ ! -f ~/.ssh/id_rsa ]; then
+  if yesno "Set up ~/.ssh/id_rsa?"; then
+    echo Paste in your id_rsa and them press ^D
+    mkdir -p ~/.ssh
+    cat > ~/.ssh/id_rsa
+    echo Thank you.
+    echo
+  fi
+fi
+
+if [ ! -f ~/.ssh/id_rsa.pub ]; then
+  if yesno "Set up ~/.ssh/id_rsa.pub?"; then
+    echo Paste in your id_rsa.pub and them press ^D
+    mkdir -p ~/.ssh
+    cat > ~/.ssh/id_rsa.pub
+    echo Thank you.
+    echo
+  fi
+fi
+
+# Set permissions
+if [ -d ~/ssh ]; then
+  chmod 700 ~/.ssh
+  chmod 600 ~/.ssh/*
+fi
+
+echo
+echo Creating ~/.bootstrap_functions
+
+echo "if [ -f ~/.bootstrap_functions ]; then . ~/.bootstrap_functions; fi" >> ~/.profile
+
+cat > ~/.bootstrap_functions <<'END_ALIASES'
+alias tmux='verify_tmux'
+alias ipfs='verify_ipfs'
+alias docker='verify_docker'
+alias atom='verify_atom'
+alias go='verify_go'
+alias hugo='verify_hugo'
+# nvm
+# node
+# rbenv
+# heroku
+# gcloud
+
+function verify_tmux() {
+  cmd=$(which tmux)
+  if [ -z "$cmd" ]; then sudo apt-get install tmux; fi
+  $(which tmux) $@
+}
+
+function verify_ipfs() {
+  cmd=$(which ipfs)
+  if [ -z "$cmd" ]; then install_ipfs; fi
+  $(which ipfs) $@
+}
+
+function verify_docker() {
+  cmd=$(which docker)
+  if [ -z "$cmd" ]; then install_docker; fi
+  if [ -z "$(groups | docker)" ]; then
+    echo You need to log out and back in to make sure that you are in the docker groups
   else
-    return 1
+    $(which docker) $@
   fi
 }
 
-function check() {
-  echo Alias for $1
-  echo "alias $1=\"$1_check\"" >> ~/.bootstrap_functions
-  cat >> ~/.bootstrap_functions <<CHECKER
-    function $1_check() {
-      bin_location=\$(which $1)
-      if [ -z "\$bin_location" ]; then
-        echo Installing $1
-        $3
-        bin_location=\$(which $1)
-      fi
-      \$bin_location \$@
-    }
-CHECKER
+function verify_atom() {
+  cmd=$(which atom)
+  if [ -z "$cmd" ]; then install_atom; fi
+  $(which atom) $@
 }
 
-function apt_install() {
-  echo Installing $@
-  sudo apt-get install -y $@
+function verify_go {
+  cmd=$(which go)
+  if [ -z "$cmd" ]; then install_go; fi
+  $(which go) $@
 }
 
-function check_or_prompt_file() {
-  dir=$1
-  file=$2
-
-  if ! test -f $file; then
-    echo $file not found
-    read -p "Enter anything to cat into it blank to skip: " file_data
-    if ! test -z "$file_data"; then
-      mkdir -p $dir
-      cat > $file
-    else
-      echo Skipping
-    fi
-  else
-    echo Found $file
-  fi
+function verify_hugo {
+  cmd=$(which hugo)
+  if [ -z "$cmd" ]; then install_hugo; fi
+  $(which hugo) $@
 }
 
-function check_ssh() {
-  check_or_prompt_file ~/.ssh ~/.ssh/id_rsa
-  check_or_prompt_file ~/.ssh ~/.ssh/id_rsa.pub
-
-  # Set permissions
-  if test -d ~/.ssh; then
-    chmod 700 ~/.ssh
-    chmod 600 ~/.ssh/*
-  fi
-}
-
-function git_config_check() {
-  if test -z $(git config --get user.email); then
-    read -p "Email Address (for git): " gitemail
-    echo Setting email to $gitemail
-    git config --global user.email $gitemail
-  fi
-
-  if test -z $(git config --get user.name); then
-    read -p "Full name (for git)    : " gitname
-    echo Setting name to $gitname
-    git config --global user.name $gitname
-  fi
-}
-
-cat >> ~/.bootstrap_functions <<END_ALIASES
 function install_ipfs() {
   (
   echo
@@ -90,7 +134,7 @@ function install_docker() {
   echo "Installing Docker"
   # Update debian
   sudo apt-get update
-  sudo apt-get upgrade
+  sudo apt-get upgrade -y
 
   sudo apt-get install -y \
        apt-transport-https \
@@ -138,10 +182,10 @@ function install_nvm() {
   echo
   echo Installing NVM
   curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.34.0/install.sh | bash
+  )
   source ~/.profile
   nvm install 10
   nvm global 10
-  )
 }
 
 function install_rbenv() {
@@ -166,8 +210,8 @@ function install_go() {
   wget https://dl.google.com/go/go1.12.1.linux-amd64.tar.gz
   sudo tar -C /usr/local -xzf go1.12.1.linux-amd64.tar.gz
   echo 'export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin' >> $HOME/.profile
-  source ~/.profile
   )
+  source ~/.profile
 }
 
 function install_hugo() {
@@ -175,6 +219,7 @@ function install_hugo() {
   echo
   echo Installing hugo
   cd /tmp
+  rm -rf hugo
   git clone https://github.com/gohugoio/hugo.git
   cd hugo
   go install
@@ -201,6 +246,8 @@ function install_gcloud() {
   sudo apt-get update && sudo apt-get install -y google-cloud-sdk
 }
 END_ALIASES
+
+exit
 
 check_ssh
 
