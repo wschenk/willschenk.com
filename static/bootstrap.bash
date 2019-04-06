@@ -73,12 +73,13 @@ echo source ~/.profile
 
 cat > ~/.bootstrap_functions <<'END_ALIASES'
 alias tmux='verify_tmux'
+alias ping='verify_ping'
 alias ipfs='verify_ipfs'
 alias docker='verify_docker'
 alias atom='verify_atom'
 alias go='verify_go'
 alias hugo='verify_hugo'
-alias nvm='verify_nvm'
+# alias nvm='verify_nvm'
 # alias node='verify_node'
 alias rbenv='verify_rbenv'
 alias heroku='verify_heroku'
@@ -88,6 +89,12 @@ function verify_tmux() {
   cmd=$(which tmux)
   if [ -z "$cmd" ]; then sudo apt-get install tmux; fi
   $(which tmux) $@
+}
+
+function verify_ping() {
+  cmd=$(which ping)
+  if [ -z "$cmd" ]; then sudo apt-get install iputils-ping; fi
+  $(which ping) $@
 }
 
 function verify_ipfs() {
@@ -111,7 +118,7 @@ function install_ipfs() {
 function verify_docker() {
   cmd=$(which docker)
   if [ -z "$cmd" ]; then install_docker; fi
-  if [ -z "$(groups | docker)" ]; then
+  if [ -z "$(groups | grep docker)" ]; then
     echo You need to log out and back in to make sure that you are in the docker groups
   else
     $(which docker) $@
@@ -173,9 +180,10 @@ function install_atom() {
 }
 
 function verify_nvm() {
-  cmd=$(which nvm)
+  cmd=$(which node)
   if [ -z "$cmd" ]; then install_nvm; fi
-  $(which nvm) $@
+  unalias nvm
+  nvm $@
 }
 
 function install_nvm() {
@@ -225,6 +233,7 @@ function install_go() {
   sudo tar -C /usr/local -xzf go1.12.1.linux-amd64.tar.gz
   echo 'export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin' >> $HOME/.profile
   )
+  export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin
   source ~/.profile
 }
 
