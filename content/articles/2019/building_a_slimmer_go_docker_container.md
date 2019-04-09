@@ -10,6 +10,8 @@ date: "2019-04-09"
 
 Go binaries are self contained, which means that they don't need anything special installed in the environment to deploy them.  When people make `Dockerfiles` to build go projects, they often include the the golang compilers and build tools, which isn't necessary for running the container.  I'm going to use [healer](https://github.com/somarat/healer) Docker container that "Automatically heal docker containers that report themselves unhealthy" as an example of reducing the image size from 648MB to 17MB.
 
+<!--more-->
+
 ```bash
 $ docker images  |grep healer
 somarat/healer             latest              76313596c92a        15 months ago       642MB

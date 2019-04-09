@@ -10,6 +10,8 @@ tags:
 
 I just switch my pixelbook back to the stable channel, and this is what I did to get back to developing on it.
 
+<!--more-->
+
 ## First:
 
 1. Open up settings

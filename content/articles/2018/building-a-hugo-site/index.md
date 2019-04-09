@@ -183,13 +183,13 @@ Also are `if` statements, which we are using to determine if we include the `act
 
 Lets now add some basic posts.
 
-```
+```bash
 $ hugo new posts/sample_post.md
 ```
 
 If you didn't start hugo with -D, you'll need to make sure that the draft flag isn't true for it to show up
 
-```
+```md
 ---
 title: "Sample Post"
 date: 2018-10-19T16:04:51-04:00
@@ -254,7 +254,7 @@ Restart your hugo server to see the magic!
 
 Lets add some tags to our first `sample_post.md` file
 
-```
+```md
 ---
 title: "Sample Post"
 date: 2018-10-19T16:10:36-04:00
@@ -271,7 +271,9 @@ And then create another post
 hugo new posts/sample_post_the_second.md
 ```
 
-```
+And fill it in with:
+
+```md
 ---
 title: "Sample Post The Second"
 date: 2018-10-19T16:54:29-04:00

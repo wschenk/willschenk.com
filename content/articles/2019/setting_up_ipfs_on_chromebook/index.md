@@ -10,6 +10,8 @@ tags:
 
 Lets look at how to run an ipfs node on a chromebook.  We are using the linux container for this, and in order to get the experience right we'll need to install some chrome extensions to make it work seamlessly.
 
+<!--more-->
+
 IPFS is a [distributed hypermedia protocal](https://ipfs.io) that is a way to access and share data using it's cryptographic key.  This way, it doesn't matter where you get the data from, since you know that if it matches the key, then the data is what you requested.  Once you request the data, you make it available to other computers on the network.  As a result, the data doesn't really live on any particular server, and the more people that access it the faster is it.  Also, the data moves to where people access it, so if you publish something in New York and it becomes popular in New Zealand, the folks in New Zealand will end up downloading it from each other rather than over the underocean cables.
 
 Here's the outline:

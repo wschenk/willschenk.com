@@ -13,6 +13,8 @@ Here's a quick recipe for getting a blank react project with bootstrap up and ru
 though all of the steps that you'll need to get a basic bootstrap based framework up and running,
 ready for theming and component implementation using redux.
 
+<!--more-->
+
 ## Steps
 
 Install the following packages.
