@@ -109,6 +109,6 @@ To make sure that everything is good.
 
 Finally, push it to the hub to be able to access it from other machines!
 
-```
+```bash
 docker push wschenk/healer
 ```
