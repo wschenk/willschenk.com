@@ -13,64 +13,51 @@ Can we build a node application without installing node locally?  We sure can!  
 
 First make sure that docker is installed.  This is handy if you are working on a remote server for example.
 
-## Project initialization
+## Bootstrap
 
 Then lets start building out the `Dockerfile` that we will use.
 
 1. `mkdir testapp`
 2. `cd testapp`
-3. Create `Dockerfile`:
+3. Create `Dockerfile.bootstrap`:
 
-```
+```Dockerfile
 FROM node:11 as build
 MAINTAINER Will Schenk <wschenk@gmail.com>
 
-CMD bash
+CMD npx create-react-app testapp && rm -rf /testapp/node_modules && mv -nv /testapp/* /testapp/.gitignore /app
 ```
 
-Now lets create a simple script that will help us run things, `exec.sh`
-
-
-```bash
-!#!/usr/bin/env bash
-
-docker build . -t devimage && docker run -it --rm -v ${PWD}/src:/app/src --network host devimage
-```
-
-Lets run this command with `bash exec.sh`.  This will download the latest version of `node:11`, and build an image that will just immediately run `bash`.  We then run an interactive container `-it` that we will remove right afterwards `--rm` mounting the `src/`  directory to `/app/src` inside of the container.
-
-Once we are inside of the container, we will
-
-1. Generate the app using `create-react-app`
-2. Discard `node-modules`
-3. Copy all of the files back into the `/app` directory, which is mounted from outside of the container.
-4. Exit out of the container
+This is going to download the `node:11` package, run `create-react-app` and then copy the generated code into the `/app` folder inside of the container.  Lets build this and start up the container, mapping the local directory into `/app`.  We are discarding the downloaded `node-modules` for now, we will import them later.
 
 ```
-root@999415b7acf4:/# npx create-react-app testapp
-root@999415b7acf4:/# rm -rf /testapp/node_modules
-root@999415b7acf4:/# mv /testapp/* /app
-root@999415b7acf4:/# exit
+docker build -f Dockerfile.bootstrap . -t devimage && docker run -it --rm -v ${PWD}:/app devimage
 ```
 
-Here we may need to change user permissions back to our user
+Once this is done, you should see a basic `create-react-app` generated folder in your local directory.
 
 ```
-$ sudo chown $USER:$USER -R .
+$ ls -1
+Dockerfile
+README.md
+exec.sh
+package.json
+public
+src
+yarn.lock
 ```
 
-## Development setup
+## Setting up for development
 
 Create a `.dockerignore` file:
 
 ```
 node_modules
 .git
-exec.sh
+start.sh
 ```
 
-
-Now lets edit the `Dockerfile` to run the app itself out of the local directory:
+Now lets edit the `Dockerfile.development` to run the app itself out of the local directory:
 
 ```
 FROM node:11 as build
@@ -82,7 +69,34 @@ COPY package.json yarn.lock /app/
 
 RUN yarn install
 
-COPY . /app/
+EXPOSE 3000
 
 CMD bash
+```
+
+1. First we copy over package.json and yarn.lock into /app.  If these files ever change, we will rerun all of the following steps when building the container.
+2. Run `yarn install` to install the local `node_modules`
+3. Expose port `3000` which is the development server port.
+
+And create a script that will build and start up the container easily, called `start.sh`
+
+```bash
+#!/usr/bin/env bash
+
+docker build . -f Dockerfile.development -t devimage && docker run -it --rm -v ${PWD}:/app -v devimage_nodemodules:/app/node_modules --network host devimage $@
+```
+
+Now lets fire up a development server using
+
+```bash
+$ bash start.sh yarn start
+```
+
+Once its running, start up the the development server by running `yarn start` inside of the container and opening up http://localhost:3000
+
+
+Here we may need to change user permissions back to our user
+
+```
+$ sudo chown $USER:$USER -R .
 ```
