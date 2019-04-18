@@ -5,10 +5,144 @@
     <description>Recent content in Blank Page Technology on Will Schenk</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
-    <lastBuildDate>Tue, 09 Apr 2019 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Thu, 18 Apr 2019 00:00:00 +0000</lastBuildDate>
     
         <atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml" />
     
+    
+    <item>
+      <title>Easy scraping with httpie and jq</title>
+      <link>https://willschenk.com/articles/2019/easy_scraping_with_httpie_and_jq/</link>
+      <pubDate>Thu, 18 Apr 2019 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2019/easy_scraping_with_httpie_and_jq/</guid>
+      <description>
+
+&lt;p&gt;I recently saw a tweet mentioning the combination of using &lt;a href=&#34;https://httpie.org/&#34;&gt;HTTPie&lt;/a&gt; (a command line HTTP client), &lt;a href=&#34;https://stedolan.github.io/jq/&#34;&gt;jq&lt;/a&gt; (a lightweight and flexible command-line JSON processor) and &lt;a href=&#34;https://github.com/tomnomnom/gron&#34;&gt;Gron&lt;/a&gt; (Make JSON greppable!) was &amp;ldquo;all you needed to build a scraper.&amp;rdquo;  Lets see if that&amp;rsquo;s true.&lt;/p&gt;
+
+&lt;h2 id=&#34;first-install&#34;&gt;First install&lt;/h2&gt;
+
+&lt;p&gt;Linux:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;sudo apt-get install httpie jq&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;OSX&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;brew install httpie
+brew install jq&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;h2 id=&#34;lets-get-some-stars&#34;&gt;Lets get some stars&lt;/h2&gt;
+
+&lt;p&gt;We can pull down the list of repositories people have starred on Github using the URL scheme &lt;code&gt;https://api.github.com/users/:username/starred&lt;/code&gt;.  Try this:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;http https://api.github.com/users/wschenk/starred&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;This returns a wall of data!  &lt;code&gt;HTTPie&lt;/code&gt; does a nice job of formatting the JSON out and showing the response headers.&lt;/p&gt;
+
+&lt;p&gt;Let&amp;rsquo;s use &lt;code&gt;jq&lt;/code&gt; to print out the first response:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;http https://api.github.com/users/wschenk/starred &lt;span class=&#34;p&#34;&gt;|&lt;/span&gt; jq &lt;span class=&#34;s1&#34;&gt;&amp;#39;.[0]&amp;#39;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Weirdly, the Github API returns the items in the order starred, but doesn&amp;rsquo;t include the date that we starred them.  There&amp;rsquo;s an &lt;a href=&#34;https://developer.github.com/v3/activity/starring/#alternative-response-with-star-creation-timestamps-1&#34;&gt;alternative api call&lt;/a&gt; that we can use to get the date that I pushed the Star button.  For this to work we need to pass in an Accept header of &lt;code&gt;application/vnd.github.v3.star+json&lt;/code&gt; which is done like so:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt; http https://api.github.com/users/wschenk/starred Accept:application/vnd.github.v3.star+json&lt;span class=&#34;p&#34;&gt;|&lt;/span&gt; jq &lt;span class=&#34;s1&#34;&gt;&amp;#39;.[0]&amp;#39;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;&lt;code&gt;jq&lt;/code&gt; lets us slice and dice the JSON.  Lets pull out the fields that we want.  We are using the &lt;code&gt;.[]&lt;/code&gt; syntax and piping it to a json writer, which is pulling only the fields out that we want.  And we write the output to the data directory in our hugo app.&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;http https://api.github.com/users/wschenk/starred &lt;span class=&#34;se&#34;&gt;\
+&lt;/span&gt;&lt;span class=&#34;se&#34;&gt;&lt;/span&gt;  Accept:application/vnd.github.v3.star+json &lt;span class=&#34;p&#34;&gt;|&lt;/span&gt; &lt;span class=&#34;se&#34;&gt;\
+&lt;/span&gt;&lt;span class=&#34;se&#34;&gt;&lt;/span&gt;  jq &lt;span class=&#34;s1&#34;&gt;&amp;#39;[.[] | {name: .repo.name, full_name: .repo.full_name,
+&lt;/span&gt;&lt;span class=&#34;s1&#34;&gt;  avatar_url: .repo.owner.avatar_url, login: .repo.owner.login,
+&lt;/span&gt;&lt;span class=&#34;s1&#34;&gt;  description: .repo.description, starred_at: .starred_at,
+&lt;/span&gt;&lt;span class=&#34;s1&#34;&gt;  html_url: .repo.html_url, language: .repo.language,
+&lt;/span&gt;&lt;span class=&#34;s1&#34;&gt;  updated_at: .repo.updated_at}] &amp;#39;&lt;/span&gt; &amp;gt; data/stars.json&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;h2 id=&#34;using-the-hugo-data-directory&#34;&gt;Using the hugo data directory&lt;/h2&gt;
+
+&lt;p&gt;Now that we have the data in a JSON format that Hugo can understand, lets build a page to render this glory.&lt;/p&gt;
+
+&lt;p&gt;Create a simple file in &lt;code&gt;content/stars.md&lt;/code&gt; that we&amp;rsquo;ll use to define a kind of &lt;code&gt;stars&lt;/code&gt;&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-md&#34; data-lang=&#34;md&#34;&gt;---
+title: GitHub stars
+type: stars
+---
+
+I like software.  Here is some of the stuff I&amp;#39;ve found on GitHub that
+I&amp;#39;ve marked as interesting.&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Now we create a single page template that we&amp;rsquo;ll use to render it in &lt;code&gt;layouts/stars/single.html&lt;/code&gt;:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-go-html-template&#34; data-lang=&#34;go-html-template&#34;&gt;&lt;span class=&#34;cp&#34;&gt;{{&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;define&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;main&amp;#34;&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;cp&#34;&gt;}}&lt;/span&gt;
+&lt;span class=&#34;p&#34;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;div&lt;/span&gt; &lt;span class=&#34;na&#34;&gt;class&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;container&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;&lt;/span&gt;
+  &lt;span class=&#34;p&#34;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;h1&lt;/span&gt; &lt;span class=&#34;na&#34;&gt;class&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;display-4 text-center&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;&lt;/span&gt;&lt;span class=&#34;cp&#34;&gt;{{&lt;/span&gt;&lt;span class=&#34;na&#34;&gt;.Title&lt;/span&gt;&lt;span class=&#34;cp&#34;&gt;}}&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;lt;/&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;h1&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;&lt;/span&gt;
+
+  &lt;span class=&#34;cp&#34;&gt;{{&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;na&#34;&gt;.Content&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;cp&#34;&gt;}}&lt;/span&gt;
+
+  &lt;span class=&#34;p&#34;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;ul&lt;/span&gt; &lt;span class=&#34;na&#34;&gt;class&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;list-unstyled&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;&lt;/span&gt;
+  &lt;span class=&#34;cp&#34;&gt;{{&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;k&#34;&gt;range&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;na&#34;&gt;$.Site.Data.stars&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;cp&#34;&gt;}}&lt;/span&gt;
+    &lt;span class=&#34;p&#34;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;li&lt;/span&gt; &lt;span class=&#34;na&#34;&gt;class&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;media my-2&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;&lt;/span&gt;
+      &lt;span class=&#34;p&#34;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;img&lt;/span&gt; &lt;span class=&#34;na&#34;&gt;class&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;mr-3 img-fluid&amp;#34;&lt;/span&gt; &lt;span class=&#34;na&#34;&gt;width&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;64px&amp;#34;&lt;/span&gt; &lt;span class=&#34;na&#34;&gt;src&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;&lt;/span&gt;&lt;span class=&#34;cp&#34;&gt;{{&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;na&#34;&gt;.avatar_url&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;cp&#34;&gt;}}&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;&lt;/span&gt; &lt;span class=&#34;na&#34;&gt;alt&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;&lt;/span&gt;&lt;span class=&#34;cp&#34;&gt;{{&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;na&#34;&gt;.owner&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;cp&#34;&gt;}}&lt;/span&gt;&lt;span class=&#34;s&#34;&gt; avatar&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;&lt;/span&gt;
+      &lt;span class=&#34;p&#34;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;div&lt;/span&gt; &lt;span class=&#34;na&#34;&gt;class&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;media-body&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;&lt;/span&gt;
+        &lt;span class=&#34;p&#34;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;h4&lt;/span&gt; &lt;span class=&#34;na&#34;&gt;class&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;mt-0 mb-1&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;&lt;/span&gt;
+          &lt;span class=&#34;p&#34;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;a&lt;/span&gt; &lt;span class=&#34;na&#34;&gt;href&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;&lt;/span&gt;&lt;span class=&#34;cp&#34;&gt;{{&lt;/span&gt;&lt;span class=&#34;na&#34;&gt;.html_url&lt;/span&gt;&lt;span class=&#34;cp&#34;&gt;}}&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;&lt;/span&gt;&lt;span class=&#34;cp&#34;&gt;{{&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;na&#34;&gt;.name&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;cp&#34;&gt;}}&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;lt;/&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;a&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;&lt;/span&gt;
+          &lt;span class=&#34;p&#34;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;small&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;&amp;lt;&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;span&lt;/span&gt; &lt;span class=&#34;na&#34;&gt;class&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;ml-1 text-muted&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;&lt;/span&gt;&lt;span class=&#34;cp&#34;&gt;{{&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;na&#34;&gt;.language&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;cp&#34;&gt;}}&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;lt;/&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;span&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;&amp;lt;/&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;small&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;&lt;/span&gt;
+        &lt;span class=&#34;p&#34;&gt;&amp;lt;/&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;h4&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;&lt;/span&gt;
+        &lt;span class=&#34;p&#34;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;p&lt;/span&gt; &lt;span class=&#34;na&#34;&gt;class&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;lead my-0&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;&lt;/span&gt;&lt;span class=&#34;cp&#34;&gt;{{&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;na&#34;&gt;.description&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;cp&#34;&gt;}}&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;lt;/&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;p&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;&lt;/span&gt;
+        &lt;span class=&#34;p&#34;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;p&lt;/span&gt; &lt;span class=&#34;na&#34;&gt;class&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;text-muted&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;&lt;/span&gt;
+          Starred &lt;span class=&#34;cp&#34;&gt;{{&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;dateFormat&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;Jan 2, 2006&amp;#34;&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;na&#34;&gt;.starred_at&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;cp&#34;&gt;}}&lt;/span&gt;,
+          Updated &lt;span class=&#34;cp&#34;&gt;{{&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;dateFormat&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;Jan 2, 2006&amp;#34;&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;na&#34;&gt;.updated_at&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;cp&#34;&gt;}}&lt;/span&gt;
+        &lt;span class=&#34;p&#34;&gt;&amp;lt;/&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;p&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;&lt;/span&gt;
+      &lt;span class=&#34;p&#34;&gt;&amp;lt;/&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;div&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;&lt;/span&gt;
+    &lt;span class=&#34;p&#34;&gt;&amp;lt;/&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;li&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;&lt;/span&gt;
+  &lt;span class=&#34;cp&#34;&gt;{{&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;k&#34;&gt;end&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;cp&#34;&gt;}}&lt;/span&gt;
+  &lt;span class=&#34;p&#34;&gt;&amp;lt;/&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;ul&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;&lt;/span&gt;
+&lt;span class=&#34;p&#34;&gt;&amp;lt;/&lt;/span&gt;&lt;span class=&#34;nt&#34;&gt;div&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;&lt;/span&gt;
+
+&lt;span class=&#34;cp&#34;&gt;{{&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;k&#34;&gt;end&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;cp&#34;&gt;}}&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Now start up your server and go to &lt;a href=&#34;http://localhost:1313/stars&#34;&gt;http://localhost:1313/stars&lt;/a&gt; !&lt;/p&gt;
+
+&lt;h2 id=&#34;less-easy-scraping&#34;&gt;Less easy scraping&lt;/h2&gt;
+
+&lt;p&gt;So it turns out that I&amp;rsquo;ve been liking lots of things on GitHub and I have more than one page of results.  The GitHub api used the HTTP &lt;code&gt;Link&lt;/code&gt; header to point to &lt;code&gt;next&lt;/code&gt;, &lt;code&gt;prev&lt;/code&gt;, &lt;code&gt;first&lt;/code&gt;, and &lt;code&gt;last&lt;/code&gt; last pages.  We&amp;rsquo;ll write a little script that saves that and then parses it out.&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;We create a small function that passes in &lt;code&gt;-dh&lt;/code&gt; flags to &lt;code&gt;http&lt;/code&gt;, redirecting stdout to our file &lt;code&gt;&amp;gt;page1.json&lt;/code&gt; and stderr to a file containing the headers &lt;code&gt;2&amp;gt;headers&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;Then we&amp;rsquo;ll parse the headers using grep, tr, and sed to pull out the url that&amp;rsquo;s matched with &lt;code&gt;rel=&amp;quot;next&amp;quot;&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;If there is one we&amp;rsquo;ll follow that and download &lt;code&gt;page2.json&lt;/code&gt; etc.&lt;/li&gt;
+&lt;li&gt;Then we&amp;rsquo;ll merge all of the files together using &lt;code&gt;jq --slurp &#39;[.[][]]&#39; *json&lt;/code&gt; so the muliple files of JSON Arrays is one big JSON array.&lt;/li&gt;
+&lt;li&gt;And then copy over our existing &lt;code&gt;jq&lt;/code&gt; parsing&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;Here&amp;rsquo;s &lt;code&gt;update_github_stars.sh&lt;/code&gt;:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span class=&#34;cp&#34;&gt;#!/bin/bash
+&lt;/span&gt;&lt;span class=&#34;cp&#34;&gt;&lt;/span&gt;
+&lt;span class=&#34;c1&#34;&gt;# Download a url&lt;/span&gt;
+&lt;span class=&#34;k&#34;&gt;function&lt;/span&gt; scrape_page&lt;span class=&#34;o&#34;&gt;()&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;{&lt;/span&gt;
+  &lt;span class=&#34;nb&#34;&gt;echo&lt;/span&gt; Downloading &lt;span class=&#34;nv&#34;&gt;$1&lt;/span&gt; to &lt;span class=&#34;nv&#34;&gt;$2&lt;/span&gt;
+  http &lt;span class=&#34;nv&#34;&gt;$1&lt;/span&gt; Accept:application/vnd.github.v3.star+json -dh &amp;gt;&lt;span class=&#34;nv&#34;&gt;$2&lt;/span&gt; &lt;span class=&#34;m&#34;&gt;2&lt;/span&gt;&amp;gt;&lt;span class=&#34;nv&#34;&gt;$3&lt;/span&gt;
+&lt;span class=&#34;o&#34;&gt;}&lt;/span&gt;
+
+&lt;span class=&#34;k&#34;&gt;function&lt;/span&gt; next_link_from_header&lt;span class=&#34;o&#34;&gt;()&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;{&lt;/span&gt;
+  &lt;span class=&#34;c1&#34;&gt;# grep - Filter for the Link header&lt;/span&gt;
+  &lt;span class=&#34;c1&#34;&gt;# tr - slit each of the entries into it&amp;#39;s own line&lt;/span&gt;
+  &lt;span class=&#34;c1&#34;&gt;# grep - look for the next link&lt;/span&gt;
+  &lt;span class=&#34;c1&#34;&gt;# sed - get rid of everything out side of the &amp;lt; &amp;gt;&lt;/span&gt;
+  cat &lt;span class=&#34;nv&#34;&gt;$1&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;|&lt;/span&gt; grep ^Link &lt;span class=&#34;p&#34;&gt;|&lt;/span&gt;tr &lt;span class=&#34;s1&#34;&gt;&amp;#39;,&amp;#39;&lt;/span&gt; &lt;span class=&#34;s1&#34;&gt;&amp;#39;\n&amp;#39;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;|&lt;/span&gt;grep &lt;span class=&#34;se&#34;&gt;\&amp;#34;&lt;/span&gt;next&lt;span class=&#34;se&#34;&gt;\&amp;#34;&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;|&lt;/span&gt; sed &lt;span class=&#34;s1&#34;&gt;&amp;#39;s/.*&amp;lt;\(.*\)&amp;gt;.*/\1/&amp;#39;&lt;/span&gt;
+&lt;span class=&#34;o&#34;&gt;}&lt;/span&gt;
+
+&lt;span class=&#34;nv&#34;&gt;OUTDIR&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;k&#34;&gt;$(&lt;/span&gt;mktemp -d&lt;span class=&#34;k&#34;&gt;)&lt;/span&gt;
+&lt;span class=&#34;nv&#34;&gt;PAGE&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;m&#34;&gt;1&lt;/span&gt;
+&lt;span class=&#34;nv&#34;&gt;NEXTURL&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;https://api.github.com/users/wschenk/starred
+
+&lt;span class=&#34;k&#34;&gt;while&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;[&lt;/span&gt; ! -z &lt;span class=&#34;s2&#34;&gt;&amp;#34;&lt;/span&gt;&lt;span class=&#34;si&#34;&gt;${&lt;/span&gt;&lt;span class=&#34;nv&#34;&gt;NEXTURL&lt;/span&gt;&lt;span class=&#34;si&#34;&gt;}&lt;/span&gt;&lt;span class=&#34;s2&#34;&gt;&amp;#34;&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;]&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;;&lt;/span&gt; &lt;span class=&#34;k&#34;&gt;do&lt;/span&gt;
+  scrape_page &lt;span class=&#34;nv&#34;&gt;$NEXTURL&lt;/span&gt;  &lt;span class=&#34;nv&#34;&gt;$OUTDIR&lt;/span&gt;/page&lt;span class=&#34;si&#34;&gt;${&lt;/span&gt;&lt;span class=&#34;nv&#34;&gt;PAGE&lt;/span&gt;&lt;span class=&#34;si&#34;&gt;}&lt;/span&gt;.json &lt;span class=&#34;nv&#34;&gt;$OUTDIR&lt;/span&gt;/headers
+
+  &lt;span class=&#34;nv&#34;&gt;NEXTURL&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;k&#34;&gt;$(&lt;/span&gt;next_link_from_header &lt;span class=&#34;nv&#34;&gt;$OUTDIR&lt;/span&gt;/headers&lt;span class=&#34;k&#34;&gt;)&lt;/span&gt;
+  &lt;span class=&#34;nv&#34;&gt;PAGE&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;k&#34;&gt;$((&lt;/span&gt; &lt;span class=&#34;nv&#34;&gt;$PAGE&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;+&lt;/span&gt; &lt;span class=&#34;m&#34;&gt;1&lt;/span&gt; &lt;span class=&#34;k&#34;&gt;))&lt;/span&gt;
+&lt;span class=&#34;k&#34;&gt;done&lt;/span&gt;
+
+&lt;span class=&#34;nb&#34;&gt;echo&lt;/span&gt; Finished scraping pages
+
+&lt;span class=&#34;c1&#34;&gt;# Combine the files&lt;/span&gt;
+&lt;span class=&#34;c1&#34;&gt;# Parse them into data/stars.json&lt;/span&gt;
+
+jq -s &lt;span class=&#34;s1&#34;&gt;&amp;#39;[.[][]]&amp;#39;&lt;/span&gt; &lt;span class=&#34;nv&#34;&gt;$OUTDIR&lt;/span&gt;/*json &lt;span class=&#34;p&#34;&gt;|&lt;/span&gt; &lt;span class=&#34;se&#34;&gt;\
+&lt;/span&gt;&lt;span class=&#34;se&#34;&gt;&lt;/span&gt;  jq &lt;span class=&#34;s1&#34;&gt;&amp;#39;[.[] | {name: .repo.name, full_name: .repo.full_name,
+&lt;/span&gt;&lt;span class=&#34;s1&#34;&gt;  avatar_url: .repo.owner.avatar_url, login: .repo.owner.login,
+&lt;/span&gt;&lt;span class=&#34;s1&#34;&gt;  description: .repo.description, starred_at: .starred_at,
+&lt;/span&gt;&lt;span class=&#34;s1&#34;&gt;  html_url: .repo.html_url, language: .repo.language,
+&lt;/span&gt;&lt;span class=&#34;s1&#34;&gt;  updated_at: .repo.updated_at}] &amp;#39;&lt;/span&gt; &amp;gt; data/stars.json&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;h2 id=&#34;conclusion&#34;&gt;Conclusion&lt;/h2&gt;
+
+&lt;p&gt;My &lt;a href=&#34;./stars/&#34;&gt;Star List&lt;/a&gt; is a little unwieldy right now with 120 entries (&lt;code&gt;js &#39;. | length&#39; data/stars.json&lt;/code&gt;) and not all of the descriptions are that informative, but this was all built with simple tools and minimal dependacies.  We didn&amp;rsquo;t need any special libraries to script this, &lt;code&gt;Gemfile&lt;/code&gt; or &lt;code&gt;package.json&lt;/code&gt; installations, just a relatively simple bash script.&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>Building a slimmer go Docker container</title>
@@ -9711,6 +9845,17 @@ Ray Kinsella: It&amp;rsquo;s Iowa.&lt;/p&gt;
 &lt;li&gt;GitHub: &lt;a href=&#34;http://github.com/wschenk&#34;&gt;@wschenk&lt;/a&gt;&lt;/li&gt;
 &lt;li&gt;LinkedIn: &lt;a href=&#34;https://www.linkedin.com/in/will-schenk-420266/&#34;&gt;Will Schenk&lt;/a&gt;&lt;/li&gt;
 &lt;/ul&gt;
+</description>
+    </item>
+    
+    <item>
+      <title>GitHub stars</title>
+      <link>https://willschenk.com/stars/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/stars/</guid>
+      <description>&lt;p&gt;I like software.  Here is some of the stuff I&amp;rsquo;ve found on GitHub that
+I&amp;rsquo;ve marked as interesting.&lt;/p&gt;
 </description>
     </item>
     
