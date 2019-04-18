@@ -1,5 +1,5 @@
 ---
-title: "Blank Page Technology"
+title: "Will Schenk"
 recentposts: 5
 ---
 
