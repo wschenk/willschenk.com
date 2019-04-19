@@ -12,6 +12,7 @@ date: "2019-04-19"
 Remember [microformats](http://microformats.org/)?  Me neither!
 Back when the web was open and we were trying to find ways to interconnect independent things?
 Let's bring them back!
+<!--more-->
 
 ## Steps: Simple
 

@@ -10,6 +10,7 @@ date: 2019-04-18
 ---
 
 I recently saw a tweet mentioning the combination of using [HTTPie](https://httpie.org/) (a command line HTTP client), [jq](https://stedolan.github.io/jq/) (a lightweight and flexible command-line JSON processor) and [Gron](https://github.com/tomnomnom/gron) (Make JSON greppable!) was "all you needed to build a scraper."  Lets see if that's true.
+<!--more-->
 
 ## First install
 

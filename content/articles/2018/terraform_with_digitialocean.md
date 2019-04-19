@@ -1,6 +1,6 @@
 ---
 title: "Terraform and Packer with Digitalocean"
-date: 11-23-2018
+date: "2018-11-23"
 draft: true
 tags:
   - howto
