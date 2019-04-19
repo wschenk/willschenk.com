@@ -45,7 +45,7 @@ for more details.
 
   <p>
     <ul>
-      <li><a href="https://willschenk.com" class="u-url u-uid" rel="me">Will Schenk</a></li>     
+      <li><a href="https://willschenk.com" class="u-url u-uid" rel="me">Will Schenk</a></li>
       <li><a href="mailto:wschenk@gmail.com" class="u-email" rel="me">wschenk@gmail.com</a></li>
       <li><a href="https://twitter.com/@wschenk" rel="me">Twitter</a></li>
       <li><a href="https://instagram.com/wschenk" rel="me">Insta</a></li>
@@ -75,17 +75,6 @@ $ yarn add microformat-node node-fetch
 
 Then create `index.js` to pull it down and print it out:
 
-```js
-const fetch = require( 'node-fetch' );
-const microformat = require('microformat-node');
-
-(async () => {
-  const page = await fetch( 'https://willschenk.com' )
-  const text = await page.text()
-  const info = await microformat.get({html: text})
-
-  console.log( JSON.stringify( info ) )
-})()
-```
+{{% code file="content/articles/2019/setting_up_indieweb/index.js" language="js" %}}
 
 And you should see the nicely parsed information!  Now what to do with this all!
