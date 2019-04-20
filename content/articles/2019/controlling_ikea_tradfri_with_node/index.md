@@ -7,6 +7,9 @@ tags:
   - IKEA
   - node
 date: "2019-04-20"
+draft: true
+repository: https://github.com/wschenk/tradfri-cli
+remote: git@github.com:wschenk/tradfri-cli.git
 ---
 
 I stumbled upon a [fun blogpost about the Dumbass Home](https://vas3k.com/blog/dumbass_home/?ref=sn) and it turned me onto the IKEA Trådfri line of products.  So I got a couple, and figured out how to control them from my laptop (or say a Raspberry PI) from node.  Here's how to do it.
