@@ -6,7 +6,7 @@ tags:
   - git
   - hugo
 date: "2019-04-20"
-draft: true
+repository: https://github.com/wschenk/split-git
 remote: git@github.com:wschenk/split-git.git
 ---
 
@@ -46,9 +46,55 @@ For this to work great create a remote repository somewhere [like GitHub](https:
 4. Then it passes all your commands to `git` pointing to the seperate repository and with the working dir set to the current directory.
 
 
-[`seperate-git.bash`](seperate-git.bash)
+[`seperate-git.bash`](seperate-git.bash):
+
 {{% code file="articles/2019/splitting_git_repos_and_workdirectories/seperate-git.bash" language="js" %}}
 
+## Running
+
+Here's a comparison of what running looks like using the new command
+
+```bash
+$ bash seperate-git.bash status
+Pulling down remote git repository into /tmp/tmp.p4KSGNKQNh
+Cloning into bare repository '/tmp/tmp.p4KSGNKQNh'...
+warning: You appear to have cloned an empty repository.
+On branch master
+
+Initial commit
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+
+        .gitignore
+        index.md
+        seperate-git.bash
+
+nothing added to commit but untracked files present (use "git add" to track)
+
+$ bash seperate-git.bash remote -v
+origin  git@github.com:wschenk/split-git.git (fetch)
+origin  git@github.com:wschenk/split-git.git (push)
+```
+
+And compare that with the regular `git` command:
+
+```bash
+$ git status
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git checkout -- <file>..." to discard changes in working directory)
+
+        modified:   index.md
+
+no changes added to commit (use "git add" and/or "git commit -a")
+
+$ git remote -v
+origin  git@github.com:wschenk/willschenk.com.git (fetch)
+origin  git@github.com:wschenk/willschenk.com.git (push)
+```
+
+And if this script actually works, you should be able to see the results here: [https://github.com/wschenk/split-git](https://github.com/wschenk/split-git)
 
 
 ## References
