@@ -5,10 +5,132 @@
     <description>Recent content on Will Schenk</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
-    <lastBuildDate>Fri, 19 Apr 2019 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Sat, 20 Apr 2019 00:00:00 +0000</lastBuildDate>
     
         <atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml" />
     
+    
+    <item>
+      <title>Splitting Git Repos and Work Directories</title>
+      <link>https://willschenk.com/articles/2019/splitting_git_repos_and_workdirectories/</link>
+      <pubDate>Sat, 20 Apr 2019 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2019/splitting_git_repos_and_workdirectories/</guid>
+      <description>
+
+&lt;p&gt;I found a tutorial on &lt;a href=&#34;https://www.atlassian.com/git/tutorials/dotfiles&#34;&gt;how to manage your dotfiles&lt;/a&gt;, that works by splitting up the git repository (normally the &lt;code&gt;.git&lt;/code&gt; directory) from the work directory.  Since I have a lot of code that I put in my tutorials, I adapted the technique to have individual article directories mirrored in their own github repository.&lt;/p&gt;
+
+&lt;h2 id=&#34;repositories-and-work-directories&#34;&gt;Repositories and Work Directories&lt;/h2&gt;
+
+&lt;p&gt;The normal usage of &lt;code&gt;git&lt;/code&gt; is to type &lt;code&gt;git clone &amp;lt;remote&amp;gt;&lt;/code&gt; to get a copy of the local directory, mess with stuff, and then &lt;code&gt;add&lt;/code&gt; and &lt;code&gt;commit&lt;/code&gt; your changes.  If you have multiple branches, you switch the files in your work directory to a different branch, but you are still using the same repository.&lt;/p&gt;
+
+&lt;p&gt;The structure looks like this (you&amp;rsquo;ll see more files in the lsit if you do this command, I edited them out for clarity)&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;$ git clone https://github.com/wschenk/willschenk.com
+$ ls -la willschenk.com
+drwxr-xr-x &lt;span class=&#34;m&#34;&gt;1&lt;/span&gt; wschenk wschenk  &lt;span class=&#34;m&#34;&gt;280&lt;/span&gt; Apr &lt;span class=&#34;m&#34;&gt;20&lt;/span&gt; &lt;span class=&#34;m&#34;&gt;14&lt;/span&gt;:32 .
+drwxr-xr-x &lt;span class=&#34;m&#34;&gt;1&lt;/span&gt; wschenk wschenk  &lt;span class=&#34;m&#34;&gt;870&lt;/span&gt; Apr &lt;span class=&#34;m&#34;&gt;20&lt;/span&gt; &lt;span class=&#34;m&#34;&gt;14&lt;/span&gt;:58 ..
+drwxr-xr-x &lt;span class=&#34;m&#34;&gt;1&lt;/span&gt; wschenk wschenk  &lt;span class=&#34;m&#34;&gt;102&lt;/span&gt; Apr &lt;span class=&#34;m&#34;&gt;18&lt;/span&gt; &lt;span class=&#34;m&#34;&gt;13&lt;/span&gt;:11 content
+drwxr-xr-x &lt;span class=&#34;m&#34;&gt;1&lt;/span&gt; wschenk wschenk  &lt;span class=&#34;m&#34;&gt;204&lt;/span&gt; Apr &lt;span class=&#34;m&#34;&gt;20&lt;/span&gt; &lt;span class=&#34;m&#34;&gt;14&lt;/span&gt;:54 .git
+-rw-r--r-- &lt;span class=&#34;m&#34;&gt;1&lt;/span&gt; wschenk wschenk  &lt;span class=&#34;m&#34;&gt;501&lt;/span&gt; Apr &lt;span class=&#34;m&#34;&gt;20&lt;/span&gt; &lt;span class=&#34;m&#34;&gt;14&lt;/span&gt;:32 .gitignore
+drwxr-xr-x &lt;span class=&#34;m&#34;&gt;1&lt;/span&gt; wschenk wschenk   &lt;span class=&#34;m&#34;&gt;64&lt;/span&gt; Apr &lt;span class=&#34;m&#34;&gt;20&lt;/span&gt; &lt;span class=&#34;m&#34;&gt;14&lt;/span&gt;:22 layouts
+drwxr-xr-x &lt;span class=&#34;m&#34;&gt;1&lt;/span&gt; wschenk wschenk   &lt;span class=&#34;m&#34;&gt;18&lt;/span&gt; Mar &lt;span class=&#34;m&#34;&gt;31&lt;/span&gt; &lt;span class=&#34;m&#34;&gt;22&lt;/span&gt;:21 themes&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;The &lt;code&gt;.git&lt;/code&gt; directory inside of this folder is where the git database lives, all of the commits and history and branches and all that.  At the same level you have the working copy, which in this case is the &lt;code&gt;master&lt;/code&gt; branch.&lt;/p&gt;
+
+&lt;p&gt;What I&amp;rsquo;d like to do is to keep this whole structure intact, but also have the files in &lt;code&gt;content/articles/2019/splitting_git_repos_and_workdirectories/&lt;/code&gt; tracked in an additional github repository for better sharing and collaboration.&lt;/p&gt;
+
+&lt;h2 id=&#34;splitting&#34;&gt;Splitting&lt;/h2&gt;
+
+&lt;p&gt;This script is meant to be used as a replacement to the &lt;code&gt;git&lt;/code&gt; command line on the shell to interact with the mirrored repository.&lt;/p&gt;
+
+&lt;p&gt;For this to work great create a remote repository somewhere &lt;a href=&#34;https://github.com/new&#34;&gt;like GitHub&lt;/a&gt; and then put the resulting &lt;code&gt;repostory&lt;/code&gt; in the front matter.  (I use &lt;code&gt;yml&lt;/code&gt; so adjust the awk parsing if you use something else.)&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;First it checks to see if there&amp;rsquo;s a local .gitignore, and if not creates one.&lt;/li&gt;
+&lt;li&gt;Then it loads the &lt;code&gt;.local-git&lt;/code&gt; file where we are checkout out the repository.  If this goes away we don&amp;rsquo;t care, because&amp;hellip;&lt;/li&gt;
+&lt;li&gt;It pulls down the repo from the root.&lt;/li&gt;
+&lt;li&gt;Then it passes all your commands to &lt;code&gt;git&lt;/code&gt; pointing to the seperate repository and with the working dir set to the current directory.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;&lt;a href=&#34;seperate-git.bash&#34;&gt;&lt;code&gt;seperate-git.bash&lt;/code&gt;&lt;/a&gt;:&lt;/p&gt;
+
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-js&#34; data-lang=&#34;js&#34;&gt;&lt;span class=&#34;ch&#34;&gt;#!/usr/bin/env bash
+&lt;/span&gt;&lt;span class=&#34;ch&#34;&gt;&lt;/span&gt;
+&lt;span class=&#34;err&#34;&gt;#&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;Ensure&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;that&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;we&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;dont&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;inadvertantly&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;checkin&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;any&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;node&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;node_modules&lt;/span&gt;
+&lt;span class=&#34;err&#34;&gt;#&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;or&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;the&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;file&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;that&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;we&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;use&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;to&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;track&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;our&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;local_git&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;repository&lt;/span&gt;
+&lt;span class=&#34;k&#34;&gt;if&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;[&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;!&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;-&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;f&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;gitignore&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;];&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;then&lt;/span&gt;
+  &lt;span class=&#34;nx&#34;&gt;cat&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;gitignore&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;&amp;lt;&amp;lt;&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;ENDIGNORE&lt;/span&gt;
+&lt;span class=&#34;nx&#34;&gt;node_modules&lt;/span&gt;
+&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;local_git&lt;/span&gt;
+&lt;span class=&#34;nx&#34;&gt;ENDIGNORE&lt;/span&gt;
+&lt;span class=&#34;nx&#34;&gt;fi&lt;/span&gt;
+
+&lt;span class=&#34;err&#34;&gt;#&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;Look&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;inside&lt;/span&gt; &lt;span class=&#34;k&#34;&gt;of&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;our&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;post&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;to&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;load&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;up&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;where&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;the&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;remote&lt;/span&gt;
+&lt;span class=&#34;err&#34;&gt;#&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;is&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;configured&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;bail&lt;/span&gt; &lt;span class=&#34;k&#34;&gt;if&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;not&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;set&lt;/span&gt;
+&lt;span class=&#34;nx&#34;&gt;REMOTE&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;$&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;awk&lt;/span&gt; &lt;span class=&#34;s1&#34;&gt;&amp;#39;/^remote:/ {print $2}&amp;#39;&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;index&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;md&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;|&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;head&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;-&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;n&lt;/span&gt; &lt;span class=&#34;mi&#34;&gt;1&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt;
+
+&lt;span class=&#34;k&#34;&gt;if&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;[&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;-&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;z&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;${REMOTE}&amp;#34;&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;];&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;then&lt;/span&gt;
+  &lt;span class=&#34;nx&#34;&gt;echo&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;remote&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;is&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;not&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;defined&lt;/span&gt; &lt;span class=&#34;k&#34;&gt;in&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;the&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;front&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;matter&lt;/span&gt; &lt;span class=&#34;k&#34;&gt;of&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;index&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;md&lt;/span&gt;
+  &lt;span class=&#34;nx&#34;&gt;exit&lt;/span&gt; &lt;span class=&#34;mi&#34;&gt;1&lt;/span&gt;
+&lt;span class=&#34;nx&#34;&gt;fi&lt;/span&gt;
+
+&lt;span class=&#34;nx&#34;&gt;LOCAL_GIT&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;$&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;cat&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;local_git&lt;/span&gt; &lt;span class=&#34;mi&#34;&gt;2&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&#34;err&#34;&gt;/dev/null)&lt;/span&gt;
+
+&lt;span class=&#34;err&#34;&gt;#&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;If&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;blank&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;or&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;doest&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;exist&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;checkout&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;the&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;bare&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;repository&lt;/span&gt;
+&lt;span class=&#34;k&#34;&gt;if&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;[&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;-&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;z&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;${LOCAL_GIT}&amp;#34;&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;]&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;||&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;[&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;!&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;-&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;d&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;${LOCAL_GIT}&amp;#34;&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;];&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;then&lt;/span&gt;
+  &lt;span class=&#34;nx&#34;&gt;LOCAL_GIT&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;$&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;mktemp&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;-&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;d&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt;
+  &lt;span class=&#34;nx&#34;&gt;echo&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;Pulling&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;down&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;remote&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;git&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;repository&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;into&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;$LOCAL_GIT&lt;/span&gt;
+  &lt;span class=&#34;nx&#34;&gt;git&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;clone&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;--&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;bare&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;--&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;progress&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;$REMOTE&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;$LOCAL_GIT&lt;/span&gt;
+  &lt;span class=&#34;nx&#34;&gt;echo&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;$LOCAL_GIT&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;local_git&lt;/span&gt;
+&lt;span class=&#34;nx&#34;&gt;fi&lt;/span&gt;
+
+&lt;span class=&#34;nx&#34;&gt;git&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;--&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;git&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;-&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;dir&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;$&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;{&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;LOCAL_GIT&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;}&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;--&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;work&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;-&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;tree&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;$&lt;/span&gt;&lt;span class=&#34;err&#34;&gt;@&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;h2 id=&#34;running&#34;&gt;Running&lt;/h2&gt;
+
+&lt;p&gt;Here&amp;rsquo;s a comparison of what running looks like using the new command&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;$ bash seperate-git.bash status
+Pulling down remote git repository into /tmp/tmp.p4KSGNKQNh
+Cloning into bare repository &lt;span class=&#34;s1&#34;&gt;&amp;#39;/tmp/tmp.p4KSGNKQNh&amp;#39;&lt;/span&gt;...
+warning: You appear to have cloned an empty repository.
+On branch master
+
+Initial commit
+
+Untracked files:
+  &lt;span class=&#34;o&#34;&gt;(&lt;/span&gt;use &lt;span class=&#34;s2&#34;&gt;&amp;#34;git add &amp;lt;file&amp;gt;...&amp;#34;&lt;/span&gt; to include in what will be committed&lt;span class=&#34;o&#34;&gt;)&lt;/span&gt;
+
+        .gitignore
+        index.md
+        seperate-git.bash
+
+nothing added to commit but untracked files present &lt;span class=&#34;o&#34;&gt;(&lt;/span&gt;use &lt;span class=&#34;s2&#34;&gt;&amp;#34;git add&amp;#34;&lt;/span&gt; to track&lt;span class=&#34;o&#34;&gt;)&lt;/span&gt;
+
+$ bash seperate-git.bash remote -v
+origin  git@github.com:wschenk/split-git.git &lt;span class=&#34;o&#34;&gt;(&lt;/span&gt;fetch&lt;span class=&#34;o&#34;&gt;)&lt;/span&gt;
+origin  git@github.com:wschenk/split-git.git &lt;span class=&#34;o&#34;&gt;(&lt;/span&gt;push&lt;span class=&#34;o&#34;&gt;)&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;And compare that with the regular &lt;code&gt;git&lt;/code&gt; command:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;$ git status
+Changes not staged &lt;span class=&#34;k&#34;&gt;for&lt;/span&gt; commit:
+  &lt;span class=&#34;o&#34;&gt;(&lt;/span&gt;use &lt;span class=&#34;s2&#34;&gt;&amp;#34;git add &amp;lt;file&amp;gt;...&amp;#34;&lt;/span&gt; to update what will be committed&lt;span class=&#34;o&#34;&gt;)&lt;/span&gt;
+  &lt;span class=&#34;o&#34;&gt;(&lt;/span&gt;use &lt;span class=&#34;s2&#34;&gt;&amp;#34;git checkout -- &amp;lt;file&amp;gt;...&amp;#34;&lt;/span&gt; to discard changes in working directory&lt;span class=&#34;o&#34;&gt;)&lt;/span&gt;
+
+        modified:   index.md
+
+no changes added to commit &lt;span class=&#34;o&#34;&gt;(&lt;/span&gt;use &lt;span class=&#34;s2&#34;&gt;&amp;#34;git add&amp;#34;&lt;/span&gt; and/or &lt;span class=&#34;s2&#34;&gt;&amp;#34;git commit -a&amp;#34;&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;)&lt;/span&gt;
+
+$ git remote -v
+origin  git@github.com:wschenk/willschenk.com.git &lt;span class=&#34;o&#34;&gt;(&lt;/span&gt;fetch&lt;span class=&#34;o&#34;&gt;)&lt;/span&gt;
+origin  git@github.com:wschenk/willschenk.com.git &lt;span class=&#34;o&#34;&gt;(&lt;/span&gt;push&lt;span class=&#34;o&#34;&gt;)&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;And if this script actually works, you should be able to see the results here: &lt;a href=&#34;https://github.com/wschenk/split-git&#34;&gt;https://github.com/wschenk/split-git&lt;/a&gt;&lt;/p&gt;
+
+&lt;h2 id=&#34;references&#34;&gt;References&lt;/h2&gt;
+
+&lt;ol&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.atlassian.com/git/tutorials/dotfiles&#34;&gt;https://www.atlassian.com/git/tutorials/dotfiles&lt;/a&gt;&lt;/li&gt;
+&lt;/ol&gt;
+</description>
+    </item>
     
     <item>
       <title>Setting up Indieweb Homepage</title>

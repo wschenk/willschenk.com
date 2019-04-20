@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html><head>
+  <title>Splitting Git Repos and Work Directories</title>
+  
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  <link rel="stylesheet" href="../../../css/theme.css"/>
+  <link rel="stylesheet" href="../../../css/syntax.css"/>
+
+  
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-56296045-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  <meta property="og:title" content="Splitting Git Repos and Work Directories" />
+<meta property="og:description" content="I found a tutorial on how to manage your dotfiles, that works by splitting up the git repository (normally the .git directory) from the work directory. Since I have a lot of code that I put in my tutorials, I adapted the technique to have individual article directories mirrored in their own github repository.
+Repositories and Work Directories The normal usage of git is to type git clone &lt;remote&gt; to get a copy of the local directory, mess with stuff, and then add and commit your changes." />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://willschenk.com/articles/2019/splitting_git_repos_and_workdirectories/" />
+<meta property="article:published_time" content="2019-04-20T00:00:00&#43;00:00"/>
+<meta property="article:modified_time" content="2019-04-20T00:00:00&#43;00:00"/>
+
+  <meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="Splitting Git Repos and Work Directories"/>
+<meta name="twitter:description" content="I found a tutorial on how to manage your dotfiles, that works by splitting up the git repository (normally the .git directory) from the work directory. Since I have a lot of code that I put in my tutorials, I adapted the technique to have individual article directories mirrored in their own github repository.
+Repositories and Work Directories The normal usage of git is to type git clone &lt;remote&gt; to get a copy of the local directory, mess with stuff, and then add and commit your changes."/>
+<meta name="twitter:site" content="@wschenk"/>
+
+
+  <style>
+    .article p, .article ul, .article ol, .article table {
+      max-width: 45em;
+    }
+
+    article.article p:first-child, .article blockquote {
+      font-size: 1.25em;
+      font-weight: 300;
+      max-width: 36em;  
+    }
+  </style>
+</head>
+<body><nav class="container my-5">
+  <h1 class="pt-md-5 display-3"><a class="text-dark" href="../../../">Will Schenk</a></h1>
+  <p>
+    
+      <a class="text-dark h4 mr-3 font-weight-light" href="../../../articles/" title="">Articles</a>
+    
+      <a class="text-dark h4 mr-3 font-weight-light" href="../../../contact" title="">Contact</a>
+    
+      <a class="text-dark h4 mr-3 font-weight-light" href="../../../tags/" title="">Tags</a>
+    
+    <a href="../../../feed.xml" class="mr-3 h4 text-light"><img src="../../../img/rss.svg" alt="rss" height="20" width="20"/></a>
+    
+      <a href="https://twitter.com/@wschenk" class="mr-3 h4 text-light"><img src="../../../img/twitter.svg" alt="twitter" height="20" width="20"/></a>
+    
+    
+      <a href="https://instagram.com/wschenk" class="mr-3 h4 text-light"><img src="../../../img/instagram.svg" alt="instagram" height="20" width="20"/></a>
+    
+    
+      <a href="https://linkedin.com/in/will-schenk-420266" class="mr-3 h4 text-light"><img src="../../../img/linkedin.svg" alt="linkedin" height="20" width="20"/></a>
+    
+  </p>
+</nav>
+
+<div class="container">
+  <h1 class="mt-5">Splitting Git Repos and Work Directories</h1>
+
+  
+    <h2 class="font-weight-light font-italic mb-3">all the fun things git can do</h2>
+  
+
+  <p class="text-muted mt-3">
+    <a class="text-muted" href="https://willschenk.com/articles/2019/splitting_git_repos_and_workdirectories/">Published April 20, 2019</a>
+
+    
+      <a class="text-muted" href="../../../tags/howto">#howto</a>
+    
+      <a class="text-muted" href="../../../tags/git">#git</a>
+    
+      <a class="text-muted" href="../../../tags/hugo">#hugo</a>
+    
+  </p>
+
+  
+
+  
+  <div class="alert alert-secondary">The code from this article can be found at <a href="https://github.com/wschenk/split-git">https://github.com/wschenk/split-git</a></div>
+  
+
+  <article class="article mt-5">
+    
+
+<p>I found a tutorial on <a href="https://www.atlassian.com/git/tutorials/dotfiles">how to manage your dotfiles</a>, that works by splitting up the git repository (normally the <code>.git</code> directory) from the work directory.  Since I have a lot of code that I put in my tutorials, I adapted the technique to have individual article directories mirrored in their own github repository.</p>
+
+<h2 id="repositories-and-work-directories">Repositories and Work Directories</h2>
+
+<p>The normal usage of <code>git</code> is to type <code>git clone &lt;remote&gt;</code> to get a copy of the local directory, mess with stuff, and then <code>add</code> and <code>commit</code> your changes.  If you have multiple branches, you switch the files in your work directory to a different branch, but you are still using the same repository.</p>
+
+<p>The structure looks like this (you&rsquo;ll see more files in the lsit if you do this command, I edited them out for clarity)</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ git clone https://github.com/wschenk/willschenk.com
+$ ls -la willschenk.com
+drwxr-xr-x <span class="m">1</span> wschenk wschenk  <span class="m">280</span> Apr <span class="m">20</span> <span class="m">14</span>:32 .
+drwxr-xr-x <span class="m">1</span> wschenk wschenk  <span class="m">870</span> Apr <span class="m">20</span> <span class="m">14</span>:58 ..
+drwxr-xr-x <span class="m">1</span> wschenk wschenk  <span class="m">102</span> Apr <span class="m">18</span> <span class="m">13</span>:11 content
+drwxr-xr-x <span class="m">1</span> wschenk wschenk  <span class="m">204</span> Apr <span class="m">20</span> <span class="m">14</span>:54 .git
+-rw-r--r-- <span class="m">1</span> wschenk wschenk  <span class="m">501</span> Apr <span class="m">20</span> <span class="m">14</span>:32 .gitignore
+drwxr-xr-x <span class="m">1</span> wschenk wschenk   <span class="m">64</span> Apr <span class="m">20</span> <span class="m">14</span>:22 layouts
+drwxr-xr-x <span class="m">1</span> wschenk wschenk   <span class="m">18</span> Mar <span class="m">31</span> <span class="m">22</span>:21 themes</code></pre></div>
+<p>The <code>.git</code> directory inside of this folder is where the git database lives, all of the commits and history and branches and all that.  At the same level you have the working copy, which in this case is the <code>master</code> branch.</p>
+
+<p>What I&rsquo;d like to do is to keep this whole structure intact, but also have the files in <code>content/articles/2019/splitting_git_repos_and_workdirectories/</code> tracked in an additional github repository for better sharing and collaboration.</p>
+
+<h2 id="splitting">Splitting</h2>
+
+<p>This script is meant to be used as a replacement to the <code>git</code> command line on the shell to interact with the mirrored repository.</p>
+
+<p>For this to work great create a remote repository somewhere <a href="https://github.com/new">like GitHub</a> and then put the resulting <code>repostory</code> in the front matter.  (I use <code>yml</code> so adjust the awk parsing if you use something else.)</p>
+
+<ol>
+<li>First it checks to see if there&rsquo;s a local .gitignore, and if not creates one.</li>
+<li>Then it loads the <code>.local-git</code> file where we are checkout out the repository.  If this goes away we don&rsquo;t care, because&hellip;</li>
+<li>It pulls down the repo from the root.</li>
+<li>Then it passes all your commands to <code>git</code> pointing to the seperate repository and with the working dir set to the current directory.</li>
+</ol>
+
+<p><a href="seperate-git.bash"><code>seperate-git.bash</code></a>:</p>
+
+<div class="highlight"><pre class="chroma"><code class="language-js" data-lang="js"><span class="ch">#!/usr/bin/env bash
+</span><span class="ch"></span>
+<span class="err">#</span> <span class="nx">Ensure</span> <span class="nx">that</span> <span class="nx">we</span> <span class="nx">dont</span> <span class="nx">inadvertantly</span> <span class="nx">checkin</span> <span class="nx">any</span> <span class="nx">node</span> <span class="nx">node_modules</span>
+<span class="err">#</span> <span class="nx">or</span> <span class="nx">the</span> <span class="nx">file</span> <span class="nx">that</span> <span class="nx">we</span> <span class="nx">use</span> <span class="nx">to</span> <span class="nx">track</span> <span class="nx">our</span> <span class="nx">local_git</span> <span class="nx">repository</span>
+<span class="k">if</span> <span class="p">[</span> <span class="o">!</span> <span class="o">-</span><span class="nx">f</span> <span class="p">.</span><span class="nx">gitignore</span> <span class="p">];</span> <span class="nx">then</span>
+  <span class="nx">cat</span> <span class="o">&gt;</span> <span class="p">.</span><span class="nx">gitignore</span> <span class="o">&lt;&lt;</span> <span class="nx">ENDIGNORE</span>
+<span class="nx">node_modules</span>
+<span class="p">.</span><span class="nx">local_git</span>
+<span class="nx">ENDIGNORE</span>
+<span class="nx">fi</span>
+
+<span class="err">#</span> <span class="nx">Look</span> <span class="nx">inside</span> <span class="k">of</span> <span class="nx">our</span> <span class="nx">post</span> <span class="nx">to</span> <span class="nx">load</span> <span class="nx">up</span> <span class="nx">where</span> <span class="nx">the</span> <span class="nx">remote</span>
+<span class="err">#</span> <span class="nx">is</span> <span class="nx">configured</span><span class="p">,</span> <span class="nx">bail</span> <span class="k">if</span> <span class="nx">not</span> <span class="nx">set</span>
+<span class="nx">REMOTE</span><span class="o">=</span><span class="nx">$</span><span class="p">(</span><span class="nx">awk</span> <span class="s1">&#39;/^remote:/ {print $2}&#39;</span> <span class="nx">index</span><span class="p">.</span><span class="nx">md</span> <span class="o">|</span><span class="nx">head</span> <span class="o">-</span><span class="nx">n</span> <span class="mi">1</span><span class="p">)</span>
+
+<span class="k">if</span> <span class="p">[</span> <span class="o">-</span><span class="nx">z</span> <span class="s2">&#34;${REMOTE}&#34;</span> <span class="p">];</span> <span class="nx">then</span>
+  <span class="nx">echo</span> <span class="nx">remote</span> <span class="nx">is</span> <span class="nx">not</span> <span class="nx">defined</span> <span class="k">in</span> <span class="nx">the</span> <span class="nx">front</span> <span class="nx">matter</span> <span class="k">of</span> <span class="nx">index</span><span class="p">.</span><span class="nx">md</span>
+  <span class="nx">exit</span> <span class="mi">1</span>
+<span class="nx">fi</span>
+
+<span class="nx">LOCAL_GIT</span><span class="o">=</span><span class="nx">$</span><span class="p">(</span><span class="nx">cat</span> <span class="p">.</span><span class="nx">local_git</span> <span class="mi">2</span><span class="o">&gt;</span> <span class="err">/dev/null)</span>
+
+<span class="err">#</span> <span class="nx">If</span> <span class="nx">blank</span> <span class="nx">or</span> <span class="nx">doest</span> <span class="nx">exist</span> <span class="nx">checkout</span> <span class="nx">the</span> <span class="nx">bare</span> <span class="nx">repository</span>
+<span class="k">if</span> <span class="p">[</span> <span class="o">-</span><span class="nx">z</span> <span class="s2">&#34;${LOCAL_GIT}&#34;</span> <span class="p">]</span> <span class="o">||</span> <span class="p">[</span> <span class="o">!</span> <span class="o">-</span><span class="nx">d</span> <span class="s2">&#34;${LOCAL_GIT}&#34;</span> <span class="p">];</span> <span class="nx">then</span>
+  <span class="nx">LOCAL_GIT</span><span class="o">=</span><span class="nx">$</span><span class="p">(</span><span class="nx">mktemp</span> <span class="o">-</span><span class="nx">d</span><span class="p">)</span>
+  <span class="nx">echo</span> <span class="nx">Pulling</span> <span class="nx">down</span> <span class="nx">remote</span> <span class="nx">git</span> <span class="nx">repository</span> <span class="nx">into</span> <span class="nx">$LOCAL_GIT</span>
+  <span class="nx">git</span> <span class="nx">clone</span> <span class="o">--</span><span class="nx">bare</span> <span class="o">--</span><span class="nx">progress</span> <span class="nx">$REMOTE</span> <span class="nx">$LOCAL_GIT</span>
+  <span class="nx">echo</span> <span class="nx">$LOCAL_GIT</span> <span class="o">&gt;</span> <span class="p">.</span><span class="nx">local_git</span>
+<span class="nx">fi</span>
+
+<span class="nx">git</span> <span class="o">--</span><span class="nx">git</span><span class="o">-</span><span class="nx">dir</span><span class="o">=</span><span class="nx">$</span><span class="p">{</span><span class="nx">LOCAL_GIT</span><span class="p">}</span> <span class="o">--</span><span class="nx">work</span><span class="o">-</span><span class="nx">tree</span><span class="o">=</span><span class="p">.</span> <span class="nx">$</span><span class="err">@</span>
+</code></pre></div>
+
+<h2 id="running">Running</h2>
+
+<p>Here&rsquo;s a comparison of what running looks like using the new command</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ bash seperate-git.bash status
+Pulling down remote git repository into /tmp/tmp.p4KSGNKQNh
+Cloning into bare repository <span class="s1">&#39;/tmp/tmp.p4KSGNKQNh&#39;</span>...
+warning: You appear to have cloned an empty repository.
+On branch master
+
+Initial commit
+
+Untracked files:
+  <span class="o">(</span>use <span class="s2">&#34;git add &lt;file&gt;...&#34;</span> to include in what will be committed<span class="o">)</span>
+
+        .gitignore
+        index.md
+        seperate-git.bash
+
+nothing added to commit but untracked files present <span class="o">(</span>use <span class="s2">&#34;git add&#34;</span> to track<span class="o">)</span>
+
+$ bash seperate-git.bash remote -v
+origin  git@github.com:wschenk/split-git.git <span class="o">(</span>fetch<span class="o">)</span>
+origin  git@github.com:wschenk/split-git.git <span class="o">(</span>push<span class="o">)</span></code></pre></div>
+<p>And compare that with the regular <code>git</code> command:</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ git status
+Changes not staged <span class="k">for</span> commit:
+  <span class="o">(</span>use <span class="s2">&#34;git add &lt;file&gt;...&#34;</span> to update what will be committed<span class="o">)</span>
+  <span class="o">(</span>use <span class="s2">&#34;git checkout -- &lt;file&gt;...&#34;</span> to discard changes in working directory<span class="o">)</span>
+
+        modified:   index.md
+
+no changes added to commit <span class="o">(</span>use <span class="s2">&#34;git add&#34;</span> and/or <span class="s2">&#34;git commit -a&#34;</span><span class="o">)</span>
+
+$ git remote -v
+origin  git@github.com:wschenk/willschenk.com.git <span class="o">(</span>fetch<span class="o">)</span>
+origin  git@github.com:wschenk/willschenk.com.git <span class="o">(</span>push<span class="o">)</span></code></pre></div>
+<p>And if this script actually works, you should be able to see the results here: <a href="https://github.com/wschenk/split-git">https://github.com/wschenk/split-git</a></p>
+
+<h2 id="references">References</h2>
+
+<ol>
+<li><a href="https://www.atlassian.com/git/tutorials/dotfiles">https://www.atlassian.com/git/tutorials/dotfiles</a></li>
+</ol>
+
+  </article>
+
+  
+  <div class="alert alert-secondary">The code from this article can be found at <a href="https://github.com/wschenk/split-git">https://github.com/wschenk/split-git</a></div>
+  
+</div>
+
+
+  <div class="bg-light py-5">
+    <div class="container">
+      <h2 class="text-center">Read next</h2>
+
+      <div class="row">
+        <div class="col-md-6 text-center">
+          
+        </div>
+        <div class="col-md-6 text-center">
+          
+            Previous Post:
+            <a href="../../../articles/2019/setting_up_indieweb/">Setting up Indieweb Homepage</a>
+          
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+
+
+<div class="container mt-5">
+  <h2 class="text-center">See also</h2>
+  <div class="row">
+  	
+      <div class="col-md mb-3">
+        <p class="lead mb-0"><a class="text-body" href="../../../articles/2019/easy_scraping_with_httpie_and_jq/">Easy scraping with httpie and jq</a></p>
+
+        
+          <p class="lead font-italic mb-0">Pulling my GitHub starred repositories into Hugo</p>
+        
+        <div class="font-weight-light mt-3">
+          
+          
+            <p>I recently saw a tweet mentioning the combination of using <a href="https://httpie.org/">HTTPie</a> (a command line HTTP client), <a href="https://stedolan.github.io/jq/">jq</a> (a lightweight and flexible command-line JSON processor) and <a href="https://github.com/tomnomnom/gron">Gron</a> (Make JSON greppable!) was &ldquo;all you needed to build a scraper.&rdquo;  Lets see if that&rsquo;s true.</p>
+          
+        </div>
+        <a href="../../../articles/2019/easy_scraping_with_httpie_and_jq/" class="btn btn-primary">Read more</a>
+      </div>
+    
+      <div class="col-md mb-3">
+        <p class="lead mb-0"><a class="text-body" href="../../../articles/2018/automating_hugo_with_circleci/">Automating hugo builds using CircleCI</a></p>
+
+        
+          <p class="lead font-italic mb-0">Let someone else run your build server</p>
+        
+        <div class="font-weight-light mt-3">
+          
+          
+            <p><p class="lead">Here's a simple CircleCI configuration to pull down the latest version of your hugo site on GitHub commits, build it, and then push it to github pages.</p></p>
+          
+        </div>
+        <a href="../../../articles/2018/automating_hugo_with_circleci/" class="btn btn-primary">Read more</a>
+      </div>
+    
+      <div class="col-md mb-3">
+        <p class="lead mb-0"><a class="text-body" href="../../../articles/2018/adding_a_cms_to_hugo/">Adding a CMS to hugo</a></p>
+
+        
+          <p class="lead font-italic mb-0">Static doesn&rsquo;t mean dead</p>
+        
+        <div class="font-weight-light mt-3">
+          
+          
+            <p>Just because we have a static site doesn&rsquo;t mean that we can&rsquo;t have an admin tool to write and edit posts! Lets go through how we can add the NetlifyCMS to the site and host it wherever we want.
+In my case I&rsquo;m storing the code on GitHub and also serving the pages from GitHub Pages. Netlify also seems like a really promising company with a number of other services that they offer, so I&rsquo;d encourage you to check it out.</p>
+          
+        </div>
+        <a href="../../../articles/2018/adding_a_cms_to_hugo/" class="btn btn-primary">Read more</a>
+      </div>
+    
+  </div>
+</div>
+
+
+<footer class="footer bg-dark text-light mt-3">
+  <div class="container">
+    <h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2>
+  </div>
+</footer>
+</body>
+</html>
