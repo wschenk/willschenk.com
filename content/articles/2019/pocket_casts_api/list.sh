@@ -76,6 +76,13 @@ function loadPodcastList() {
   authenticatedRequest POST https://api.pocketcasts.com/user/podcast/list ${DATADIR}/podcast.json
 }
 
+function unrollPodcasts() {
+  mkdir -p ${DATADIR}/podcasts
+  for podcastUuid in $(jq -r '.podcasts[] | .uuid' ${DATADIR}/podcast.json)
+  do
+    jq -r ".podcasts[] | select( .uuid == \"${podcastUuid}\" ) | ." podcasts/podcast.json > ${DATADIR}/podcasts/${podcastUuid}.json
+  done
+}
 
 function loadPodcastsFromStarredList() {
   getToken
@@ -84,28 +91,61 @@ function loadPodcastsFromStarredList() {
     outfile=${DATADIR}/episodes/${uuid}.json
     mkdir -p ${DATADIR}/episodes
     if stale $outfile; then
-      echo Loading episode info for ${uuid}
+      echo ${uuid} episode info
       echo "{uuid: \"${uuid}\"}" | http POST https://api.pocketcasts.com/user/episode "Authorization: Bearer ${TOKEN}" > $outfile
     fi
 
     outfile=${DATADIR}/notes/${uuid}.json
     mkdir -p ${DATADIR}/notes
     if stale $outfile; then
-      echo Loading note info for ${uuid}
+      echo ${uuid} note info
       http GET https://cache.pocketcasts.com/episode/show_notes/${uuid}  "Authorization: Bearer ${TOKEN}" > $outfile
     fi
   done
 }
 
+function combinePodcastAndEpisodeInfo() {
+  getWorkdir
+
+  OUTDIR=${DATADIR}/merged
+  mkdir -p $OUTDIR
+
+  for uuid in $(jq -r '.episodes[] | .uuid' ${DATADIR}/starred.json)
+  do
+    echo Merging ${uuid}
+    jq '{episode: .}' ${DATADIR}/episodes/${uuid}.json > $WORKDIR/combined.json
+
+    podcastUuid=$(jq -r '.podcastUuid' ${DATADIR}/episodes/${uuid}.json)
+
+    jq '{podcast: .}' ${DATADIR}/podcasts/${podcastUuid}.json >> $WORKDIR/combined.json
+    jq '{note: .}' ${DATADIR}/notes/${uuid}.json >> $WORKDIR/combined.json
+
+    jq -s 'add | {
+      episodeTitle: .episode.title,
+      audioUrl: .episode.url,
+      published: .episode.published,
+      duration: .episode.duration,
+      size: .episode.size,
+      podcastTitle: .podcast.title,
+      author: .podcast.author,
+      description: .podcast.description,
+      podcastUrl: .podcast.url,
+      notes: .note.show_notes }' $WORKDIR/combined.json > $OUTDIR/${uuid}.json
+  done
+}
+
 if stale ${DATADIR}/starred.json; then
   loadStarredList
+  loadPodcastsFromStarredList
 fi
 
 if stale ${DATADIR}/podcast.json; then
   loadPodcastList
+  unrollPodcasts
 fi
 
-loadPodcastsFromStarredList
+
+combinePodcastAndEpisodeInfo
 
 if( [ ! -z "${WORKDIR}" ] ); then
   echo Cleaning up work directory
