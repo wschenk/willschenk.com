@@ -110,6 +110,8 @@ function combinePodcastAndEpisodeInfo() {
   OUTDIR=${DATADIR}/merged
   mkdir -p $OUTDIR
 
+  > ${WORKDIR}/combined_summary.json
+
   for uuid in $(jq -r '.episodes[] | .uuid' ${DATADIR}/starred.json)
   do
     echo Merging ${uuid}
@@ -131,7 +133,11 @@ function combinePodcastAndEpisodeInfo() {
       description: .podcast.description,
       podcastUrl: .podcast.url,
       notes: .note.show_notes }' $WORKDIR/combined.json > $OUTDIR/${uuid}.json
+    cat ${OUTDIR}/${uuid}.json >> ${WORKDIR}/combined_summary.json
   done
+
+  # Turn it into an array
+  jq -s '. | .' ${WORKDIR}/combined_summary.json > ${DATADIR}/starred_combined.json
 }
 
 if stale ${DATADIR}/starred.json; then
@@ -143,7 +149,6 @@ if stale ${DATADIR}/podcast.json; then
   loadPodcastList
   unrollPodcasts
 fi
-
 
 combinePodcastAndEpisodeInfo
 

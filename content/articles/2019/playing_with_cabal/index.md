@@ -14,7 +14,7 @@ Cabal is a "experimental p2p community chat platform".  It's fully distributed o
 
 ## Local computer
 
-You'll need at last two computers to really play with this.  But we can simulate the situation by running a docker container as well as a local instance of the cabal cli client.  We can then move that container (or at least the image) around to run it on a remote server if you don't want to mess with anything on the remote machine.  Lets first install it locally:
+You'll need at least two computers to really play with this.  But we can simulate the situation by running a docker container as well as a local instance of the cabal cli client.  We can then move that container (or at least the image) around to run it on a remote server if you don't want to mess with anything on the remote machine.  Lets first install it locally:
 
 ## On the terminal
 
