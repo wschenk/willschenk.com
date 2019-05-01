@@ -4,7 +4,8 @@ subtitle: Pulling my GitHub starred repositories into Hugo
 tags:
   - howto
   - hugo
-  - scraper
+  - scraping
+  - api
   - jq
 date: 2019-04-18
 ---

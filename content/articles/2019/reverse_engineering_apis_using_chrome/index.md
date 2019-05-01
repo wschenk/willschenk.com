@@ -6,8 +6,7 @@ tags:
   - chrome
   - api
   - scraping
-date: "2019-04-25"
-draft: true
+date: "2019-05-01"
 ---
 
 I want to get a list of all of the podcast episodes that I've starred on [PocketCasts](https://www.pocketcasts.com/).  There's no obvious way to export this from the application, and they don't have a published interface.  Lets look at hope to use chrome developer tools to figure out what the API is.
@@ -141,12 +140,17 @@ If we click on an episode itself on the website and look through what is being l
 <img src="show_notes.png" class="img-fluid" alt="Show notes"/>
 
 1. We create a work directory to store all the JSON that we'll get from the server.
-2. We'll use `jq` to parse the `starred.json` and pull out the episide `uuid`
-3. We'll loop over those `uuids`, pull down the data, putting each into it's own directory.
+2. We'll use `jq` to parse the `starred.json` and pull out the episide `uuid`.
+3. We'll loop over those `uuids`
+3. We extract out the specific info for this episode into it's own `info.json` file.
+4. We hit the API for each show note, putting it into it's own directory.
 
 ```bash
 for uuid in $(jq -r '.episodes[] | .uuid'  starred.json); do
   mkdir -p episodes/${uuid}
+
+  jq -r ".episodes[] | select( .uuid == \"${uuid}\" ) | ." starred.json > episodes/${uuid}/info.json
+
   curl \
     -H "Authorization: Bearer ${POCKET_TOKEN}" \
     -H "Content-Type: application/json"  \
@@ -156,3 +160,74 @@ done
 ```
 
 ## Finding podcast info
+
+Lets look again to see where we can get information about the podcasts.  Looking at the network inspector, we can see that it loads `https://api.pocketcasts.com/user/podcast/list` for the full list of podcast that I subscribe to.  We'll need to pull down this list and then figure out how to combine the information together with the episodes to get the full information.  This is another strange POST instead of GET request.  In this case it's sending `{v:1}` so we will too:
+
+<img src="podcast_list.png" class="img-fluid" alt="podcast list info"/>
+
+```bash
+curl -d "{v:1}" -X POST \
+    -H "Authorization: Bearer ${POCKET_TOKEN}" \
+    -H "Content-Type: application/json"  \
+    https://api.pocketcasts.com/user/podcast/list \
+    > podcasts.json
+```
+
+And lets loop through everything to pull in the data.  We are using to use a loop, one which uses `jq` to pull out the podcast uuid from the file.  We will then call another `jq` query to pull out just the matching JSON block into a file.  There are probably many better ways to do this.
+
+```bash
+mkdir podcasts
+for podcastUuid in $(jq -r '.podcasts[] | .uuid' podcasts.json)
+do
+  jq -r ".podcasts[] | select( .uuid == \"${podcastUuid}\" ) | ." podcasts.json > podcasts/${podcastUuid}.json
+done
+```
+
+## Combining it all together
+
+1. Loop through the starred episodes JSON.
+2. Pull out the podcastUuid
+3. Wrap the `info.json` file in a `info` attribute and cat to `work.json`
+4. Wrap the `notes.json` file in a `notes` attribute and append to `work.json`
+5. Wrap the postcast from the previous command into a `podcast` attribute and append to `work.json`
+6. Filter `work.json` into `combined.json`
+7. Append `combined.json` to `combined_work.json` on the top level.
+8. Reformat `combined_work.json` to `starred_combined.json` on the top level.
+
+Here we go!
+
+```bash
+> combined_work.json
+for episodeUuid in $(jq -r '.episodes[] | .uuid'  starred.json); do
+  dir=episodes/${episodeUuid}
+  podcastUuid=$(jq -r '.podcastUuid' ${dir}/info.json)
+
+  jq '{episode: .}' ${dir}/info.json > ${dir}/work.json
+  jq '{note: .}' ${dir}/notes.json >> ${dir}/work.json
+  jq '{podcast: .}' podcasts/${podcastUuid}.json >> ${dir}/work.json
+
+  jq -s 'add | {
+    episodeTitle: .episode.title,
+    audioUrl: .episode.url,
+    published: .episode.published,
+    duration: .episode.duration,
+    size: .episode.size,
+    podcastTitle: .podcast.title,
+    author: .podcast.author,
+    description: .podcast.description,
+    podcastUrl: .podcast.url,
+    notes: .note.show_notes }' ${dir}/work.json >> combined_work.json
+done
+
+jq -s '. | .' combined_work.json > starred_combined.json
+```
+
+## Now you have the full JSON for your starred episodes
+
+From here you can do whatever you want with it, JSON is a form that is easily digestible by many tools.  JavaScript can easily consume it directly, or static site generators often have support for bringing in data like this.  (I did this in a previous post on [pulling down GitHub Stars](../easy_scraping_with_httpie_and_jq/))
+
+Here's the code all put together: [update_pocket_cast_starred.bash](update_pocket_cast_starred.bash)
+
+This pulls everything down into a temporary directory, and then writes the final result into [starred_combined.json](starred_combined.json) that you can use somewhere else for further processing.
+
+That's all for this post. We'll look at using Puppeteer next!
