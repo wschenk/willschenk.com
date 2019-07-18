@@ -26,6 +26,8 @@ yarn add puppeteer delay mkdirp
 
 ## Waiting for the timeline to load
 
+
+
 ## Printing out the tweets
 
 ## Scrolling to past pages

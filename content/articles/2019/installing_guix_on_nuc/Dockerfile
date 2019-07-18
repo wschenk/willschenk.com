@@ -2,7 +2,7 @@ FROM debian:stretch-slim
 
 RUN apt-get update && apt-get install -y wget gpg xz-utils make netbase
 
-RUN groupadd guixbuild; \
+RUN groupadd guixbuild; groupadd kxm; \
   for i in `seq -w 1 10`; \
   do \
     useradd -g guixbuild -G guixbuild,kxm       \

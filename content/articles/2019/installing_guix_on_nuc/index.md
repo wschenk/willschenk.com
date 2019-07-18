@@ -26,7 +26,7 @@ We have two options of setting up the environment -- one is to install guix in a
 
 We are going to put the steps for [binary installation](https://www.gnu.org/software/guix/manual/en/html_node/Binary-Installation.html#Binary-Installation) of Guix into a `Dockerfile`, which will be based upon `debian`.  This will all be in a container so once we are done we won't ahve anything on the host machine left over.
 
-One thing to note is that in order to run `guix pull` we'll need to run docker with `--privileged`.  Not totally sure why, but ** mailing list links **.
+One thing to note is that in order to run `guix pull` we'll need to run docker with `--privileged`.  Not totally sure why, but **mailing list links**.
 
 {{% code file="content/articles/2019/installing_guix_on_nuc/Dockerfile" language="Dockerfile" %}}
 
@@ -41,7 +41,7 @@ One of my favorite things about this command is that everything basically goes a
 Once we are in, the first thing we need to do is to start up the `guix-daemon` inside of the container.  We don't know exactly what directory it's installed in, but there should only be one directory in `/gnu/system` that matches the glob `*guix*` at this poinnt.
 
 ```bash
-# /gnu/store/*guix*/bin/guix-daemon --build-users-group=guixbuild &
+# ~/.config/guix/current/bin/guix-daemon --build-users-group=guixbuild &
 ```
 
 Do a `guix pull` to make sure that everything is installed correctly.

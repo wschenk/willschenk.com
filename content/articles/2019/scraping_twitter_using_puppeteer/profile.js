@@ -23,8 +23,8 @@ mkdirp.sync( outdir );
   console.log( "Got page");
 
   await navigationPromise
-  await page.waitForSelector('#timeline')
-  console.log( "Timeline loaded")
+  await page.waitForSelector('.ProfileHeaderCard')
+  console.log( "Profile loaded")
 
   const profile = await page.evaluate( () => {
     var profile = {}
