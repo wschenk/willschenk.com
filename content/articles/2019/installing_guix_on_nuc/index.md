@@ -94,18 +94,16 @@ And then run `guix pull` to update everything.  This should take a bit, but not 
 # guix pull
 ```
 
-## Build the install image
+## Build the boot image
 
-First we need to figure out where `nonguix` is installed.
+Now we define the operating system that we will eventually install.  Copy this [config.scm](config.scm) file into the docker container:
 
-```bash
-$ ls -ld /gnu/store/*nonguix*
-```
+{{% code file="articles/2019/installing_guix_on_nuc/config.scm" language="scheme" %}}
 
-This will print out a few things, find the directory and then run the `guix system disk-image` command to create the iso.
+And build the image with
 
 ```bash
-guix system disk-image /gnu/store/n17bqqbsdz4b40vsi851cwzry0wnypfl-nonguix-ec6c0a3/nongnu/system/install.scm
+$ guix system disk-image config.scm
 ```
 
 This command will take _forever_ (around 1 hour) mainly because it's compiling the linux kernel and other fun stuff.  There isn't a substition server for the `nonguix` pacakges so everything will happen using source on your local machine.  My MacBook runneth hot.
@@ -126,17 +124,7 @@ Make sure that ssh is installed and copy to your local machine, in my case `wsch
 ```bash
 # guix install openssh
 # export PATH=/root/.guix-profile/bin:$PATH
-# scp /gnu/store/5v93jajj81mjfpp0lvkx61yk89r572cf-disk-image wschenk@192.168.1.52:/tmp
-```
-
-## Export the kernel package from the build machine
-
-First we need to generate a signing key for our build machine, then extract the packages that we want, and move the files over to the new machine.  Lets do that generate and export now do we are ready for the import.
-
-```bash
-# guix archive --generate-key
-# guix archive --recursive --export linux > linux.nar
-# scp /etc/guix/signing-key.pub linux.nar wschenk@192.168.1.52:/tmp
+# scp /gnu/store/5v93jajj81mjfpp0lvkx61yk89r572cf-disk-image wschenk@192.168.1.52:/tmp/myguix.iso
 ```
 
 ## Write the ISO into the USB
@@ -144,57 +132,25 @@ First we need to generate a signing key for our build machine, then extract the 
 And on the host machine, lets put it onto the USB stick.  If you are on OSX, [Etcher](https://www.balena.io/etcher/) is a nice app for doing this.  Otherwise you can use `dd` and if it's in `/dev/disk2`
 
 ```bash
-$ sudo dd if=/tmp/5v93jajj81mjfpp0lvkx61yk89r572cf-disk-image of=/dev/disk2
+$ sudo dd if=/tmp/myguix.iso of=/dev/disk2
 ```
 
-## This doesn't work
+## Booting the InterNUC off of the USB key
 
-disable secure boot
+As documented [here](https://forums.intel.com/s/question/0D50P0000490X0zSAE/image-authorization-fail-system-can-not-boot-to-this-usb-device?language=en_US):
+
+> 1. At BIOS POST (i.e. when the "Intel NUC" splash screen appears), rapidly press the F2 key over and over until the BIOS Setup (Visual BIOS) display appears.
+> 2. Click on Advanced, then Boot and then select the Secure Boot tab.
+> 3. Uncheck the Secure Boot option.
+> 4. Press F10 and then select Yes to save this change and reboot the system.
 
 ## The installation
 
-Follow the steps as normal.  Do what you'd like here.
+Now you should boot up off of the USB key and have guix running on your system!
 
-1. Select locale
-2. Select language
-3. Select graphical install
-4. Select timezone
-5. Format disk as required
-6. Enter host name
-7. Select WiFi
-8. Scan for Connections, then select your network
-9. Enter root password
-10. Add user
-11. Select say GNOME
-12. Turn on SSH
-13. Install the system
-14. Pull out the USB key and reboot the system
 
-## Boot and install new kernel
 
-On the host machine, (optionally) compress linux.nar, and copy that archive and the signing public key to a USB drive.
 
-```bash
-$ cd /tmp
-$ bzip2 -v linux.nar
-$ mv signing-key.pub linux.nar.bz2 /Volumes/UNTITLED/
-```
-
-Then move to the target system.  First we need to be root to authorize our build key.  Then we import the kernel into our archive.
-
-```bash
-$ sudo guix archive --authorize < /media/wschenk/UNTITLED/signing-key.pub
-$ bzcat /media/wschenk/UNTITLED/linux.nar.bz2 | guix archive --import
-```
-
-Then we need to edit our config.scm.
-
-```bash
-$ cp /etc/config.scm ~
-$ nano ~/config.scm
-```
-
-And add `(kernel linux)` to the configuration.
 ## References
 
 1. https://www.gnu.org/software/guix/download/
@@ -204,3 +160,4 @@ And add `(kernel linux)` to the configuration.
 4. https://forums.intel.com/s/question/0D50P0000490X0zSAE/image-authorization-fail-system-can-not-boot-to-this-usb-device?language=en_US
 5. https://lists.gnu.org/archive/html/help-guix/2016-02/msg00046.html
 6. https://bbs.archlinux.org/viewtopic.php?pid=1324810#p1324810
+7. https://libreboot.org/docs/gnulinux/guix_system.html

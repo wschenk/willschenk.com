@@ -22,7 +22,7 @@ Then lets start building out the `Dockerfile` that we will use.
 3. Create `Dockerfile.bootstrap`:
 
 [`Dockerfile.bootstrap`](Dockerfile.bootstrap`)
-{{% code file="articles/2019/developing_react_inside_docker" language="Dockerfile" %}}
+{{% code file="articles/2019/developing_react_inside_docker/Dockerfile.bootstrap" language="Dockerfile" %}}
 
 This is going to download the `node:11` package, run `create-react-app` and then copy the generated code into the `/app` folder inside of the container.  Lets build this and start up the container, mapping the local directory into `/app`.  We are discarding the downloaded `node-modules` for now, we will import them later.
 
