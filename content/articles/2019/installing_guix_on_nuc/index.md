@@ -146,7 +146,17 @@ As documented [here](https://forums.intel.com/s/question/0D50P0000490X0zSAE/imag
 
 ## The installation
 
-Now you should boot up off of the USB key and have guix running on your system!
+Now you should boot up off of the USB key and have guix running on your system!  The `root` user doesn't have a password and neither does the user account defined.
+
+`C-Alt-F2` will switch to a console.  Log in as `root` here (without password), and set the password for your user, in my case `passwd wschenk`.
+
+`C-Alt-F7` will go back to the Gnome login screen, where you'll be able to login as your user.
+
+## Setting up WiFi
+
+`sudo rfkill unblock all` will turn on your network card, which you can figure by going to the `Activities` menu and selecting `Settings`.  You need to enable the interface in order for the Gnome network manager to be able to connect to WiFi. Go to a terminal and `ping 1.1.1.1` to see if you can connect to the internet!
+
+
 
 
 
