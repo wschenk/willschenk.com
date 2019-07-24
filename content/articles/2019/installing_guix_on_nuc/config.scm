@@ -8,6 +8,8 @@
  (timezone "America/New_York")
 
  (keyboard-layout (keyboard-layout "us" "altgr-intl"))
+
+ ;; This will be what is used on the target machine
  ;;  (bootloader (bootloader-configuration
  ;;              (bootloader grub-efi-bootloader)
  ;;              (timeout 1)

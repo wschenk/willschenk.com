@@ -10,15 +10,21 @@ tags:
   - docker
 ---
 
-Steps:
+I've been getting into [Guix](https://guix.gnu.org/) and [Emacs](https://www.gnu.org/software/emacs/) lately, going back to my Free Software roots.  It's amazing.  Guix is a functional package manager that you can use on top of a linux distribution to have repeatable and rollbackable builds.  GuixSD is a distrubution that's Guix all the way down.
+
+I have an Intel NUC lying around that I wanted to use, so this is my effort to get a working GuixSD installation on it.  This post took me almost 14 days to write, because I wanted to use the WiFi interface rather than plugging it into my router directly, and so I had to build a custom kernel with non-free code.  If you have an ethernet cord, or your hardware is supported by the [linux-libre](https://en.wikipedia.org/wiki/Linux-libre) kernel this is all overkill and just follow the [GuixSD installer instructions](https://guix.gnu.org/manual/en/html_node/USB-Stick-and-DVD-Installation.html#USB-Stick-and-DVD-Installation).
+
+## Overview
+
+This is our strategy:
 
 1. Install guix in a virtual host running on the host machine
 2. Pull down the latest guix and nonguix channels
 3. Define an operating system configuration for the IntelNUC using non-free wifi
-4. Build a boot installer disk image
 5. Burn it onto a USB key
 6. Disable secure booting on the NUC
-7. Install guix on the NUC
+7. Boot off of the USB
+8. Running `guix system init` to put the new operating system
 
 We have two options of setting up the environment -- one is to install guix in a debian docker container, use that to generate the installation image and export it out.  The other is to run an actual GuixSD distrubution inside of qemu, use that the generate the installation image, and export it out.  I don't know how to make `qemu` work well on OSX so I used the docker strategy (A).  But (B) is probably nicer if you are starting with a Linux machine,
 
@@ -155,6 +161,105 @@ Now you should boot up off of the USB key and have guix running on your system! 
 ## Setting up WiFi
 
 `sudo rfkill unblock all` will turn on your network card, which you can figure by going to the `Activities` menu and selecting `Settings`.  You need to enable the interface in order for the Gnome network manager to be able to connect to WiFi. Go to a terminal and `ping 1.1.1.1` to see if you can connect to the internet!
+
+To do this in terminal (you can switch with `C-Alt-F2` the steps are:
+
+1. `rfkill unblock all`
+2. `nmcli device wifi` to list out the available SSIDs
+3. `nmcli device wifi connect HappyFunCorp password mysekretpassword` to actually make the connection.
+4. `ping 1.1.1.1` to verify that things are working
+
+
+
+## Preparing the target disk
+
+The easiest way is probably to use `GNOME Disk` to format your target drive.  I'm going to walk through using the CLI to do this, but it doesn't really matter what you use.
+
+First run `lsblk` to see which devices are on your system.
+
+```bash
+wschenk@intelnuc ~$ lsblk
+NAME        MAJ:MIN RM   SIZE RO TYPE MOUNTPOINT
+sda           8:0    1  14.9G  0 disk 
+├─sda1        8:1    1   5.4G  0 part 
+└─sda2        8:2    1    40M  0 part 
+nvme0n1     259:0    0 465.8G  0 disk 
+```
+
+From there we can use `fdisk` to create the partitions on, in my case, `/dev/nvme0n1`.
+
+`n` to create the first partition for with a size of `+50M`.  I don't know if this is big or small, but seemed fine.
+
+`t` to change the partition type, select `1` for `EFI System`.
+
+`n` to create a swap parition, I did `+4G`.
+
+`t` to change the partition type, select `19` for `Linux swap`.
+
+`n` to create another partition for the rest of the disk.
+
+`t` to change the partition type, select `20` for `Linux Filesystem`
+
+`w` to write the partition table.
+
+Run `sync` just to be safe.
+
+Finally initialize the file system, which in my case is the 3rd partition, and label it as `guix`, and then mount it on `/mnt`.  Also mount `/boot`
+
+```bash
+# mkfs.ext4 -L guix /dev/nvme0n1p3
+# mount LABEL=guix /mnt
+```
+
+
+--- not sure if we need this
+
+Create a swap file and make it readable cum writable only by root.
+
+```bash
+dd if=/dev/zero of=/mnt/swapfile bs=1MiB count=2048
+
+chmod 600 /mnt/swapfile
+
+mkswap /mnt/swapfile
+
+swapon /mnt/swapfile
+```
+---
+
+
+## Add the `nonguix` channel
+
+First do a `guix pull` as root to make sure that you have everything up to date and your install working.  Once that's done, create `/root/.config/guix/channels.scm` as described above, and return `guix pull` to bring down that channel information.
+
+## Pulling down `config.scm`
+
+First install wget and an editor, in this case `vim:
+
+```bash
+# guix install wget vim
+```
+
+then
+
+```bash
+$ wget https://raw.githubusercontent.com/wschenk/willschenk.com/master/content/articles/2019/installing_guix_on_nuc/config.scm
+```
+
+Now edit this `config.scm` uncommenting the `efi` bootloader section and commenting out the USB bootloader.
+
+
+
+## Run `guix system init`
+
+Finally we are going to build our system onto our target disk!  Make sure that the target system is mounted at `/mnt` and here we go!
+
+```bash
+# guix pull
+# guix system init config.scm /mnt
+```
+
+Depending up on the time between building the USB key image and doing the pull, this will time to some time to build.  (The main thing is if the linux kernel version is different.)
 
 
 
