@@ -21,15 +21,9 @@ RUN cd /tmp && tar --warning=no-timestamp -xf \
 RUN mkdir -p ~root/.config/guix && ln -sf /var/guix/profiles/per-user/root/current-guix \
 	~root/.config/guix/current
 
-# RUN echo "GUIX_PROFILE=/root/.guix-profile" > /root/.bashrc ; echo '. $GUIX_PROFILE/etc/profile' >> /root/.bashrc
-
-# RUN echo "source /root/.config/guix/current/etc/profile" > /root/.bashrc
-
 RUN mkdir -p /usr/local/bin; cd /usr/local/bin; ln -s /var/guix/profiles/per-user/root/current-guix/bin/guix
 
 RUN bash -c "source /root/.config/guix/current/etc/profile && guix archive --authorize < \
      ~root/.config/guix/current/share/guix/ci.guix.gnu.org.pub"
-
-# RUN bash -c "source /root/.config/guix/current/etc/profile && guix-daemon --build-users-group=guixbuild & source /root/.config/guix/current/etc/profile; guix pull"
 
 CMD bash

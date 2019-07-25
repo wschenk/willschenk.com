@@ -1,11 +1,9 @@
 ---
 title: Installing guix on IntelNUC
-subtitle: shhh we're using non free
-draft: true
-date: 2019-07-09
+subtitle: using the hardware you have, even if we are nonfree
+date: 2019-07-25
 tags:
   - freesoftware
-  - linux
   - guix
   - docker
 ---
@@ -13,6 +11,8 @@ tags:
 I've been getting into [Guix](https://guix.gnu.org/) and [Emacs](https://www.gnu.org/software/emacs/) lately, going back to my Free Software roots.  It's amazing.  Guix is a functional package manager that you can use on top of a linux distribution to have repeatable and rollbackable builds.  GuixSD is a distrubution that's Guix all the way down.
 
 I have an Intel NUC lying around that I wanted to use, so this is my effort to get a working GuixSD installation on it.  This post took me almost 14 days to write, because I wanted to use the WiFi interface rather than plugging it into my router directly, and so I had to build a custom kernel with non-free code.  If you have an ethernet cord, or your hardware is supported by the [linux-libre](https://en.wikipedia.org/wiki/Linux-libre) kernel this is all overkill and just follow the [GuixSD installer instructions](https://guix.gnu.org/manual/en/html_node/USB-Stick-and-DVD-Installation.html#USB-Stick-and-DVD-Installation).
+
+I should reiterate that if a) I plugged into the router or b) had the right network hardware that linux-libre supported this guide would be much much shorter, and this was largely an excersize to force me to get into the details of how GuixSD worked.  This doesn't, you know, _make sense_ as a thing to do.  Just plug in ethernet.
 
 ## Overview
 
@@ -26,13 +26,17 @@ This is our strategy:
 7. Boot off of the USB
 8. Running `guix system init` to put the new operating system
 
-We have two options of setting up the environment -- one is to install guix in a debian docker container, use that to generate the installation image and export it out.  The other is to run an actual GuixSD distrubution inside of qemu, use that the generate the installation image, and export it out.  I don't know how to make `qemu` work well on OSX so I used the docker strategy (A).  But (B) is probably nicer if you are starting with a Linux machine,
+We have three options of setting up the environment -- one is to install guix ontop of a current Linux installation, another one is to install guix in a debian docker container, use that to generate the installation image and export it out.  The other is to run an actual GuixSD distrubution inside of qemu, use that the generate the installation image, and export it out.  I don't know how to make `qemu` work well on OSX so I used the docker strategy (B).  But (A) or (C) is probably nicer if you are starting with a Linux machine.
 
-## Option A: Dockerfile for guix
+## Option A: Install guix ontop of Linux
+
+Follow the [binary installation instructions](https://guix.gnu.org/manual/en/html_node/Binary-Installation.html#Binary-Installation) from the Guix documentation to get Guix installed in your local environment.  This will leave guix available on your machine, which could be great depending upon your use case.  I'm doing this on a OSX machine which won't work.
+
+## Option B: Dockerfile for guix
 
 We are going to put the steps for [binary installation](https://www.gnu.org/software/guix/manual/en/html_node/Binary-Installation.html#Binary-Installation) of Guix into a `Dockerfile`, which will be based upon `debian`.  This will all be in a container so once we are done we won't ahve anything on the host machine left over.
 
-One thing to note is that in order to run `guix pull` we'll need to run docker with `--privileged`.  Not totally sure why, but **mailing list links**.
+One thing to note is that in order to run `guix pull` we'll need to run docker with `--privileged`.  Not totally sure why, but [here is a list to the mailing list discussion about it.](https://lists.gnu.org/archive/html/guix-devel/2017-11/msg00258.html)  This `Dockerfile` is basically a simple rewrite of the installer script, that helped me understand how guix was setup under the hood.
 
 {{% code file="content/articles/2019/installing_guix_on_nuc/Dockerfile" language="Dockerfile" %}}
 
@@ -42,9 +46,9 @@ Then we build it and start it up.
 $ docker build . -t guix &&  docker run --privileged -it --rm guix
 ```
 
-One of my favorite things about this command is that everything basically goes away after you exit out.  This is a play ground that will happy disappear and recreate itself as needed.
+One of my favorite things about this command is that everything basically goes away after you exit out.  This is a play ground that will happy disappear and recreate itself as needed.  You might not want to have `--rm` flag since once you shut down or exist the container it will delete everything, but I like to have things clean up after themselves.
 
-Once we are in, the first thing we need to do is to start up the `guix-daemon` inside of the container.  We don't know exactly what directory it's installed in, but there should only be one directory in `/gnu/system` that matches the glob `*guix*` at this poinnt.
+Once we are in, the first thing we need to do is to start up the `guix-daemon` inside of the container.
 
 ```bash
 # ~/.config/guix/current/bin/guix-daemon --build-users-group=guixbuild &
@@ -60,7 +64,7 @@ Once this is working, set your path:
 
 You can test out the installation by `guix install hello` and then trying to run `hello`.
 
-## Option B: Installing QEMU
+## Option C: Installing QEMU
 
 You can install `qemu` and run the sample installer this way.  This is painfully slow on OSX, but works pretty well on the Chromebook.  This is because I remove `--enable-kvm` on the MacBook so I guess it falls back to software cpu emulation or something, I don't know the equivlent for how to do this on Darwin.
 
@@ -80,7 +84,7 @@ qemu-system-x86_64 \
    -drive if=none,file=guix-system-vm-image-1.0.1.x86_64-linux,id=myhd
 ```
 
-Once this is started up, our directions converge together below.
+Once this is started up, our directions converge together below.  However, this is painfully slow on OSX so I don't think it's a viable option.
 
 ## Include the `nonguix` channel
 
@@ -156,7 +160,7 @@ Now you should boot up off of the USB key and have guix running on your system! 
 
 `C-Alt-F2` will switch to a console.  Log in as `root` here (without password), and set the password for your user, in my case `passwd wschenk`.
 
-`C-Alt-F7` will go back to the Gnome login screen, where you'll be able to login as your user.
+`C-Alt-F7` will go back to the Gnome login screen, where you'll be able to login as your user if you want to use Gnome.
 
 ## Setting up WiFi
 
@@ -169,11 +173,9 @@ To do this in terminal (you can switch with `C-Alt-F2` the steps are:
 3. `nmcli device wifi connect HappyFunCorp password mysekretpassword` to actually make the connection.
 4. `ping 1.1.1.1` to verify that things are working
 
-
-
 ## Preparing the target disk
 
-The easiest way is probably to use `GNOME Disk` to format your target drive.  I'm going to walk through using the CLI to do this, but it doesn't really matter what you use.
+The easiest way is probably to use `cfdisk` or `GNOME Disk` to format your target drive.  I'm going to walk through using the CLI to do this, but it doesn't really matter what you use.
 
 First run `lsblk` to see which devices are on your system.
 
@@ -188,13 +190,9 @@ nvme0n1     259:0    0 465.8G  0 disk
 
 From there we can use `fdisk` to create the partitions on, in my case, `/dev/nvme0n1`.
 
-`n` to create the first partition for with a size of `+50M`.  I don't know if this is big or small, but seemed fine.
+`n` to create the first partition for with a size of `+100M`.  I don't know if this is big or small, but seemed fine.
 
 `t` to change the partition type, select `1` for `EFI System`.
-
-`n` to create a swap parition, I did `+4G`.
-
-`t` to change the partition type, select `19` for `Linux swap`.
 
 `n` to create another partition for the rest of the disk.
 
@@ -204,51 +202,23 @@ From there we can use `fdisk` to create the partitions on, in my case, `/dev/nvm
 
 Run `sync` just to be safe.
 
-Finally initialize the file system, which in my case is the 3rd partition, and label it as `guix`, and then mount it on `/mnt`.  Also mount `/boot`
+Lets setup the first partition to be formatted as FAT32 and be bootable, and mount it on `/boot/efi`
 
 ```bash
-# mkfs.ext4 -L guix /dev/nvme0n1p3
+# guix install dosfstools parted
+# export PATH=/root/.guix-profile/sbin:$PATH
+# mkfs.vfat -F32 /dev/nvme0n1p1
+# parted /dev/nvme0n1 set 1 esp on
+# mount /dev/nvme01n1p1 /boot/efi
+
+```
+
+Initialize the file system, which in my case is the 2nd partition, and label it as `guix`, and then mount it on `/mnt`.
+
+```bash
+# mkfs.ext4 -L guix /dev/nvme0n1p2
 # mount LABEL=guix /mnt
 ```
-
-
---- not sure if we need this
-
-Create a swap file and make it readable cum writable only by root.
-
-```bash
-dd if=/dev/zero of=/mnt/swapfile bs=1MiB count=2048
-
-chmod 600 /mnt/swapfile
-
-mkswap /mnt/swapfile
-
-swapon /mnt/swapfile
-```
----
-
-
-## Add the `nonguix` channel
-
-First do a `guix pull` as root to make sure that you have everything up to date and your install working.  Once that's done, create `/root/.config/guix/channels.scm` as described above, and return `guix pull` to bring down that channel information.
-
-## Pulling down `config.scm`
-
-First install wget and an editor, in this case `vim:
-
-```bash
-# guix install wget vim
-```
-
-then
-
-```bash
-$ wget https://raw.githubusercontent.com/wschenk/willschenk.com/master/content/articles/2019/installing_guix_on_nuc/config.scm
-```
-
-Now edit this `config.scm` uncommenting the `efi` bootloader section and commenting out the USB bootloader.
-
-
 
 ## Run `guix system init`
 
@@ -259,11 +229,19 @@ Finally we are going to build our system onto our target disk!  Make sure that t
 # guix system init config.scm /mnt
 ```
 
-Depending up on the time between building the USB key image and doing the pull, this will time to some time to build.  (The main thing is if the linux kernel version is different.)
+Depending up on the time between building the USB key image and doing the pull, this will time to some time to build.  (The main thing is if the linux kernel version is different.)  This builds all of the dependant packages from our `operatating-system` definition, and then moves overything over to the filesystem in `/mnt` and should update the grub bootloader.
 
+Once this is done you should be able to reboot, remove the USB key, and them boot into your new GuixSD installation!
 
+## Setup
 
+Once the system is booted, do `C-Alt-F2` to get a console, and log in as root.  Then give root and your username a password using `passwd`.
 
+Turn the wifi on using `rfkill unblock all`.
+
+You may want to put the `nonguix` channel back into `/root/.config/guix/channels.scm` to help with changing things in the future.
+
+Enjoy!
 
 
 ## References
