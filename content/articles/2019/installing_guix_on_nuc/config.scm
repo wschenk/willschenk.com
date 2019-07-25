@@ -54,6 +54,11 @@
 		       (device (file-system-label "guix"))
 		       (mount-point "/")
 		       (type "ext4"))
+;; Not needed for bootable usb but needed for final system
+;;		      (file-system
+;;		       (device "/dev/nvme0n1p1")
+;;		       (type "vfat")
+;;		       (mount-point "/boot/efi"))
 		      (file-system
 		       (mount-point "/tmp")
 		       (device "none")
