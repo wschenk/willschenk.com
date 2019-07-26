@@ -286,6 +286,101 @@ I have an Intel NUC lying around that I wanted to use, so this is my effort to g
 <h2 id="copy-the-install-image-and-a-linux-export-to-the-host-machine">Copy the install image and a linux export to the host machine</h2>
 
 <p>Make sure that ssh is installed and copy to your local machine, in my case <code>wschenk@192.168.1.52</code>.  Yours should probably be somewhere else.</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="c1"># guix install openssh</span>
+<span class="c1"># export PATH=/root/.guix-profile/bin:$PATH</span>
+<span class="c1"># scp /gnu/store/5v93jajj81mjfpp0lvkx61yk89r572cf-disk-image wschenk@192.168.1.52:/tmp/myguix.iso</span></code></pre></div>
+<h2 id="write-the-iso-into-the-usb">Write the ISO into the USB</h2>
+
+<p>And on the host machine, lets put it onto the USB stick.  If you are on OSX, <a href="https://www.balena.io/etcher/">Etcher</a> is a nice app for doing this.  Otherwise you can use <code>dd</code> and if it&rsquo;s in <code>/dev/disk2</code></p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ sudo dd <span class="k">if</span><span class="o">=</span>/tmp/myguix.iso <span class="nv">of</span><span class="o">=</span>/dev/disk2</code></pre></div>
+<h2 id="booting-the-internuc-off-of-the-usb-key">Booting the InterNUC off of the USB key</h2>
+
+<p>As documented <a href="https://forums.intel.com/s/question/0D50P0000490X0zSAE/image-authorization-fail-system-can-not-boot-to-this-usb-device?language=en_US">here</a>:</p>
+
+<blockquote>
+<ol>
+<li>At BIOS POST (i.e. when the &ldquo;Intel NUC&rdquo; splash screen appears), rapidly press the F2 key over and over until the BIOS Setup (Visual BIOS) display appears.</li>
+<li>Click on Advanced, then Boot and then select the Secure Boot tab.</li>
+<li>Uncheck the Secure Boot option.</li>
+<li>Press F10 and then select Yes to save this change and reboot the system.</li>
+</ol>
+</blockquote>
+
+<h2 id="the-installation">The installation</h2>
+
+<p>Now you should boot up off of the USB key and have guix running on your system!  The <code>root</code> user doesn&rsquo;t have a password and neither does the user account defined.</p>
+
+<p><code>C-Alt-F2</code> will switch to a console.  Log in as <code>root</code> here (without password), and set the password for your user, in my case <code>passwd wschenk</code>.</p>
+
+<p><code>C-Alt-F7</code> will go back to the Gnome login screen, where you&rsquo;ll be able to login as your user if you want to use Gnome.</p>
+
+<h2 id="setting-up-wifi">Setting up WiFi</h2>
+
+<p><code>sudo rfkill unblock all</code> will turn on your network card, which you can figure by going to the <code>Activities</code> menu and selecting <code>Settings</code>.  You need to enable the interface in order for the Gnome network manager to be able to connect to WiFi. Go to a terminal and <code>ping 1.1.1.1</code> to see if you can connect to the internet!</p>
+
+<p>To do this in terminal (you can switch with <code>C-Alt-F2</code> the steps are:</p>
+
+<ol>
+<li><code>rfkill unblock all</code></li>
+<li><code>nmcli device wifi</code> to list out the available SSIDs</li>
+<li><code>nmcli device wifi connect HappyFunCorp password mysekretpassword</code> to actually make the connection.</li>
+<li><code>ping 1.1.1.1</code> to verify that things are working</li>
+</ol>
+
+<h2 id="preparing-the-target-disk">Preparing the target disk</h2>
+
+<p>The easiest way is probably to use <code>cfdisk</code> or <code>GNOME Disk</code> to format your target drive.  I&rsquo;m going to walk through using the CLI to do this, but it doesn&rsquo;t really matter what you use.</p>
+
+<p>First run <code>lsblk</code> to see which devices are on your system.</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">wschenk@intelnuc ~$ lsblk
+NAME        MAJ:MIN RM   SIZE RO TYPE MOUNTPOINT
+sda           <span class="m">8</span>:0    <span class="m">1</span>  <span class="m">14</span>.9G  <span class="m">0</span> disk 
+├─sda1        <span class="m">8</span>:1    <span class="m">1</span>   <span class="m">5</span>.4G  <span class="m">0</span> part 
+└─sda2        <span class="m">8</span>:2    <span class="m">1</span>    40M  <span class="m">0</span> part 
+nvme0n1     <span class="m">259</span>:0    <span class="m">0</span> <span class="m">465</span>.8G  <span class="m">0</span> disk </code></pre></div>
+<p>From there we can use <code>fdisk</code> to create the partitions on, in my case, <code>/dev/nvme0n1</code>.</p>
+
+<p><code>n</code> to create the first partition for with a size of <code>+100M</code>.  I don&rsquo;t know if this is big or small, but seemed fine.</p>
+
+<p><code>t</code> to change the partition type, select <code>1</code> for <code>EFI System</code>.</p>
+
+<p><code>n</code> to create another partition for the rest of the disk.</p>
+
+<p><code>t</code> to change the partition type, select <code>20</code> for <code>Linux Filesystem</code></p>
+
+<p><code>w</code> to write the partition table.</p>
+
+<p>Run <code>sync</code> just to be safe.</p>
+
+<p>Lets setup the first partition to be formatted as FAT32 and be bootable, and mount it on <code>/boot/efi</code></p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="c1"># guix install dosfstools parted</span>
+<span class="c1"># export PATH=/root/.guix-profile/sbin:$PATH</span>
+<span class="c1"># mkfs.vfat -F32 /dev/nvme0n1p1</span>
+<span class="c1"># parted /dev/nvme0n1 set 1 esp on</span>
+<span class="c1"># mount /dev/nvme01n1p1 /boot/efi</span></code></pre></div>
+<p>Initialize the file system, which in my case is the 2nd partition, and label it as <code>guix</code>, and then mount it on <code>/mnt</code>.</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="c1"># mkfs.ext4 -L guix /dev/nvme0n1p2</span>
+<span class="c1"># mount LABEL=guix /mnt</span></code></pre></div>
+<h2 id="edit-config-scm-file">Edit <code>config.scm</code> file</h2>
+
+<p>You should find the <code>config.scm</code> file that you built the system with in <code>/etc/config.scm</code>.  If not bring it over from the internet, and edit it to uncomment out the correct bootloader, and specify the right mount point for <code>/boot/efi</code> so that the kernel will be installed in the right place.</p>
+
+<h2 id="run-guix-system-init">Run <code>guix system init</code></h2>
+
+<p>Finally we are going to build our system onto our target disk!  Make sure that the target system is mounted at <code>/mnt</code> and here we go!</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="c1"># guix pull</span>
+<span class="c1"># guix system init config.scm /mnt</span></code></pre></div>
+<p>Depending up on the time between building the USB key image and doing the pull, this will time to some time to build.  (The main thing is if the linux kernel version is different.)  This builds all of the dependant packages from our <code>operatating-system</code> definition, and then moves overything over to the filesystem in <code>/mnt</code> and should update the grub bootloader.</p>
+
+<p>Once this is done you should be able to reboot, remove the USB key, and them boot into your new Guix System installation!</p>
+
+<h2 id="setup">Setup</h2>
+
+<p>Once the system is booted, do <code>C-Alt-F2</code> to get a console, and log in as root.  Then give root and your username a password using <code>passwd</code>.</p>
+
+<p>Turn the wifi on using <code>rfkill unblock all</code>.</p>
+
+<p>You may want to put the <code>nonguix</code> channel back into <code>/root/.config/guix/channels.scm</code> to help with changing things in the future.</p>
 
 <p>Enjoy!</p>
 
