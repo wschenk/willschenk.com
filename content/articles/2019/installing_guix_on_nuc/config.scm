@@ -1,6 +1,10 @@
 (use-modules (gnu) (nongnu packages linux))
 (use-service-modules desktop networking ssh xorg)
 
+(define this-file
+  (local-file (basename (assoc-ref (current-source-location) 'filename))
+	      "config.scm"))
+
 (operating-system
  (kernel linux)
  (locale "en_US.utf8")
@@ -33,21 +37,22 @@
  
  (packages
   (append
-   (list (specification->package "i3-wm")
-	 (specification->package "i3status")
-	 (specification->package "dmenu")
-	 (specification->package "st")
-	 (specification->package "nss-certs"))
+   (list
+    (specification->package "nss-certs"))
    %base-packages))
   
  
  (services
   (append
-   (list (service gnome-desktop-service-type)
-	 (service openssh-service-type)
-	 (set-xorg-configuration
-	  (xorg-configuration
-	   (keyboard-layout keyboard-layout))))
+   (list
+    ;; Copy current config to /etc/config.scm
+    (simple-service 'config-file etc-service-type
+		    `(("config.scm" ,this-file)))
+    (service gnome-desktop-service-type)
+    (service openssh-service-type)
+    (set-xorg-configuration
+     (xorg-configuration
+      (keyboard-layout keyboard-layout))))
    %desktop-services))
  
  (file-systems (cons* (file-system
