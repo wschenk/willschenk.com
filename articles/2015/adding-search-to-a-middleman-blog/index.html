@@ -25,8 +25,8 @@ if (!doNotTrack) {
 Building the index When you typed in something in google, it doesn&rsquo;t then go and hit every page on the internet to check to see if there&rsquo;s a match. It doesn&rsquo;t even look at every page that it has squirreled away somewhere in the googleplex." />
 <meta property="og:type" content="article" />
 <meta property="og:url" content="https://willschenk.com/articles/2015/adding-search-to-a-middleman-blog/" />
-<meta property="article:published_time" content="2015-06-07T00:00:00&#43;00:00"/>
-<meta property="article:modified_time" content="2015-06-07T00:00:00&#43;00:00"/>
+<meta property="article:published_time" content="2015-06-07T00:00:00+00:00" />
+<meta property="article:modified_time" content="2015-06-07T00:00:00+00:00" />
 
   <meta name="twitter:card" content="summary"/>
 <meta name="twitter:title" content="Adding search to a middleman blog"/>
@@ -112,34 +112,36 @@ Building the index When you typed in something in google, it doesn&rsquo;t then 
 <li>Add meta data for the article into the master map.</li>
 <li>Find all of the words in the article, by stripping out all of the html tags, making things lowercase, and breaking it apart by white space.</li>
 <li>Insert all of those words into our index.</li>
-<li>Convert the whole sucker to JSON.</li>
-</ol>
+
+<li><p>Convert the whole sucker to JSON.</p>
 <div class="highlight"><pre class="chroma"><code class="language-erb" data-lang="erb">&lt;%
-  map = {articles:{}}
-  index = {}
-  blog.articles.each do |article|
-    map[:articles][article.url] = {
-      title: article.title,
-      date: article.date,
-      tags: article.tags
-    }
+map = {articles:{}}
+index = {}
+blog.articles.each do |article|
+map[:articles][article.url] = {
+  title: article.title,
+  date: article.date,
+  tags: article.tags
+}
 
-    words = &#34;#{article.title} #{article.body}&#34;
-    words = words
-      .downcase              # make lowercase
-      .gsub( /&lt;.*?&gt;/, &#34;&#34; )   # get rid of tags
-      .gsub( /[^\w ]/, &#34;&#34; )  # get rid of not letters
-      .split( /\s+/ )        # split by words
-      .sort.uniq
+words = &#34;#{article.title} #{article.body}&#34;
+words = words
+  .downcase              # make lowercase
+  .gsub( /&lt;.*?&gt;/, &#34;&#34; )   # get rid of tags
+  .gsub( /[^\w ]/, &#34;&#34; )  # get rid of not letters
+  .split( /\s+/ )        # split by words
+  .sort.uniq
 
-    words.each do |w|
-      index[w] ||= []
-      index[w] &lt;&lt; article.url
-    end
-  end
-  map[:index] = index
+words.each do |w|
+  index[w] ||= []
+  index[w] &lt;&lt; article.url
+end
+end
+map[:index] = index
 %&gt;
-&lt;%= map.to_json %&gt;</code></pre></div>
+&lt;%= map.to_json %&gt;</code></pre></div></li>
+</ol>
+
 <h2 id="now-lets-add-some-markup-to-the-blog">Now lets add some markup to the blog</h2>
 
 <p>I&rsquo;m sticking this in the header, as you see above:</p>
@@ -197,53 +199,55 @@ Building the index When you typed in something in google, it doesn&rsquo;t then 
 <li>Collect the results of the <code>match_index</code> function.</li>
 <li>Compute the intersections of all the results</li>
 <li>Look up the meta data based on the url.</li>
-<li>Resolve the promise with the results.</li>
-</ol>
+
+<li><p>Resolve the promise with the results.</p>
 <div class="highlight"><pre class="chroma"><code class="language-js" data-lang="js"><span class="kd">var</span> <span class="nx">find_article</span> <span class="o">=</span> <span class="kd">function</span><span class="p">(</span> <span class="nx">search</span> <span class="p">)</span> <span class="p">{</span>
-  <span class="kd">var</span> <span class="nx">search_results</span> <span class="o">=</span> <span class="nx">$</span><span class="p">.</span><span class="nx">Deferred</span><span class="p">();</span>
+<span class="kd">var</span> <span class="nx">search_results</span> <span class="o">=</span> <span class="nx">$</span><span class="p">.</span><span class="nx">Deferred</span><span class="p">();</span>
 
-  <span class="nx">article_index</span><span class="p">().</span><span class="nx">done</span><span class="p">(</span> <span class="kd">function</span><span class="p">(</span> <span class="nx">index</span> <span class="p">)</span> <span class="p">{</span>
-    <span class="c1">// Split the search by widespace
-</span><span class="c1"></span>    <span class="kd">var</span> <span class="nx">words</span> <span class="o">=</span> <span class="nx">search</span><span class="p">.</span><span class="nx">toLowerCase</span><span class="p">().</span><span class="nx">replace</span><span class="p">(</span><span class="sr">/\s+$/</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">).</span><span class="nx">split</span><span class="p">(</span> <span class="sr">/\s+/</span> <span class="p">);</span>
+<span class="nx">article_index</span><span class="p">().</span><span class="nx">done</span><span class="p">(</span> <span class="kd">function</span><span class="p">(</span> <span class="nx">index</span> <span class="p">)</span> <span class="p">{</span>
+<span class="c1">// Split the search by widespace
+</span><span class="c1"></span><span class="kd">var</span> <span class="nx">words</span> <span class="o">=</span> <span class="nx">search</span><span class="p">.</span><span class="nx">toLowerCase</span><span class="p">().</span><span class="nx">replace</span><span class="p">(</span><span class="sr">/\s+$/</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">).</span><span class="nx">split</span><span class="p">(</span> <span class="sr">/\s+/</span> <span class="p">);</span>
 
-    <span class="c1">// Lookup the matches for each word
-</span><span class="c1"></span>    <span class="c1">// Note using $.map seems to flatten the result.
-</span><span class="c1"></span>    <span class="kd">var</span> <span class="nx">full_results</span> <span class="o">=</span> <span class="p">[];</span>
-    <span class="nx">$</span><span class="p">.</span><span class="nx">each</span><span class="p">(</span> <span class="nx">words</span><span class="p">,</span> <span class="kd">function</span><span class="p">(</span> <span class="nx">i</span><span class="p">,</span> <span class="nx">word</span> <span class="p">)</span> <span class="p">{</span>
-      <span class="nx">full_results</span><span class="p">.</span><span class="nx">push</span><span class="p">(</span> <span class="nx">match_index</span><span class="p">(</span> <span class="nx">word</span><span class="p">,</span> <span class="nx">index</span> <span class="p">)</span> <span class="p">);</span>
-    <span class="p">}</span> <span class="p">);</span>
+<span class="c1">// Lookup the matches for each word
+</span><span class="c1">// Note using $.map seems to flatten the result.
+</span><span class="c1"></span><span class="kd">var</span> <span class="nx">full_results</span> <span class="o">=</span> <span class="p">[];</span>
+<span class="nx">$</span><span class="p">.</span><span class="nx">each</span><span class="p">(</span> <span class="nx">words</span><span class="p">,</span> <span class="kd">function</span><span class="p">(</span> <span class="nx">i</span><span class="p">,</span> <span class="nx">word</span> <span class="p">)</span> <span class="p">{</span>
+  <span class="nx">full_results</span><span class="p">.</span><span class="nx">push</span><span class="p">(</span> <span class="nx">match_index</span><span class="p">(</span> <span class="nx">word</span><span class="p">,</span> <span class="nx">index</span> <span class="p">)</span> <span class="p">);</span>
+<span class="p">}</span> <span class="p">);</span>
 
-    <span class="kd">var</span> <span class="nx">urls</span> <span class="o">=</span> <span class="nx">full_results</span><span class="p">[</span><span class="mi">0</span><span class="p">];</span>
+<span class="kd">var</span> <span class="nx">urls</span> <span class="o">=</span> <span class="nx">full_results</span><span class="p">[</span><span class="mi">0</span><span class="p">];</span>
 
-    <span class="c1">// If there are multiple words, compute the intersection
-</span><span class="c1"></span>    <span class="k">if</span><span class="p">(</span> <span class="nx">full_results</span><span class="p">.</span><span class="nx">length</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="p">)</span> <span class="p">{</span>
-      <span class="kd">var</span> <span class="nx">url_counts</span> <span class="o">=</span> <span class="p">{}</span>
-      <span class="nx">$</span><span class="p">.</span><span class="nx">each</span><span class="p">(</span> <span class="nx">full_results</span><span class="p">,</span> <span class="kd">function</span><span class="p">(</span> <span class="nx">i</span><span class="p">,</span> <span class="nx">set</span> <span class="p">)</span> <span class="p">{</span>
-        <span class="nx">$</span><span class="p">.</span><span class="nx">each</span><span class="p">(</span> <span class="nx">set</span><span class="p">,</span> <span class="kd">function</span><span class="p">(</span> <span class="nx">i</span><span class="p">,</span> <span class="nx">url</span> <span class="p">)</span> <span class="p">{</span>
-          <span class="nx">url_counts</span><span class="p">[</span><span class="nx">url</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="nx">url_counts</span><span class="p">[</span><span class="nx">url</span><span class="p">]</span><span class="o">||</span><span class="mi">0</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">;</span>
-        <span class="p">}</span> <span class="p">)</span>
-      <span class="p">}</span> <span class="p">);</span>
+<span class="c1">// If there are multiple words, compute the intersection
+</span><span class="c1"></span><span class="k">if</span><span class="p">(</span> <span class="nx">full_results</span><span class="p">.</span><span class="nx">length</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="p">)</span> <span class="p">{</span>
+  <span class="kd">var</span> <span class="nx">url_counts</span> <span class="o">=</span> <span class="p">{}</span>
+  <span class="nx">$</span><span class="p">.</span><span class="nx">each</span><span class="p">(</span> <span class="nx">full_results</span><span class="p">,</span> <span class="kd">function</span><span class="p">(</span> <span class="nx">i</span><span class="p">,</span> <span class="nx">set</span> <span class="p">)</span> <span class="p">{</span>
+    <span class="nx">$</span><span class="p">.</span><span class="nx">each</span><span class="p">(</span> <span class="nx">set</span><span class="p">,</span> <span class="kd">function</span><span class="p">(</span> <span class="nx">i</span><span class="p">,</span> <span class="nx">url</span> <span class="p">)</span> <span class="p">{</span>
+      <span class="nx">url_counts</span><span class="p">[</span><span class="nx">url</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="nx">url_counts</span><span class="p">[</span><span class="nx">url</span><span class="p">]</span><span class="o">||</span><span class="mi">0</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">;</span>
+    <span class="p">}</span> <span class="p">)</span>
+  <span class="p">}</span> <span class="p">);</span>
 
-      <span class="nx">urls</span> <span class="o">=</span> <span class="p">[];</span>
-      <span class="nx">$</span><span class="p">.</span><span class="nx">each</span><span class="p">(</span> <span class="nx">url_counts</span><span class="p">,</span> <span class="kd">function</span><span class="p">(</span> <span class="nx">url</span><span class="p">,</span> <span class="nx">count</span> <span class="p">)</span> <span class="p">{</span>
-        <span class="k">if</span><span class="p">(</span> <span class="nx">count</span> <span class="o">==</span> <span class="nx">full_results</span><span class="p">.</span><span class="nx">length</span> <span class="p">)</span> <span class="p">{</span>
-          <span class="nx">urls</span><span class="p">.</span><span class="nx">push</span><span class="p">(</span> <span class="nx">url</span> <span class="p">);</span>
-        <span class="p">}</span>
-      <span class="p">}</span> <span class="p">);</span>
+  <span class="nx">urls</span> <span class="o">=</span> <span class="p">[];</span>
+  <span class="nx">$</span><span class="p">.</span><span class="nx">each</span><span class="p">(</span> <span class="nx">url_counts</span><span class="p">,</span> <span class="kd">function</span><span class="p">(</span> <span class="nx">url</span><span class="p">,</span> <span class="nx">count</span> <span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span><span class="p">(</span> <span class="nx">count</span> <span class="o">==</span> <span class="nx">full_results</span><span class="p">.</span><span class="nx">length</span> <span class="p">)</span> <span class="p">{</span>
+      <span class="nx">urls</span><span class="p">.</span><span class="nx">push</span><span class="p">(</span> <span class="nx">url</span> <span class="p">);</span>
     <span class="p">}</span>
+  <span class="p">}</span> <span class="p">);</span>
+<span class="p">}</span>
 
-    <span class="c1">// Pull in the metadata
-</span><span class="c1"></span>    <span class="kd">var</span> <span class="nx">results</span> <span class="o">=</span> <span class="p">{};</span>
-    <span class="nx">$</span><span class="p">.</span><span class="nx">each</span><span class="p">(</span> <span class="nx">urls</span><span class="p">,</span> <span class="kd">function</span><span class="p">(</span> <span class="nx">i</span><span class="p">,</span> <span class="nx">url</span> <span class="p">)</span> <span class="p">{</span>
-      <span class="nx">results</span><span class="p">[</span><span class="nx">url</span><span class="p">]</span> <span class="o">=</span> <span class="nx">index</span><span class="p">.</span><span class="nx">articles</span><span class="p">[</span><span class="nx">url</span><span class="p">];</span>
-    <span class="p">}</span> <span class="p">);</span>
+<span class="c1">// Pull in the metadata
+</span><span class="c1"></span><span class="kd">var</span> <span class="nx">results</span> <span class="o">=</span> <span class="p">{};</span>
+<span class="nx">$</span><span class="p">.</span><span class="nx">each</span><span class="p">(</span> <span class="nx">urls</span><span class="p">,</span> <span class="kd">function</span><span class="p">(</span> <span class="nx">i</span><span class="p">,</span> <span class="nx">url</span> <span class="p">)</span> <span class="p">{</span>
+  <span class="nx">results</span><span class="p">[</span><span class="nx">url</span><span class="p">]</span> <span class="o">=</span> <span class="nx">index</span><span class="p">.</span><span class="nx">articles</span><span class="p">[</span><span class="nx">url</span><span class="p">];</span>
+<span class="p">}</span> <span class="p">);</span>
 
-    <span class="nx">search_results</span><span class="p">.</span><span class="nx">resolve</span><span class="p">(</span> <span class="nx">results</span> <span class="p">);</span>
-  <span class="p">});</span>
+<span class="nx">search_results</span><span class="p">.</span><span class="nx">resolve</span><span class="p">(</span> <span class="nx">results</span> <span class="p">);</span>
+<span class="p">});</span>
 
-  <span class="k">return</span> <span class="nx">search_results</span><span class="p">;</span>
+<span class="k">return</span> <span class="nx">search_results</span><span class="p">;</span>
 <span class="p">};</span>
-</code></pre></div>
+</code></pre></div></li>
+</ol>
+
 <h2 id="wiring-it-up">Wiring it up</h2>
 
 <p>First we need to call our code when the user inputs something in the text area:</p>
@@ -257,28 +261,30 @@ Building the index When you typed in something in google, it doesn&rsquo;t then 
 <li>If the field is empty, hide the dropdown.</li>
 <li>Otherwise show the dropdown and a loading message</li>
 <li>Call <code>find_article</code> and when it returns</li>
-<li>Put the results in the result dropdown.</li>
-</ol>
-<div class="highlight"><pre class="chroma"><code class="language-js" data-lang="js"><span class="kd">var</span> <span class="nx">search_typing</span> <span class="o">=</span> <span class="kd">function</span><span class="p">()</span> <span class="p">{</span>
-  <span class="kd">var</span> <span class="nx">val</span> <span class="o">=</span> <span class="nx">$</span><span class="p">(</span><span class="k">this</span><span class="p">).</span><span class="nx">val</span><span class="p">();</span>
 
-  <span class="k">if</span><span class="p">(</span> <span class="nx">val</span> <span class="o">==</span> <span class="s2">&#34;&#34;</span> <span class="p">)</span> <span class="p">{</span>
-    <span class="nx">$</span><span class="p">(</span><span class="s2">&#34;#search .dropdown&#34;</span><span class="p">).</span><span class="nx">removeClass</span><span class="p">(</span> <span class="s2">&#34;open&#34;</span> <span class="p">);</span>
-  <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
-    <span class="nx">$</span><span class="p">(</span><span class="s2">&#34;#search .dropdown&#34;</span><span class="p">).</span><span class="nx">addClass</span><span class="p">(</span> <span class="s2">&#34;open&#34;</span> <span class="p">);</span>
-    <span class="nx">$</span><span class="p">(</span><span class="s2">&#34;#search .dropdown-menu&#34;</span><span class="p">).</span><span class="nx">html</span><span class="p">(</span><span class="s2">&#34;&lt;li class=&#39;disabled&#39;&gt;&lt;a href=&#39;#&#39;&gt;Loading &#34;</span> <span class="o">+</span> <span class="nx">val</span> <span class="o">+</span><span class="s2">&#34;&lt;/a&gt;&lt;/li&gt;&#34;</span><span class="p">)</span>
-    <span class="nx">find_article</span><span class="p">(</span> <span class="nx">val</span> <span class="p">).</span><span class="nx">done</span><span class="p">(</span> <span class="kd">function</span><span class="p">(</span><span class="nx">results</span><span class="p">)</span> <span class="p">{</span>
-      <span class="kd">var</span> <span class="nx">menu</span> <span class="o">=</span> <span class="nx">$</span><span class="p">(</span><span class="s2">&#34;#search .dropdown-menu&#34;</span><span class="p">).</span><span class="nx">html</span><span class="p">(</span><span class="s2">&#34;&#34;</span><span class="p">);</span>
-      <span class="k">if</span><span class="p">(</span> <span class="nx">$</span><span class="p">.</span><span class="nx">isEmptyObject</span><span class="p">(</span> <span class="nx">results</span> <span class="p">)</span> <span class="p">)</span> <span class="p">{</span>
-        <span class="nx">$</span><span class="p">(</span><span class="s2">&#34;#search .dropdown-menu&#34;</span><span class="p">).</span><span class="nx">html</span><span class="p">(</span><span class="s2">&#34;&lt;li class=&#39;disabled&#39;&gt;&lt;a href=&#39;#&#39;&gt;No results for: &#34;</span> <span class="o">+</span> <span class="nx">val</span> <span class="o">+</span><span class="s2">&#34;&lt;/a&gt;&lt;/li&gt;&#34;</span><span class="p">)</span>
-      <span class="p">}</span>
-      <span class="nx">$</span><span class="p">.</span><span class="nx">each</span><span class="p">(</span> <span class="nx">results</span><span class="p">,</span> <span class="kd">function</span><span class="p">(</span> <span class="nx">url</span><span class="p">,</span> <span class="nx">info</span> <span class="p">)</span> <span class="p">{</span>
-        <span class="nx">menu</span><span class="p">.</span><span class="nx">append</span><span class="p">(</span> <span class="s2">&#34;&lt;li&gt;&lt;a href=\&#34;&#34;</span> <span class="o">+</span> <span class="nx">url</span> <span class="o">+</span> <span class="s2">&#34;\&#34;&gt;&#34;</span> <span class="o">+</span> <span class="nx">info</span><span class="p">.</span><span class="nx">title</span> <span class="o">+</span> <span class="s2">&#34;&lt;/a&gt;&lt;/li&gt;&#34;</span><span class="p">);</span>
-      <span class="p">});</span>
-    <span class="p">});</span>
+<li><p>Put the results in the result dropdown.</p>
+<div class="highlight"><pre class="chroma"><code class="language-js" data-lang="js"><span class="kd">var</span> <span class="nx">search_typing</span> <span class="o">=</span> <span class="kd">function</span><span class="p">()</span> <span class="p">{</span>
+<span class="kd">var</span> <span class="nx">val</span> <span class="o">=</span> <span class="nx">$</span><span class="p">(</span><span class="k">this</span><span class="p">).</span><span class="nx">val</span><span class="p">();</span>
+
+<span class="k">if</span><span class="p">(</span> <span class="nx">val</span> <span class="o">==</span> <span class="s2">&#34;&#34;</span> <span class="p">)</span> <span class="p">{</span>
+<span class="nx">$</span><span class="p">(</span><span class="s2">&#34;#search .dropdown&#34;</span><span class="p">).</span><span class="nx">removeClass</span><span class="p">(</span> <span class="s2">&#34;open&#34;</span> <span class="p">);</span>
+<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+<span class="nx">$</span><span class="p">(</span><span class="s2">&#34;#search .dropdown&#34;</span><span class="p">).</span><span class="nx">addClass</span><span class="p">(</span> <span class="s2">&#34;open&#34;</span> <span class="p">);</span>
+<span class="nx">$</span><span class="p">(</span><span class="s2">&#34;#search .dropdown-menu&#34;</span><span class="p">).</span><span class="nx">html</span><span class="p">(</span><span class="s2">&#34;&lt;li class=&#39;disabled&#39;&gt;&lt;a href=&#39;#&#39;&gt;Loading &#34;</span> <span class="o">+</span> <span class="nx">val</span> <span class="o">+</span><span class="s2">&#34;&lt;/a&gt;&lt;/li&gt;&#34;</span><span class="p">)</span>
+<span class="nx">find_article</span><span class="p">(</span> <span class="nx">val</span> <span class="p">).</span><span class="nx">done</span><span class="p">(</span> <span class="kd">function</span><span class="p">(</span><span class="nx">results</span><span class="p">)</span> <span class="p">{</span>
+  <span class="kd">var</span> <span class="nx">menu</span> <span class="o">=</span> <span class="nx">$</span><span class="p">(</span><span class="s2">&#34;#search .dropdown-menu&#34;</span><span class="p">).</span><span class="nx">html</span><span class="p">(</span><span class="s2">&#34;&#34;</span><span class="p">);</span>
+  <span class="k">if</span><span class="p">(</span> <span class="nx">$</span><span class="p">.</span><span class="nx">isEmptyObject</span><span class="p">(</span> <span class="nx">results</span> <span class="p">)</span> <span class="p">)</span> <span class="p">{</span>
+    <span class="nx">$</span><span class="p">(</span><span class="s2">&#34;#search .dropdown-menu&#34;</span><span class="p">).</span><span class="nx">html</span><span class="p">(</span><span class="s2">&#34;&lt;li class=&#39;disabled&#39;&gt;&lt;a href=&#39;#&#39;&gt;No results for: &#34;</span> <span class="o">+</span> <span class="nx">val</span> <span class="o">+</span><span class="s2">&#34;&lt;/a&gt;&lt;/li&gt;&#34;</span><span class="p">)</span>
   <span class="p">}</span>
+  <span class="nx">$</span><span class="p">.</span><span class="nx">each</span><span class="p">(</span> <span class="nx">results</span><span class="p">,</span> <span class="kd">function</span><span class="p">(</span> <span class="nx">url</span><span class="p">,</span> <span class="nx">info</span> <span class="p">)</span> <span class="p">{</span>
+    <span class="nx">menu</span><span class="p">.</span><span class="nx">append</span><span class="p">(</span> <span class="s2">&#34;&lt;li&gt;&lt;a href=\&#34;&#34;</span> <span class="o">+</span> <span class="nx">url</span> <span class="o">+</span> <span class="s2">&#34;\&#34;&gt;&#34;</span> <span class="o">+</span> <span class="nx">info</span><span class="p">.</span><span class="nx">title</span> <span class="o">+</span> <span class="s2">&#34;&lt;/a&gt;&lt;/li&gt;&#34;</span><span class="p">);</span>
+  <span class="p">});</span>
+<span class="p">});</span>
 <span class="p">}</span>
-</code></pre></div>
+<span class="p">}</span>
+</code></pre></div></li>
+</ol>
+
 <h2 id="next-steps">Next steps</h2>
 
 <ol>
