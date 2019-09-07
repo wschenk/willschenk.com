@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html><head>
+  <title>Setting up an IPFS Node</title>
+  
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  <link rel="stylesheet" href="../../../css/theme.css"/>
+  <link rel="stylesheet" href="../../../css/syntax.css"/>
+
+  
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-56296045-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  <meta property="og:title" content="Setting up an IPFS Node" />
+<meta property="og:description" content="IPFS nodes that run in the broswer communicate over websockets to the main network. Lets walk through how to setup a IPFS server that your browser code can connect to in addition to the public gateways. Strategy     Wire everything up with docker-compose    Create and configure an ipfs container    Setup nginx with dummy certificate    Replace that certificate with certbot    Setup certbot to auto renew the certificates   Requirements   You will need:    A server with a domain or subdomain to use certbot to get a certificate    A working docker-compose install    I&#39;m using a prebuilt docker image on Digital Ocean but the key part is to get the domain name." />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://willschenk.com/articles/2019/setting_up_an_ipfs_node/" />
+<meta property="article:published_time" content="2019-09-07T00:00:00+00:00" />
+<meta property="article:modified_time" content="2019-09-07T00:00:00+00:00" />
+
+  <meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="Setting up an IPFS Node"/>
+<meta name="twitter:description" content="IPFS nodes that run in the broswer communicate over websockets to the main network. Lets walk through how to setup a IPFS server that your browser code can connect to in addition to the public gateways. Strategy     Wire everything up with docker-compose    Create and configure an ipfs container    Setup nginx with dummy certificate    Replace that certificate with certbot    Setup certbot to auto renew the certificates   Requirements   You will need:    A server with a domain or subdomain to use certbot to get a certificate    A working docker-compose install    I&#39;m using a prebuilt docker image on Digital Ocean but the key part is to get the domain name."/>
+<meta name="twitter:site" content="@wschenk"/>
+
+
+  <style>
+    .article p, .article ul, .article ol, .article table {
+      max-width: 45em;
+    }
+
+    article.article p:first-child, .article blockquote {
+      font-size: 1.25em;
+      font-weight: 300;
+      max-width: 36em;  
+    }
+  </style>
+</head>
+<body><nav class="container my-5">
+  <h1 class="pt-md-5 display-3"><a class="text-dark" href="../../../">Will Schenk</a></h1>
+  <p>
+    
+      <a class="text-dark h4 mr-3 font-weight-light" href="../../../articles/" title="">Articles</a>
+    
+      <a class="text-dark h4 mr-3 font-weight-light" href="../../../contact" title="">Contact</a>
+    
+      <a class="text-dark h4 mr-3 font-weight-light" href="../../../tags/" title="">Tags</a>
+    
+    <a href="../../../feed.xml" class="mr-3 h4 text-light"><img src="../../../img/rss.svg" alt="rss" height="20" width="20"/></a>
+    
+      <a href="https://twitter.com/@wschenk" class="mr-3 h4 text-light"><img src="../../../img/twitter.svg" alt="twitter" height="20" width="20"/></a>
+    
+    
+      <a href="https://instagram.com/wschenk" class="mr-3 h4 text-light"><img src="../../../img/instagram.svg" alt="instagram" height="20" width="20"/></a>
+    
+    
+      <a href="https://github.com/wschenk" class="mr-3 h4 text-light"><img src="../../../img/github.svg" alt="github" height="20" width="20"/></a>
+    
+    
+      <a href="https://linkedin.com/in/will-schenk-420266" class="mr-3 h4 text-light"><img src="../../../img/linkedin.svg" alt="linkedin" height="20" width="20"/></a>
+    
+  </p>
+</nav>
+
+<div class="container">
+  <h1 class="mt-5">Setting up an IPFS Node</h1>
+
+  
+    <h2 class="font-weight-light font-italic mb-3">using docker-compose and certbot</h2>
+  
+
+  <p class="text-muted mt-3">
+    <a class="text-muted" href="https://willschenk.com/articles/2019/setting_up_an_ipfs_node/">Published September 7, 2019</a>
+
+    
+      <a class="text-muted" href="../../../tags/howto">#howto,</a>
+    
+      <a class="text-muted" href="../../../tags/ipfs">#ipfs,</a>
+    
+      <a class="text-muted" href="../../../tags/docker">#docker,</a>
+    
+      <a class="text-muted" href="../../../tags/docker-compose">#docker-compose,</a>
+    
+      <a class="text-muted" href="../../../tags/certbot">#certbot</a>
+    
+  </p>
+
+  
+
+  
+
+  <article class="article mt-5">
+    
+<p>
+IPFS nodes that run in the broswer communicate over websockets to the main network.  Lets walk through how to setup a IPFS server that your browser code can connect to in addition to the public gateways.
+</p>
+<h1 id="headline-1">
+Strategy
+</h1>
+<ol>
+<li>
+<p>
+Wire everything up with <code class="verbatim">docker-compose</code>
+</p>
+</li>
+<li>
+<p>
+Create and configure an <code class="verbatim">ipfs</code> container
+</p>
+</li>
+<li>
+<p>
+Setup <code class="verbatim">nginx</code> with dummy certificate
+</p>
+</li>
+<li>
+<p>
+Replace that certificate with <code class="verbatim">certbot</code>
+</p>
+</li>
+<li>
+<p>
+Setup <code class="verbatim">certbot</code> to auto renew the certificates
+</p>
+</li>
+</ol>
+<h1 id="headline-2">
+Requirements
+</h1>
+<p>
+You will need:
+</p>
+<ol>
+<li>
+<p>
+A server with a domain or subdomain to use <code class="verbatim">certbot</code> to get a certificate
+</p>
+</li>
+<li>
+<p>
+A working docker-compose install
+</p>
+</li>
+</ol>
+<p>
+I&#39;m using a prebuilt docker image on <a href="https://www.digitalocean.com/">Digital Ocean</a> but the key part is to get the domain name.
+</p>
+<h1 id="headline-3">
+Setting up <code class="verbatim">ipfs</code>
+</h1>
+<h2 id="headline-4">
+<code class="verbatim">docker-compose</code> setup
+</h2>
+<p>
+We are going to pull from the official ipfs docker image.  The <code class="verbatim">IPFS_PROFILE</code> environment variable is used on the initial repository installation configure a specific profile, in this case <code class="verbatim">server</code>, which will remove some of the local network scanning stuff that could make your hosting provider uneasy.  We will also define the storage directory in <code class="verbatim">/ipfsdata</code> which we will mount to the local file system in <code class="verbatim">./data/ipfs</code>.  This is to keep any local data around if you remove the server or decide to upgrade your installation, but it&#39;s not strictly necessary if you are using this as a sort of cache.
+</p>
+<p>
+We expose some ports here. <code class="verbatim">4001</code> is the ipfs swarm port and needs to be open to the world.  If you are running a firewall you should unblock that port. <code class="verbatim">8080</code> is the local gateway which will we expose only to localhost, <code class="verbatim">8081</code> is where we are going to run the websocket listener – we will proxy through <code class="verbatim">nginx</code> later in this document, and <code class="verbatim">5001</code> is the api server which should not be exposed externally.
+</p>
+<div class="src src-yml">
+<div class="highlight"><pre class="chroma"><code class="language-yml" data-lang="yml">version<span class="p">:</span><span class="w"> </span><span class="s1">&#39;3&#39;</span><span class="w">
+</span><span class="w"></span>services<span class="p">:</span><span class="w">
+</span><span class="w">  </span>ipfs<span class="p">:</span><span class="w">
+</span><span class="w">    </span>image<span class="p">:</span><span class="w"> </span>ipfs/go-ipfs<span class="p">:</span>latest<span class="w">
+</span><span class="w">    </span>environment<span class="p">:</span><span class="w">
+</span><span class="w">      </span>-<span class="w"> </span>IPFS_PROFILE=server<span class="w">
+</span><span class="w">      </span>-<span class="w"> </span>IPFS_PATH=/ipfsdata<span class="w">
+</span><span class="w">    </span>volumes<span class="p">:</span><span class="w">
+</span><span class="w">      </span>-<span class="w"> </span>./data/ipfs<span class="p">:</span>/ipfsdata<span class="w">
+</span><span class="w">    </span>ports<span class="p">:</span><span class="w">
+</span><span class="w">      </span>-<span class="w"> </span><span class="s2">&#34;4001:4001&#34;</span><span class="w">
+</span><span class="w">      </span>-<span class="w"> </span><span class="s2">&#34;127.0.0.1:8080:8080&#34;</span><span class="w">
+</span><span class="w">      </span>-<span class="w"> </span><span class="s2">&#34;127.0.0.1:8081:8081&#34;</span><span class="w">
+</span><span class="w">      </span>-<span class="w"> </span><span class="s2">&#34;127.0.0.1:5001:5001&#34;</span></code></pre></div>
+</div>
+<h2 id="headline-5">
+Verifying basic install
+</h2>
+<div class="src src-bash">
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">docker-compose up -d ipfs</code></pre></div>
+</div>
+<p>
+Look at the logs to make sure that it&#39;s started up:
+</p>
+<div class="src src-bash">
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">docker-compose logs ipfs</code></pre></div>
+</div>
+<p>
+See if it&#39;s connected to any peers:
+</p>
+<div class="src src-bash">
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">docker-compose <span class="nb">exec</span> ipfs ipfs swarm peers</code></pre></div>
+</div>
+<p>
+See if we can get any data:
+</p>
+<div class="src src-bash">
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">curl http://127.0.0.1:8080/ipfs/QmPChd2hVbrJ6bfo3WBcTW4iZnpHm8TEzWkLHmLpXhF68A</code></pre></div>
+</div>
+<h2 id="headline-6">
+Configuring websockets and relay
+</h2>
+<p>
+Add the websocket listener and RelayHop
+</p>
+<div class="src src-bash">
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">docker-compose <span class="nb">exec</span> ipfs ipfs config Addresses.Swarm <span class="s1">&#39;[&#34;/ip4/0.0.0.0/tcp/4001&#34;, &#34;/ip4/0.0.0.0/tcp/8081/ws&#34;, &#34;/ip6/::/tcp/4001&#34;]&#39;</span> --json
+docker-compose <span class="nb">exec</span> ipfs ipfs config --bool Swarm.EnableRelayHop <span class="nb">true</span> 
+docker-compose <span class="nb">exec</span> ipfs ipfs config --bool Swarm.EnableAutoNATService <span class="nb">true</span>
+docker-compose <span class="nb">exec</span> ipfs ipfs config --bool Swarm.EnableAutoRelay true</code></pre></div>
+</div>
+<p>
+And then restart
+</p>
+<div class="src src-bash">
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">docker-compose restart ipfs</code></pre></div>
+</div>
+<h1 id="headline-7">
+Adding <code class="verbatim">nginx</code> and <code class="verbatim">certbot</code> containers
+</h1>
+<p>
+We are going to use <code class="verbatim">docker-compose</code> to setup 3 services.
+</p>
+<ol>
+<li>
+<p>
+nginx
+</p>
+</li>
+<li>
+<p>
+certbot
+</p>
+</li>
+<li>
+<p>
+ipfs
+</p>
+</li>
+</ol>
+<p>
+<code class="verbatim">nginx</code> will listen on HTTP (80) and HTTPS (443).  On port 80 it will redirect to 443, and our content will either be served from there or proxied back to the <code class="verbatim">ipfs</code> node.  The configuration, letsencrypt keys, and certbot web data will be exposed as volumes to be configure nginx, and to share data with the <code class="verbatim">certbot</code> service.
+</p>
+<p>
+<code class="verbatim">certbot</code> as a service will be used to update our certificates when they expire.  We will manually coordinate the initial certificate generation, and the role of this service is mainly to deal with refreshing them as the certificates expire.  This shares two volumes with the <code class="verbatim">nginx</code> server to store the certificates themselves, as well as managing the web handshake. No ports are exposed.
+</p>
+<div class="src src-yml">
+<div class="highlight"><pre class="chroma"><code class="language-yml" data-lang="yml">version<span class="p">:</span><span class="w"> </span><span class="s1">&#39;3&#39;</span><span class="w">
+</span><span class="w"></span>services<span class="p">:</span><span class="w">
+</span><span class="w">  </span>nginx<span class="p">:</span><span class="w">
+</span><span class="w">    </span>image<span class="p">:</span><span class="w"> </span>nginx<span class="p">:</span><span class="m">1.17.2</span><span class="w">
+</span><span class="w">    </span>ports<span class="p">:</span><span class="w">
+</span><span class="w">      </span>-<span class="w"> </span><span class="s2">&#34;80:80&#34;</span><span class="w">
+</span><span class="w">      </span>-<span class="w"> </span><span class="s2">&#34;443:443&#34;</span><span class="w">
+</span><span class="w">      </span>-<span class="w"> </span><span class="s2">&#34;4003:4003&#34;</span><span class="w">
+</span><span class="w">    </span>volumes<span class="p">:</span><span class="w">
+</span><span class="w">      </span>-<span class="w"> </span>./data/nginx<span class="p">:</span>/etc/nginx/conf.d<span class="w">
+</span><span class="w">      </span>-<span class="w"> </span>./data/certbot/conf<span class="p">:</span>/etc/letsencrypt<span class="w">
+</span><span class="w">      </span>-<span class="w"> </span>./data/certbot/www<span class="p">:</span>/var/www/certbot<span class="w">
+</span><span class="w">    </span>command<span class="p">:</span><span class="w"> </span><span class="s2">&#34;/bin/sh -c &#39;while :; do sleep 6h &amp; wait $${!}; nginx -s reload; done &amp; nginx -g \&#34;daemon off;\&#34;&#39;&#34;</span><span class="w">
+</span><span class="w">  </span>certbot<span class="p">:</span><span class="w">
+</span><span class="w">    </span>image<span class="p">:</span><span class="w"> </span>certbot/certbot<span class="w">
+</span><span class="w">    </span>volumes<span class="p">:</span><span class="w">
+</span><span class="w">      </span>-<span class="w"> </span>./data/certbot/conf<span class="p">:</span>/etc/letsencrypt<span class="w">
+</span><span class="w">      </span>-<span class="w"> </span>./data/certbot/www<span class="p">:</span>/var/www/certbot<span class="w">
+</span><span class="w">    </span>entrypoint<span class="p">:</span><span class="w"> </span><span class="s2">&#34;/bin/sh -c &#39;trap exit TERM; while :; do certbot renew; sleep 12h &amp; wait $${!}; done;&#39;&#34;</span><span class="w">
+</span><span class="w">  </span>ipfs<span class="p">:</span><span class="w">
+</span><span class="w">    </span>image<span class="p">:</span><span class="w"> </span>ipfs/go-ipfs<span class="p">:</span>latest<span class="w">
+</span><span class="w">    </span>environment<span class="p">:</span><span class="w">
+</span><span class="w">      </span>-<span class="w"> </span>IPFS_PROFILE=server<span class="w">
+</span><span class="w">      </span>-<span class="w"> </span>IPFS_PATH=/ipfsdata<span class="w">
+</span><span class="w">    </span>volumes<span class="p">:</span><span class="w">
+</span><span class="w">      </span>-<span class="w"> </span>./data/ipfs<span class="p">:</span>/ipfsdata<span class="w">
+</span><span class="w">    </span>ports<span class="p">:</span><span class="w">
+</span><span class="w">      </span>-<span class="w"> </span><span class="s2">&#34;4001:4001&#34;</span><span class="w">
+</span><span class="w">      </span>-<span class="w"> </span><span class="s2">&#34;127.0.0.1:8080:8080&#34;</span><span class="w">
+</span><span class="w">      </span>-<span class="w"> </span><span class="s2">&#34;127.0.0.1:8081:8081&#34;</span><span class="w">
+</span><span class="w">      </span>-<span class="w"> </span><span class="s2">&#34;127.0.0.1:5001:5001&#34;</span></code></pre></div>
+</div>
+<h1 id="headline-8">
+NGINX &amp; Certbot
+</h1>
+<h2 id="headline-9">
+Create NGINX config
+</h2>
+<p>
+We configure nginx to listen on ports 80 and 443.  For the HTTP server, we give it a name (in my case <code class="verbatim">ssb.willschenk.com</code>) and redirect everything to the <code class="verbatim">https</code> server, except the location <code class="verbatim">/.will-known/acme-challenege/</code> which <code class="verbatim">certbot</code> is going to use to negotiate with the letsencrypt servers to generate our certficate.  You&#39;ll notice that this directory is shared with the <code class="verbatim">certbot</code> docker image.
+</p>
+<p>
+On the HTTPS side, we are pointing to our certificate folder and nginx configuration that we will get from certbot.  And then we proxy most of the traffic to the <code class="verbatim">ipfs</code> container.  Note that we are using <code class="verbatim">http://ipfs:8081</code> which, inside of the <code class="verbatim">nginx</code> container configured using <code class="verbatim">docker-compose</code>, will point to the <code class="verbatim">ipfs</code> container managed by <code class="verbatim">docker-compose</code>.
+</p>
+<p>
+Put this file in <code class="verbatim">./data/nginx/app.conf</code>:
+</p>
+<div class="src src-conf">
+<div class="highlight"><pre class="chroma"><code class="language-conf" data-lang="conf">server {
+    listen 80;
+    server_name ssb.willschenk.com;
+    location / {
+        return 301 https://$host$request_uri;
+    }
+
+    location /.well-known/acme-challenge/ {
+    	root /var/www/certbot;
+    }
+}
+server {
+    listen 443 ssl;
+    server_name ssb.willschenk.com;
+
+    ssl_certificate /etc/letsencrypt/live/ssb.willschenk.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/ssb.willschenk.com/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+    
+    location / {
+    	proxy_pass http://ipfs:8080;
+    	proxy_set_header Host $host;
+    	proxy_cache_bypass $http_upgrade;
+    }
+}
+
+server {
+    listen 4003 ssl;
+    server_name ssb.willschenk.com;
+
+    ssl_certificate /etc/letsencrypt/live/ssb.willschenk.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/ssb.willschenk.com/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+    
+    location / {
+        proxy_pass http://ipfs:8081;
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection &#34;upgrade&#34;;
+    }
+}</code></pre></div>
+</div>
+<h2 id="headline-10">
+Pull down certbot config files for nginx
+</h2>
+<div class="src src-bash">
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">  <span class="nv">data_path</span><span class="o">=</span>./data/certbot
+  mkdir -p <span class="s2">&#34;</span><span class="nv">$data_path</span><span class="s2">/conf&#34;</span>
+  curl -s https://raw.githubusercontent.com/certbot/certbot/master/certbot-nginx/certbot_nginx/tls_configs/options-ssl-nginx.conf &gt; <span class="s2">&#34;</span><span class="nv">$data_path</span><span class="s2">/conf/options-ssl-nginx.conf&#34;</span>
+  curl -s https://raw.githubusercontent.com/certbot/certbot/master/certbot/ssl-dhparams.pem &gt; <span class="s2">&#34;</span><span class="nv">$data_path</span><span class="s2">/conf/ssl-dhparams.pem&#34;</span></code></pre></div>
+</div>
+<h2 id="headline-11">
+Setup initial certificates
+</h2>
+<p>
+nginx won&#39;t startup ssl without a certificate, and we need to have the http server running for the certbot handshake.  To get around this we will create a temporary self-signed certificate that we will use to set things up.
+</p>
+<div class="src src-bash">
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="nv">domain</span><span class="o">=</span>ssb.willschenk.com
+<span class="nv">path</span><span class="o">=</span>/etc/letsencrypt/live/<span class="nv">$domain</span>
+mkdir -p ./data/certbot/conf/live/<span class="nv">$domain</span>
+docker-compose run --rm --entrypoint <span class="s2">&#34;\
+</span><span class="s2">  openssl req -x509 -nodes -newkey rsa:1024 -days 1\
+</span><span class="s2">    -keyout &#39;</span><span class="nv">$path</span><span class="s2">/privkey.pem&#39; \
+</span><span class="s2">    -out &#39;</span><span class="nv">$path</span><span class="s2">/fullchain.pem&#39; \
+</span><span class="s2">    -subj &#39;/CN=localhost&#39;&#34;</span> certbot</code></pre></div>
+</div>
+<h2 id="headline-12">
+Get the real certs
+</h2>
+<p>
+First start up the ipfs and nginx containers
+</p>
+<div class="src src-bash">
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">docker-compose up -d ipfs
+docker-compose up -d nginx</code></pre></div>
+</div>
+<p>
+Check out the logs for nginx to make sure that there are no errors, with <code class="verbatim">docker-compose logs nginx</code>.  If it has successfully started up, remove the temporary certificates:
+</p>
+<div class="src src-bash">
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">docker-compose run --rm --entrypoint <span class="s2">&#34;\
+</span><span class="s2">  rm -Rf /etc/letsencrypt/live/</span><span class="nv">$domain</span><span class="s2"> &amp;&amp; \
+</span><span class="s2">  rm -Rf /etc/letsencrypt/archive/</span><span class="nv">$domain</span><span class="s2"> &amp;&amp; \
+</span><span class="s2">  rm -Rf /etc/letsencrypt/renewal/</span><span class="nv">$domain</span><span class="s2">.conf&#34;</span> certbot</code></pre></div>
+</div>
+<p>
+Then start a on-off certbot container to do the request, changing your email address:
+</p>
+<div class="src src-bash">
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="nv">email_arg</span><span class="o">=</span>wschenk@gmail.com
+docker-compose run --rm --entrypoint <span class="s2">&#34;\
+</span><span class="s2">  certbot certonly --webroot -w /var/www/certbot \
+</span><span class="s2">    --email </span><span class="nv">$email_arg</span><span class="s2"> \
+</span><span class="s2">    -d </span><span class="nv">$domain</span><span class="s2">
+</span><span class="s2">    --rsa-key-size 4096 \
+</span><span class="s2">    --agree-tos \
+</span><span class="s2">    --force-renewal&#34;</span> certbot</code></pre></div>
+</div>
+<p>
+Answer some questions, and you should now have some valid certificates.
+</p>
+<h2 id="headline-13">
+Restart everything
+</h2>
+<p>
+Now lets bring everything down, and start it up like it will in the future:
+</p>
+<div class="src src-bash">
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">docker-compose down
+docker-compose up -d</code></pre></div>
+</div>
+<p>
+And remember you can check the individual logs with <code class="verbatim">docker-compose logs name</code> where name is one of <code class="verbatim">ipfs</code>, <code class="verbatim">nginx</code>, <code class="verbatim">certbot</code>
+</p>
+<h1 id="headline-14">
+Testing it out
+</h1>
+<h2 id="headline-15">
+Checking to see if you have <code class="verbatim">ipfs</code> peers
+</h2>
+<p>
+From the host machine:
+</p>
+<div class="src src-bash">
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">curl http://127.0.0.1:5001/api/v0/swarm/peers<span class="p">|</span>jq</code></pre></div>
+</div>
+<p>
+Or using the ipfs command inside of the container:
+</p>
+<div class="src src-bash">
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">docker-compose <span class="nb">exec</span> ipfs ipfs swarm peers</code></pre></div>
+</div>
+<h2 id="headline-16">
+Checking to see if your new public gateway works
+</h2>
+<p>
+You can do this from your webbrowser or the command line.
+</p>
+<div class="src src-bash">
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">curl https://ssb.willschenk.com/ipfs/QmPChd2hVbrJ6bfo3WBcTW4iZnpHm8TEzWkLHmLpXhF68A</code></pre></div>
+</div>
+<h2 id="headline-17">
+Checking to make sure that API isn&#39;t exposed to the internet
+</h2>
+<p>
+From another computer, make sure that you haven&#39;t exposed this port to the wild wild world:
+</p>
+<div class="src src-bash">
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">curl http://ssb.willschenk.com:5001/api/v0/swarm/peers<span class="p">|</span>jq</code></pre></div>
+</div>
+<h2 id="headline-18">
+Checking WebSockets
+</h2>
+<p>
+Visit <a href="https://www.websocket.org/echo.html">https://www.websocket.org/echo.html</a> and put in the address of your server to make sure that you can connect over websockets.  In my case, it&#39;s <code class="verbatim">wss://ssb.willschenk.com:4003</code>
+</p>
+<h1 id="headline-19">
+Conclusion
+</h1>
+<p>
+From here you should be able to start working with your node directly.  In a later post we&#39;ll use some JavaScript code in the browser that will connect to your peer and walk through actually using the node a bit more.  Have fun!
+</p>
+<h1 id="headline-20">
+References
+</h1>
+<ol>
+<li>
+<p>
+<a href="https://medium.com/@pentacent/nginx-and-lets-encrypt-with-docker-in-less-than-5-minutes-b4b8a60d3a71">nginx and docker</a>
+</p>
+</li>
+<li>
+<p>
+<a href="https://raw.githubusercontent.com/wmnnd/nginx-certbot/master/init-letsencrypt.sh">init-letsencrypt.sh</a>
+</p>
+</li>
+<li>
+<p>
+<a href="https://medium.com/textileio/tutorial-setting-up-an-ipfs-peer-part-ii-67a99cd2c5">Setting up an IPFS Peer</a>
+</p>
+</li>
+<li>
+<p>
+<a href="https://hackernoon.com/public-ipfs-node-behind-nginx-reverse-proxy-5682747f174b">ipfs node behing reverse proxy</a>
+</p>
+</li>
+<li>
+<p>
+<a href="https://github.com/ipfs/js-ipfs/tree/master/examples">https://github.com/ipfs/js-ipfs/tree/master/examples</a>
+</p>
+</li>
+<li>
+<p>
+<a href="https://hub.docker.com/r/ipfs/js-ipfs">https://hub.docker.com/r/ipfs/js-ipfs</a>
+</p>
+</li>
+<li>
+<p>
+<a href="https://github.com/ipfs/js-ipfs#running-js-ipfs-with-docker">https://github.com/ipfs/js-ipfs#running-js-ipfs-with-docker</a>
+</p>
+</li>
+<li>
+<p>
+<a href="https://github.com/ipfs/js-ipfs/blob/master/init-and-daemon.sh">https://github.com/ipfs/js-ipfs/blob/master/init-and-daemon.sh</a>
+</p>
+</li>
+</ol>
+
+  </article>
+
+  
+</div>
+
+
+  <div class="bg-light py-5">
+    <div class="container">
+      <h2 class="text-center">Read next</h2>
+
+      <div class="row">
+        <div class="col-md-6 text-center">
+          
+        </div>
+        <div class="col-md-6 text-center">
+          
+            Previous Post:
+            <a href="../../../articles/2019/using_org_mode_in_hugo/">Using Org Mode in Hugo</a>
+          
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+
+
+<div class="container mt-5">
+  <h2 class="text-center">See also</h2>
+  <div class="row">
+  	
+      <div class="col-md mb-3">
+        <p class="lead mb-0"><a class="text-body" href="../../../articles/2019/using_org_mode_in_hugo/">Using Org Mode in Hugo</a></p>
+
+        
+          <p class="lead font-italic mb-0">emacs everywhere</p>
+        
+        <div class="font-weight-light mt-3">
+          
+          
+            <p>I&#39;m learning org-mode and I don&#39;t really know what I&#39;m doing, but this is how I&#39;m trying out writing hugo posts with it. I&#39;m used to markdown, so this is a what&#39;s different post. Some minor org-mode tweaks   For some reason when org-mode starts it doesn&#39;t softwrap the paragragh text. I like to have it soft-wrapped so everything is on the screen if it&#39;s not collapsed. Also having some nice indentation makes things visually cleaner, so add this snippet to your ~/.</p>
+          
+        </div>
+        <a href="../../../articles/2019/using_org_mode_in_hugo/" class="btn btn-primary">Read more</a>
+      </div>
+    
+  </div>
+</div>
+
+
+<footer class="footer bg-dark text-light mt-3">
+  <div class="container">
+    <h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2>
+  </div>
+</footer>
+</body>
+</html>
