@@ -493,19 +493,54 @@ function install_hugo() {
 	warning You need to have a working go installation to install hugo
 	return
     fi
-    
+
     info Installing hugo
     (
+	HUGO_VERSION=v0.56.3
 	cd /tmp
 	rm -rf hugo
 	git clone https://github.com/gohugoio/hugo.git
 	cd hugo
-	git fetch origin stable
-	git checkout stable
+	git fetch origin $HUGO_VERSION
+	git checkout $HUGO_VERSION
 	go install
     )
     info $(hugo version)
 }
+
+function install_atom() {
+    info Installing atom
+    (
+	cd /tmp
+	sudo apt-get install -y wget
+	wget https://atom.io/download/deb
+	mv deb atom.deb
+	sudo apt install -y ./atom.deb
+    )
+}
+
+function install_gcloud() {
+    info Installing gcloud
+    
+    # Create environment variable for correct distribution
+    export CLOUD_SDK_REPO="cloud-sdk-$(lsb_release -c -s)"
+
+    # Add the Cloud SDK distribution URI as a package source
+    echo "deb http://packages.cloud.google.com/apt $CLOUD_SDK_REPO main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
+
+    # Import the Google Cloud Platform public key
+    curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
+
+    # Update the package list and install the Cloud SDK
+    sudo apt-get update && sudo apt-get install -y google-cloud-sdk
+}
+
+
+function install_heroku() {
+    info Installing heroku
+    curl https://cli-assets.heroku.com/install-ubuntu.sh | sh
+}
+
 
 ## Actual setup scripts
 
@@ -572,13 +607,17 @@ fi
 
 # Applications
 
-not_installed "emacs" && install_application emacs
-not_installed "docker" && install_docker
-not_installed "ruby" && install_rbenv
-not_installed "node" && install_nvm
-not_installed "go" && install_go
-not_installed "hugo" && install_hugo
-#install "heroku" && install_heroku
+not_installed emacs && install_application emacs
+not_installed tmux && install_application tmux
+not_installed ag && install_application silversearcher-ag
+not_installed docker && install_docker
+not_installed ruby && install_rbenv
+not_installed node && install_nvm
+not_installed go && install_go
+not_installed hugo && install_hugo
+not_installed heroku && install_heroku
+not_installed atom && install_atom
+not_installed gcloud && install_gcloud
 
 # Get workspace
 
