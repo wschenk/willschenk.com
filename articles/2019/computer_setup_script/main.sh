@@ -313,8 +313,13 @@ fi
 ### Signal trapping and backtracing
 ##############################################################################
 
+RESET_TERMINAL=""
 function __b3bp_cleanup_before_exit () {
-  info "Cleaning up. Done"
+    if test -z "$RESET_TERMINAL"; then
+	info Script finished
+    else
+	warning "Environment variables have been reset, please logout and log back in"
+    fi
 }
 trap __b3bp_cleanup_before_exit EXIT
 
@@ -387,7 +392,18 @@ function not_installed() {
     fi
 }
 
+UPDATED=""
+function update_check {
+    if test -z "$UPDATED"; then
+	info "Running apt-get update"
+	sudo apt-get update
+    fi
+
+    UPDATED=1
+}
+
 function install_application {
+    update_check
     sudo apt-get install -y $1
 }
 
@@ -428,40 +444,101 @@ function install_docker {
 }
 
 function install_rbenv() {
-
+    RESET_TERMINAL=1
+    update_check
     info Installing rbenv
 
-    sudo apt-get install -y libssl-dev libreadline-dev zlib1g-dev
-
-    curl -fsSL https://github.com/rbenv/rbenv-installer/raw/master/bin/rbenv-installer | bash
+    sudo apt-get install -y build-essential libssl-dev libreadline-dev zlib1g-dev
+    
+    curl -fsSL https://github.com/rbenv/rbenv-installer/raw/master/bin/rbenv-installer | (bash)
     echo 'export PATH=$PATH:$HOME/.rbenv/bin' >> $HOME/.profile
     echo 'eval "$(rbenv init -)"' >> $HOME/.profile
+    
+    warning "Be sure to logout and log back in, or source ~/.profile"
     source ~/.profile
     rbenv install 2.5.5
     rbenv global 2.5.5
+}
+
+function install_nvm() {
+    RESET_TERMINAL=1
+    info Installing nvm
+
+    curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.34.0/install.sh | (bash)
+
+    export NVM_DIR="$HOME/.config"
+    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+    [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+
+    warning "Be sure to loging and log back in, or source ~/.bashrc"
+    nvm install 10
+    nvm global 10
+}
+
+function install_go() {
+    RESET_TERMINAL=1
+    info Installing go
+    (
+	cd /tmp
+	wget https://dl.google.com/go/go1.12.1.linux-amd64.tar.gz
+	sudo tar -C /usr/local -xzf go1.12.1.linux-amd64.tar.gz
+	echo 'export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin' >> $HOME/.profile
+    )
+    export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin
+    source ~/.profile
+}
+
+function install_hugo() {
+    if ! command -v go > /dev/null; then
+	warning You need to have a working go installation to install hugo
+	return
+    fi
+    
+    info Installing hugo
+    (
+	cd /tmp
+	rm -rf hugo
+	git clone https://github.com/gohugoio/hugo.git
+	cd hugo
+	git fetch origin stable
+	git checkout stable
+	go install
+    )
+    info $(hugo version)
 }
 
 ## Actual setup scripts
 
 info "Begin setup"
 
+not_installed_force gcc && install_application "build-essential libssl-dev"
+
 not_installed_force git && install_application git
 
-gitemail=$(git config --get user.email)
-if test -z "$gitemail"; then
+if ! git config --get user.email > /dev/null; then
   read -p "Email Address (for git): " gitemail
   git config --global user.email "$gitemail"
 fi
+gitemail=$(git config --get user.email)
 info "Git Email: $gitemail"
 
-gitname=$(git config --get user.name)
-if test -z "$gitname"; then
+if ! git config --get user.name > /dev/null; then
   read -p "Full name (for git)    : " gitname
   git config --global user.name "$gitname"
 fi
+gitname=$(git config --get user.name)
 info "Git Name: $gitname"
 
 ## SSH
+
+if [ ! -d ~/.ssh ]; then
+    mkdir -p ~/.ssh
+fi
+
+if test "700" != $(stat -c %a ~/.ssh); then
+    info "Setting permissions for ~/.ssh"
+    chmod 700 ~/.ssh
+fi
 
 if [ ! -f ~/.ssh/id_rsa ]; then
   if yesno "Set up ~/.ssh/id_rsa?"; then
@@ -473,8 +550,9 @@ if [ ! -f ~/.ssh/id_rsa ]; then
   fi
 fi
 
-if [ -f ~/.ssh/id_rsa ]; then
-    info ".ssh/id_rsa is present"
+if test "600" != $(stat -c %a ~/.ssh/id_rsa); then
+    info "Setting permissions for ~/.ssh/id_rsa"
+    chmod 600 ~/.ssh/id_rsa
 fi
 
 if [ ! -f ~/.ssh/id_rsa.pub ]; then
@@ -487,14 +565,9 @@ if [ ! -f ~/.ssh/id_rsa.pub ]; then
   fi
 fi
 
-if [ -f ~/.ssh/id_rsa.pub ]; then
-    info ".ssh/id_rsa.pub is present"
-fi
-
-# Set permissions
-if [ -d ~/ssh ]; then
-  chmod 700 ~/.ssh
-  chmod 600 ~/.ssh/*
+if test "600" != $(stat -c %a ~/.ssh/id_rsa.pub); then
+    info "Setting permissions for ~/.ssh/id_rsa.pub"
+    chmod 600 ~/.ssh/id_rsa.pub
 fi
 
 # Applications
@@ -502,4 +575,13 @@ fi
 not_installed "emacs" && install_application emacs
 not_installed "docker" && install_docker
 not_installed "ruby" && install_rbenv
+not_installed "node" && install_nvm
+not_installed "go" && install_go
+not_installed "hugo" && install_hugo
 #install "heroku" && install_heroku
+
+# Get workspace
+
+if [ ! -d ~/willschenk.com ]; then
+    git clone git@github.com:wschenk/willschenk.com.git
+fi
