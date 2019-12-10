@@ -409,6 +409,7 @@ function install_application {
 
 function install_docker {
     info "Installing Docker..."
+    update_check
 
     sudo apt-get install -y \
 	 apt-transport-https \
@@ -489,27 +490,23 @@ function install_go() {
 }
 
 function install_hugo() {
-    if ! command -v go > /dev/null; then
-	warning You need to have a working go installation to install hugo
-	return
-    fi
-
     info Installing hugo
+    update_check
+
     (
-	HUGO_VERSION=v0.56.3
+	HUGO_VERSION=0.56.3
+	HUGO_FILENAME=hugo_${HUGO_VERSION}_Linux-64bit.deb
 	cd /tmp
-	rm -rf hugo
-	git clone https://github.com/gohugoio/hugo.git
-	cd hugo
-	git fetch origin $HUGO_VERSION
-	git checkout $HUGO_VERSION
-	go install
+	wget https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/${HUGO_FILENAME}
+	sudo apt install -u ./${HUGO_FILENAME}
     )
     info $(hugo version)
 }
 
 function install_atom() {
     info Installing atom
+    update_check
+    
     (
 	cd /tmp
 	sudo apt-get install -y wget
@@ -607,7 +604,7 @@ fi
 
 # Applications
 
-not_installed emacs && install_application emacs
+not_installed emacs && install_application emacs25
 not_installed tmux && install_application tmux
 not_installed ag && install_application silversearcher-ag
 not_installed docker && install_docker
