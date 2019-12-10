@@ -51,7 +51,8 @@ Here's a table of what is installed.
 This file is mirrored at [https://willschenk.com/bootstrap.sh](https://willschenk.com/bootstrap.sh) and you can run it with the command:
 
 ```bash
-$ curl -o- https://willschenk.com/bootstrap.sh | bash
+$ wget https://willschenk.com/bootstrap.sh
+$ bash bootstrap.sh
 ```
 
 And you should be good to go!
