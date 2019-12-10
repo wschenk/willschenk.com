@@ -26,29 +26,6 @@ set -o pipefail
 # Turn on traces, useful while debugging but commented out by default
 # set -o xtrace
 
-if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
-  __i_am_main_script="0" # false
-
-  if [[ "${__usage+x}" ]]; then
-    if [[ "${BASH_SOURCE[1]}" = "${0}" ]]; then
-      __i_am_main_script="1" # true
-    fi
-
-    __b3bp_external_usage="true"
-    __b3bp_tmp_source_idx=1
-  fi
-else
-  __i_am_main_script="1" # true
-  [[ "${__usage+x}" ]] && unset -v __usage
-  [[ "${__helptext+x}" ]] && unset -v __helptext
-fi
-
-# Set magic variables for current file, directory, os, etc.
-__dir="$(cd "$(dirname "${BASH_SOURCE[${__b3bp_tmp_source_idx:-0}]}")" && pwd)"
-__file="${__dir}/$(basename "${BASH_SOURCE[${__b3bp_tmp_source_idx:-0}]}")"
-__base="$(basename "${__file}" .sh)"
-
-
 # Define the environment variables (and their defaults) that this script depends on
 LOG_LEVEL="${LOG_LEVEL:-6}" # 7 = debug -> 0 = emergency
 NO_COLOR="${NO_COLOR:-}"    # true = disable color. otherwise autodetected
@@ -409,6 +386,7 @@ function install_application {
 
 function install_docker {
     info "Installing Docker..."
+    update_check
 
     sudo apt-get install -y \
 	 apt-transport-https \
@@ -489,27 +467,23 @@ function install_go() {
 }
 
 function install_hugo() {
-    if ! command -v go > /dev/null; then
-	warning You need to have a working go installation to install hugo
-	return
-    fi
-
     info Installing hugo
+    update_check
+
     (
-	HUGO_VERSION=v0.56.3
+	HUGO_VERSION=0.56.3
+	HUGO_FILENAME=hugo_${HUGO_VERSION}_Linux-64bit.deb
 	cd /tmp
-	rm -rf hugo
-	git clone https://github.com/gohugoio/hugo.git
-	cd hugo
-	git fetch origin $HUGO_VERSION
-	git checkout $HUGO_VERSION
-	go install
+	wget https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/${HUGO_FILENAME}
+	sudo apt install -u ./${HUGO_FILENAME}
     )
     info $(hugo version)
 }
 
 function install_atom() {
     info Installing atom
+    update_check
+    
     (
 	cd /tmp
 	sudo apt-get install -y wget
@@ -607,7 +581,7 @@ fi
 
 # Applications
 
-not_installed emacs && install_application emacs
+not_installed emacs && install_application emacs25
 not_installed tmux && install_application tmux
 not_installed ag && install_application silversearcher-ag
 not_installed docker && install_docker
