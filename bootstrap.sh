@@ -427,10 +427,16 @@ function install_rbenv() {
     info Installing rbenv
 
     sudo apt-get install -y build-essential libssl-dev libreadline-dev zlib1g-dev
-    
-    curl -fsSL https://github.com/rbenv/rbenv-installer/raw/master/bin/rbenv-installer | (bash)
+
     echo 'export PATH=$PATH:$HOME/.rbenv/bin' >> $HOME/.profile
     echo 'eval "$(rbenv init -)"' >> $HOME/.profile
+    export PATH=$PATH:$HOME/.rbenv/bin
+
+    (
+	curl -fsSL https://github.com/rbenv/rbenv-installer/raw/master/bin/rbenv-installer | bash
+    )
+    
+    eval "$(rbenv init -)"
     
     warning "Be sure to logout and log back in, or source ~/.profile"
     source ~/.profile
