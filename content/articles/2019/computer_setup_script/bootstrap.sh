@@ -417,7 +417,7 @@ function install_docker {
 	 -o /usr/local/bin/docker-compose
     
     # Add yourself to the docker group if you aren't already
-    sudo groupadd docker
+    # sudo groupadd docker
     sudo usermod -aG docker $USER
 }
 
