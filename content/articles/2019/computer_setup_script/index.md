@@ -35,6 +35,7 @@ Here's a table of what is installed.
 | ------ | ----------- |
 | emacs  | Amongst other things, an editor of files |
 | tmux   | Screen multiplexor |
+| jq	 | Command line JSON parsing |
 | ag     | Fast file searching |
 | docker | Container builder and runner |
 | nvm    | Node version manager |

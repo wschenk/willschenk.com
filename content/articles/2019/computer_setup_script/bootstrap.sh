@@ -583,6 +583,7 @@ fi
 
 not_installed emacs && install_application emacs25
 not_installed tmux && install_application tmux
+not_installed jq && install_application jq
 not_installed ag && install_application silversearcher-ag
 not_installed docker && install_docker
 not_installed ruby && install_rbenv
@@ -595,6 +596,20 @@ not_installed gcloud && install_gcloud
 
 # Get workspace
 
-if [ ! -d ~/willschenk.com ]; then
-    git clone git@github.com:wschenk/willschenk.com.git
+if [ "${USER}" == "wschenk" ]; then
+    info Installng local stuff
+    if [ ! -d ~/willschenk.com ]; then
+	info Cloning my website
+	git clone git@github.com:wschenk/willschenk.com.git
+    fi
+
+
+    if [[ ":$PATH:" == *":$HOME/willschenk.com/bin:"* ]]; then
+	echo "Your path is correctly set"
+    else
+	info Adding willschenk.com/bin to the path
+	echo "export PATH=$HOME/willschenk.com/bin:$PATH" >> ~/.profile
+	source ~/.profile
+	RESET_TERMINAL=1
+    fi
 fi
