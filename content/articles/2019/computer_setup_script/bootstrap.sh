@@ -521,6 +521,35 @@ function install_heroku() {
     curl https://cli-assets.heroku.com/install-ubuntu.sh | sh
 }
 
+function install_terraform() {
+    info Installing terraform
+    (
+	cd /tmp
+	wget https://releases.hashicorp.com/terraform/0.12.18/terraform_0.12.18_linux_amd64.zip
+	unzip terraform_0.12.18_linux_amd64.zip
+	sudo mv terraform /usr/local/bin
+    )
+}
+
+function install_packer() {
+    info Installing packer
+    (
+	cd /tmp
+	wget https://releases.hashicorp.com/packer/1.5.1/packer_1.5.1_linux_amd64.zip
+	unzip packer_1.5.1_linux_amd64.zip
+	sudo mv packer /usr/local/bin
+    )
+}
+
+function install_steam() {
+    info Installing steam
+    update_check
+
+    echo 'deb http://httpredir.debian.org/debian/ jessie main contrib non-free' | sudo tee -a /etc/apt/sources.list
+    sudo dpkg --add-architecture i386
+    sudo apt update
+    sudo apt install -y steam
+}
 
 ## Actual setup scripts
 
@@ -597,8 +626,11 @@ not_installed node && install_nvm
 not_installed go && install_go
 not_installed hugo && install_hugo
 not_installed heroku && install_heroku
+not_installed terraform && install_terraform
+not_installed packer && install_packer
 not_installed atom && install_atom
 not_installed gcloud && install_gcloud
+not_installed steam && install_steam
 
 # Get workspace
 
