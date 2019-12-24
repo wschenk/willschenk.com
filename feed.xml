@@ -5,10 +5,262 @@
     <description>Recent content on Will Schenk</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
-    <lastBuildDate>Tue, 10 Dec 2019 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Tue, 24 Dec 2019 00:00:00 +0000</lastBuildDate>
     
         <atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml" />
     
+    
+    <item>
+      <title>Terraform and Packer with Digital Ocean</title>
+      <link>https://willschenk.com/articles/2019/terraform_with_digitalocean/</link>
+      <pubDate>Tue, 24 Dec 2019 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2019/terraform_with_digitalocean/</guid>
+      <description>
+
+&lt;p&gt;Terraform orchastrates the setting up of your infrastructure, and packer helps you build images.  We are going to setup terraform to work with Digital Ocean, and then use package to create and image and deploy it.&lt;/p&gt;
+
+&lt;h2 id=&#34;install-terraform&#34;&gt;Install terraform&lt;/h2&gt;
+
+&lt;p&gt;Install terraform from &lt;a href=&#34;https://www.terraform.io/downloads.html&#34;&gt;the download page&lt;/a&gt;.  I&amp;rsquo;m on Linux, so we&amp;rsquo;ll download the latest version and put it in &lt;code&gt;/usr/local/bin&lt;/code&gt;.&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span class=&#34;nb&#34;&gt;cd&lt;/span&gt; /tmp
+wget https://releases.hashicorp.com/terraform/0.12.18/terraform_0.12.18_linux_amd64.zip
+unzip terraform_0.12.18_linux_amd64.zip
+sudo mv terraform /usr/local/bin&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;h2 id=&#34;setup-digital-ocean-api&#34;&gt;Setup Digital Ocean API&lt;/h2&gt;
+
+&lt;p&gt;We need two tokens.  One for accessing the Digital Ocean API for infrastructure, and the other to access the spaces API.&lt;/p&gt;
+
+&lt;p&gt;Log into your account at &lt;a href=&#34;cloud.digitalocean.com&#34;&gt;cloud.digitalocean.com&lt;/a&gt; and go to &lt;code&gt;API&lt;/code&gt; on the left.  Generate a new access token with read and write privileges.&lt;/p&gt;
+
+&lt;p&gt;Copy this token and keep it somewhere safe.  Our terraform scripts will access this token, but we&amp;rsquo;ll keep the actual values in the environment rather than hardcoding them.  We&amp;rsquo;ll be able to pass things in when prefixed with &lt;code&gt;TF_VAR&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;Then create a Spaces API key, which will have an Access Token and a Secret Key.&lt;/p&gt;
+
+&lt;p&gt;We are going to setup 4 environment variables that we will use for terraform.&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;do_token: the actual API token&lt;/li&gt;
+&lt;li&gt;do_access_key: the spaces api access key&lt;/li&gt;
+&lt;li&gt;do_secret_key: the spaces api secret key&lt;/li&gt;
+&lt;li&gt;ssh_fingerprint: a finger print for installing a key on a droplet&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;Note that my public key is in &lt;code&gt;~/.ssh/id_rsa.pub&lt;/code&gt;&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span class=&#34;nb&#34;&gt;export&lt;/span&gt; &lt;span class=&#34;nv&#34;&gt;TF_VAR_do_token&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;9a4d341ec0a512bfef2ae9....
+&lt;span class=&#34;nb&#34;&gt;export&lt;/span&gt; &lt;span class=&#34;nv&#34;&gt;TF_VAR_do_access_key&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;asdfasdf...
+&lt;span class=&#34;nb&#34;&gt;export&lt;/span&gt; &lt;span class=&#34;nv&#34;&gt;TF_VAR_do_secret_key&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;asdfasd...
+&lt;span class=&#34;nb&#34;&gt;export&lt;/span&gt; &lt;span class=&#34;nv&#34;&gt;TF_VAR_ssh_fingerprint&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;k&#34;&gt;$(&lt;/span&gt;ssh-keygen -E md5 -lf ~/.ssh/id_rsa.pub &lt;span class=&#34;p&#34;&gt;|&lt;/span&gt; awk &lt;span class=&#34;s1&#34;&gt;&amp;#39;{print $2}&amp;#39;&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;|&lt;/span&gt; sed &lt;span class=&#34;s1&#34;&gt;&amp;#39;s/MD5://&amp;#39;&lt;/span&gt;&lt;span class=&#34;k&#34;&gt;)&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;h2 id=&#34;create-provider-tf&#34;&gt;Create &lt;code&gt;provider.tf&lt;/code&gt;&lt;/h2&gt;
+
+&lt;p&gt;The first file we are going to use is &lt;a href=&#34;provider.tf&#34;&gt;&lt;code&gt;provider.tf&lt;/code&gt;&lt;/a&gt;:&lt;/p&gt;
+
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-tf&#34; data-lang=&#34;tf&#34;&gt;&lt;span class=&#34;kr&#34;&gt;variable&lt;/span&gt; &lt;span class=&#34;s&#34;&gt;&amp;#34;do_token&amp;#34;&lt;/span&gt; {}
+&lt;span class=&#34;kr&#34;&gt;variable&lt;/span&gt; &lt;span class=&#34;s&#34;&gt;&amp;#34;do_access_key&amp;#34;&lt;/span&gt; {}
+&lt;span class=&#34;kr&#34;&gt;variable&lt;/span&gt; &lt;span class=&#34;s&#34;&gt;&amp;#34;do_secret_key&amp;#34;&lt;/span&gt; {}
+&lt;span class=&#34;kr&#34;&gt;variable&lt;/span&gt; &lt;span class=&#34;s&#34;&gt;&amp;#34;do_region&amp;#34;&lt;/span&gt; {
+&lt;span class=&#34;na&#34;&gt;  default&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;nyc3&amp;#34;&lt;/span&gt;
+}
+&lt;span class=&#34;kr&#34;&gt;variable&lt;/span&gt; &lt;span class=&#34;s&#34;&gt;&amp;#34;backend_space_name&amp;#34;&lt;/span&gt; {
+&lt;span class=&#34;na&#34;&gt;  description&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;s2&#34;&gt;&amp;#34;Space name for storing terraform state&amp;#34;&lt;/span&gt;
+&lt;span class=&#34;na&#34;&gt;  default&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;xx-internal-will&amp;#34;&lt;/span&gt;
+}
+&lt;span class=&#34;kr&#34;&gt;variable&lt;/span&gt; &lt;span class=&#34;s&#34;&gt;&amp;#34;ssh_fingerprint&amp;#34;&lt;/span&gt; {}
+
+&lt;span class=&#34;kr&#34;&gt;provider&lt;/span&gt; &lt;span class=&#34;s&#34;&gt;&amp;#34;digitalocean&amp;#34;&lt;/span&gt; {
+&lt;span class=&#34;na&#34;&gt;  version&lt;/span&gt;           &lt;span class=&#34;o&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;~&amp;gt; 1.12&amp;#34;&lt;/span&gt;
+&lt;span class=&#34;na&#34;&gt;  token&lt;/span&gt;             &lt;span class=&#34;o&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;err&#34;&gt;var&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;err&#34;&gt;do_token&lt;/span&gt;
+&lt;span class=&#34;na&#34;&gt;  spaces_access_id&lt;/span&gt;  &lt;span class=&#34;o&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;err&#34;&gt;var&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;err&#34;&gt;do_access_key&lt;/span&gt;
+&lt;span class=&#34;na&#34;&gt;  spaces_secret_key&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;err&#34;&gt;var&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;err&#34;&gt;do_secret_key&lt;/span&gt;
+}&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;We are declaring the variables at top, which will look first in the environment for them and if not found will prompt you to enter a value.  We are going to use the name for the space that we&amp;rsquo;re storing the terraform state in multiple places, so we&amp;rsquo;ll define it as a variable, though unforunately we&amp;rsquo;ll need to hard code it when we setup the terraform backend.&lt;/p&gt;
+
+&lt;p&gt;Now run &lt;code&gt;terraform init&lt;/code&gt;.  This should download the &lt;code&gt;digitalocean&lt;/code&gt; plugin in the &lt;code&gt;.terraform&lt;/code&gt; directory, and we should be ready to start making terraform commands!  When we do &lt;code&gt;terraform plan&lt;/code&gt; it should say that everything is up to date.&lt;/p&gt;
+
+&lt;h2 id=&#34;create-a-secure-store-for-holding-the-config&#34;&gt;Create a secure store for holding the config&lt;/h2&gt;
+
+&lt;p&gt;Now lets use terraform to create a digitalocean store to save our deployment state. &lt;a href=&#34;spaces.tf&#34;&gt;&lt;code&gt;spaces.tf&lt;/code&gt;&lt;/a&gt;:&lt;/p&gt;
+
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-tf&#34; data-lang=&#34;tf&#34;&gt;&lt;span class=&#34;kr&#34;&gt;resource&lt;/span&gt; &lt;span class=&#34;s&#34;&gt;&amp;#34;digitalocean_spaces_bucket&amp;#34; &amp;#34;terraform-state&amp;#34;&lt;/span&gt; {
+&lt;span class=&#34;na&#34;&gt;  name&lt;/span&gt;   &lt;span class=&#34;o&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;err&#34;&gt;var&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;err&#34;&gt;backend_space_name&lt;/span&gt;
+&lt;span class=&#34;na&#34;&gt;  acl&lt;/span&gt;    &lt;span class=&#34;o&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;private&amp;#34;&lt;/span&gt;
+}&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;As a reminder, space names need to be globally unique so you&amp;rsquo;ll need to update your name to make it your own.  Now run &lt;code&gt;terraform plan&lt;/code&gt; to see what its going to do.  You should see that it wants to create the space.&lt;/p&gt;
+
+&lt;p&gt;Run &lt;code&gt;terraform apply&lt;/code&gt; to actually bring your environment up!&lt;/p&gt;
+
+&lt;p&gt;Once your space is up and running, lets configure terraform to use this as a backend. &lt;a href=&#34;backend.tf&#34;&gt;&lt;code&gt;backend.tf&lt;/code&gt;&lt;/a&gt;:&lt;/p&gt;
+
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-tf&#34; data-lang=&#34;tf&#34;&gt;&lt;span class=&#34;err&#34;&gt;terraform&lt;/span&gt; {
+  &lt;span class=&#34;err&#34;&gt;backend&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;s3&amp;#34;&lt;/span&gt; {
+&lt;span class=&#34;na&#34;&gt;    bucket&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;xx-internal-will&amp;#34;&lt;/span&gt;
+&lt;span class=&#34;na&#34;&gt;    key&lt;/span&gt;    &lt;span class=&#34;o&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;terraform-testing.tfstate&amp;#34;&lt;/span&gt;
+&lt;span class=&#34;na&#34;&gt;    endpoint&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;nyc3.digitaloceanspaces.com&amp;#34;&lt;/span&gt;
+&lt;span class=&#34;na&#34;&gt;    region&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;eu-west-1&amp;#34;&lt;/span&gt;&lt;span class=&#34;c1&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;c1&#34;&gt;    # Deactivate a few checks as TF will attempt these against AWS
+&lt;/span&gt;&lt;span class=&#34;c1&#34;&gt;&lt;/span&gt;&lt;span class=&#34;na&#34;&gt;    skip_credentials_validation&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;kt&#34;&gt;true&lt;/span&gt;
+&lt;span class=&#34;na&#34;&gt;    skip_metadata_api_check&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;kt&#34;&gt;true&lt;/span&gt;
+  }
+}&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;We are using the S3 backend but pointing it to Digital Ocean&amp;rsquo;s endpoint.  If you don&amp;rsquo;t know what endpoint you are using, you can see inside of the Digital Ocean console.&lt;/p&gt;
+
+&lt;p&gt;I don&amp;rsquo;t want to keep my access keys inside this file, but we can&amp;rsquo;t pull them out using variables due to the way that terraform works.  So since we are pretending to be AWS, let&amp;rsquo;s set the environment variables for AWS access to the keys that we got from the Spaces API.&lt;/p&gt;
+
+&lt;p&gt;&lt;em&gt;Note: While I don&amp;rsquo;t use AWS and therefor don&amp;rsquo;t mind messing with these keys, if you do use AWS from the shell you are working in this will point to the wrong place.&lt;/em&gt;&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span class=&#34;nb&#34;&gt;export&lt;/span&gt; &lt;span class=&#34;nv&#34;&gt;AWS_ACCESS_KEY_ID&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;nv&#34;&gt;$TF_VAR_do_access_key&lt;/span&gt;
+&lt;span class=&#34;nb&#34;&gt;export&lt;/span&gt; &lt;span class=&#34;nv&#34;&gt;AWS_SECRET_ACCESS_KEY&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;nv&#34;&gt;$TF_VAR_do_secret_key&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;We need to run &lt;code&gt;terraform init&lt;/code&gt; again to pull down the right plugins and configure everything.  If all goes well, you&amp;rsquo;ll be asked to migrate your local state over.  Go for it!&lt;/p&gt;
+
+&lt;h2 id=&#34;create-a-droplet&#34;&gt;Create a droplet&lt;/h2&gt;
+
+&lt;p&gt;Now that we have the plumbing working, lets create an actual droplet to play with.&lt;/p&gt;
+
+&lt;p&gt;In &lt;a href=&#34;droplets.tf.orig&#34;&gt;&lt;code&gt;droplets.tf.orig&lt;/code&gt;&lt;/a&gt;:&lt;/p&gt;
+
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-tf&#34; data-lang=&#34;tf&#34;&gt;&lt;span class=&#34;kr&#34;&gt;resource&lt;/span&gt; &lt;span class=&#34;s&#34;&gt;&amp;#34;digitalocean_droplet&amp;#34; &amp;#34;playserver&amp;#34;&lt;/span&gt; {
+&lt;span class=&#34;na&#34;&gt;  name&lt;/span&gt;     &lt;span class=&#34;o&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;playserver&amp;#34;&lt;/span&gt;
+&lt;span class=&#34;na&#34;&gt;  image&lt;/span&gt;    &lt;span class=&#34;o&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;debian-10-x64&amp;#34;&lt;/span&gt;
+&lt;span class=&#34;na&#34;&gt;  size&lt;/span&gt;     &lt;span class=&#34;o&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;s-1vcpu-1gb&amp;#34;&lt;/span&gt;
+&lt;span class=&#34;na&#34;&gt;  region&lt;/span&gt;   &lt;span class=&#34;o&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;err&#34;&gt;var&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;err&#34;&gt;do_region&lt;/span&gt;
+&lt;span class=&#34;na&#34;&gt;  ssh_keys&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;[&lt;/span&gt;
+      &lt;span class=&#34;err&#34;&gt;var&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;err&#34;&gt;ssh_fingerprint&lt;/span&gt;
+  &lt;span class=&#34;p&#34;&gt;]&lt;/span&gt;
+}
+
+&lt;span class=&#34;err&#34;&gt;output&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;ip&amp;#34;&lt;/span&gt; {
+&lt;span class=&#34;na&#34;&gt;  value&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;${digitalocean_droplet.playserver.ipv4_address}&amp;#34;&lt;/span&gt;
+}&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;When going through this, rename to &lt;code&gt;droplet.rf&lt;/code&gt;.  Later, we will be editing this file and so this is the base version of it.&lt;/p&gt;
+
+&lt;p&gt;You can find a list of &lt;a href=&#34;https://slugs.do-api.dev/&#34;&gt;Digital Ocean image and sizes&lt;/a&gt; to choose from, here we are using &lt;code&gt;debian-10&lt;/code&gt; and one of the smaller vms.&lt;/p&gt;
+
+&lt;p&gt;We also define an &lt;code&gt;output&lt;/code&gt; named &lt;code&gt;ip&lt;/code&gt; that pulls from the digital ocean API based on what has been created.&lt;/p&gt;
+
+&lt;p&gt;Additionally we have added an SSH key to the image.&lt;/p&gt;
+
+&lt;p&gt;So to connect, we can do&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;ssh &lt;span class=&#34;s2&#34;&gt;&amp;#34;root@&lt;/span&gt;&lt;span class=&#34;k&#34;&gt;$(&lt;/span&gt;terraform output ip&lt;span class=&#34;k&#34;&gt;)&lt;/span&gt;&lt;span class=&#34;s2&#34;&gt;&amp;#34;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;And you should be able to connect to your server.&lt;/p&gt;
+
+&lt;h2 id=&#34;creating-a-custom-image&#34;&gt;Creating a custom image&lt;/h2&gt;
+
+&lt;p&gt;From this point you should be able to add other services with terraform to wire up your application.  We&amp;rsquo;ll skip a more elaborate network and service configuration &amp;ndash; which is really where terraform makes sense &amp;ndash; since there are plenty of other places that document that.&lt;/p&gt;
+
+&lt;p&gt;Instead, lets look at how to build a custom image that, perhaps, would contain your application.  We&amp;rsquo;re going to use &lt;code&gt;packer&lt;/code&gt; to build this image, on which we&amp;rsquo;ll just install &lt;code&gt;docker&lt;/code&gt;.  There&amp;rsquo;s already an official docker image in Digital Ocean so this is really just an excersize so you get the idea.&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;wget https://releases.hashicorp.com/packer/1.5.1/packer_1.5.1_linux_amd64.zip
+unzip packer_1.5.1_linux_amd64.zip
+sudo mv packer /usr/local/bin&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Now we create a &lt;a href=&#34;docker.json&#34;&gt;&lt;code&gt;docker.json&lt;/code&gt;&lt;/a&gt; file that we&amp;rsquo;ll give to &lt;code&gt;packer&lt;/code&gt; that will provision the instance for us.  Inside you&amp;rsquo;ll notice that I named the snapshot &lt;code&gt;packer-docker-0.0.1&lt;/code&gt;.  In a real build process, this should probably be passed into packer.&lt;/p&gt;
+
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-json&#34; data-lang=&#34;json&#34;&gt;&lt;span class=&#34;p&#34;&gt;{&lt;/span&gt;
+    &lt;span class=&#34;nt&#34;&gt;&amp;#34;variables&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;{&lt;/span&gt;
+    &lt;span class=&#34;nt&#34;&gt;&amp;#34;api_token&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;{{env `TF_VAR_do_token`}}&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;
+    &lt;span class=&#34;nt&#34;&gt;&amp;#34;region&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;{{env `TF_VAR_do_region`}}&amp;#34;&lt;/span&gt;
+    &lt;span class=&#34;p&#34;&gt;},&lt;/span&gt;
+    &lt;span class=&#34;nt&#34;&gt;&amp;#34;builders&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;[{&lt;/span&gt;
+    &lt;span class=&#34;nt&#34;&gt;&amp;#34;type&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;digitalocean&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;
+    &lt;span class=&#34;nt&#34;&gt;&amp;#34;api_token&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;{{user `api_token`}}&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;
+    &lt;span class=&#34;nt&#34;&gt;&amp;#34;image&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;debian-10-x64&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;
+    &lt;span class=&#34;nt&#34;&gt;&amp;#34;region&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;{{ user `region` }}&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;
+    &lt;span class=&#34;nt&#34;&gt;&amp;#34;size&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;s-1vcpu-1gb&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;
+    &lt;span class=&#34;nt&#34;&gt;&amp;#34;ssh_username&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;root&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;
+    &lt;span class=&#34;nt&#34;&gt;&amp;#34;snapshot_name&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;packer-docker-0.0.1&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;
+    &lt;span class=&#34;nt&#34;&gt;&amp;#34;tags&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;[&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;Docker&amp;#34;&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;]&lt;/span&gt;
+    &lt;span class=&#34;p&#34;&gt;}],&lt;/span&gt;
+    &lt;span class=&#34;nt&#34;&gt;&amp;#34;provisioners&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;[&lt;/span&gt;
+    &lt;span class=&#34;p&#34;&gt;{&lt;/span&gt;
+        &lt;span class=&#34;nt&#34;&gt;&amp;#34;type&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;shell&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;
+        &lt;span class=&#34;nt&#34;&gt;&amp;#34;scripts&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;[&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;docker_install.sh&amp;#34;&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;]&lt;/span&gt;
+    &lt;span class=&#34;p&#34;&gt;}&lt;/span&gt;
+    &lt;span class=&#34;p&#34;&gt;]&lt;/span&gt;
+        
+&lt;span class=&#34;p&#34;&gt;}&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;And then a script that will be run on the build image that actually installs docker.  &lt;a href=&#34;docker_install.sh&#34;&gt;&lt;code&gt;docker_install.sh&lt;/code&gt;&lt;/a&gt;:&lt;/p&gt;
+
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span class=&#34;cp&#34;&gt;#!/bin/bash
+&lt;/span&gt;&lt;span class=&#34;cp&#34;&gt;&lt;/span&gt;
+apt-get update
+apt-get install -y &lt;span class=&#34;se&#34;&gt;\
+&lt;/span&gt;&lt;span class=&#34;se&#34;&gt;&lt;/span&gt;    apt-transport-https &lt;span class=&#34;se&#34;&gt;\
+&lt;/span&gt;&lt;span class=&#34;se&#34;&gt;&lt;/span&gt;    ca-certificates &lt;span class=&#34;se&#34;&gt;\
+&lt;/span&gt;&lt;span class=&#34;se&#34;&gt;&lt;/span&gt;    curl &lt;span class=&#34;se&#34;&gt;\
+&lt;/span&gt;&lt;span class=&#34;se&#34;&gt;&lt;/span&gt;    gnupg2 &lt;span class=&#34;se&#34;&gt;\
+&lt;/span&gt;&lt;span class=&#34;se&#34;&gt;&lt;/span&gt;    software-properties-common
+
+curl -fsSL https://download.docker.com/linux/debian/gpg &lt;span class=&#34;p&#34;&gt;|&lt;/span&gt; apt-key add -
+
+add-apt-repository &lt;span class=&#34;se&#34;&gt;\
+&lt;/span&gt;&lt;span class=&#34;se&#34;&gt;&lt;/span&gt;   &lt;span class=&#34;s2&#34;&gt;&amp;#34;deb [arch=amd64] https://download.docker.com/linux/debian \
+&lt;/span&gt;&lt;span class=&#34;s2&#34;&gt;   &lt;/span&gt;&lt;span class=&#34;k&#34;&gt;$(&lt;/span&gt;lsb_release -cs&lt;span class=&#34;k&#34;&gt;)&lt;/span&gt;&lt;span class=&#34;s2&#34;&gt; \
+&lt;/span&gt;&lt;span class=&#34;s2&#34;&gt;   stable&amp;#34;&lt;/span&gt;
+
+apt-get update
+
+apt-get install -y docker-ce docker-ce-cli containerd.io
+
+groupadd docker
+
+usermod -aG docker &lt;span class=&#34;nv&#34;&gt;$USER&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;We also need to set the region as the same you have it in the &lt;code&gt;providers.tf&lt;/code&gt; file.&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span class=&#34;nb&#34;&gt;export&lt;/span&gt; &lt;span class=&#34;nv&#34;&gt;TF_VAR_do_region&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;nyc3&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Then run &lt;code&gt;packer validate docker.json&lt;/code&gt; to make sure that everything is copacitic.  Once that&amp;rsquo;s good, then run &lt;code&gt;packer build docker.json&lt;/code&gt;.&lt;/p&gt;
+
+&lt;h2 id=&#34;telling-terraform-to-use-your-image&#34;&gt;Telling terraform to use your image&lt;/h2&gt;
+
+&lt;p&gt;Once this is done, use this new &lt;a href=&#34;droplets.tf&#34;&gt;&lt;code&gt;droplets.tf&lt;/code&gt;&lt;/a&gt; file to deploy this image onto your droplet.  The first stanza looks up the image from the snapshot name, and then we use that inside of the &lt;code&gt;image&lt;/code&gt; attribute to tell &lt;code&gt;terraform&lt;/code&gt; which droplet should be running.&lt;/p&gt;
+
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-tf&#34; data-lang=&#34;tf&#34;&gt;&lt;span class=&#34;err&#34;&gt;data&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;digitalocean_image&amp;#34; &amp;#34;docker-snapshot&amp;#34;&lt;/span&gt; {
+&lt;span class=&#34;na&#34;&gt;  name&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;packer-docker-0.0.1&amp;#34;&lt;/span&gt;
+}
+
+&lt;span class=&#34;kr&#34;&gt;resource&lt;/span&gt; &lt;span class=&#34;s&#34;&gt;&amp;#34;digitalocean_droplet&amp;#34; &amp;#34;playserver&amp;#34;&lt;/span&gt; {
+&lt;span class=&#34;na&#34;&gt;  name&lt;/span&gt;     &lt;span class=&#34;o&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;playserver&amp;#34;&lt;/span&gt;
+&lt;span class=&#34;na&#34;&gt;  image&lt;/span&gt;    &lt;span class=&#34;o&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;err&#34;&gt;data&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;err&#34;&gt;digitalocean_image&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;err&#34;&gt;docker-snapshot&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;err&#34;&gt;image&lt;/span&gt;
+&lt;span class=&#34;na&#34;&gt;  size&lt;/span&gt;     &lt;span class=&#34;o&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;s-1vcpu-1gb&amp;#34;&lt;/span&gt;
+&lt;span class=&#34;na&#34;&gt;  region&lt;/span&gt;   &lt;span class=&#34;o&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;err&#34;&gt;var&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;err&#34;&gt;do_region&lt;/span&gt;
+&lt;span class=&#34;na&#34;&gt;  ssh_keys&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;[&lt;/span&gt;
+      &lt;span class=&#34;err&#34;&gt;var&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;err&#34;&gt;ssh_fingerprint&lt;/span&gt;
+  &lt;span class=&#34;p&#34;&gt;]&lt;/span&gt;
+}
+
+&lt;span class=&#34;err&#34;&gt;output&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;ip&amp;#34;&lt;/span&gt; {
+&lt;span class=&#34;na&#34;&gt;  value&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;${digitalocean_droplet.playserver.ipv4_address}&amp;#34;&lt;/span&gt;
+}&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Now lets test it out:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;terraform apply&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;And then connect:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;ssh &lt;span class=&#34;s2&#34;&gt;&amp;#34;root@&lt;/span&gt;&lt;span class=&#34;k&#34;&gt;$(&lt;/span&gt;terraform output ip&lt;span class=&#34;k&#34;&gt;)&lt;/span&gt;&lt;span class=&#34;s2&#34;&gt;&amp;#34;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Once it connects, you should be able to run on the host machine:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;docker run --rm hello-world&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;At which point we end our tutorial!&lt;/p&gt;
+
+&lt;h2 id=&#34;cleanup&#34;&gt;Cleanup&lt;/h2&gt;
+
+&lt;p&gt;To clean up everything, you can run &lt;code&gt;terraform destroy&lt;/code&gt;.  This will leave the snapshot, which was created by &lt;code&gt;packer&lt;/code&gt; and not managed by &lt;code&gt;terraform&lt;/code&gt;, and it will probably leave the space that we created since its not empty.  Which is fine, since its better to keep the state around anyway, these things can be cleaned up by hand.&lt;/p&gt;
+
+&lt;p&gt;This is basically just a howto to get things initially setup, there&amp;rsquo;s a lot more you can do with organizing your files and managing different environments.  The droplet that we created is on the public internet which is where most of my toys live, and we didn&amp;rsquo;t explore the more interesting parts of terraform where you setup networks and other services.  But most of the tutorials I&amp;rsquo;ve seen are for setting things up with AWS, and I wanted to see how to get it done with Digital Ocean.&lt;/p&gt;
+
+&lt;hr /&gt;
+
+&lt;p&gt;References&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.digitalocean.com/community/tutorials/how-to-use-terraform-with-digitalocean&#34;&gt;https://www.digitalocean.com/community/tutorials/how-to-use-terraform-with-digitalocean&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://medium.com/@chris_linguine/dont-push-your-terraform-state-files-945cfdf71f88&#34;&gt;https://medium.com/@chris_linguine/dont-push-your-terraform-state-files-945cfdf71f88&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.terraformupandrunning.com/&#34;&gt;https://www.terraformupandrunning.com/&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://dev.to/jmarhee/digitalocean-spaces-as-a-terraform-backend-3lck&#34;&gt;https://dev.to/jmarhee/digitalocean-spaces-as-a-terraform-backend-3lck&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://slugs.do-api.dev/&#34;&gt;https://slugs.do-api.dev/&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://github.com/gokhansengun/packer-terraform-demo&#34;&gt;https://github.com/gokhansengun/packer-terraform-demo&lt;/a&gt;&lt;/li&gt;
+&lt;/ol&gt;
+</description>
+    </item>
     
     <item>
       <title>Computer Setup Script</title>
@@ -644,6 +896,35 @@ __b3bp_err_report&lt;span class=&#34;o&#34;&gt;()&lt;/span&gt; &lt;span class=&#
     curl https://cli-assets.heroku.com/install-ubuntu.sh &lt;span class=&#34;p&#34;&gt;|&lt;/span&gt; sh
 &lt;span class=&#34;o&#34;&gt;}&lt;/span&gt;
 
+&lt;span class=&#34;k&#34;&gt;function&lt;/span&gt; install_terraform&lt;span class=&#34;o&#34;&gt;()&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;{&lt;/span&gt;
+    info Installing terraform
+    &lt;span class=&#34;o&#34;&gt;(&lt;/span&gt;
+    &lt;span class=&#34;nb&#34;&gt;cd&lt;/span&gt; /tmp
+    wget https://releases.hashicorp.com/terraform/0.12.18/terraform_0.12.18_linux_amd64.zip
+    unzip terraform_0.12.18_linux_amd64.zip
+    sudo mv terraform /usr/local/bin
+    &lt;span class=&#34;o&#34;&gt;)&lt;/span&gt;
+&lt;span class=&#34;o&#34;&gt;}&lt;/span&gt;
+
+&lt;span class=&#34;k&#34;&gt;function&lt;/span&gt; install_packer&lt;span class=&#34;o&#34;&gt;()&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;{&lt;/span&gt;
+    info Installing packer
+    &lt;span class=&#34;o&#34;&gt;(&lt;/span&gt;
+    &lt;span class=&#34;nb&#34;&gt;cd&lt;/span&gt; /tmp
+    wget https://releases.hashicorp.com/packer/1.5.1/packer_1.5.1_linux_amd64.zip
+    unzip packer_1.5.1_linux_amd64.zip
+    sudo mv packer /usr/local/bin
+    &lt;span class=&#34;o&#34;&gt;)&lt;/span&gt;
+&lt;span class=&#34;o&#34;&gt;}&lt;/span&gt;
+
+&lt;span class=&#34;k&#34;&gt;function&lt;/span&gt; install_steam&lt;span class=&#34;o&#34;&gt;()&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;{&lt;/span&gt;
+    info Installing steam
+    update_check
+
+    &lt;span class=&#34;nb&#34;&gt;echo&lt;/span&gt; &lt;span class=&#34;s1&#34;&gt;&amp;#39;deb http://httpredir.debian.org/debian/ jessie main contrib non-free&amp;#39;&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;|&lt;/span&gt; sudo tee -a /etc/apt/sources.list
+    sudo dpkg --add-architecture i386
+    sudo apt update
+    sudo apt install -y steam
+&lt;span class=&#34;o&#34;&gt;}&lt;/span&gt;
 
 &lt;span class=&#34;c1&#34;&gt;## Actual setup scripts&lt;/span&gt;
 
@@ -720,8 +1001,11 @@ not_installed node &lt;span class=&#34;o&#34;&gt;&amp;amp;&amp;amp;&lt;/span&gt;
 not_installed go &lt;span class=&#34;o&#34;&gt;&amp;amp;&amp;amp;&lt;/span&gt; install_go
 not_installed hugo &lt;span class=&#34;o&#34;&gt;&amp;amp;&amp;amp;&lt;/span&gt; install_hugo
 not_installed heroku &lt;span class=&#34;o&#34;&gt;&amp;amp;&amp;amp;&lt;/span&gt; install_heroku
+not_installed terraform &lt;span class=&#34;o&#34;&gt;&amp;amp;&amp;amp;&lt;/span&gt; install_terraform
+not_installed packer &lt;span class=&#34;o&#34;&gt;&amp;amp;&amp;amp;&lt;/span&gt; install_packer
 not_installed atom &lt;span class=&#34;o&#34;&gt;&amp;amp;&amp;amp;&lt;/span&gt; install_atom
 not_installed gcloud &lt;span class=&#34;o&#34;&gt;&amp;amp;&amp;amp;&lt;/span&gt; install_gcloud
+not_installed steam &lt;span class=&#34;o&#34;&gt;&amp;amp;&amp;amp;&lt;/span&gt; install_steam
 
 &lt;span class=&#34;c1&#34;&gt;# Get workspace&lt;/span&gt;
 
