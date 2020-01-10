@@ -22,7 +22,6 @@ mkdirp.sync( outdir );
   await page.goto(`https://twitter.com/${screenname}`)
   console.log( "Got page");
 
-  await navigationPromise
   await page.waitForSelector('.ProfileHeaderCard')
   console.log( "Profile loaded")
 
@@ -48,6 +47,7 @@ mkdirp.sync( outdir );
   console.log("profile",profile);
 
   // Writing file
+  console.log( `Saving in ${outdir}/profile.json` );
   fs.writeFileSync( `${outdir}/profile.json`, JSON.stringify( profile ) );
 
   // console.log( "Taking screenshot" );
