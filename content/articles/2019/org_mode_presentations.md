@@ -2,10 +2,10 @@
 title: Org Mode Presentations
 subtitle: Easy and fast
 tags:
-	- emacs
-	- howto
-	- org-mode
-date: 2019-12-11
+  - emacs
+  - howto
+  - org-mode
+date: "2019-12-11"
 draft: true
 ---
 
