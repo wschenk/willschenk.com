@@ -8,6 +8,8 @@ tags:
   - linode
   - dns
 date: "2020-01-23"
+remote: git@github.com:wschenk/terraform_ssl_server_template.git
+repository: https://github.com/wschenk/terraform_ssl_server_template
 ---
 
 I use [DNSimple](https://dnsimple.com/) for domain management, and I've been playing around with a bunch of different cloud providers and deployment setups. So I wanted to make it easier to give these machines names rather than clicking through the control panel all the time.  Lets walk through how to use terraform, DNSimple, and linode to provision and new machine and give it a name on the internet, and then create a webserver on it to which encrypts traffic.
