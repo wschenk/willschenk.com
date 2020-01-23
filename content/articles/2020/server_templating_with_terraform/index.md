@@ -8,7 +8,6 @@ tags:
   - linode
   - dns
 date: "2020-01-23"
-draft: true
 ---
 
 I use [DNSimple](https://dnsimple.com/) for domain management, and I've been playing around with a bunch of different cloud providers and deployment setups. So I wanted to make it easier to give these machines names rather than clicking through the control panel all the time.  Lets walk through how to use terraform, DNSimple, and linode to provision and new machine and give it a name on the internet, and then create a webserver on it to which encrypts traffic.
@@ -38,7 +37,7 @@ In order to pass variables into terraform, you need to prefix them with `TF_VAR_
 export TF_VAR_linode_token=$LINODE_TOKEN
 ```
 
-In this script, we are setting up a Ubuntu linode server with our local ssh keys installed. (It installs the public key found in `~/.ssh/id_rsa.pub`.)
+In this script, we are setting up a Debian linode server with our local ssh keys installed. (It installs the public key found in `~/.ssh/id_rsa.pub`.)
 
 [`linode.tf`](`linode.tf`)
 {{% code file="articles/2020/server_templating_with_terraform/linode.tf" language="tf" %}}
@@ -114,7 +113,7 @@ Terraform is also smart enough to order the dependacies, so if you setup everyth
 
 ## Setting up the server
 
-Next we are going to run a script over SSH to do the provisioning of the `Ubuntu` instance.  I think that this is easier that using packer or some other tool, since we only have a few commands that need to run.  We should setup the script so that it can run multiple times without any ill effect.  The trick here is that if we really change things, we should backup the data on the server and completely redeploy everything from scratch.  You don't want to manually login to the server to make changes really at any point.
+Next we are going to run a script over SSH to do the provisioning of the `Debian` instance.  I think that this is easier that using packer or some other tool, since we only have a few commands that need to run.  We should setup the script so that it can run multiple times without any ill effect.  The trick here is that if we really change things, we should backup the data on the server and completely redeploy everything from scratch.  You don't want to manually login to the server to make changes really at any point.
 
 This is what we're going to do:
 
@@ -128,7 +127,7 @@ This is what we're going to do:
 [`setup.bash`](`setup.bash`)
 {{% code file="articles/2020/server_templating_with_terraform/setup.bash" language="bash" %}}
 
-Run this with `bash setup.bash` and it will copy itself over to the remote server and run the setup scripts. It may take a minute or two for the remote server to be up and accepting ssh connections. In my test runs Ubutu seems to take a full lifetime to get through the `Restart services during package upgrades without asking? [yes/no] yes` part of the upgrade process.
+Run this with `bash setup.bash` and it will copy itself over to the remote server and run the setup scripts. It may take a minute or two for the remote server to be up and accepting ssh connections. 
 
 I set the server to redirect everything to HTTPS. With this baseline you can dump in your static files, add subdomains, or do whatever you want.
 

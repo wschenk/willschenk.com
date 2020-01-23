@@ -12,7 +12,7 @@ resource "linode_sshkey" "key" {
 
 # Create a server
 resource "linode_instance" "web" {
-  image = "linode/ubuntu18.04"
+  image = "linode/debian10"
   label = "Web"
   group = "Terraform"
   region = "us-east"
