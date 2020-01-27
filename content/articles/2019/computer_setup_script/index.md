@@ -32,20 +32,23 @@ I'll update this later to include OSX.
 
 Here's a table of what is installed.
 
-| Name   | Description |
-| ------ | ----------- |
-| emacs  | Amongst other things, an editor of files |
-| tmux   | Screen multiplexor |
-| jq	 | Command line JSON parsing |
-| ag     | Fast file searching |
-| docker | Container builder and runner |
-| nvm    | Node version manager |
-| rbenv  | Ruby version manager |
-| go     | Golang compiler |
-| hugo   | Static site builder, built from source |
-| heroku | Heroku toolbelt |
-| atom   | Atom text editor |
-| gcloud | Google Cloud CLI | 
+| Name      | Description |
+| ------    | ----------- |
+| emacs     | Amongst other things, an editor of files |
+| tmux      | Screen multiplexor |
+| jq	    | Command line JSON parsing |
+| ag        | Fast file searching |
+| docker    | Container builder and runner |
+| nvm       | Node version manager |
+| rbenv     | Ruby version manager |
+| go        | Golang compiler |
+| hugo      | Static site builder, built from source |
+| heroku    | Heroku toolbelt |
+| terraform | Terraform cloud infrastructure provisioner |
+| packer    | Image builder |
+| ansible   | Provisioner |
+| atom      | Atom text editor |
+| gcloud    | Google Cloud CLI | 
 
 
 ## How to run

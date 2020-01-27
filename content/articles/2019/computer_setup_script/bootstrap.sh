@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# This file:
-#
-#  - Demos BASH3 Boilerplate (change this for your script)
-#
-# Usage:
-#
-#  LOG_LEVEL=7 ./main.sh -f /tmp/x -d (change this for your script)
 #
 # Based on a template by BASH3 Boilerplate v2.3.0
 # http://bash3boilerplate.sh/#authors
@@ -541,6 +534,21 @@ function install_packer() {
     )
 }
 
+function install_ansible {
+    info Installing ansible
+
+    (
+	cd /tmp
+	curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+	python get-pip.py --user
+	RESET_TERMINAL=1
+	info Adding .local/bin to the path, please source .profile
+	echo "export PATH=$HOME/.local/bin:$PATH" >> ~/.profile
+	export PATH=$HOME/.local/bin:$PATH
+	pip install --user ansible
+    )
+}
+
 function install_steam() {
     info Installing steam
     update_check
@@ -628,6 +636,7 @@ not_installed hugo && install_hugo
 not_installed heroku && install_heroku
 not_installed terraform && install_terraform
 not_installed packer && install_packer
+not_installed ansible && install_ansible
 not_installed atom && install_atom
 not_installed gcloud && install_gcloud
 not_installed steam && install_steam
