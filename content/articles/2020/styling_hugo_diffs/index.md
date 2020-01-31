@@ -4,8 +4,7 @@ subtitle: Showing just what you changed
 tags:
   - howto
   - hugo
-date: "2020-01-30"
-draft: true
+date: "2020-01-31"
 ---
 
 I often want to show small changes I'm making to a file and it would be nice for hugo to support styling patches directly. Lets see what we can do to make this process easier.
@@ -59,6 +58,12 @@ That seems to work, now lets loop over the files that match the base name, skipp
 The logic seems to work, so lets add the actual diff creation. But the diff files match our pattern, so we'll need to add a check to skip over them when we loop over the glob!
 
 {{% diff "update_patches.sh" "final" %}}
+
+## Usage
+
+The idea here is that you are working on an explainable chunk of work.  You start by getting a base file that everyone can work off of.  For example, run `npm init -y` and then copy that file to `package.json.base`.  Then make your changes and run `update_patches.sh` to generate the patch, which will initially just compare `package.json.base` and `package.json`
+
+Later you want to make another change to the file.  Before you edit `package.json` make a copy to `package.json.1`, and make your changes again.  Then run `update_patches.sh` which will regenerate all the diffs for each file.  Then write about it, and repeat the process as necessary.
 
 ## Displaying the patch files easily
 
