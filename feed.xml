@@ -5,10 +5,191 @@
     <description>Recent content on Will Schenk</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
-    <lastBuildDate>Thu, 23 Jan 2020 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Fri, 31 Jan 2020 00:00:00 +0000</lastBuildDate>
     
         <atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml" />
     
+    
+    <item>
+      <title>Styling Hugo Diffs</title>
+      <link>https://willschenk.com/articles/2020/styling_hugo_diffs/</link>
+      <pubDate>Fri, 31 Jan 2020 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2020/styling_hugo_diffs/</guid>
+      <description>
+
+&lt;p&gt;I often want to show small changes I&amp;rsquo;m making to a file and it would be nice for hugo to support styling patches directly. Lets see what we can do to make this process easier.&lt;/p&gt;
+
+&lt;p&gt;Lets take the example of &lt;em&gt;create node package.json file and add the following scripts&lt;/em&gt; worflow.  How can we say this different than &amp;ldquo;copy this into your &lt;code&gt;package.json&lt;/code&gt; file&amp;rdquo;?&lt;/p&gt;
+
+&lt;h2 id=&#34;create-sample-steps&#34;&gt;Create sample steps&lt;/h2&gt;
+
+&lt;p&gt;Lets first create the file using &lt;code&gt;npm init -y&lt;/code&gt; and then immediately &lt;code&gt;cp package.json package.json.base&lt;/code&gt;. In this case, we want to add some &lt;code&gt;script&lt;/code&gt; attributes, like so:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-js&#34; data-lang=&#34;js&#34;&gt;  &lt;span class=&#34;s2&#34;&gt;&amp;#34;scripts&amp;#34;&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;:&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;{&lt;/span&gt;
+    &lt;span class=&#34;s2&#34;&gt;&amp;#34;build:eleventy&amp;#34;&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;:&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;eleventy&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;
+    &lt;span class=&#34;s2&#34;&gt;&amp;#34;serve:eleventy&amp;#34;&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;:&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;eleventy --serve&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;
+    &lt;span class=&#34;s2&#34;&gt;&amp;#34;debug:eleventy&amp;#34;&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;:&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;DEBUG=* eleventy&amp;#34;&lt;/span&gt;
+  &lt;span class=&#34;p&#34;&gt;},&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;So we can now look at the differences of the files using the &lt;code&gt;diff&lt;/code&gt; command. I&amp;rsquo;m going to have it user the unified format showing 1 line of code on either side.&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;diff -U &lt;span class=&#34;m&#34;&gt;1&lt;/span&gt; package.json.base package.json&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Which outputs:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-patch&#34; data-lang=&#34;patch&#34;&gt;&lt;span class=&#34;gd&#34;&gt;--- package.json.base	2020-01-30 14:38:18.933332377 -0600
+&lt;/span&gt;&lt;span class=&#34;gd&#34;&gt;&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+++ package.json	2020-01-30 15:43:37.174332377 -0600
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;&lt;/span&gt;&lt;span class=&#34;gu&#34;&gt;@@ -6,3 +6,5 @@
+&lt;/span&gt;&lt;span class=&#34;gu&#34;&gt;&lt;/span&gt;   &amp;#34;scripts&amp;#34;: {
+&lt;span class=&#34;gd&#34;&gt;-    &amp;#34;test&amp;#34;: &amp;#34;echo \&amp;#34;Error: no test specified\&amp;#34; &amp;amp;&amp;amp; exit 1&amp;#34;
+&lt;/span&gt;&lt;span class=&#34;gd&#34;&gt;&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+    &amp;#34;build:eleventy&amp;#34;: &amp;#34;eleventy&amp;#34;,
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+    &amp;#34;serve:eleventy&amp;#34;: &amp;#34;eleventy --serve&amp;#34;,
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+    &amp;#34;debug:eleventy&amp;#34;: &amp;#34;DEBUG=* eleventy&amp;#34;
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;&lt;/span&gt;   },
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;This seems a little better, but how do we keep it up to date?&lt;/p&gt;
+
+&lt;h2 id=&#34;bash-script&#34;&gt;Bash script&lt;/h2&gt;
+
+&lt;p&gt;We are going to write a bash script to parse though a files. First lets do that and make sure that we can pull out the base name of the file.&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;./update_patches.sh.base&#34;&gt;&lt;code&gt;update_patches.sh.base&lt;/code&gt;&lt;/a&gt;:
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-diff&#34; data-lang=&#34;diff&#34;&gt;#!/bin/bash&lt;/p&gt;
+
+&lt;p&gt;for i in *.base
+do
+    echo $i is the base file
+    echo ${i%.base} is final file
+done
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/p&gt;
+
+&lt;p&gt;That seems to work, now lets loop over the files that match the base name, skipping the files that we don&amp;rsquo;t want. Once we get to the &lt;code&gt;.base&lt;/code&gt; file, we know that we are at the end of our patching, and we need to compare the last stage with the original file instead, so we&amp;rsquo;ll check for that and update the variables so that the &lt;code&gt;stage&lt;/code&gt; file is actually the current one.&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;./update_patches.sh.1&#34;&gt;&lt;code&gt;update_patches.sh.1&lt;/code&gt;&lt;/a&gt;:
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-diff&#34; data-lang=&#34;diff&#34;&gt;&lt;span class=&#34;gd&#34;&gt;&amp;mdash; update_patches.sh.base
+&lt;/span&gt;&lt;span class=&#34;gd&#34;&gt;&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+++ update_patches.sh.1
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;&lt;/span&gt;&lt;span class=&#34;gu&#34;&gt;@@ -4,4 +4,22 @@
+&lt;/span&gt;&lt;span class=&#34;gu&#34;&gt;&lt;/span&gt; do
+&lt;span class=&#34;gd&#34;&gt;-    echo $i is the base file
+&lt;/span&gt;&lt;span class=&#34;gd&#34;&gt;-    echo ${i%.base} is final file
+&lt;/span&gt;&lt;span class=&#34;gd&#34;&gt;&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+    last_file=&amp;#34;$i&amp;#34;
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+    final_file=&amp;#34;${i%.base}&amp;#34;
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+    for stage in ${final_file}.*
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+    do
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+   # Strip out emacs junk
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+   if [[ $stage == *~ ]]; then
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+       continue
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+   fi
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+&lt;br /&gt;
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+   # We are at the end!
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+   if [[ $stage == *.base ]]; then
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+       stage=$final_file
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+   fi
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+   echo Need to patch $last_file to make $stage
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+   last_file=$stage
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+    done
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+    echo
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;&lt;/span&gt; done
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/p&gt;
+
+&lt;p&gt;The logic seems to work, so lets add the actual diff creation. But the diff files match our pattern, so we&amp;rsquo;ll need to add a check to skip over them when we loop over the glob!&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;./update_patches.sh&#34;&gt;&lt;code&gt;update_patches.sh&lt;/code&gt;&lt;/a&gt;:
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-diff&#34; data-lang=&#34;diff&#34;&gt;&lt;span class=&#34;gd&#34;&gt;&amp;mdash; update_patches.sh.1
+&lt;/span&gt;&lt;span class=&#34;gd&#34;&gt;&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+++ update_patches.sh
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;&lt;/span&gt;&lt;span class=&#34;gu&#34;&gt;@@ -19,3 +19,13 @@
+&lt;/span&gt;&lt;span class=&#34;gu&#34;&gt;&lt;/span&gt;
+&lt;span class=&#34;gd&#34;&gt;-  echo Need to patch $last_file to make $stage
+&lt;/span&gt;&lt;span class=&#34;gd&#34;&gt;&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+   # Skip parsing of diff files
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+   if [[ $stage == *.diff ]]; then
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+       continue
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+   fi
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+   echo Creating $stage.diff
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+   # -Z Ignores space
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+   # -U 1 sets to the unified patch format with one surrounding lines
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+   # Setting &amp;ndash;label directly lets use avoid timestamps
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+   diff -Z -U 1 &amp;ndash;label $last_file &amp;ndash;label $stage $last_file $stage &amp;gt; $stage.diff
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/p&gt;
+
+&lt;h2 id=&#34;usage&#34;&gt;Usage&lt;/h2&gt;
+
+&lt;p&gt;The idea here is that you are working on an explainable chunk of work.  You start by getting a base file that everyone can work off of.  For example, run &lt;code&gt;npm init -y&lt;/code&gt; and then copy that file to &lt;code&gt;package.json.base&lt;/code&gt;.  Then make your changes and run &lt;code&gt;update_patches.sh&lt;/code&gt; to generate the patch, which will initially just compare &lt;code&gt;package.json.base&lt;/code&gt; and &lt;code&gt;package.json&lt;/code&gt;&lt;/p&gt;
+
+&lt;p&gt;Later you want to make another change to the file.  Before you edit &lt;code&gt;package.json&lt;/code&gt; make a copy to &lt;code&gt;package.json.1&lt;/code&gt;, and make your changes again.  Then run &lt;code&gt;update_patches.sh&lt;/code&gt; which will regenerate all the diffs for each file.  Then write about it, and repeat the process as necessary.&lt;/p&gt;
+
+&lt;h2 id=&#34;displaying-the-patch-files-easily&#34;&gt;Displaying the patch files easily&lt;/h2&gt;
+
+&lt;p&gt;What I want to do in while writing markdown is to do something like&lt;/p&gt;
+
+&lt;p&gt;&lt;em&gt;If we want to show the base file&lt;/em&gt;:&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;&amp;lbrace;&amp;lbrace; diff &amp;ldquo;package.json&amp;rdquo; &amp;rbrace;&amp;rbrace;&lt;/code&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;em&gt;text here&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;&amp;lbrace;&amp;lbrace; diff &amp;ldquo;package.json&amp;rdquo; &amp;ldquo;1&amp;rdquo; &amp;rbrace;&amp;rbrace;&lt;/code&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;em&gt;text here&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;&amp;lbrace;&amp;lbrace; diff &amp;ldquo;package.json&amp;rdquo; &amp;ldquo;final&amp;rdquo; &amp;rbrace;&amp;rbrace;&lt;/code&gt;&lt;/p&gt;
+
+&lt;p&gt;in my content file, and which will figure out the correct diff to inline it.&lt;/p&gt;
+
+&lt;p&gt;Here is a &lt;a href=&#34;./diff.html&#34;&gt;hugo short code&lt;/a&gt; that you can drop in your &lt;code&gt;/layouts/shortcodes/&lt;/code&gt; folder that will make that possible.&lt;/p&gt;
+
+&lt;p&gt;Embedding shortcodes as an example inside of hugo is a pain, so I&amp;rsquo;ll walk you through the logic but we wont&amp;rsquo; be looking at the code.&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;Pull out the parameters to make it easier to work with.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;$diff&lt;/code&gt; is going to contain the file contents, initialize it to blank in a scope that everyone can see.&lt;/li&gt;
+&lt;li&gt;If &lt;code&gt;$stage&lt;/code&gt; is set and is &lt;code&gt;final&lt;/code&gt;, we append &amp;ldquo;.diff&amp;rdquo; to a file &amp;ndash; which we assume is in the same directory as the Page that is calling the short code &amp;ndash; and &lt;code&gt;readFile&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;If &lt;code&gt;$stage&lt;/code&gt; is set but not final, append &amp;ldquo;.$stage.diff&amp;rdquo; to the filename and load.&lt;/li&gt;
+&lt;li&gt;If &lt;code&gt;$stage&lt;/code&gt; is blank load &amp;ldquo;$filename.diff&amp;rdquo;. This is to avoid expanding to &lt;code&gt;..diff&lt;/code&gt; which has an extra &lt;code&gt;.&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;Markdownify a link to the file directly and pass to markdownify&lt;/li&gt;
+&lt;li&gt;Markdownify the actual file, formatting is as a &lt;code&gt;diff&lt;/code&gt;&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h2 id=&#34;what-it-looks-like-in-action&#34;&gt;What it looks like in action&lt;/h2&gt;
+
+&lt;p&gt;Lets first start out by creating an empty project:&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;&lt;code&gt;mkdir projectname &amp;amp;&amp;amp; cd projectname&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;npm init -y&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;Add the following script entries to the generated &lt;code&gt;package.json&lt;/code&gt;&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;&lt;a href=&#34;./package.json.1&#34;&gt;&lt;code&gt;package.json.1&lt;/code&gt;&lt;/a&gt;:
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-diff&#34; data-lang=&#34;diff&#34;&gt;&lt;span class=&#34;gd&#34;&gt;&amp;mdash; package.json.base
+&lt;/span&gt;&lt;span class=&#34;gd&#34;&gt;&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+++ package.json.1
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;&lt;/span&gt;&lt;span class=&#34;gu&#34;&gt;@@ -6,3 +6,5 @@
+&lt;/span&gt;&lt;span class=&#34;gu&#34;&gt;&lt;/span&gt;   &amp;#34;scripts&amp;#34;: {
+&lt;span class=&#34;gd&#34;&gt;-    &amp;#34;test&amp;#34;: &amp;#34;echo &amp;amp;#34;Error: no test specified&amp;amp;#34; &amp;amp;&amp;amp; exit 1&amp;#34;
+&lt;/span&gt;&lt;span class=&#34;gd&#34;&gt;&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+    &amp;#34;build:eleventy&amp;#34;: &amp;#34;eleventy&amp;#34;,
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+    &amp;#34;serve:eleventy&amp;#34;: &amp;#34;eleventy &amp;ndash;serve&amp;#34;,
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+    &amp;#34;debug:eleventy&amp;#34;: &amp;#34;DEBUG=* eleventy&amp;#34;
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;&lt;/span&gt;   },
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/p&gt;
+
+&lt;p&gt;Oh, we forgot to install &lt;code&gt;eleventy&lt;/code&gt;!  Let&amp;rsquo;s do that now with &lt;code&gt;npm install --save-dev @11ty/eleventy&lt;/code&gt; which should modify your &lt;code&gt;package.json&lt;/code&gt; like so:&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;./package.json&#34;&gt;&lt;code&gt;package.json&lt;/code&gt;&lt;/a&gt;:
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-diff&#34; data-lang=&#34;diff&#34;&gt;&lt;span class=&#34;gd&#34;&gt;&amp;mdash; package.json.1
+&lt;/span&gt;&lt;span class=&#34;gd&#34;&gt;&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+++ package.json
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;&lt;/span&gt;&lt;span class=&#34;gu&#34;&gt;@@ -12,3 +12,6 @@
+&lt;/span&gt;&lt;span class=&#34;gu&#34;&gt;&lt;/span&gt;   &amp;#34;author&amp;#34;: &amp;#34;&amp;#34;,
+&lt;span class=&#34;gd&#34;&gt;-  &amp;#34;license&amp;#34;: &amp;#34;ISC&amp;#34;
+&lt;/span&gt;&lt;span class=&#34;gd&#34;&gt;&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+  &amp;#34;license&amp;#34;: &amp;#34;ISC&amp;#34;,
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+  &amp;#34;devDependencies&amp;#34;: {
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+    &amp;#34;@11ty/eleventy&amp;#34;: &amp;#34;^0.10.0&amp;#34;,
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;+  }
+&lt;/span&gt;&lt;span class=&#34;gi&#34;&gt;&lt;/span&gt; }
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>Template to setup a linode server with DNS and HTTPS</title>
