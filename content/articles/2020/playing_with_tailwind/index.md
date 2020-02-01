@@ -12,6 +12,10 @@ We are going to use tailwindcss to build up a site.  We will start with a blank 
 
 The site that we are going to build is a company directory that pulls in the data from Google Apps Suite.  The goal here is to build the simpleist thing possible and not get lost in the tooling.  We will start with a static site and explore different ways to pull in the data and style it.
 
+1. First go through styling a page with tailwind
+2. Then we'll introduce the `template` tag to style repeated elements
+3. Then we'll build a _Single Page App_ within a single HTML file with no tooling.
+
 ## Create the project folder and base HTML file
 
 ```bash
@@ -20,7 +24,7 @@ mkdir projectname && cd projectname
 
 Now we will create a base html file that we'll use to start styling. We are going to include the full `tailwind.min.css` file from a CDN so there's no build process here.
 
-{{% embed "static/index.html" "html" %}}
+{{% embed "static/base.html" "html" %}}
 
 Lets startup a preview server by running `npx live-server` which should open up a browser window which will update files.  You should see a window open up.  If you edit some of the text, you should see it updated in the browser once you save. So far so good, all we've needed is a html file and node installed on the machine.
 
@@ -80,11 +84,6 @@ The avatar looks pretty bland now, so lets search for borders and shadows. Add `
 </div>
 <img src="face.jpg" class="mx-auto rounded-full h-32 w-32 -mt-16 shadow-xl border-solid border-2 border-gray-300">
 ```
-
-The complete diff for the header is:
-
-{{% diff "static/profile.html" "1" %}}
-
 ## Typography
 
 We can center the text by adding `mx-auto` to the outer `div`, and `text-center` to both the `h1` and `h2` tags.  We'll also set a `max-w-lg` to keep the text in a smaller area.
@@ -122,6 +121,10 @@ Finally, we can open the spacing up a bit on the bio text by changing the line s
 <p class="leading-relaxed text-justify">
 ```
 
+For everything is
+
+{{% diff "static/profile.html" "final" %}}
+
 ## Directory pages
 
 For our directory pages, we know that we are going to repeat the same element multiple times. We'll use the html `template` tag to let us edit stuff in place.  We'll define the template, a `div` to hold it in, and some short javascript to add 10 copies of it to the container.
@@ -158,14 +161,53 @@ Finally we'll just center the email address.
 ```html
       <a class="text-center block mt-2 font-light" href="mailto:will@happyfuncorp.com">will</a>
 ```
+## Variable templating
+
+Before we go down the route of setting up webcomponents and pulling in a bunch of other files, lets change the code so that instead of duplicating the same template element each time, we drive it from an array.
+
+{{% diff "static/directory.html" "final" %}}
+
+This looks like it will get out of hand a bit as we add more, say `a` tags, but it's a simple way to get going.
 
 ## Adding more pages
 
+Now we can add different pages to the site.  We'll start with a boiler plate that contains all of our previous code in a template. On the top we have the header, and a simple _sidebar_ that we'll wire up to view things on the page.
 
+```html
+<body class="bg-gray-100 text-gray-900">
+  <div class="bg-blue-500 pt-16 pb-20 shadow-lg">
+    <img src="logo.svg" class="mx-auto h-10 w-auto">
+  </div>
+    
+  <div class="flex">
+    <div class="w-64 p-4">
+      <a href="#" class="block">Login</a>
+      <a href="#" class="block pt-4">Directory</a>
+      <a href="#" class="block pt-4">Profile</a>
+    </div>
+    <div id="root" class="w-full"></div>
+  </div>
+  
+  <template id="login">
+    <button class="m-4 px-4 py-2 bg-blue-500 text-gray-100 rounded">Login</button>
+  </template>
+```
 
+If you want to see the starting code, it's [`static/index.html.base`](static/index.html.base).  Lets get into the JavaScript!
 
+First we are going to add some click handlers to our sidebar, using good old `onClick`.
 
+Then we have three functions that clear out the `root` dom element, pull the content from the `template` tags, adjust as needed and add to the root container.
 
+{{% diff "static/index.html" "final" %}}
+
+## Conclusion
+
+From here the next step in organization would be to split these templates out into their own webcomponents. We'll be building more once we get data from an external source, and that will make the organization complicated. But for now, this works for demoable purposes and all we've had to use to make this all happen in a code editor. No tooling, compiling, and all of the code is self-contained and ready for someone to start hacking away at it.
+
+The design and design implementation process with tailwind should also be called out for being such a pleasure. Editing one file, our choices contrained by what's available so we don't get too crazy -- I especially like that padding and margins aren't pixel based, so you get to be forced between a couple options and one is generally better than the other. You feel guided but someone else's experience.
+
+I also really like that the HTML and the styling are together so you aren't flipping between two different mindsets. That makes it possible to resist the over generalization temptation of CSS to try and build reuable components, which you always end up needing to tweak in any case.  Sure you have to do things multiple times, but since it's so easy to do it you come out way ahead with the added simplicity and lower cognitive surface area.  Would recommend.
 
 ## References
 
