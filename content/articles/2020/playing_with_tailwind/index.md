@@ -4,8 +4,7 @@ subtitle: An excersize in minimilism
 tags:
   - howto
   - tailwind
-date: "2020-01-30"
-draft: true
+date: "2020-02-01"
 ---
 
 We are going to use tailwindcss to build up a site.  We will start with a blank folder and a static HTML file to work on the designs, and then slowly bring in other tools when needed to add in functionality.
