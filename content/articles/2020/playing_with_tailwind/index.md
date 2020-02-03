@@ -7,9 +7,9 @@ tags:
 date: "2020-02-01"
 ---
 
-We are going to use tailwindcss to build up a site.  We will start with a blank folder and a static HTML file to work on the designs, and then slowly bring in other tools when needed to add in functionality.
+We are going to use [tailwindcss](https://tailwindcss.com/) to build a site. We will start with a blank folder and a static HTML file to work on the designs, and then slowly bring in other tools when needed to add in functionality.
 
-The site that we are going to build is a company directory that pulls in the data from Google Apps Suite.  The goal here is to build the simpleist thing possible and not get lost in the tooling.  We will start with a static site and explore different ways to pull in the data and style it.
+The site that we are going to build is a company directory that pulls in data from Google Apps Suite. The goal here is to build the simplest thing possible and not get lost in the tooling. We will start with a static site and explore different ways to pull in the data and style it.
 
 1. First go through styling a page with tailwind
 2. Then we'll introduce the `template` tag to style repeated elements
@@ -25,19 +25,19 @@ Now we will create a base html file that we'll use to start styling. We are goin
 
 {{% embed "static/base.html" "html" %}}
 
-Lets startup a preview server by running `npx live-server` which should open up a browser window which will update files.  You should see a window open up.  If you edit some of the text, you should see it updated in the browser once you save. So far so good, all we've needed is a html file and node installed on the machine.
+Let's start up a preview server by running `npx live-server` which should open up a browser window which will update files.  You should see a window open up.  If you edit some of the text, you should see it updated in the browser once you save. So far so good. All we've needed is an html file and node installed on the machine.
 
 ## The profile page
 
-I pulled in my company logo and a headshot (well, I needed a passport photo for a visa application and so I went to a photobooth and took a picture of _that_ photo with my phone, so it's like a manual instagram filter) from our website, and wrote up a silly bio. Lets throw that on a page a start adding classes.
+I pulled in my company logo and a headshot (well, I needed a passport photo for a visa application and so I went to a photobooth and took a picture of _that_ photo with my phone, so it's like a manual Instagram filter) from our website, and wrote up a silly bio. Let's throw that on a page a start adding classes.
 
 {{% embed "static/profile.html.base" "html" "yes" %}}
 
-There are two sections here, one for the header and the other for the bio. Lets open up the [Tailwind Documentation](https://tailwindcss.com/) and walk through the process of styling everything. The workflow here is to press the `/` key and type in what we are looking for to find the classes that we'll need to apply it.
+There are two sections here, one for the header and the other for the bio. Let's open up the [Tailwind Documentation](https://tailwindcss.com/) and walk through the process of styling everything. The workflow here is to press the `/` key and type in what we are looking for to find the classes that we'll need to apply it.
 
 ### Colors
 
-First lets tweak some overall colors. We can search for "background" to see the classes available, so lets add a few. Change the body background, maybe the text color, and the background color of the header.
+First, let's tweak some overall colors. We can search for "background" to see the classes available, so let's add a few. Change the body background, maybe the text color, and the background color of the header.
 
 ```html
 <body class="bg-gray-100 text-gray-800">
@@ -46,7 +46,7 @@ First lets tweak some overall colors. We can search for "background" to see the 
 
 ### Margins and Padding
 
-Next, lets center the things in the header by added auto margins to both of the `img` tags. If we search for `margin` we'll see tons of utility classes, and we can find horizontal auto margins under `mx-auto`.
+Next, let's center the things in the header by added auto margins to both of the `img` tags. If we search for `margin` we'll see tons of utility classes, and we can find horizontal auto margins under `mx-auto`.
 
 ```html
 <div class="bg-blue-500">
@@ -55,7 +55,7 @@ Next, lets center the things in the header by added auto margins to both of the 
 <img src="face.jpg" class="mx-auto">
 ```
 
-Lets fix some sizing and shaping here. Searching for `height` or `width` we can add some classes to `logo.svg` say `h-10 w-auto` to make it `2.5rem` big.  We will also make the image `h-32` and `w-32` to shrink it down and bit.  Also search for round to find the `rounded-full` class to make the avatar rounded.
+Let's fix some sizing and shaping here. Searching for `height` or `width` we can add some classes to `logo.svg` say `h-10 w-auto` to make it `2.5rem` big.  We will also make the image `h-32` and `w-32` to shrink it down and bit.  Also search for round to find the `rounded-full` class to make the avatar rounded.
 
 ```html
 <div class="bg-blue-500">
@@ -64,7 +64,7 @@ Lets fix some sizing and shaping here. Searching for `height` or `width` we can 
 <img src="face.jpg" class="mx-auto h-32 w-32 rounded-full">
 ```
 
-Finally we need to give this thing more breathing room.  Lets add some padding to the top container, and then some negative top margin on the avatar to slide it up. Since the avatar is size 32, we'll add negative 16 top margin to it. Sticking with this sizing, we'll add top 16 margin to the header div, and space it out sized 4 from the logo for 16+4 bottom margin
+Finally we need to give this thing more breathing room.  Let's add some padding to the top container, and then some negative top margin on the avatar to slide it up. Since the avatar is size 32, we'll add negative 16 top margin to it. Sticking with this sizing, we'll add top 16 margin to the header div, and space it out sized 4 from the logo for 16+4 bottom margin
 
 ```html
 <div class="bg-blue-500 pt-16 pb-20">
@@ -75,7 +75,7 @@ Finally we need to give this thing more breathing room.  Lets add some padding t
 
 ## Popping
 
-The avatar looks pretty bland now, so lets search for borders and shadows. Add `shadow-xl border-solid border-2 border-gray-300` to the avatar img to give it a little border and a box shadow, and maybe we can also add a little shadow to the colored box.
+The avatar looks pretty bland now, so let's search for borders and shadows. Add `shadow-xl border-solid border-2 border-gray-300` to the avatar img to give it a little border and a box shadow, and maybe we can also add a little shadow to the colored box.
 
 ```html
 <div class="bg-blue-500 pt-16 pb-20 shadow-lg">
@@ -107,7 +107,7 @@ We'll change the font weight using `font-semibold` and `font-light`, and decreas
   <h2 class="text-center text-cl font-light">COO, CoFounder</h2>
 ```
 
-Finally, the verticle spacing doesn't feel great, so lets add some padding at the top and bottom.
+Finally, the vertical spacing doesn't feel great, so let's add some padding at the top and bottom.
 
 ```html
   <h1 class="pt-4 text-center text-4xl font-semibold tracking-tight">Will Schenk</h1>
@@ -130,25 +130,25 @@ For our directory pages, we know that we are going to repeat the same element mu
 
 {{% embed "static/directory.html.base" "html" %}}
 
-Now lets get a better layout.  Lets use flexbox to lay it out. Add `flex` to the container div and we see that everyone is layed out horizontally. This is a bit intense since everything is on one row.  Lets add `flex-wrap` and `justify-around` to it also, to have it span multiple lines and equally spread out the space around each element.
+Now let's get a better layout, using flexbox to lay it out. Add `flex` to the container div and we see that everything is laid out horizontally. This is a bit intense since everything is on one row.  Let's add `flex-wrap` and `justify-around` to it also, to have it span multiple lines and equally spread out the space around each element.
 
 ```html
   <div id="container" class="flex flex-wrap justify-around">
 ```
 
-Much better.  The image I'm using is huge, so lets shrink down that `img` class so we can see what we are looking at. Lets also copy the rounded and popping ideas from before.
+Much better.  The image I'm using is huge, so let's shrink down that `img` class so we can see what we are looking at. Let's also copy the rounded and popping ideas from before.
 
 ```html
       <img src="face.jpg" class="h-32 w-32 shadow-xl border-2 border-gray-200 rounded-full">
 ```
 
-Lets now fix the size of the cards themselves.  We've seen all these classes before, but I'm going to make it `w-64` and add a rounded border to it.
+Let's now fix the size of the cards themselves.  We've seen all these classes before, but I'm going to make it `w-64` and add a rounded border to it.
 
 ```html
     <div class="w-64 border-solid border border-gray-200 rounded-lg">
 ```
 
-I want to center the image and have it overlap the card.  We'll do this by adding `mt-20` to the outter `div`, and `-mt-16 ml-16` to the image.  
+I want to center the image and have it overlap the card.  We'll do this by adding `mt-20` to the outer `div`, and `-mt-16 ml-16` to the image.  
 
 ```html
     <div class="w-64 mt-20 border-solid border border-gray-200 rounded-lg">
@@ -162,7 +162,7 @@ Finally we'll just center the email address.
 ```
 ## Variable templating
 
-Before we go down the route of setting up webcomponents and pulling in a bunch of other files, lets change the code so that instead of duplicating the same template element each time, we drive it from an array.
+Before we go down the route of setting up webcomponents and pulling in a bunch of other files, let's change the code so that instead of duplicating the same template element each time, we drive it from an array.
 
 {{% diff "static/directory.html" "final" %}}
 
@@ -192,7 +192,7 @@ Now we can add different pages to the site.  We'll start with a boiler plate tha
   </template>
 ```
 
-If you want to see the starting code, it's [`static/index.html.base`](static/index.html.base).  Lets get into the JavaScript!
+If you want to see the starting code, it's [`static/index.html.base`](static/index.html.base).  Let's get into the JavaScript!
 
 First we are going to add some click handlers to our sidebar, using good old `onClick`.
 
@@ -206,7 +206,7 @@ From here the next step in organization would be to split these templates out in
 
 The design and design implementation process with tailwind should also be called out for being such a pleasure. Editing one file, our choices contrained by what's available so we don't get too crazy -- I especially like that padding and margins aren't pixel based, so you get to be forced between a couple options and one is generally better than the other. You feel guided but someone else's experience.
 
-I also really like that the HTML and the styling are together so you aren't flipping between two different mindsets. That makes it possible to resist the over generalization temptation of CSS to try and build reuable components, which you always end up needing to tweak in any case.  Sure you have to do things multiple times, but since it's so easy to do it you come out way ahead with the added simplicity and lower cognitive surface area.  Would recommend.
+I also really like that the HTML and the styling are together so you aren't flipping between two different mindsets. That makes it possible to resist the over generalization temptation of CSS to try and build reusable components, which you always end up needing to tweak in any case.  Sure you have to do things multiple times, but since it's so easy to do it you come out way ahead with the added simplicity and lower cognitive surface area.  Would recommend.
 
 ## References
 
