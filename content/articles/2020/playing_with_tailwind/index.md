@@ -31,11 +31,15 @@ Lets startup a preview server by running `npx live-server` which should open up 
 
 I pulled in my company logo and a headshot (well, I needed a passport photo for a visa application and so I went to a photobooth and took a picture of _that_ photo with my phone, so it's like a manual instagram filter) from our website, and wrote up a silly bio. Lets throw that on a page a start adding classes.
 
+Lets build this:
+
+{{% img img="profile_done.png" style="max-width: 600px" %}}
+
 {{% embed "static/profile.html.base" "html" "yes" %}}
 
-There are two sections here, one for the header and the other for the bio. Lets open up the [Tailwind Documentation](https://tailwindcss.com/) and walk through the process of styling everything. The workflow here is to press the `/` key and type in what we are looking for to find the classes that we'll need to apply it.
+There are two sections here, one for the header and the other for the bio. Let's open up the [Tailwind Documentation](https://tailwindcss.com/) and walk through the process of styling everything. The workflow here is to press the `/` key and type in what we are looking for to find the classes that we'll need to apply it.
 
-### Colors
+## Colors
 
 First lets tweak some overall colors. We can search for "background" to see the classes available, so lets add a few. Change the body background, maybe the text color, and the background color of the header.
 
@@ -127,6 +131,8 @@ For everything is
 ## Directory pages
 
 For our directory pages, we know that we are going to repeat the same element multiple times. We'll use the html `template` tag to let us edit stuff in place.  We'll define the template, a `div` to hold it in, and some short javascript to add 10 copies of it to the container.
+
+{{< img img="directory_done.png" style="max-width: 600px" >}}
 
 {{% embed "static/directory.html.base" "html" %}}
 
