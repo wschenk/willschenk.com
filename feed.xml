@@ -5,10 +5,124 @@
     <description>Recent content on Will Schenk</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
-    <lastBuildDate>Sat, 01 Feb 2020 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Wed, 05 Feb 2020 00:00:00 +0000</lastBuildDate>
     
         <atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml" />
     
+    
+    <item>
+      <title>Leveraging disposability for exploration</title>
+      <link>https://willschenk.com/articles/2020/leveraging_disposability_for_exploration/</link>
+      <pubDate>Wed, 05 Feb 2020 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2020/leveraging_disposability_for_exploration/</guid>
+      <description>
+
+&lt;p&gt;I play around with a lot of technology to see what&amp;rsquo;s out there and keep myself current with beginner techniques. One of the issues is that this can leave lots of stuff laying which can be messy.  Here are some techniques I use to keep things under control.&lt;/p&gt;
+
+&lt;p&gt;There are two complementary principle&amp;rsquo;s that I focus on.  One is reproducibility, and the other is disposibility.  I want to be able to easily recreate what I was working on so that I don&amp;rsquo;t care if I throw it away. The easier I can reproduce things the better I can revisit them &amp;ndash; especially if I&amp;rsquo;m deep into something when I realize that there was a fundamental misunderstanding at the beginning.&lt;/p&gt;
+
+&lt;h2 id=&#34;labnotes-and-scripts&#34;&gt;Labnotes and scripts&lt;/h2&gt;
+
+&lt;p&gt;The first thing is that you should get into a habit of writing everything down.  A lot of posts on this site start out as me copy and pasting commands that I&amp;rsquo;m running into a text file for later reference.  Often I find that after I get to a certain place I realize that I&amp;rsquo;ve over complicated something and that there is a simpler way to do something, and my workflow in that situation is to delete everything that I was working on, go back and follow the steps I was had used to get there making corrections on how I went.&lt;/p&gt;
+
+&lt;p&gt;Initially this is a simple text file that I copy commands into.  Depending upon how far I get, this turns into a executable shell script, a &lt;code&gt;Dockerfile&lt;/code&gt;, a set of terraform provisioning files, ansible scripts or kubernetes files, etc. I prefer bash scripts overall since that&amp;rsquo;s the most flexible. Since this stuff isn&amp;rsquo;t in production I really don&amp;rsquo;t need to upgrade in place so I can cut some corners with idempotency by, basically, throwing away the entire container/instance/vm if I&amp;rsquo;ve made a mess.&lt;/p&gt;
+
+&lt;h2 id=&#34;cd-mktemp-d&#34;&gt;&lt;code&gt;cd $(mktemp -d)&lt;/code&gt;&lt;/h2&gt;
+
+&lt;p&gt;Which means that it should be easy to delete everything. I will generally create a working directory inside of a temp folder to play around in.  This means that once I drop the idea, or that I reboot the computer the files all clean themselves up and go away. But I have a script I can follow to recreate things.&lt;/p&gt;
+
+&lt;p&gt;This is especially useful for cloning things out of github to really poke around in them.  Especially node projects that vomit out a massive &lt;code&gt;node_modules&lt;/code&gt; directory which I don&amp;rsquo;t need eating up hard disk space that I&amp;rsquo;ll need to track down in some unknown future.&lt;/p&gt;
+
+&lt;h2 id=&#34;provisioning-your-local-computer-with-a-script&#34;&gt;Provisioning your local computer with a script&lt;/h2&gt;
+
+&lt;p&gt;I split my computer time between a couple Pixelbooks, a MacBook Air and, well, my phone. Doing stuff on the phone using &lt;a href=&#34;https://termux.com/&#34;&gt;TermUX&lt;/a&gt; is possible but its a different enough environment that it&amp;rsquo;s not really worth it, since most linux things don&amp;rsquo;t really support arm processors in a first-class way. If you do a lot of RaspberryPI stuff maybe.&lt;/p&gt;
+
+&lt;p&gt;But for the laptops setting up a script that installs your base environment is super useful, and when you find a tool that you use regularly it helps to consolidate the install script in one place.  The Pixelbook in particular lends itself to this since it&amp;rsquo;s so natural to delete the entire linux environment and recreate it that it makes it easy to test. For debian machines (aka the Pixelbook) this is &lt;a href=&#34;../../2019/computer_setup_script/&#34;&gt;the script that I use&lt;/a&gt;, so on a clean VM I do:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span class=&#34;nb&#34;&gt;cd&lt;/span&gt; /tmp &lt;span class=&#34;p&#34;&gt;;&lt;/span&gt; curl https://willschenk.com/bootstrap.bash &amp;gt; bootstrap.bash&lt;span class=&#34;p&#34;&gt;;&lt;/span&gt; bash bootstrap.bash&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;And a few minutes later I&amp;rsquo;m good to go.  When there&amp;rsquo;s something else that I think I&amp;rsquo;d want in my toolbox, I add it to this script and install it from there so I never need to remember how to do it again.&lt;/p&gt;
+
+&lt;p&gt;I&amp;rsquo;m experimenting with putting my config files in there also, or rather pulling them from a github repository. My &lt;code&gt;.emacs&lt;/code&gt; file for example is a contender.  At the moment this doesn&amp;rsquo;t seem to be worth the overhead but your mileage may vary.&lt;/p&gt;
+
+&lt;h2 id=&#34;docker-to-spin-up-one-off-services&#34;&gt;Docker to spin up one-off services&lt;/h2&gt;
+
+&lt;p&gt;I was testing out how to connect &lt;a href=&#34;https://deno.land/&#34;&gt;deno&lt;/a&gt; to &lt;a href=&#34;https://redis.io/&#34;&gt;redis&lt;/a&gt; the other day, and I needed a redis server to play around with.  So I ran&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;docker run --rm -p &lt;span class=&#34;m&#34;&gt;6379&lt;/span&gt;:6379 redis&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;And it pulled down the latest image and started it up.  One line.  When I kill that command, since I passed the &lt;code&gt;--rm&lt;/code&gt; it cleans up the container afterwards and makes everything go away.&lt;/p&gt;
+
+&lt;p&gt;This works for other things other than redis.  As a distribution mechanism this is super cool and easy.&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;docker-compose&lt;/code&gt; is often more trouble than it&amp;rsquo;s worth.  It&amp;rsquo;s really useful when you are setting up private networks between the server or managing long term volumes, but compare how hard it was to setup &lt;code&gt;certbot&lt;/code&gt; using &lt;code&gt;docker-compose&lt;/code&gt; in &lt;a href=&#34;../../2019/setting_up_an_ipfs_node/&#34;&gt;setting up an ipfs_node&lt;/a&gt; vs &lt;a href=&#34;../server_templating_with_terraform/setup.bash&#34;&gt;setting it up with a bash script&lt;/a&gt;. The bash script is much simpler to understand, reason about, and more importantly, tweak when you come back to it 6 month later.&lt;/p&gt;
+
+&lt;h2 id=&#34;single-binary-deploys&#34;&gt;Single binary deploys&lt;/h2&gt;
+
+&lt;p&gt;In many ways what Docker gives you is a way to treat everything as a single binary deploy.  Yes the registry makes it easier, and yes having standard ways to set network ingress and volume access control are also super amazing, but really the part where it shines is the distribution method. One of the things that&amp;rsquo;s create about go and (maybe?) rust is that you get the single binary. After playing around with a lot of these different packages it really makes things nicer. Docker helps with that which I think is a reason why it&amp;rsquo;s so popular.&lt;/p&gt;
+
+&lt;h2 id=&#34;docker-to-isolate-the-build-environment&#34;&gt;Docker to isolate the build environment&lt;/h2&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;node&lt;/code&gt; projects require that you install &lt;code&gt;nvm&lt;/code&gt; &amp;ndash; which needs to mess with your environment variables &amp;ndash; and often install stuff in the global name space (though &lt;code&gt;npx&lt;/code&gt; is helping with that) and then vomit out a &lt;code&gt;node_modules&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;ruby&lt;/code&gt; projects imply &lt;code&gt;rbenv&lt;/code&gt; &amp;ndash; which needs to mess with your environment variables &amp;ndash; and then run &lt;code&gt;bundler&lt;/code&gt; and install the gems who knows where.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;python&lt;/code&gt; requires you to install &lt;code&gt;pip&lt;/code&gt; &amp;ndash; which also mess with your environment variables &amp;ndash; and frankly I don&amp;rsquo;t know where it stashes its stuff.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;go&lt;/code&gt; is shifting things around and I think it&amp;rsquo;s getting better with go modules but you still have a (frankly very weird idea) of &lt;code&gt;GOPATH&lt;/code&gt; that puts everything in one honking workspace that you&amp;rsquo;ll need to isolate.&lt;/li&gt;
+&lt;li&gt;I&amp;rsquo;m sure there&amp;rsquo;s something similar and exactly as annoying for &lt;code&gt;rust&lt;/code&gt; and &lt;code&gt;php&lt;/code&gt; projects but the same techniques should apply.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;This annoys me, because it&amp;rsquo;s hard to isolate everything so that I can throw it away.&lt;/p&gt;
+
+&lt;p&gt;One technique I&amp;rsquo;ll use here is to actually work inside of a docker container to get all of this stuff out of the way. Lets say we are talking about &lt;code&gt;create-react-app&lt;/code&gt;.  We can create a &lt;code&gt;Dockerfile&lt;/code&gt; like this:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-Dockerfile&#34; data-lang=&#34;Dockerfile&#34;&gt;&lt;span class=&#34;k&#34;&gt;FROM&lt;/span&gt;&lt;span class=&#34;s&#34;&gt; node:11&lt;/span&gt;&lt;span class=&#34;err&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;err&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;err&#34;&gt;&lt;/span&gt;&lt;span class=&#34;k&#34;&gt;CMD&lt;/span&gt;&lt;span class=&#34;s&#34;&gt; mkdir -p /app &amp;amp; cd /app&lt;/span&gt;&lt;span class=&#34;err&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;err&#34;&gt;
+&lt;/span&gt;&lt;span class=&#34;err&#34;&gt;&lt;/span&gt;&lt;span class=&#34;k&#34;&gt;CMD&lt;/span&gt;&lt;span class=&#34;s&#34;&gt; bash&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Then build it:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;docker build . -t nodeimg&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Then start it up as an interactive shell, connecting to the host network with the current directory mounted in &lt;code&gt;/app&lt;/code&gt;:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;docker run --rm -it --network host -v &lt;span class=&#34;si&#34;&gt;${&lt;/span&gt;&lt;span class=&#34;nv&#34;&gt;PWD&lt;/span&gt;&lt;span class=&#34;si&#34;&gt;}&lt;/span&gt;:/app nodeimg&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;And inside of it run &lt;code&gt;cd /app &amp;amp;&amp;amp; npx create-react-app myapp&lt;/code&gt; which will install a &lt;code&gt;cra&lt;/code&gt; templated application. Inside of this you can run &lt;code&gt;yarn start&lt;/code&gt; or whatever to bring up a server, use whatever editor you want on the local machine, etc.  And once you quit that shell all of the &lt;code&gt;node&lt;/code&gt; stuff on your machine is gone.&lt;/p&gt;
+
+&lt;p&gt;By the way:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;$ du -sh myapp
+229M    myapp/&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;229 megabytes for an empty project!&lt;/p&gt;
+
+&lt;p&gt;If you are a node person anyway and already have things setup than you don&amp;rsquo;t need to do this obviously.  And depending upon how your editor is setup it may make sense to have a system install.&lt;/p&gt;
+
+&lt;p&gt;But imagine that you are working on a remote server for some reason and you need to get into some node stuff real quick &amp;ndash; how much cleaner would this be to spend your 30 minutes doing whatever and then getting out cleanly, rather than having to mess around with installing system packages!&lt;/p&gt;
+
+&lt;p&gt;OSX is clearly a second class citizen in the Docker world.  The filesystem performace is shockingly atrocious.  It works but&amp;hellip; And these commands won&amp;rsquo;t actually work if the volume you mount isn&amp;rsquo;t in the right filesystem &amp;ndash; i.e. you can&amp;rsquo;t develop like this in a &lt;code&gt;mktemp -d&lt;/code&gt; &amp;ldquo;environment&amp;rdquo;, since Docker won&amp;rsquo;t let you mount files from there.&lt;/p&gt;
+
+&lt;p&gt;Another caveat here is that if you are on OSX this will give you a linux &lt;code&gt;node_modules&lt;/code&gt;, so if there is anything that requires native libs you need to reinstall &lt;code&gt;node_modules&lt;/code&gt; if you want to move locally, but you should have all the lockfiles in place to give you the same versions.&lt;/p&gt;
+
+&lt;h2 id=&#34;http2-requires-https-which-requires-a-cert-which-requires-a-domain&#34;&gt;HTTP2 requires HTTPS which requires a cert which requires a domain&lt;/h2&gt;
+
+&lt;p&gt;We are going full encryption everywhere which is great and a lot of things refuse to work right if its not run over HTTPS. You can get around this a bit by using HTTPS=true in lot of development environments which setup a self-signed certificate which is OK-ish, but often you need a server.  I&amp;rsquo;ve documented how I &lt;a href=&#34;../server_templating_with_terraform&#34;&gt;spin up a linode server, point a name to it, and setup nginx with certbot&lt;/a&gt; earlier and this was a game changer. &lt;code&gt;terraform&lt;/code&gt; provisions the server and sets up DNS for me, and then I run a script to setup nginx and install a &lt;a href=&#34;https://letsencrypt.org/&#34;&gt;LetsEncrypt&lt;/a&gt; certificate.&lt;/p&gt;
+
+&lt;p&gt;The key thing about this setup is &lt;code&gt;terraform destroy&lt;/code&gt; which cleans up everything after itself.&lt;/p&gt;
+
+&lt;p&gt;This makes a lot of possible things easy, and as they get easier you are more likely to do it.&lt;/p&gt;
+
+&lt;h2 id=&#34;why-i-don-t-like-one-click-installers&#34;&gt;Why I don&amp;rsquo;t like one-click installers&lt;/h2&gt;
+
+&lt;p&gt;A common workaround to this is to have one-click installers on DigitalOcean or Heroku or something.  I don&amp;rsquo;t really like this because it hides too much stuff &amp;ndash; my goal often isn&amp;rsquo;t to actually run &lt;a href=&#34;http://dokku.viewdocs.io/dokku/&#34;&gt;dokku&lt;/a&gt; or &lt;a href=&#34;https://www.discourse.org/&#34;&gt;discourse&lt;/a&gt; or &lt;a href=&#34;https://docs.joinmastodon.org/admin/install/&#34;&gt;mastodon&lt;/a&gt; or whatever, its to explore how it works. Actually running a production system is more complicated and by assembling the pieces myself I get a better sense of what is involved. There&amp;rsquo;s nothing wrong with the approach of setting up quickly and I think it&amp;rsquo;s necessary for easy on-boarding to using the project.&lt;/p&gt;
+
+&lt;p&gt;Especially if you already have supported infrastructure it makes sense to figure out how deploy on that rather than provisioning new stuff. In terms of actual deployment we use a lot of PaaS stuff &amp;ndash; I for one am happy never to have to run a database server again in my life &amp;ndash; so understanding how to pull out the Postgres install to use CloudSQL or whatever is valuable if we do decide to adopt something.&lt;/p&gt;
+
+&lt;p&gt;The workflow here would be to get it working with the script, migrate those scripts to terraform to deal with the provisioning and coordination, and then use packer, ansible or kubernetes as needed to configure all the packages.  But it starts with the scripts.&lt;/p&gt;
+
+&lt;h2 id=&#34;in-summary&#34;&gt;In summary&lt;/h2&gt;
+
+&lt;ol&gt;
+&lt;li&gt;Write every step down in a work file and constantly iterate&lt;/li&gt;
+&lt;li&gt;Prefer bash scripts that assume stock OS image install&lt;/li&gt;
+&lt;li&gt;Treat every working directory as a temp directory&lt;/li&gt;
+&lt;li&gt;Isolate environmental contamination as much as possible&lt;/li&gt;
+&lt;li&gt;Automate provision of local environment&lt;/li&gt;
+&lt;li&gt;Make sure you automate tear down of cloud environment&lt;/li&gt;
+&lt;/ol&gt;
+</description>
+    </item>
     
     <item>
       <title>Playing with tailwind</title>
