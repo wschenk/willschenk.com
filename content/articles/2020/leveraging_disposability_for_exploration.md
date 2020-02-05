@@ -55,13 +55,13 @@ This works for other things other than redis.  As a distribution mechanism this 
 
 ## Single binary deploys
 
-In many ways what Docker gives you is a way to treat everything as a single binary deploy.  Yes the registry makes it easier, and yes having standard ways to set network ingress and volume access control are also super amazing, but really the part where it shines is the distribution method. One of the things that's create about go and (maybe?) rust is that you get the single binary. After playing around with a lot of these different packages it really makes things nicer. Docker helps with that which I think is a reason why it's so popular.
+In many ways what Docker gives you is a way to treat everything as a single binary deploy.  Yes the registry makes it easier, and yes having standard ways to set network ingress and volume access control are also super amazing, but really the part where it shines is the distribution method. One of the things that's great about go and (maybe?) rust is that you get the single binary. After playing around with a lot of these different packaging systems it really makes things nicer. Docker helps with that which I think is a reason why it's so popular.
 
 ## Docker to isolate the build environment
 
 - `node` projects require that you install `nvm` -- which needs to mess with your environment variables -- and often install stuff in the global name space (though `npx` is helping with that) and then vomit out a `node_modules`. 
 - `ruby` projects imply `rbenv` -- which needs to mess with your environment variables -- and then run `bundler` and install the gems who knows where. 
-- `python` requires you to install `pip` -- which also mess with your environment variables -- and frankly I don't know where it stashes its stuff.
+- `python` requires you to install `pip` -- which also mess with your environment variables -- and frankly I don't know where it stashes its stuff, seems like `~/.local` and `/.cache` which other things use also.
 - `go` is shifting things around and I think it's getting better with go modules but you still have a (frankly very weird idea) of `GOPATH` that puts everything in one honking workspace that you'll need to isolate.
 - I'm sure there's something similar and exactly as annoying for `rust` and `php` projects but the same techniques should apply.
 
@@ -71,9 +71,7 @@ One technique I'll use here is to actually work inside of a docker container to 
 
 ```Dockerfile
 FROM node:11
-
 CMD mkdir -p /app & cd /app
-
 CMD bash
 ```
 
@@ -118,7 +116,7 @@ This makes a lot of possible things easy, and as they get easier you are more li
 
 ## Why I don't like one-click installers
 
-A common workaround to this is to have one-click installers on DigitalOcean or Heroku or something.  I don't really like this because it hides too much stuff -- my goal often isn't to actually run [dokku](http://dokku.viewdocs.io/dokku/) or [discourse](https://www.discourse.org/) or [mastodon](https://docs.joinmastodon.org/admin/install/) or whatever, its to explore how it works. Actually running a production system is more complicated and by assembling the pieces myself I get a better sense of what is involved. There's nothing wrong with the approach of setting up quickly and I think it's necessary for easy on-boarding to using the project.
+A common workaround to this is to have one-click installers on DigitalOcean or Heroku or something.  I don't really like this because it hides too much stuff -- my goal often isn't to actually run [dokku](http://dokku.viewdocs.io/dokku/) or [discourse](https://www.discourse.org/) or [mastodon](https://docs.joinmastodon.org/admin/install/) or whatever, it's to explore how it works. Actually running a production system is more complicated and by assembling the pieces myself I get a better sense of what is involved. There's nothing wrong with the approach of setting up quickly and I think it's necessary for easy on-boarding to using the project.
 
 Especially if you already have supported infrastructure it makes sense to figure out how deploy on that rather than provisioning new stuff. In terms of actual deployment we use a lot of PaaS stuff -- I for one am happy never to have to run a database server again in my life -- so understanding how to pull out the Postgres install to use CloudSQL or whatever is valuable if we do decide to adopt something.
 
