@@ -9,7 +9,7 @@ tags:
 date: "2020-02-05"
 ---
 
-I play around with a lot of technology to see what's out there and keep myself current with beginner techniques. One of the issues is that this can leave lots of stuff laying which can be messy.  Here are some techniques I use to keep things under control.
+I play around with a lot of technology to see what's out there and keep myself current, especially trying to find simpler ways to do [our work](https://happyfuncorp.com/work). One of the issues is that this can leave lots of stuff laying which can be messy.  Here are some techniques I use to keep things under control.
 
 There are two complementary principle's that I focus on.  One is reproducibility, and the other is disposibility.  I want to be able to easily recreate what I was working on so that I don't care if I throw it away. The easier I can reproduce things the better I can revisit them -- especially if I'm deep into something when I realize that there was a fundamental misunderstanding at the beginning.
 
