@@ -56,14 +56,14 @@
 
 &lt;h2 id=&#34;single-binary-deploys&#34;&gt;Single binary deploys&lt;/h2&gt;
 
-&lt;p&gt;In many ways what Docker gives you is a way to treat everything as a single binary deploy.  Yes the registry makes it easier, and yes having standard ways to set network ingress and volume access control are also super amazing, but really the part where it shines is the distribution method. One of the things that&amp;rsquo;s create about go and (maybe?) rust is that you get the single binary. After playing around with a lot of these different packages it really makes things nicer. Docker helps with that which I think is a reason why it&amp;rsquo;s so popular.&lt;/p&gt;
+&lt;p&gt;In many ways what Docker gives you is a way to treat everything as a single binary deploy.  Yes the registry makes it easier, and yes having standard ways to set network ingress and volume access control are also super amazing, but really the part where it shines is the distribution method. One of the things that&amp;rsquo;s great about go and (maybe?) rust is that you get the single binary. After playing around with a lot of these different packaging systems it really makes things nicer. Docker helps with that which I think is a reason why it&amp;rsquo;s so popular.&lt;/p&gt;
 
 &lt;h2 id=&#34;docker-to-isolate-the-build-environment&#34;&gt;Docker to isolate the build environment&lt;/h2&gt;
 
 &lt;ul&gt;
 &lt;li&gt;&lt;code&gt;node&lt;/code&gt; projects require that you install &lt;code&gt;nvm&lt;/code&gt; &amp;ndash; which needs to mess with your environment variables &amp;ndash; and often install stuff in the global name space (though &lt;code&gt;npx&lt;/code&gt; is helping with that) and then vomit out a &lt;code&gt;node_modules&lt;/code&gt;.&lt;/li&gt;
 &lt;li&gt;&lt;code&gt;ruby&lt;/code&gt; projects imply &lt;code&gt;rbenv&lt;/code&gt; &amp;ndash; which needs to mess with your environment variables &amp;ndash; and then run &lt;code&gt;bundler&lt;/code&gt; and install the gems who knows where.&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;python&lt;/code&gt; requires you to install &lt;code&gt;pip&lt;/code&gt; &amp;ndash; which also mess with your environment variables &amp;ndash; and frankly I don&amp;rsquo;t know where it stashes its stuff.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;python&lt;/code&gt; requires you to install &lt;code&gt;pip&lt;/code&gt; &amp;ndash; which also mess with your environment variables &amp;ndash; and frankly I don&amp;rsquo;t know where it stashes its stuff, seems like &lt;code&gt;~/.local&lt;/code&gt; and &lt;code&gt;/.cache&lt;/code&gt; which other things use also.&lt;/li&gt;
 &lt;li&gt;&lt;code&gt;go&lt;/code&gt; is shifting things around and I think it&amp;rsquo;s getting better with go modules but you still have a (frankly very weird idea) of &lt;code&gt;GOPATH&lt;/code&gt; that puts everything in one honking workspace that you&amp;rsquo;ll need to isolate.&lt;/li&gt;
 &lt;li&gt;I&amp;rsquo;m sure there&amp;rsquo;s something similar and exactly as annoying for &lt;code&gt;rust&lt;/code&gt; and &lt;code&gt;php&lt;/code&gt; projects but the same techniques should apply.&lt;/li&gt;
 &lt;/ul&gt;
@@ -72,9 +72,7 @@
 
 &lt;p&gt;One technique I&amp;rsquo;ll use here is to actually work inside of a docker container to get all of this stuff out of the way. Lets say we are talking about &lt;code&gt;create-react-app&lt;/code&gt;.  We can create a &lt;code&gt;Dockerfile&lt;/code&gt; like this:&lt;/p&gt;
 &lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-Dockerfile&#34; data-lang=&#34;Dockerfile&#34;&gt;&lt;span class=&#34;k&#34;&gt;FROM&lt;/span&gt;&lt;span class=&#34;s&#34;&gt; node:11&lt;/span&gt;&lt;span class=&#34;err&#34;&gt;
-&lt;/span&gt;&lt;span class=&#34;err&#34;&gt;
 &lt;/span&gt;&lt;span class=&#34;err&#34;&gt;&lt;/span&gt;&lt;span class=&#34;k&#34;&gt;CMD&lt;/span&gt;&lt;span class=&#34;s&#34;&gt; mkdir -p /app &amp;amp; cd /app&lt;/span&gt;&lt;span class=&#34;err&#34;&gt;
-&lt;/span&gt;&lt;span class=&#34;err&#34;&gt;
 &lt;/span&gt;&lt;span class=&#34;err&#34;&gt;&lt;/span&gt;&lt;span class=&#34;k&#34;&gt;CMD&lt;/span&gt;&lt;span class=&#34;s&#34;&gt; bash&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
 &lt;p&gt;Then build it:&lt;/p&gt;
 &lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;docker build . -t nodeimg&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
@@ -105,7 +103,7 @@
 
 &lt;h2 id=&#34;why-i-don-t-like-one-click-installers&#34;&gt;Why I don&amp;rsquo;t like one-click installers&lt;/h2&gt;
 
-&lt;p&gt;A common workaround to this is to have one-click installers on DigitalOcean or Heroku or something.  I don&amp;rsquo;t really like this because it hides too much stuff &amp;ndash; my goal often isn&amp;rsquo;t to actually run &lt;a href=&#34;http://dokku.viewdocs.io/dokku/&#34;&gt;dokku&lt;/a&gt; or &lt;a href=&#34;https://www.discourse.org/&#34;&gt;discourse&lt;/a&gt; or &lt;a href=&#34;https://docs.joinmastodon.org/admin/install/&#34;&gt;mastodon&lt;/a&gt; or whatever, its to explore how it works. Actually running a production system is more complicated and by assembling the pieces myself I get a better sense of what is involved. There&amp;rsquo;s nothing wrong with the approach of setting up quickly and I think it&amp;rsquo;s necessary for easy on-boarding to using the project.&lt;/p&gt;
+&lt;p&gt;A common workaround to this is to have one-click installers on DigitalOcean or Heroku or something.  I don&amp;rsquo;t really like this because it hides too much stuff &amp;ndash; my goal often isn&amp;rsquo;t to actually run &lt;a href=&#34;http://dokku.viewdocs.io/dokku/&#34;&gt;dokku&lt;/a&gt; or &lt;a href=&#34;https://www.discourse.org/&#34;&gt;discourse&lt;/a&gt; or &lt;a href=&#34;https://docs.joinmastodon.org/admin/install/&#34;&gt;mastodon&lt;/a&gt; or whatever, it&amp;rsquo;s to explore how it works. Actually running a production system is more complicated and by assembling the pieces myself I get a better sense of what is involved. There&amp;rsquo;s nothing wrong with the approach of setting up quickly and I think it&amp;rsquo;s necessary for easy on-boarding to using the project.&lt;/p&gt;
 
 &lt;p&gt;Especially if you already have supported infrastructure it makes sense to figure out how deploy on that rather than provisioning new stuff. In terms of actual deployment we use a lot of PaaS stuff &amp;ndash; I for one am happy never to have to run a database server again in my life &amp;ndash; so understanding how to pull out the Postgres install to use CloudSQL or whatever is valuable if we do decide to adopt something.&lt;/p&gt;
 

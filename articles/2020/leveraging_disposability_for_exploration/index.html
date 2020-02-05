@@ -144,14 +144,14 @@ There are two complementary principle&rsquo;s that I focus on. One is reproducib
 
 <h2 id="single-binary-deploys">Single binary deploys</h2>
 
-<p>In many ways what Docker gives you is a way to treat everything as a single binary deploy.  Yes the registry makes it easier, and yes having standard ways to set network ingress and volume access control are also super amazing, but really the part where it shines is the distribution method. One of the things that&rsquo;s create about go and (maybe?) rust is that you get the single binary. After playing around with a lot of these different packages it really makes things nicer. Docker helps with that which I think is a reason why it&rsquo;s so popular.</p>
+<p>In many ways what Docker gives you is a way to treat everything as a single binary deploy.  Yes the registry makes it easier, and yes having standard ways to set network ingress and volume access control are also super amazing, but really the part where it shines is the distribution method. One of the things that&rsquo;s great about go and (maybe?) rust is that you get the single binary. After playing around with a lot of these different packaging systems it really makes things nicer. Docker helps with that which I think is a reason why it&rsquo;s so popular.</p>
 
 <h2 id="docker-to-isolate-the-build-environment">Docker to isolate the build environment</h2>
 
 <ul>
 <li><code>node</code> projects require that you install <code>nvm</code> &ndash; which needs to mess with your environment variables &ndash; and often install stuff in the global name space (though <code>npx</code> is helping with that) and then vomit out a <code>node_modules</code>.</li>
 <li><code>ruby</code> projects imply <code>rbenv</code> &ndash; which needs to mess with your environment variables &ndash; and then run <code>bundler</code> and install the gems who knows where.</li>
-<li><code>python</code> requires you to install <code>pip</code> &ndash; which also mess with your environment variables &ndash; and frankly I don&rsquo;t know where it stashes its stuff.</li>
+<li><code>python</code> requires you to install <code>pip</code> &ndash; which also mess with your environment variables &ndash; and frankly I don&rsquo;t know where it stashes its stuff, seems like <code>~/.local</code> and <code>/.cache</code> which other things use also.</li>
 <li><code>go</code> is shifting things around and I think it&rsquo;s getting better with go modules but you still have a (frankly very weird idea) of <code>GOPATH</code> that puts everything in one honking workspace that you&rsquo;ll need to isolate.</li>
 <li>I&rsquo;m sure there&rsquo;s something similar and exactly as annoying for <code>rust</code> and <code>php</code> projects but the same techniques should apply.</li>
 </ul>
@@ -160,9 +160,7 @@ There are two complementary principle&rsquo;s that I focus on. One is reproducib
 
 <p>One technique I&rsquo;ll use here is to actually work inside of a docker container to get all of this stuff out of the way. Lets say we are talking about <code>create-react-app</code>.  We can create a <code>Dockerfile</code> like this:</p>
 <div class="highlight"><pre class="chroma"><code class="language-Dockerfile" data-lang="Dockerfile"><span class="k">FROM</span><span class="s"> node:11</span><span class="err">
-</span><span class="err">
 </span><span class="err"></span><span class="k">CMD</span><span class="s"> mkdir -p /app &amp; cd /app</span><span class="err">
-</span><span class="err">
 </span><span class="err"></span><span class="k">CMD</span><span class="s"> bash</span></code></pre></div>
 <p>Then build it:</p>
 <div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">docker build . -t nodeimg</code></pre></div>
@@ -193,7 +191,7 @@ There are two complementary principle&rsquo;s that I focus on. One is reproducib
 
 <h2 id="why-i-don-t-like-one-click-installers">Why I don&rsquo;t like one-click installers</h2>
 
-<p>A common workaround to this is to have one-click installers on DigitalOcean or Heroku or something.  I don&rsquo;t really like this because it hides too much stuff &ndash; my goal often isn&rsquo;t to actually run <a href="http://dokku.viewdocs.io/dokku/">dokku</a> or <a href="https://www.discourse.org/">discourse</a> or <a href="https://docs.joinmastodon.org/admin/install/">mastodon</a> or whatever, its to explore how it works. Actually running a production system is more complicated and by assembling the pieces myself I get a better sense of what is involved. There&rsquo;s nothing wrong with the approach of setting up quickly and I think it&rsquo;s necessary for easy on-boarding to using the project.</p>
+<p>A common workaround to this is to have one-click installers on DigitalOcean or Heroku or something.  I don&rsquo;t really like this because it hides too much stuff &ndash; my goal often isn&rsquo;t to actually run <a href="http://dokku.viewdocs.io/dokku/">dokku</a> or <a href="https://www.discourse.org/">discourse</a> or <a href="https://docs.joinmastodon.org/admin/install/">mastodon</a> or whatever, it&rsquo;s to explore how it works. Actually running a production system is more complicated and by assembling the pieces myself I get a better sense of what is involved. There&rsquo;s nothing wrong with the approach of setting up quickly and I think it&rsquo;s necessary for easy on-boarding to using the project.</p>
 
 <p>Especially if you already have supported infrastructure it makes sense to figure out how deploy on that rather than provisioning new stuff. In terms of actual deployment we use a lot of PaaS stuff &ndash; I for one am happy never to have to run a database server again in my life &ndash; so understanding how to pull out the Postgres install to use CloudSQL or whatever is valuable if we do decide to adopt something.</p>
 
