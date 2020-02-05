@@ -82,3 +82,12 @@ TF_STATE=. ansible -i `which terraform-inventory` -m ping -u root 0_database
 
 ## Applying playbooks
 
+
+
+## References
+
+1. https://alex.dzyoba.com/blog/terraform-ansible/
+2. https://github.com/adammck/terraform-inventory
+3. https://gist.github.com/mattiaslundberg/ba214a35060d3c8603e9b1ec8627d349
+4. https://linuxhint.com/ansible-tutorial-beginners/
+5. https://www.linuxtechi.com/manage-ansible-static-and-dynamic-host-inventory/
