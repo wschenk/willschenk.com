@@ -49,9 +49,10 @@ Now we can add some `script` tasks inside of `package.json` to run, watch, serve
   },
 ```
 
-And create a simple file in [`src/index.html`](`src/index.html`)
+And create a simple file
 
-TODO add code embed
+{{% embed "src/index.html" "html" "yes" %}
+
 
 Now we can run `npm run serve:eleventy` to build and watch the site as you edit it. Visit `http://localhost:8080` to make sure that the server is running.
 
