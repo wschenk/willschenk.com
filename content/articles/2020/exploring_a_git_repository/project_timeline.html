@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0"/>
+    <title>Monthly Commits</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.1.0/papaparse.js"></script>
+    <style>
+      table.striped { width: 100%; }
+      .striped tr:nth-child(odd) { background: #f0f0f0; }
+    </style>
+  </head>
+  <body>
+    <table class="striped" x-url="./project_timeline.csv">
+      <caption>This page requires the use of JavaScript, sorry</caption>
+    </table>
+    
+    <script>
+      document.querySelectorAll( 'table[x-url]' ).forEach( async (elem) => {
+        const url = elem.getAttribute( 'x-url' );
+        elem.innerHTML = `<p>Loading ${url}...</p>`
+
+        const response = await fetch( url );
+        if( !response.ok ) {
+          elem.innerHTML = `<p>Error loading ${url}: ${response.statusText}</p>`;
+        } else {
+          const text = await response.text();
+          const table = Papa.parse( text ).data;
+          let html = `<caption>${url}</caption>`
+          const header = table.shift();
+
+      let last_date = undefined;
+      let last_period_start = undefined;
+      
+          table.forEach( (row) => {
+            if((row[2] == 'project_started') || (row[2] == 'project_active')) {
+              if( last_date ) {
+                let duration = Date.parse( row[0] ) - Date.parse( last_date );
+                duration /= 86400000; // Milliseconds in a day
+
+                html += `<tr><th>${row[0]}</th><th>${row[2]} after ${duration} days</th><th></th></tr>`;
+              } else {
+                html += `<tr><th>${row[0]}</th><th>${row[2]}</th><th></th></tr>`;
+              }
+              last_period_start = row[0];
+            }
+            if((row[2] == 'activity_between')) {
+              let duration = Date.parse( row[4] ) - Date.parse( row[0] );
+              duration /= 86400000; // Milliseconds in a day
+              duration += 1;
+              html += `<tr><th>${row[0]} - ${row[4]}</th><td>${row[3]} made ${row[5]} commits over ${duration} days</td></tr>`
+            }
+
+            if((row[2] == 'project_idle') || (row[2] == 'last_data')) {
+              let duration = Date.parse( row[0] ) - Date.parse( last_period_start || row[0] );
+              duration /= 86400000; // Milliseconds in a day
+              html += `<tr><th>${row[0]}</th><th>Project idle, ${row[4]} commits over ${duration} days</th></tr>`;
+            }
+
+            last_date = row[0];
+          } );
+          elem.innerHTML=html;
+
+        }
+      } );
+    </script>
+  </body>
+</html>
