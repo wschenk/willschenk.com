@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0"/>
+    <title>Monthly Commits</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.1.0/papaparse.js"></script>
+    <style>
+      table.striped { width: 100%; }
+      .striped tr:nth-child(odd) { background: #f0f0f0; }
+    </style>
+  </head>
+  <body>
+    <table class="striped" x-url="./monthly_commits.csv">
+      <caption>This page requires the use of JavaScript, sorry</caption>
+    </table>
+    
+    <script>
+      document.querySelectorAll( 'table[x-url]' ).forEach( async (elem) => {
+        const url = elem.getAttribute( 'x-url' );
+        elem.innerHTML = `<p>Loading ${url}...</p>`
+
+        const response = await fetch( url );
+        if( !response.ok ) {
+          elem.innerHTML = `<p>Error loading ${url}: ${response.statusText}</p>`;
+        } else {
+          const text = await response.text();
+          const table = Papa.parse( text ).data;
+          let html = `<caption>${url}</caption>`
+          const header = table.shift();
+          html += '<tr>';
+          header.forEach( (key) => {html += `<th>${key}</th>`} );
+          table.forEach( (row) => {
+            html += '</tr><tr>';
+            row.forEach( (col) => {html += `<td>${col}</td>`} );
+          } );
+          html += '</tr>';
+
+          elem.innerHTML=html;
+        }
+      } );
+    </script>
+  </body>
+</html>

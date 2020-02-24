@@ -15,7 +15,7 @@ Install `git`.  When I run `git --version` on my laptop is says `2.11.0` which i
 
 ## First lets get a repo
 
-I'm going to pull an old repo from github, one that probably was written to write GitHub itself (since the original author was a cofounder of the company) so it'll have some interesting artifact in there since, clearly, it wasn't built originally on GitHub.
+I'm going to pull an old repo from GitHub, one that probably was written to write GitHub itself (since the original author was a co-founder of the company) so it'll have some interesting artifact in there since, clearly, it wasn't built originally on GitHub.
 
 ```bash
 cd /tmp
@@ -44,7 +44,7 @@ We can process this data to get a sense of what is happening in the project.  Le
 
 We can visualize this with a simple HTML file
 
-{{% embed "static/monthly.html" "html" %}}
+{{% embed "monthly.html" "html" %}}
 
 Which looks like this:
 
@@ -54,6 +54,7 @@ This repo is more that 12 years old at the time of this writing, and its clear t
 
 {{% embed "monthly_commits_show_blanks.rb" "ruby" "yes" %}}
 
+Here we can see that there have been long periods of time where nothing was happening with the code. Looking at the data, there was a bunch of stuff that happened starting 2007-11 though about 2009-10, then things got quiet again until 2011-08 through 2012-04, then a false start in 2013-01, and 2013-04 to 2015-01, a couple tweaks 2015-10, 2016-02, then 2018-01 through 2020-02 (time of writing). So some stopping and starting on this project.  Does that mean everything is stable? Maybe a new version of git came out, or Ruby idioms have changed or something.  We could probably look at the log messages or the actual code changes to tell.  But first lets figure out a timeline to see.
 
 
 
