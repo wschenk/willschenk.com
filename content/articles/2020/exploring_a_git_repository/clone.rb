@@ -32,6 +32,10 @@ end
 
 if __FILE__ == $0
   puts "Run me!"
+
+  ge = GitExplorer.new( 'ruby-git', 'https://github.com/ruby-git/ruby-git' )
+  
+  ge.log_dump
 end
 
 =begin

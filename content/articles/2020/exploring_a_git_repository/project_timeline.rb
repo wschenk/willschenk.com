@@ -7,16 +7,15 @@ PROJECT_IDLE_MONTHS = 6
 
 author_last_seen = {}
 author_commits = {}
-last_month = nil
 period_commits = 0
 period_authors = {}
 period_author_first_seen = {}
+tag_authors = {}
 csv = []
 
 last_date = nil
-File.readlines( "authors.log" ).each do |line|
-  date_string, email, name = line.split( "|" )
-  month = date_string.gsub( /-\d\dT.*/, "" ).chomp
+File.readlines( "commits.log" ).each do |line|
+  date_string, email, name, decorator = line.split( "|" )
   date = Date.parse( date_string )
   
   csv << [date, 'project', 'project_started', ''] if last_date.nil?
@@ -35,6 +34,8 @@ File.readlines( "authors.log" ).each do |line|
   period_authors[name] ||=0
   period_authors[name] += 1
   period_author_first_seen[name] ||= date
+  tag_authors[name] ||= 0
+  tag_authors[name] += 1
   
   left_authors = []
   author_last_seen.each do |author,last_seen|
@@ -47,6 +48,12 @@ File.readlines( "authors.log" ).each do |line|
     end
   end
   left_authors.each { |author| author_last_seen.delete( author ) }
+
+  # Add tagging event
+  if decorator =~ /tag: (.*)/
+    csv << [date, 'project', 'tag', $1, name, tag_authors.to_json]
+    tag_authors = {}
+  end
   
   last_date = date_string
   period_commits += 1

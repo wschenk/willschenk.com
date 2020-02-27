@@ -29,13 +29,17 @@ git clone https://github.com/ruby-git/ruby-git
 3. Use `--format` to specify what we are looking for
 4. Sort everything (date is first) so that everything is in order.
 
-The format options we are using are
-- '%aI' author date in rfc822
+The format options we are using 
+
+- `%aI` author date in rfc822
 - `%ae` author email
 - `%an` author name
+- `%D` commit decoration (i.e. tag or branch)
+
+which we then sort and output to our work file `commits.log`.  We're write out our analysis scripts to run off of that.
 
 ```bash
-git log --reverse --pretty='format:%aI|%ae|%an|%cD' | sort > authors.log
+git log --reverse --pretty='format:%aI|%ae|%an|%D' | sort > commits.log
 ```
 
 We can process this data to get a sense of what is happening in the project.  Lets first group all the commits by month, see how many are made, and who was making them.
@@ -71,59 +75,35 @@ Variables:
 
 1. `CONTRIBUTOR_ACTIVE_MONTHS` is the minimum time between commits that an author is considered active in the project, here 3.
 2. `PROJECT_IDLE_MONTHS` is the minimum time between commits that a project is considered active, here 6.
-3. `author_last_seen` is the date that we've last seen a committer
-4. `author_commits` is the count of their commits
-5. `last_month` is the same as above
-6. `period_commits` is the count of commits in the active period
-7. `period_authors` is the running count of author activity in the active period
+3. `author_last_seen` is the date that we've last seen a committer.
+4. `author_commits` is the count of their commits.
+5. `last_month` is the same as above.
+6. `period_commits` is the count of commits in the active period.
+7. `period_authors` is the running count of author activity in the active period.
+8. `tag_authors` is the running count of author activity between tags.
 
 Logic:
 
 1. Use `Date.parse` to use for the commit time, which rounds to the day.
 2. First commit gets `project_started' event, project is `active`
 3. First time we see a person in an active period, they get a `started_contributing` event
-4. If the previous commit was more than `PROJECT_IDLE_MONTHS` ago, output a `project_idle` event with the `period_authors` (names with commit counts) data, and a total of the number of commits.
-5. If the project was previously in the `idle` state and we got a commit, output a `project_active` event
-6. Loop through all the active authors, and if any of their last commits is more than `CONTRIBUTOR_ACTITVE_MONTHS` is the past then they get a `left_project` event with their count of commits
-7. At the end of the file, output a `last_data` event with the current list of period contributions.
-8. Sort everything by date and output the file.
+4. If we notice a `tag` string as a decorator, create a `project` `tag` event to help track releases. 
+5. If the previous commit was more than `PROJECT_IDLE_MONTHS` ago, output a `project_idle` event with the `period_authors` (names with commit counts) data, and a total of the number of commits.
+6. If the project was previously in the `idle` state and we got a commit, output a `project_active` event
+7. Loop through all the active authors, and if any of their last commits is more than `CONTRIBUTOR_ACTITVE_MONTHS` is the past then they get a `left_project` event with their count of commits
+8. At the end of the file, output a `last_data` event with the current list of period contributions.
+9. Sort everything by date and output the file.
 
 {{% embed "project_timeline.rb" "ruby" "yes" %}}
 
+This will spit out a CSV file that summarizes what happens to the project to get an overall sense of the timeline. Lets create an HTML page to visualize this.  In this we will calculate the duration between active and idle states so we can group a bit of what's happening over all.  Also we can look at who actually made the tag, which will give us a sense of who is the active maintainer of the project.
 
-We'll do this by using scripting things using ruby.
+{{% embed "project_timeline.html" "html" %}}
 
-## Install the library
-
-{{% embed "Gemfile" "ruby" "yes" %}}
-
-Then run `bundle` to install the necessary project information.
-
-Since we are using the `ruby-git` library and I don't know how it works, lets run our investigations against that.  Check it out wherever you want, I'm going to put it in `/tmp`
-
-```bash
-cd /tmp
-git clone https://github.com/ruby-git/ruby-git
-```
-
-## Look at the log
-
-The first thing we'll do is to look at the log.  We're going to look at the last 5 log messages and
-
-- Print out the authors information and the timestamp of the commit
-- The commit message
-- The total count of lines added, deleted and files changed
-- Counts of added and deleted for each file
-
-{{% embed "log.rb" "ruby" "yes" %}}
-
-## Specifying ranges
-
-There are a lot of options other than _last 5_ to look at it.  We can also look at a time slice _since( "1 month ago" )_
+## Looking at entities
 
 
 
-Show commits, diff stats
 
 ## All these work off range
 
@@ -158,6 +138,8 @@ maybe added, removed, entities touched
 
 ## References
 
+1. https://git-scm.com/docs/git-log
+1. https://stackoverflow.com/questions/13208734/get-the-time-and-date-of-git-tags
 1. https://pragprog.com/book/atcrime/your-code-as-a-crime-scene
 2. http://www.adamtornhill.com/code/codemaat.htm
 3. https://github.com/adamtornhill/code-maat
