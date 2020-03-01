@@ -5,10 +5,120 @@
     <description>Recent content on Will Schenk</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
-    <lastBuildDate>Wed, 19 Feb 2020 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Sun, 01 Mar 2020 00:00:00 +0000</lastBuildDate>
     
         <atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml" />
     
+    
+    <item>
+      <title>Emacs Tramp tricks</title>
+      <link>https://willschenk.com/articles/2020/tramp_tricks/</link>
+      <pubDate>Sun, 01 Mar 2020 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2020/tramp_tricks/</guid>
+      <description>
+
+&lt;p&gt;Emacs is amazing. It&amp;rsquo;s a very different sort of thing than a code text editor like Vim or an IDE like VSCode. It&amp;rsquo;s a different way of thinking of how to interact with a computer, where you build up techniques on top of simple tricks that let you get amazing things done.  Of course, part of the appeal/challenge is that you need to figure out how to make it work yourself.  Since there&amp;rsquo;s not much in the way of gentle tutorials, lets look at what you can do with tramp to get a sense of what is possible.&lt;/p&gt;
+
+&lt;h2 id=&#34;edit-a-file-on-a-remote-server&#34;&gt;Edit a file on a remote server&lt;/h2&gt;
+
+&lt;p&gt;Lets say that you have a remote server named &lt;code&gt;ssb.willschenk.com&lt;/code&gt; and you want to edit the &lt;code&gt;/etc/hosts&lt;/code&gt; file.  We can open that up directly in emacs. The basic form for connecting to something using TRAMP is:&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;C-x C-f /remotehost:filename  RET (or /method:user@remotehost:filename)&lt;/code&gt;&lt;/p&gt;
+
+&lt;p&gt;So, for example, if I type &lt;code&gt;C-x C-f /ssh:root@ssb.willschenk.com:/etc/host&lt;/code&gt;= it connects over ssh to the remote server and edits that file.  If I save the file, copy and paste stuff, etc it will transparently sync the file over the network. We don&amp;rsquo;t need to install a text editor on this server, and we&amp;rsquo;ll have all of our local configurations and copy and paste and all that stuff that we are used to. No installing &lt;code&gt;vim&lt;/code&gt; for some quick configuration file editing.&lt;/p&gt;
+
+&lt;p&gt;&lt;img class=&#39;&#39; style=&#39;width: 100%&#39; src=&#39;./articles/2020/tramp_tricks/etchost.png&#39;&gt;&lt;/p&gt;
+
+&lt;h2 id=&#34;directory-browsing&#34;&gt;Directory browsing&lt;/h2&gt;
+
+&lt;p&gt;=dired= mode also works, so if you want to move around just =C-x C-f= and select the directory, then you can navigate around as you normally would.&lt;/p&gt;
+
+&lt;p&gt;&lt;img class=&#39;&#39; style=&#39;width: 100%&#39; src=&#39;./articles/2020/tramp_tricks/etcdir.png&#39;&gt;&lt;/p&gt;
+
+&lt;h2 id=&#34;open-a-shell&#34;&gt;Open a shell&lt;/h2&gt;
+
+&lt;p&gt;&lt;code&gt;M-x shell&lt;/code&gt; opens a shell with the current working directory of the active buffer.  This also works if that is a remote file. If you use the &lt;code&gt;C-u&lt;/code&gt; prefix command, you can open a shell with the buffer&amp;rsquo;s name specified.  This is handy if you have multiple things open at the same time.&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;C-u M-x shell&lt;/code&gt; will ask you want you want to name the buffer (I suggest the hostname), the starting directory which you be the &lt;code&gt;/ssh...&lt;/code&gt; string, and then the shell command to use, which I leave as &lt;code&gt;/bin/bash&lt;/code&gt;.  Now you are interacting over ssh to the remote server!&lt;/p&gt;
+
+&lt;p&gt;This also keeps track of which directory you are in, so if, inside of the shell you &lt;code&gt;cd&lt;/code&gt;, emacs knows where you are. If you use the normal keystrokes to open a file, &lt;code&gt;C-x C-f&lt;/code&gt; it defaults to the directory that you are in on the remote server. &lt;code&gt;TAB&lt;/code&gt; completion works in the minibuffer too!&lt;/p&gt;
+
+&lt;p&gt;Inside of shell mode you can use &lt;code&gt;C-up&lt;/code&gt; and &lt;code&gt;C-down&lt;/code&gt; to cycle through command history, all the normal things work.&lt;/p&gt;
+
+&lt;p&gt;&lt;img class=&#39;&#39; style=&#39;width: 100%&#39; src=&#39;./articles/2020/tramp_tricks/shell.png&#39;&gt;&lt;/p&gt;
+
+&lt;h2 id=&#34;edit-a-file-as-root&#34;&gt;Edit a file as root&lt;/h2&gt;
+
+&lt;p&gt;Need to edit a file as a different user?&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;C-x C-f /sudo::/etc/hosts&lt;/code&gt;&lt;/p&gt;
+
+&lt;p&gt;TRAMP in this case is piping things through sudo rather an ssh, so we are making a &lt;em&gt;remote&lt;/em&gt; connection to a different user on our computer.&lt;/p&gt;
+
+&lt;h2 id=&#34;editing-a-file-inside-of-a-docker-container&#34;&gt;Editing a file inside of a docker container&lt;/h2&gt;
+
+&lt;p&gt;Another fun trick is to edit a file inside of a docker container.  Is this what docker is used for?  No, but it&amp;rsquo;s sometimes useful if you are debugging a docker file or whatever and need a tigher feedback loop.&lt;/p&gt;
+
+&lt;p&gt;Inside of your &lt;code&gt;.emacs&lt;/code&gt;&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-elisp&#34; data-lang=&#34;elisp&#34;&gt;&lt;span class=&#34;c1&#34;&gt;;; Open files in Docker containers like so: /docker:drunk_bardeen:/etc/passwd&lt;/span&gt;
+&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nb&#34;&gt;push&lt;/span&gt;
+ &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nf&#34;&gt;cons&lt;/span&gt;
+  &lt;span class=&#34;s&#34;&gt;&amp;#34;docker&amp;#34;&lt;/span&gt;
+  &lt;span class=&#34;o&#34;&gt;&amp;#39;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;((&lt;/span&gt;&lt;span class=&#34;nv&#34;&gt;tramp-login-program&lt;/span&gt; &lt;span class=&#34;s&#34;&gt;&amp;#34;docker&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt;
+    &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nv&#34;&gt;tramp-login-args&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;((&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;exec&amp;#34;&lt;/span&gt; &lt;span class=&#34;s&#34;&gt;&amp;#34;-it&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;%h&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;/bin/bash&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)))&lt;/span&gt;
+    &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nv&#34;&gt;tramp-remote-shell&lt;/span&gt; &lt;span class=&#34;s&#34;&gt;&amp;#34;/bin/sh&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt;
+    &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nv&#34;&gt;tramp-remote-shell-args&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;-i&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;-c&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;))))&lt;/span&gt;
+ &lt;span class=&#34;nv&#34;&gt;tramp-methods&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt;
+
+&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nb&#34;&gt;defadvice&lt;/span&gt; &lt;span class=&#34;nv&#34;&gt;tramp-completion-handle-file-name-all-completions&lt;/span&gt;
+  &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nv&#34;&gt;around&lt;/span&gt; &lt;span class=&#34;nv&#34;&gt;dotemacs-completion-docker&lt;/span&gt; &lt;span class=&#34;nv&#34;&gt;activate&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt;
+  &lt;span class=&#34;s&#34;&gt;&amp;#34;(tramp-completion-handle-file-name-all-completions \&amp;#34;\&amp;#34; \&amp;#34;/docker:\&amp;#34; returns
+&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;    a list of active Docker container names, followed by colons.&amp;#34;&lt;/span&gt;
+  &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nb&#34;&gt;if&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nf&#34;&gt;equal&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nv&#34;&gt;ad-get-arg&lt;/span&gt; &lt;span class=&#34;mi&#34;&gt;1&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt; &lt;span class=&#34;s&#34;&gt;&amp;#34;/docker:&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt;
+      &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nb&#34;&gt;let*&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;((&lt;/span&gt;&lt;span class=&#34;nv&#34;&gt;dockernames-raw&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nv&#34;&gt;shell-command-to-string&lt;/span&gt; &lt;span class=&#34;s&#34;&gt;&amp;#34;docker ps | awk &amp;#39;$NF != \&amp;#34;NAMES\&amp;#34; { print $NF \&amp;#34;:\&amp;#34; }&amp;#39;&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;))&lt;/span&gt;
+             &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nv&#34;&gt;dockernames&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nv&#34;&gt;cl-remove-if-not&lt;/span&gt;
+                           &lt;span class=&#34;nf&#34;&gt;#&amp;#39;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nb&#34;&gt;lambda&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nv&#34;&gt;dockerline&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nf&#34;&gt;string-match&lt;/span&gt; &lt;span class=&#34;s&#34;&gt;&amp;#34;:$&amp;#34;&lt;/span&gt; &lt;span class=&#34;nv&#34;&gt;dockerline&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;))&lt;/span&gt;
+                           &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nv&#34;&gt;split-string&lt;/span&gt; &lt;span class=&#34;nv&#34;&gt;dockernames-raw&lt;/span&gt; &lt;span class=&#34;s&#34;&gt;&amp;#34;\n&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;))))&lt;/span&gt;
+        &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nb&#34;&gt;setq&lt;/span&gt; &lt;span class=&#34;nv&#34;&gt;ad-return-value&lt;/span&gt; &lt;span class=&#34;nv&#34;&gt;dockernames&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;))&lt;/span&gt;
+    &lt;span class=&#34;nv&#34;&gt;ad-do-it&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;))&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;To try this out, we can spin up a quick server like this&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;docker run --rm -p 6379:6379 --name redis_container redis&lt;/code&gt;&lt;/p&gt;
+
+&lt;p&gt;And then look at files inside of it using&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;C-x C-f /docker:redis_container:/&lt;/code&gt;&lt;/p&gt;
+
+&lt;p&gt;Which opens up a directory browser in the container.  The tricks of open and editing the files are the same, and you can also open up a shell in there to do what you need.&lt;/p&gt;
+
+&lt;p&gt;Now obviously one of the points of &lt;code&gt;Docker&lt;/code&gt; is to ship code around that&amp;rsquo;s repeatably built, and this goes againsts the spirit of that.  But if you want to treat them as easily distrubuted virtual machines it&amp;rsquo;s very handy.&lt;/p&gt;
+
+&lt;h2 id=&#34;inside-a-docker-container-on-a-remote-host&#34;&gt;Inside a docker container on a remote host&lt;/h2&gt;
+
+&lt;p&gt;We can also chain things together!  Lets say that we have a &lt;code&gt;docker&lt;/code&gt; container named &lt;code&gt;ssb-pub&lt;/code&gt; running on a remote host &lt;code&gt;ssb.willschenk.com&lt;/code&gt;, we can connect to it using:&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;C-x C-f /ssh:root@ssb.willschenk.com|docker:ssb-pub:/&lt;/code&gt;&lt;/p&gt;
+
+&lt;p&gt;This works for file browsing as well as opening up a shell on the container.&lt;/p&gt;
+
+&lt;p&gt;&lt;img class=&#39;&#39; style=&#39;width: 100%&#39; src=&#39;./articles/2020/tramp_tricks/redis.png&#39;&gt;&lt;/p&gt;
+
+&lt;h2 id=&#34;it-requires-play&#34;&gt;It requires play&lt;/h2&gt;
+
+&lt;p&gt;If you want to sit down and just start working on your project, the learning curve of emacs is too great. Its better to use a tool that&amp;rsquo;s already configured and optimized for what you want to do. The &lt;a href=&#34;https://laracasts.com/series/laravel-6-from-scratch&#34;&gt;Laravel from Scratch&lt;/a&gt; documentation, which is fabulous, recommends using &lt;a href=&#34;https://www.jetbrains.com/phpstorm/&#34;&gt;PHP Storm&lt;/a&gt; for people who are learning Laravel, since you can just get going and focus on solving your problem without going down the rabbit hole. This is great. But sometimes its fun to go down the rabbit hole, and if you enjoy the playing the reward is great.&lt;/p&gt;
+
+&lt;p&gt;Emacs was first released in 1976 (take a look at &lt;a href=&#34;https://www.jwz.org/doc/emacs-timeline.html&#34;&gt;the emacs timeline&lt;/a&gt; if you want to see the heritage in all it&amp;rsquo;s glory, though you&amp;rsquo;ll notice that it ends at 2007, 13 years ago) and given that it&amp;rsquo;s been around for 44 years at this point, I think we can say that it&amp;rsquo;s not a fad.  What you learn here will be useful in the future no matter what the latest hot stuff is next.&lt;/p&gt;
+
+&lt;h2 id=&#34;references&#34;&gt;References&lt;/h2&gt;
+
+&lt;ol&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.emacswiki.org/emacs/TrampMode&#34;&gt;https://www.emacswiki.org/emacs/TrampMode&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.emacswiki.org/emacs/TrampAndDocker&#34;&gt;https://www.emacswiki.org/emacs/TrampAndDocker&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://media.emacsconf.org/2019/23.html&#34;&gt;https://media.emacsconf.org/2019/23.html&lt;/a&gt;&lt;/li&gt;
+&lt;/ol&gt;
+</description>
+    </item>
     
     <item>
       <title>Making charts with VueJS and no tooling</title>
