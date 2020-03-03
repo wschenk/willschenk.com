@@ -98,11 +98,35 @@ Logic:
 
 This will spit out a CSV file that summarizes what happens to the project to get an overall sense of the timeline. Lets create an HTML page to visualize this.  In this we will calculate the duration between active and idle states so we can group a bit of what's happening over all.  Also we can look at who actually made the tag, which will give us a sense of who is the active maintainer of the project.
 
-{{% embed "project_timeline.html" "html" %}}
+{{% embed "project_timeline.html" "html" "yes" %}}
 
 ## Nights and weekends
 
 Since we have the author commit time with their local timezone, we can look at when the code was actually checked in. Are they working turning business hours, or nights and weekends?
+
+{{<table "table table-striped">}}
+| hours | category      |
+| ----- | --------      |
+| 4-6   | dawn          |
+| 6-8   | early morning |
+| 8-12  | mid morning   |
+| 12-18 | afternoon     |
+| 18-22 | evening       |
+| 22-4  | late night    |
+{{</table>}}
+
+{{<table "table table-dark" >}}
+| hours | category       |
+|-------|----------------|
+| 4-6   | dawn           |
+| 6-8   | something else |
+| nifty | super duper    |
+{{</table>}}
+
+
+
+
+{{% embed "worktime.rb" "ruby" "yes" %}}
 
 
 ## Looking at entities

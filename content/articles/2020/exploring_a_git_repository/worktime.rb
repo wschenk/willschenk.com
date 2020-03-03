@@ -16,7 +16,7 @@ File.readlines( ARGV[0] || "commits.log" ).each do |line|
   case date.hour
   when 0..4
     day_time = "late night"
-  when 5..6
+  when 4..6
     day_time = "dawn"
   when 6...8
     day_time = "early morning"
