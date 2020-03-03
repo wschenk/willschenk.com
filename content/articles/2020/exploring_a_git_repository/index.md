@@ -100,6 +100,11 @@ This will spit out a CSV file that summarizes what happens to the project to get
 
 {{% embed "project_timeline.html" "html" %}}
 
+## Nights and weekends
+
+Since we have the author commit time with their local timezone, we can look at when the code was actually checked in. Are they working turning business hours, or nights and weekends?
+
+
 ## Looking at entities
 
 

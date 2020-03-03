@@ -14,7 +14,7 @@ tag_authors = {}
 csv = []
 
 last_date = nil
-File.readlines( "commits.log" ).each do |line|
+File.readlines( ARGV[0] || "commits.log" ).each do |line|
   date_string, email, name, decorator = line.split( "|" )
   date = Date.parse( date_string )
   
@@ -67,7 +67,7 @@ end
 
 csv << [Date.parse(last_date), 'project', 'last_data', author_commits.to_json, period_commits]
 
-CSV.open( "project_timeline.csv", "w" ) do |out|
+CSV.open( ARGV[1] || "project_timeline.csv", "w" ) do |out|
   out << ['date','actor', 'action', 'data', 'commits']
 
   csv.sort { |a,b| a[0] <=> b[0] }.each { |x| out << x }

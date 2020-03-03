@@ -6,7 +6,7 @@ csv = []
 authors_day_time = {}
 authors_week_time = {}
 
-File.readlines( "commits.log" ).each do |line|
+File.readlines( ARGV[0] || "commits.log" ).each do |line|
   date_string, email, author = line.split( "|" )
 
   date = DateTime.parse( date_string )
@@ -52,7 +52,7 @@ File.readlines( "commits.log" ).each do |line|
   authors_week_time[author][week_time] += 1
 end
 
-CSV.open( "worktime.csv", "w" ) do |csv|
+CSV.open( ARGV[1] || "worktime.csv", "w" ) do |csv|
   csv << ['author', 'total', 'dawn', 'early_morning', 'mid_morning', 'afternoon', 'evening', 'late_night', 'weekday', 'weekend']
 
   authors_day_time.keys.sort do |a,b|

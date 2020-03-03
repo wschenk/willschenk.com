@@ -5,10 +5,10 @@ count = 0
 last_month = nil
 people = {}
 
-CSV.open( "monthly_commits.csv", "w" ) do |csv|
+CSV.open( ARGV[1] || "monthly_commits.csv", "w" ) do |csv|
   csv << ['date', 'commits', 'authors', 'authors_json' ]
 
-  File.readlines( "commits.log" ).each do |line|
+  File.readlines( ARGV[0] || "commits.log" ).each do |line|
     date, email, name = line.split( "|" )
     month = date.gsub( /-\d\dT.*/, "" ).chomp
 
