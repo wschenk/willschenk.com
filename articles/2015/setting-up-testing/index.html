@@ -106,21 +106,14 @@ As projects get bigger, both in terms of people using the site as well as people
   
 
   <article class="article mt-5">
-    
-
-<p>The goal is to get features out fast, and iterate on them quickly.  Does anyone care about it?  What do they care about?  How do we make it better?</p>
-
+    <p>The goal is to get features out fast, and iterate on them quickly.  Does anyone care about it?  What do they care about?  How do we make it better?</p>
 <p>As projects get bigger, both in terms of people using the site as well as people <em>working</em> on the site, testing and quality become relatively more important.  Adding tests introduces drag, and the theory is that you invest now for payoffs later.  What&rsquo;s the least amount of drag we can add to the process to get us in a good place for when it will start to pay off?</p>
-
 <p>RSpec feature specs lets developers create testing click paths through the application, looking at the flow though the app.  It doesn&rsquo;t focus enough on the design details, and going through a test driving development process with this way will end up with sites &lsquo;working&rsquo; using only an engineer&rsquo;s defination, so as a MVP implementor you&rsquo;ll need to find a way to resist the temptation, no matter how nifty the backend flow state is.</p>
-
 <p>This article will go through how the testing environment is set up on <a href="http://seed.happyfuncorp.com">HappySeed</a> where we focus mainly on RSpec feature specs.  Seed does this all automatically, but its nice to have it written down in a one place so we all know what&rsquo;s going on.  Let&rsquo;s get into it.</p>
-
 <h2 id="install-rspec-factorygirl-capybara-and-guard">Install RSpec, FactoryGirl, Capybara, and Guard</h2>
-
 <p>Lets fire up a new rails app, and pass the <code>-T</code> option to not include TestUnit.</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ rails new test_app -T</code></pre></div>
-<p>Now add some gems to the <code>Gemfile</code>.</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ rails new test_app -T
+</code></pre></div><p>Now add some gems to the <code>Gemfile</code>.</p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="n">group</span> <span class="ss">:development</span><span class="p">,</span> <span class="ss">:test</span> <span class="k">do</span>
   <span class="n">gem</span> <span class="s1">&#39;rspec-rails&#39;</span>
   <span class="n">gem</span> <span class="s1">&#39;factory_girl_rails&#39;</span>
@@ -132,9 +125,8 @@ As projects get bigger, both in terms of people using the site as well as people
 
 <span class="n">group</span> <span class="ss">:test</span> <span class="k">do</span>
   <span class="n">gem</span> <span class="s1">&#39;webmock&#39;</span>
-<span class="k">end</span></code></pre></div>
-<p>Lets go through this:</p>
-
+<span class="k">end</span>
+</code></pre></div><p>Lets go through this:</p>
 <ul>
 <li><a href="http://rspec.info"><code>rpsec</code></a> (implied as a dependancy) is the testing framework that we are going to use</li>
 <li><a href="https://github.com/thoughtbot/factory_girl"><code>factory_girl</code></a> (implied) lets us code smart database fixtures in ruby, in things called <em>factories</em></li>
@@ -147,39 +139,34 @@ As projects get bigger, both in terms of people using the site as well as people
 <li><a href="https://github.com/guard/guard-rspec"><code>guard-rspec</code></a> is rspec integration with guard</li>
 <li><a href="https://github.com/jonleighton/spring-commands-rspec"><code>spring-commands-rspec</code></a> lets you integrate rspec with spring, which means that your tests will run much faster.</li>
 </ul>
-
 <p>If you are interested in using cucumber, see below for steps to integrate it.</p>
-
 <h2 id="base-configuration-of-rspec-and-guard">Base configuration of rspec and guard</h2>
-
 <p>Lets make sure that spring knows about rspec:</p>
 <div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ bundle install
 $ spring binstub --all
 * bin/rake: spring already present
 * bin/rspec: generated with spring
-* bin/rails: spring already present</code></pre></div>
-<p>This creates a <code>bin/rspec</code> command that lets us run our tests.  Lets create a Guardfile and then tell guard to use this command:</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ guard init</code></pre></div>
-<p>Then edit the newly generated <code>Guardfile</code> to use the spring version of the rspec runner.  I also like to run all of the tests when I start up guard, because the more the merrier.  In <code>Guardfile</code>, change the <code>guard :rspec</code> line to:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="n">guard</span> <span class="ss">:rspec</span><span class="p">,</span> <span class="ss">cmd</span><span class="p">:</span> <span class="s2">&#34;bin/rspec&#34;</span><span class="p">,</span> <span class="ss">all_on_start</span><span class="p">:</span> <span class="kp">true</span> <span class="k">do</span></code></pre></div>
-<p>Now we install the rspec files:</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ rails g rspec:install</code></pre></div>
-<p>This creates 3 files:</p>
+* bin/rails: spring already present
+</code></pre></div><p>This creates a <code>bin/rspec</code> command that lets us run our tests.  Lets create a Guardfile and then tell guard to use this command:</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ guard init
+</code></pre></div><p>Then edit the newly generated <code>Guardfile</code> to use the spring version of the rspec runner.  I also like to run all of the tests when I start up guard, because the more the merrier.  In <code>Guardfile</code>, change the <code>guard :rspec</code> line to:</p>
+<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="n">guard</span> <span class="ss">:rspec</span><span class="p">,</span> <span class="ss">cmd</span><span class="p">:</span> <span class="s2">&#34;bin/rspec&#34;</span><span class="p">,</span> <span class="ss">all_on_start</span><span class="p">:</span> <span class="kp">true</span> <span class="k">do</span>
+</code></pre></div><p>Now we install the rspec files:</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ rails g rspec:install
+</code></pre></div><p>This creates 3 files:</p>
 <div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">create  .rspec
 create  spec
 create  spec/spec_helper.rb
-create  spec/rails_helper.rb</code></pre></div>
-<p>I like to have the output in documentation format by default, so we can edit the <code>.rspec</code> file to be:</p>
+create  spec/rails_helper.rb
+</code></pre></div><p>I like to have the output in documentation format by default, so we can edit the <code>.rspec</code> file to be:</p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="o">--</span><span class="n">color</span>
 <span class="o">--</span><span class="nb">require</span> <span class="n">spec_helper</span>
-<span class="o">--</span><span class="nb">format</span> <span class="n">documentation</span></code></pre></div>
-<h2 id="add-login-support-and-factory-girl-to-spec-helper">Add login support and factory girl to spec_helper</h2>
-
+<span class="o">--</span><span class="nb">format</span> <span class="n">documentation</span>
+</code></pre></div><h2 id="add-login-support-and-factory-girl-to-spec_helper">Add login support and factory girl to spec_helper</h2>
 <p>Getting feature and controller specs to work with authentication is a bit tricky.  We&rsquo;re going to assume that you use <a href="../../../setting-up-devise-with-twitter-and-facebook-and-other-omniauth-schemes-without-email-addresses/">devise for authentication</a>, but this should support anything that uses <a href="https://github.com/hassox/warden">warden</a>:</p>
-
 <p>Add devise to <code>Gemfile</code>:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="n">gem</span> <span class="s1">&#39;devise&#39;</span></code></pre></div>
-<p>Create <code>spec/support/controller_helpers.rb</code></p>
+<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="n">gem</span> <span class="s1">&#39;devise&#39;</span>
+</code></pre></div><p>Create <code>spec/support/controller_helpers.rb</code></p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="k">module</span> <span class="nn">ControllerHelpers</span>
   <span class="k">def</span> <span class="nf">login_with</span><span class="p">(</span><span class="n">user</span> <span class="o">=</span> <span class="n">double</span><span class="p">(</span><span class="s1">&#39;user&#39;</span><span class="p">),</span> <span class="n">scope</span> <span class="o">=</span> <span class="ss">:user</span><span class="p">)</span>
     <span class="n">current_user</span> <span class="o">=</span> <span class="s2">&#34;current_</span><span class="si">#{</span><span class="n">scope</span><span class="si">}</span><span class="s2">&#34;</span><span class="o">.</span><span class="n">to_sym</span>
@@ -191,45 +178,37 @@ create  spec/rails_helper.rb</code></pre></div>
       <span class="n">allow</span><span class="p">(</span><span class="n">controller</span><span class="p">)</span><span class="o">.</span><span class="n">to</span> <span class="n">receive</span><span class="p">(</span><span class="n">current_user</span><span class="p">)</span><span class="o">.</span><span class="n">and_return</span><span class="p">(</span><span class="n">user</span><span class="p">)</span>
     <span class="k">end</span>
   <span class="k">end</span>
-<span class="k">end</span></code></pre></div>
-<p>At the top of <code>spec_helper.rb</code> add:</p>
+<span class="k">end</span>
+</code></pre></div><p>At the top of <code>spec_helper.rb</code> add:</p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="n">require_relative</span> <span class="s1">&#39;support/controller_helpers&#39;</span>
-<span class="nb">require</span> <span class="s1">&#39;devise&#39;</span></code></pre></div>
-<p>and in the config block add:</p>
+<span class="nb">require</span> <span class="s1">&#39;devise&#39;</span>
+</code></pre></div><p>and in the config block add:</p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="n">config</span><span class="o">.</span><span class="n">include</span> <span class="no">ControllerHelpers</span><span class="p">,</span> <span class="ss">type</span><span class="p">:</span> <span class="ss">:controller</span>
   <span class="no">Warden</span><span class="o">.</span><span class="n">test_mode!</span>
 
   <span class="n">config</span><span class="o">.</span><span class="n">after</span> <span class="k">do</span>
     <span class="no">Warden</span><span class="o">.</span><span class="n">test_reset!</span>
-  <span class="k">end</span></code></pre></div>
-<p>Then edit <code>rails_helper.rb</code> and put the following in the config block:</p>
+  <span class="k">end</span>
+</code></pre></div><p>Then edit <code>rails_helper.rb</code> and put the following in the config block:</p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="n">config</span><span class="o">.</span><span class="n">include</span> <span class="no">FactoryGirl</span><span class="o">::</span><span class="no">Syntax</span><span class="o">::</span><span class="no">Methods</span>
   <span class="n">config</span><span class="o">.</span><span class="n">include</span> <span class="no">Devise</span><span class="o">::</span><span class="no">TestHelpers</span><span class="p">,</span> <span class="ss">type</span><span class="p">:</span> <span class="ss">:controller</span>
-  <span class="n">config</span><span class="o">.</span><span class="n">include</span> <span class="no">Warden</span><span class="o">::</span><span class="no">Test</span><span class="o">::</span><span class="no">Helpers</span></code></pre></div>
-<p><strong>If you are getting uncaught throw :warden errors then make sure you have the right includes in the right config files!</strong></p>
-
+  <span class="n">config</span><span class="o">.</span><span class="n">include</span> <span class="no">Warden</span><span class="o">::</span><span class="no">Test</span><span class="o">::</span><span class="no">Helpers</span>
+</code></pre></div><p><strong>If you are getting uncaught throw :warden errors then make sure you have the right includes in the right config files!</strong></p>
 <p>This gives you a few things:</p>
-
 <ul>
 <li><code>FactoryGirl</code> syntax methods, which let you use things like <code>create( :user )</code> in your tests, which uses <code>FactoryGirl</code> to generate a database object.</li>
 <li>helper methods to <code>sign_in</code> a user for a specific scope.  This could be used as <code>sign_in create( :user )</code> at the beginning of your controller test methods, and <code>sign_in nil</code> to simulate an anonymous user.</li>
 </ul>
-
 <h2 id="example-controller-spec">Example controller spec</h2>
-
 <p>This example assumes that you&rsquo;ve already setup devise.  If not, you can get something up and running doing:</p>
-
 <pre><code>$ rails g devise:install &amp;&amp; rails g devise User &amp;&amp; rake db:migrate
-</code></pre>
-
-<p>(I go into slightly more detail in setting up <a href="../../../setting-up-devise-with-twitter-and-facebook-and-other-omniauth-schemes-without-email-addresses/">devise for authentication</a>.)</p>
-
+</code></pre><p>(I go into slightly more detail in setting up <a href="../../../setting-up-devise-with-twitter-and-facebook-and-other-omniauth-schemes-without-email-addresses/">devise for authentication</a>.)</p>
 <p>Assuming that you&rsquo;ve already setup devise, lets look at how to implement a controller spec.  First lets create a simple scaffold for a post:</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ rails g scaffold post name:string</code></pre></div>
-<p>And lets make it require authentication in <code>posts_controller.rb</code>:</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ rails g scaffold post name:string
+</code></pre></div><p>And lets make it require authentication in <code>posts_controller.rb</code>:</p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="k">class</span> <span class="nc">PostsController</span> <span class="o">&lt;</span> <span class="no">ApplicationController</span>
-  <span class="n">before_action</span> <span class="ss">:authenticate_user!</span></code></pre></div>
-<p>And replace <code>posts_controller_spec.rb</code> with:</p>
+  <span class="n">before_action</span> <span class="ss">:authenticate_user!</span>
+</code></pre></div><p>And replace <code>posts_controller_spec.rb</code> with:</p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="nb">require</span> <span class="s1">&#39;rails_helper&#39;</span>
 
 <span class="no">RSpec</span><span class="o">.</span><span class="n">describe</span> <span class="no">PostsController</span><span class="p">,</span> <span class="ss">:type</span> <span class="o">=&gt;</span> <span class="ss">:controller</span> <span class="k">do</span>
@@ -244,17 +223,15 @@ create  spec/rails_helper.rb</code></pre></div>
       <span class="n">expect</span><span class="p">(</span> <span class="n">response</span> <span class="p">)</span><span class="o">.</span><span class="n">to</span> <span class="n">redirect_to</span><span class="p">(</span> <span class="n">new_user_session_path</span> <span class="p">)</span>
     <span class="k">end</span>
   <span class="k">end</span>
-<span class="k">end</span></code></pre></div>
-<p>When we run <code>guard</code>, a few of the scaffold generate things will fail, since we are now forcing signin to check out this page.  Our spec will correctly redirect the user to sign in.</p>
-
+<span class="k">end</span>
+</code></pre></div><p>When we run <code>guard</code>, a few of the scaffold generate things will fail, since we are now forcing signin to check out this page.  Our spec will correctly redirect the user to sign in.</p>
 <p>Lets now simulate a logged in user:</p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="n">it</span> <span class="s2">&#34;should let a user see all the posts&#34;</span> <span class="k">do</span>
     <span class="n">login_with</span> <span class="n">create</span><span class="p">(</span> <span class="ss">:user</span> <span class="p">)</span>
     <span class="n">get</span> <span class="ss">:index</span>
     <span class="n">expect</span><span class="p">(</span> <span class="n">response</span> <span class="p">)</span><span class="o">.</span><span class="n">to</span> <span class="n">render_template</span><span class="p">(</span> <span class="ss">:index</span> <span class="p">)</span>
-  <span class="k">end</span></code></pre></div>
-<p>Guard should try and run this tests but fail because we can&rsquo;t configured a user factory.</p>
-
+  <span class="k">end</span>
+</code></pre></div><p>Guard should try and run this tests but fail because we can&rsquo;t configured a user factory.</p>
 <p>Lets set that up now in <code>spec/factories/user.rb</code>:</p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="no">FactoryGirl</span><span class="o">.</span><span class="n">define</span> <span class="k">do</span>
   <span class="n">sequence</span> <span class="ss">:email</span> <span class="k">do</span> <span class="o">|</span><span class="n">n</span><span class="o">|</span>
@@ -268,15 +245,13 @@ create  spec/rails_helper.rb</code></pre></div>
     <span class="n">password</span> <span class="s1">&#39;12345678&#39;</span>
     <span class="n">password_confirmation</span> <span class="s1">&#39;12345678&#39;</span>
   <span class="k">end</span>
-<span class="k">end</span></code></pre></div>
-<p>Going back to the guard window, press <em>return</em> to run everything again and verify.  (Guard doens&rsquo;t know that the <code>posts_controller_spec.rb</code> depends upon the user factory changing.)</p>
-
+<span class="k">end</span>
+</code></pre></div><p>Going back to the guard window, press <em>return</em> to run everything again and verify.  (Guard doens&rsquo;t know that the <code>posts_controller_spec.rb</code> depends upon the user factory changing.)</p>
 <h2 id="example-rspec-feature">Example rspec feature</h2>
-
 <p>Feature specs are more interesting, since they let you walk through the site and how it works.  Lets build one now:</p>
 <div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ rails g rspec:feature add_new_post
-      create  spec/features/add_new_posts_spec.rb</code></pre></div>
-<p>And lets add something there now:</p>
+      create  spec/features/add_new_posts_spec.rb
+</code></pre></div><p>And lets add something there now:</p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="nb">require</span> <span class="s1">&#39;rails_helper&#39;</span>
 
 <span class="n">feature</span> <span class="s2">&#34;AddNewPosts&#34;</span><span class="p">,</span> <span class="ss">:type</span> <span class="o">=&gt;</span> <span class="ss">:feature</span> <span class="k">do</span>
@@ -302,18 +277,16 @@ create  spec/rails_helper.rb</code></pre></div>
     <span class="n">expect</span><span class="p">(</span> <span class="no">Post</span><span class="o">.</span><span class="n">count</span> <span class="p">)</span><span class="o">.</span><span class="n">to</span> <span class="n">eq</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
     <span class="n">expect</span><span class="p">(</span> <span class="no">Post</span><span class="o">.</span><span class="n">first</span><span class="o">.</span><span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">to</span> <span class="n">eq</span><span class="p">(</span> <span class="s2">&#34;Post title&#34;</span><span class="p">)</span>
   <span class="k">end</span>
-<span class="k">end</span></code></pre></div>
-<p>This first creates a new user in the database, and then</p>
-
+<span class="k">end</span>
+</code></pre></div><p>This first creates a new user in the database, and then</p>
 <ol>
-<li>Visits the <code>new_post_path</code> url.<br /></li>
+<li>Visits the <code>new_post_path</code> url.</li>
 <li>We should be shown the login form, and we fill it out</li>
 <li>Click the log in button</li>
 <li>Fill out the new post form</li>
 <li>Create the post</li>
 <li>Make sure that it&rsquo;s in the database</li>
 </ol>
-
 <p>If you want to skip the steps of manually logging in the user, you can use the <code>login_as</code> method like so:</p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="n">it</span> <span class="s2">&#34;should create a new post with a logged in user&#34;</span> <span class="k">do</span>
     <span class="n">login_as</span> <span class="n">create</span><span class="p">(</span> <span class="ss">:user</span> <span class="p">),</span> <span class="ss">scope</span><span class="p">:</span> <span class="ss">:user</span>
@@ -330,27 +303,22 @@ create  spec/rails_helper.rb</code></pre></div>
     <span class="n">expect</span><span class="p">(</span> <span class="no">Post</span><span class="o">.</span><span class="n">count</span> <span class="p">)</span><span class="o">.</span><span class="n">to</span> <span class="n">eq</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
     <span class="n">expect</span><span class="p">(</span> <span class="no">Post</span><span class="o">.</span><span class="n">first</span><span class="o">.</span><span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">to</span> <span class="n">eq</span><span class="p">(</span> <span class="s2">&#34;Post title&#34;</span><span class="p">)</span>
 
-  <span class="k">end</span></code></pre></div>
-<h2 id="setting-up-webmock-and-vcr">Setting up webmock and VCR</h2>
-
+  <span class="k">end</span>
+</code></pre></div><h2 id="setting-up-webmock-and-vcr">Setting up webmock and VCR</h2>
 <p>Webmock stops requests from hitting the network in the test environment.  Lets turn this on by editing <code>rails_helper.rb</code>:</p>
-
 <p>In <code>rails_helper.rb</code>, below <code>require 'rails/rspec'</code>:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="nb">require</span> <span class="s1">&#39;webmock/rspec&#39;</span></code></pre></div>
-<p>And VCR lets you record and play back tests in the test environment, so the first time it&rsquo;s called it lets it get through, and then on subsequent requests it plays back a known response.  Put this at the bottom of <code>rails_helper.rb</code> to configure:</p>
+<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="nb">require</span> <span class="s1">&#39;webmock/rspec&#39;</span>
+</code></pre></div><p>And VCR lets you record and play back tests in the test environment, so the first time it&rsquo;s called it lets it get through, and then on subsequent requests it plays back a known response.  Put this at the bottom of <code>rails_helper.rb</code> to configure:</p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="no">VCR</span><span class="o">.</span><span class="n">configure</span> <span class="k">do</span> <span class="o">|</span><span class="n">c</span><span class="o">|</span>
   <span class="n">c</span><span class="o">.</span><span class="n">cassette_library_dir</span>  <span class="o">=</span> <span class="no">Rails</span><span class="o">.</span><span class="n">root</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s2">&#34;spec&#34;</span><span class="p">,</span> <span class="s2">&#34;vcr&#34;</span><span class="p">)</span>
   <span class="n">c</span><span class="o">.</span><span class="n">hook_into</span> <span class="ss">:webmock</span>
-<span class="k">end</span></code></pre></div>
-<h2 id="example-usage-of-webmock-and-vcr">Example usage of webmock and VCR</h2>
-
+<span class="k">end</span>
+</code></pre></div><h2 id="example-usage-of-webmock-and-vcr">Example usage of webmock and VCR</h2>
 <p>Word comes down from up high that to facilitate decision making, a key bit of information is the current phase of the moon when something is posted to the site.  We can pull the data from the <a href="http://cerridwen.readthedocs.org/en/latest/index.html">Cerridwen</a> site, but how do we set up tests for this?  We certainly don&rsquo;t want our test suite to fail because the phase of the moon changed!</p>
-
 <p>This is where webmock and VCR comes in.  Webmock by itself will throw an error when a request is made over the network.  VCR will let us record and play back network request &ndash; using <em>cassettes</em> no less &ndash; so that we isolate changing API responses from our tests.</p>
-
 <p>First lets write our code to look up the phase of the moon on the create post action.  Let&rsquo;s add a field</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="err">$</span> <span class="n">rails</span> <span class="n">g</span> <span class="n">migration</span> <span class="n">add_phase_of_moon_to_posts</span> <span class="ss">moon_phase</span><span class="p">:</span><span class="n">string</span> <span class="o">&amp;&amp;</span> <span class="n">rake</span> <span class="ss">db</span><span class="p">:</span><span class="n">migrate</span></code></pre></div>
-<p>Then add the lookup to our <code>app/controllers/posts_controller.rb</code> and replace the <code>def create</code> method:</p>
+<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="err">$</span> <span class="n">rails</span> <span class="n">g</span> <span class="n">migration</span> <span class="n">add_phase_of_moon_to_posts</span> <span class="ss">moon_phase</span><span class="p">:</span><span class="n">string</span> <span class="o">&amp;&amp;</span> <span class="n">rake</span> <span class="ss">db</span><span class="p">:</span><span class="n">migrate</span>
+</code></pre></div><p>Then add the lookup to our <code>app/controllers/posts_controller.rb</code> and replace the <code>def create</code> method:</p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="nb">require</span> <span class="s1">&#39;json&#39;</span>
   <span class="nb">require</span> <span class="s1">&#39;net/http&#39;</span>
   <span class="k">def</span> <span class="nf">create</span>
@@ -363,11 +331,9 @@ create  spec/rails_helper.rb</code></pre></div>
 
     <span class="vi">@post</span><span class="o">.</span><span class="n">save</span>
     <span class="n">respond_with</span><span class="p">(</span><span class="vi">@post</span><span class="p">)</span>
-  <span class="k">end</span></code></pre></div>
-<p>(This is not good style.)</p>
-
+  <span class="k">end</span>
+</code></pre></div><p>(This is not good style.)</p>
 <p>Now lets run our test again.</p>
-
 <p>Lots of unhandled http request errors!  I&rsquo;m going to ignore the scaffold generate tests and focus on our rspec feature.  So, inside of <code>spec/features/add_new_posts_spec.rb</code> we can link the click action inside of a use_cassette block like so::</p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="n">it</span> <span class="s2">&#34;should create a new post with a logged in user&#34;</span> <span class="k">do</span>
     <span class="n">login_as</span> <span class="n">create</span><span class="p">(</span> <span class="ss">:user</span> <span class="p">),</span> <span class="ss">scope</span><span class="p">:</span> <span class="ss">:user</span>
@@ -386,17 +352,12 @@ create  spec/rails_helper.rb</code></pre></div>
       <span class="n">expect</span><span class="p">(</span> <span class="no">Post</span><span class="o">.</span><span class="n">first</span><span class="o">.</span><span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">to</span> <span class="n">eq</span><span class="p">(</span> <span class="s2">&#34;Post title&#34;</span><span class="p">)</span>
       <span class="n">expect</span><span class="p">(</span> <span class="no">Post</span><span class="o">.</span><span class="n">first</span><span class="o">.</span><span class="n">moon_phase</span><span class="p">)</span><span class="o">.</span><span class="n">to</span> <span class="n">eq</span><span class="p">(</span> <span class="s2">&#34;waxing in Pisces&#34;</span> <span class="p">)</span>
     <span class="k">end</span>
-  <span class="k">end</span></code></pre></div>
-<p>And let the tests run.  When tests are run, VCR is going to look for the file <code>spec/vcr/waxing_in_pisces</code>.  If it&rsquo;s not found, then it will make the request to the server.  If the API requires authentication, for example an accesstoken when accessing a OAuth protected call, then you&rsquo;ll need to configure you tests to have valid credentials for the first time.  These credentials could be written into the spec/vcr directory, so make sure that you scrub that before things get checked in.  (Or expire the access tokens.)</p>
-
+  <span class="k">end</span>
+</code></pre></div><p>And let the tests run.  When tests are run, VCR is going to look for the file <code>spec/vcr/waxing_in_pisces</code>.  If it&rsquo;s not found, then it will make the request to the server.  If the API requires authentication, for example an accesstoken when accessing a OAuth protected call, then you&rsquo;ll need to configure you tests to have valid credentials for the first time.  These credentials could be written into the spec/vcr directory, so make sure that you scrub that before things get checked in.  (Or expire the access tokens.)</p>
 <p>If it is found, then it plays it back and so the next time the suite is run it plays it back.  Which is way faster.</p>
-
 <h2 id="final-notes">Final notes</h2>
-
 <p>Testing has a place in software development, but it&rsquo;s not actually clear where that is.  Setting up test haresses and building out tests for every feature really slows things down in the beginning, and probably isn&rsquo;t appropriate for one off, exploratory things.  On the other hand, things tend to grow way past what anyone ever initially expected, and you always say &ldquo;I wish there was a test suite&rdquo; when inheriting code &ndash; or even more likely, looking at something you haven&rsquo;t seen for a few months.</p>
-
 <p>The rails community has a <a href="http://martinfowler.com/articles/is-tdd-dead/">long history with Test Driven Development</a>.  The biggest advantage of this is that you write code that is testable, and code that is testable has all sorts of other qualities that is great, from clearly defined boundries of responsibility, good encapulation, and being able to look at small isolated pieces of the system and having it make sense.  On the other hand, thebest code is the stuff you don&rsquo;t need to maintain, and in some projects the weight of the test code is as large or larger than the code for the application features.</p>
-
 <p>The biggest problem with testing is that it gets you in a wonderful, but wrong, flow state of development.  In the begining of projects you should be focused on the user experience, and how the system is experienced from the outside.  The highest level tests tend to be are user stories, which is below the level of brand and user experience.</p>
 
   </article>

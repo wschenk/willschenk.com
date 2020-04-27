@@ -102,64 +102,42 @@ if (!doNotTrack) {
   
 
   <article class="article mt-5">
-    
-
-<p>Cabal is a &ldquo;experimental p2p community chat platform&rdquo;.  It&rsquo;s fully distributed over the <a href="https://www.datprotocol.com/">dat protocol</a>.  When you create a new chat area &ndash; something like a Slack &ndash; it allows anyone with the same key to post and view messages everywhere.  When you post a message, everyone gets it and shares it with everyone else, so even when your computer drops off there will still be a coherent view of the data.</p>
-
+    <p>Cabal is a &ldquo;experimental p2p community chat platform&rdquo;.  It&rsquo;s fully distributed over the <a href="https://www.datprotocol.com/">dat protocol</a>.  When you create a new chat area &ndash; something like a Slack &ndash; it allows anyone with the same key to post and view messages everywhere.  When you post a message, everyone gets it and shares it with everyone else, so even when your computer drops off there will still be a coherent view of the data.</p>
 <h2 id="local-computer">Local computer</h2>
-
 <p>You&rsquo;ll need at least two computers to really play with this.  But we can simulate the situation by running a docker container as well as a local instance of the cabal cli client.  We can then move that container (or at least the image) around to run it on a remote server if you don&rsquo;t want to mess with anything on the remote machine.  Lets first install it locally:</p>
-
 <h2 id="on-the-terminal">On the terminal</h2>
-
 <p>If you just want to play around you can use <code>npx</code>, or install the cabal cli command using <code>npm install --global cabal</code>.  Either way, lets start up a new cabal chat.</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">npx cabal --new</code></pre></div>
-<p>Take a note of the cabal URI on the top right of the screen, we&rsquo;ll use that to connect with later.  Keep this window running and start up a new Terminal window.  Type in a test message such as &ldquo;this is the first message&rdquo; (or something less banal).  There are also slash commands available, <code>/help</code> will list them.  Change your display nickname with <code>/n local node</code> or something like that.</p>
-
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">npx cabal --new
+</code></pre></div><p>Take a note of the cabal URI on the top right of the screen, we&rsquo;ll use that to connect with later.  Keep this window running and start up a new Terminal window.  Type in a test message such as &ldquo;this is the first message&rdquo; (or something less banal).  There are also slash commands available, <code>/help</code> will list them.  Change your display nickname with <code>/n local node</code> or something like that.</p>
 <h2 id="dockerizing">Dockerizing</h2>
-
 <p>This is optional, you can just repeat the same steps on the remote node if you want.  I have this in a Docker container because I don&rsquo;t want to install node on my remote server, but if you have you computers and aren&rsquo;t anal about it its super simple to just install node and just run <code>npx cabal</code> on them also.</p>
-
 <p>I like keeping things in Docker containers when playing around so that no unnecessary packages get installed on the machine and the data files are nicely cleaned up when I exit out.</p>
-
 <p>This is a very basic node-based Dockerfile.  Cabal/Dat uses port <code>3282</code> to communicate, so we&rsquo;ll need to expose and open that.</p>
-
-<p><a href="Dockerfile"><code>Dockerfile</code></a></p>
-
+<p><a href="Dockerfile"><code>Dockerfile</code></a>
 <div class="highlight"><pre class="chroma"><code class="language-Dockerfile" data-lang="Dockerfile"><span class="k">FROM</span><span class="s"> node:11</span><span class="err">
 </span><span class="err"></span><span class="k">MAINTAINER</span><span class="s"> Will Schenk &lt;wschenk@gmail.com&gt;</span><span class="err">
 </span><span class="err">
 </span><span class="err"></span><span class="k">EXPOSE</span><span class="s"> 3282</span><span class="err">
 </span><span class="err">
-</span><span class="err"></span>USER root<span class="err">
+</span><span class="err"></span><span class="k">USER</span><span class="s"> root</span><span class="err">
 </span><span class="err"></span><span class="k">RUN</span> npm install -g cabal<span class="err">
 </span><span class="err">
-</span><span class="err"></span><span class="k">CMD</span><span class="s"> cabal</span></code></pre></div>
-
+</span><span class="err"></span><span class="k">CMD</span> cabal</code></pre></div></p>
 <p>Then build like so:</p>
-
-<pre><code>docker build . -t $USER/cabal
-</code></pre>
-
-<p>Create a simple script to make it easier to run in the future.  (Note I&rsquo;m using <code>--network host</code> here because I was having trouble getting dat to punch through the Docker networking/NAT stuff.)</p>
-
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">docker build . -t <span class="nv">$USER</span>/cabal
+</code></pre></div><p>Create a simple script to make it easier to run in the future.  (Note I&rsquo;m using <code>--network host</code> here because I was having trouble getting dat to punch through the Docker networking/NAT stuff.)</p>
 <div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="cp">#!/bin/bash
 </span><span class="cp"></span>
 docker run -it --rm --name cabal --network host wschenk/cabal cabal <span class="s2">&#34;</span><span class="nv">$@</span><span class="s2">&#34;</span></code></pre></div>
-
 <p>This script is for running one off commands, and it throws away the container each time so you&rsquo;ll lose the history.  If you really wanted to use this for something more than an experiment you should mount the internal <code>/root/.cabal</code> directory to a docker volume and/or not make it a temporary container.</p>
-
 <p>Push the container to the repository using <code>docker push $USER/cabal</code>, and then move everything to a different computer.  Then run:</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">bash run.sh cabal://f6e83732c84fe310515fe7162376e5420c6f4a27d015094ccc22be658b62d3c8</code></pre></div>
-<p>If all goes well, after a few moments of network dancing you should be able to see the original message you sent.  Type away to see if things show up!</p>
-
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">bash run.sh cabal://f6e83732c84fe310515fe7162376e5420c6f4a27d015094ccc22be658b62d3c8
+</code></pre></div><p>If all goes well, after a few moments of network dancing you should be able to see the original message you sent.  Type away to see if things show up!</p>
 <h2 id="using-cabal-core-in-code">Using <code>cabal-core</code> in code</h2>
-
 <p>That&rsquo;s super cool already, but lets go a little deep and start writing our own handlers to see what we can do with <code>cabal</code> programmaticly.  <code>cabal</code> isn&rsquo;t secure at all so we probably shouldn&rsquo;t use this for anything real, but its a nifty way to communicate and discover without having to setup very much at all!</p>
 <div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">npm init
-yarn add cabal-core tmp delay</code></pre></div>
-<h2 id="printing-out-everything-that-is-in-a-swarm">Printing out everything that is in a swarm</h2>
-
+yarn add cabal-core tmp delay
+</code></pre></div><h2 id="printing-out-everything-that-is-in-a-swarm">Printing out everything that is in a swarm</h2>
 <ol>
 <li>First we create a <code>Cabal</code> instance with a storage directory and our key, using <code>cabel = Cabal(directoy,key)</code></li>
 <li>Then we connect it to the swarm to start replicating using <code>swarm(cabal)</code></li>
@@ -171,12 +149,10 @@ yarn add cabal-core tmp delay</code></pre></div>
 <li>We can get a current channel list using <code>cabal.channels.get()</code></li>
 <li>We can listen for new nicknames using <code>cabal.users.events.on('update')</code></li>
 </ol>
-
 <p>Here&rsquo;s it in code form <a href="read.js"><code>dump.js</code></a>:</p>
-
-<div class="highlight"><pre class="chroma"><code class="language-js" data-lang="js"><span class="k">const</span> <span class="nx">Cabal</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="s1">&#39;cabal-core&#39;</span><span class="p">);</span>
-<span class="k">const</span> <span class="nx">swarm</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="s1">&#39;cabal-core/swarm.js&#39;</span><span class="p">);</span>
-<span class="k">const</span> <span class="nx">tmp</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="s1">&#39;tmp&#39;</span><span class="p">);</span>
+<div class="highlight"><pre class="chroma"><code class="language-js" data-lang="js"><span class="kr">const</span> <span class="nx">Cabal</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="s1">&#39;cabal-core&#39;</span><span class="p">);</span>
+<span class="kr">const</span> <span class="nx">swarm</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="s1">&#39;cabal-core/swarm.js&#39;</span><span class="p">);</span>
+<span class="kr">const</span> <span class="nx">tmp</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="s1">&#39;tmp&#39;</span><span class="p">);</span>
 
 <span class="k">if</span><span class="p">(</span> <span class="nx">process</span><span class="p">.</span><span class="nx">argv</span><span class="p">.</span><span class="nx">length</span> <span class="o">!=</span> <span class="mi">3</span> <span class="p">)</span> <span class="p">{</span>
   <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;Usage&#34;</span> <span class="p">)</span>
@@ -185,15 +161,15 @@ yarn add cabal-core tmp delay</code></pre></div>
 <span class="p">}</span>
 
 <span class="c1">// Strip out the awesome
-</span><span class="c1"></span><span class="k">const</span> <span class="nx">key</span> <span class="o">=</span>  <span class="nx">process</span><span class="p">.</span><span class="nx">argv</span><span class="p">[</span><span class="mi">2</span><span class="p">].</span><span class="nx">replace</span><span class="p">(</span><span class="s1">&#39;cabal://&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">).</span><span class="nx">replace</span><span class="p">(</span><span class="s1">&#39;cbl://&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">).</span><span class="nx">replace</span><span class="p">(</span><span class="s1">&#39;dat://&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">).</span><span class="nx">replace</span><span class="p">(</span><span class="sr">/\//g</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+</span><span class="c1"></span><span class="kr">const</span> <span class="nx">key</span> <span class="o">=</span>  <span class="nx">process</span><span class="p">.</span><span class="nx">argv</span><span class="p">[</span><span class="mi">2</span><span class="p">].</span><span class="nx">replace</span><span class="p">(</span><span class="s1">&#39;cabal://&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">).</span><span class="nx">replace</span><span class="p">(</span><span class="s1">&#39;cbl://&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">).</span><span class="nx">replace</span><span class="p">(</span><span class="s1">&#39;dat://&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">).</span><span class="nx">replace</span><span class="p">(</span><span class="sr">/\//g</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
 <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;Connecting to&#34;</span><span class="p">,</span> <span class="nx">key</span><span class="p">)</span>
 
 <span class="c1">// For testing to keep things clean
-</span><span class="c1"></span><span class="k">const</span> <span class="nx">storage_dir</span> <span class="o">=</span> <span class="nx">process</span><span class="p">.</span><span class="nx">env</span><span class="p">.</span><span class="nx">CABAL_DIR</span> <span class="o">||</span> <span class="nx">tmp</span><span class="p">.</span><span class="nx">dirSync</span><span class="p">().</span><span class="nx">name</span><span class="p">;</span>
+</span><span class="c1"></span><span class="kr">const</span> <span class="nx">storage_dir</span> <span class="o">=</span> <span class="nx">process</span><span class="p">.</span><span class="nx">env</span><span class="p">.</span><span class="nx">CABAL_DIR</span> <span class="o">||</span> <span class="nx">tmp</span><span class="p">.</span><span class="nx">dirSync</span><span class="p">().</span><span class="nx">name</span><span class="p">;</span>
 <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;Storing our database in&#34;</span><span class="p">,</span> <span class="nx">storage_dir</span><span class="p">);</span>
 
 <span class="c1">// Create a cabal instance
-</span><span class="c1"></span><span class="k">const</span> <span class="nx">cabal</span> <span class="o">=</span> <span class="nx">Cabal</span><span class="p">(</span> <span class="nx">storage_dir</span><span class="p">,</span> <span class="nx">key</span><span class="p">,</span> <span class="p">{</span><span class="nx">maxFeeds</span><span class="o">:</span><span class="mi">1000</span><span class="p">}</span> <span class="p">)</span>
+</span><span class="c1"></span><span class="kr">const</span> <span class="nx">cabal</span> <span class="o">=</span> <span class="nx">Cabal</span><span class="p">(</span> <span class="nx">storage_dir</span><span class="p">,</span> <span class="nx">key</span><span class="p">,</span> <span class="p">{</span><span class="nx">maxFeeds</span><span class="o">:</span><span class="mi">1000</span><span class="p">}</span> <span class="p">)</span>
 
 <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;Connecting to swarm&#34;</span><span class="p">)</span>
 <span class="nx">swarm</span><span class="p">(</span><span class="nx">cabal</span><span class="p">);</span>
@@ -217,9 +193,7 @@ yarn add cabal-core tmp delay</code></pre></div>
 
 <span class="c1">// Process will hang waiting for events
 </span></code></pre></div>
-
 <p>Now lets restart everything and see what happens!  When I start up <code>node dump.js key</code> on my machine, and then start up the <code>cabal-cli</code> client on the other machine and:</p>
-
 <ol>
 <li>Type <code>hello everyone</code></li>
 <li>Type <code>/n Will</code> - change my nickname to Will</li>
@@ -229,7 +203,6 @@ yarn add cabal-core tmp delay</code></pre></div>
 <li>Type <code>/topic Serious Stuff</code></li>
 <li>Type <code>/quit</code></li>
 </ol>
-
 <div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">Connecting to f6e83732c84fe310515fe7162376e5420c6f4a27d015094ccc22be658b62d3c8
 Storing our database in /tmp/tmp-5029E7feUNe8UiyB
 Connecting to swarm
@@ -239,21 +212,21 @@ Peer added 6a4ed8b325acf3cb4a7c47625d0e66610ebc9be75b775e934efdb5440bb09097
 new channel default
 Got a message <span class="o">{</span> key:
    <span class="s1">&#39;6a4ed8b325acf3cb4a7c47625d0e66610ebc9be75b775e934efdb5440bb09097&#39;</span>,
-  seq: <span class="m">0</span>,
+  seq: 0,
   value:
    <span class="o">{</span> type: <span class="s1">&#39;chat/text&#39;</span>,
      content: <span class="o">{</span> channel: <span class="s1">&#39;default&#39;</span>, text: <span class="s1">&#39;hello everyone&#39;</span> <span class="o">}</span>,
      timestamp: <span class="m">1556023954404</span> <span class="o">}</span> <span class="o">}</span>
 user message <span class="o">{</span> key:
    <span class="s1">&#39;6a4ed8b325acf3cb4a7c47625d0e66610ebc9be75b775e934efdb5440bb09097&#39;</span>,
-  seq: <span class="m">1</span>,
+  seq: 1,
   value:
    <span class="o">{</span> type: <span class="s1">&#39;about&#39;</span>,
      content: <span class="o">{</span> name: <span class="s1">&#39;Will&#39;</span> <span class="o">}</span>,
      timestamp: <span class="m">1556023961901</span> <span class="o">}</span> <span class="o">}</span>
 Got a message <span class="o">{</span> key:
    <span class="s1">&#39;6a4ed8b325acf3cb4a7c47625d0e66610ebc9be75b775e934efdb5440bb09097&#39;</span>,
-  seq: <span class="m">2</span>,
+  seq: 2,
   value:
    <span class="o">{</span> type: <span class="s1">&#39;chat/text&#39;</span>,
      content: <span class="o">{</span> channel: <span class="s1">&#39;default&#39;</span>, text: <span class="s1">&#39;This is my new name&#39;</span> <span class="o">}</span>,
@@ -261,7 +234,7 @@ Got a message <span class="o">{</span> key:
 new channel new channel
 Got a message <span class="o">{</span> key:
    <span class="s1">&#39;6a4ed8b325acf3cb4a7c47625d0e66610ebc9be75b775e934efdb5440bb09097&#39;</span>,
-  seq: <span class="m">3</span>,
+  seq: 3,
   value:
    <span class="o">{</span> type: <span class="s1">&#39;chat/text&#39;</span>,
      content:
@@ -269,32 +242,26 @@ Got a message <span class="o">{</span> key:
      timestamp: <span class="m">1556023978198</span> <span class="o">}</span> <span class="o">}</span>
 Got a message <span class="o">{</span> key:
    <span class="s1">&#39;6a4ed8b325acf3cb4a7c47625d0e66610ebc9be75b775e934efdb5440bb09097&#39;</span>,
-  seq: <span class="m">4</span>,
+  seq: 4,
   value:
    <span class="o">{</span> type: <span class="s1">&#39;chat/topic&#39;</span>,
      content: <span class="o">{</span> channel: <span class="s1">&#39;new channel&#39;</span>, text: <span class="s1">&#39;Serious Stuff&#39;</span> <span class="o">}</span>,
      timestamp: <span class="m">1556023983080</span> <span class="o">}</span> <span class="o">}</span>
 Peer dropped 6a4ed8b325acf3cb4a7c47625d0e66610ebc9be75b775e934efdb5440bb09097</code></pre></div>
-
 <h2 id="publishing-a-message">Publishing a message</h2>
-
 <p>Publishing a message involves appending to your local feed and then synchronizing to the swarm.  Which means waiting for the swarm to connect, a peer to join, and then them downloading everything.  We don&rsquo;t really know how long it will take, and there&rsquo;s no real way to guarantee that it will show up.  But we want a CLI tool that will eventually return, and not sit around forever.  Here&rsquo;s the logic we&rsquo;ll use:</p>
-
 <ol>
 <li>Initialize cabal and try to connect to the swarm</li>
 <li>Post the message to the local store</li>
 <li>Once we get a peer connect message, wait 2 seconds for syncing and return success</li>
 <li>If we don&rsquo;t get a peer connect in 10 seconds, then exit with error code.</li>
 </ol>
-
 <p>Of course, if you just want to publish a message and serve the swarm forever, we could just take out the timeouts.</p>
-
 <p><a href="publish.js"><code>publish.js</code></a>:</p>
-
-<div class="highlight"><pre class="chroma"><code class="language-js" data-lang="js"><span class="k">const</span> <span class="nx">Cabal</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="s1">&#39;cabal-core&#39;</span><span class="p">);</span>
-<span class="k">const</span> <span class="nx">swarm</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="s1">&#39;cabal-core/swarm.js&#39;</span><span class="p">);</span>
-<span class="k">const</span> <span class="nx">delay</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="s1">&#39;delay&#39;</span><span class="p">);</span>
-<span class="k">const</span> <span class="nx">tmp</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="s1">&#39;tmp&#39;</span><span class="p">);</span>
+<div class="highlight"><pre class="chroma"><code class="language-js" data-lang="js"><span class="kr">const</span> <span class="nx">Cabal</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="s1">&#39;cabal-core&#39;</span><span class="p">);</span>
+<span class="kr">const</span> <span class="nx">swarm</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="s1">&#39;cabal-core/swarm.js&#39;</span><span class="p">);</span>
+<span class="kr">const</span> <span class="nx">delay</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="s1">&#39;delay&#39;</span><span class="p">);</span>
+<span class="kr">const</span> <span class="nx">tmp</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="s1">&#39;tmp&#39;</span><span class="p">);</span>
 
 <span class="k">if</span><span class="p">(</span> <span class="nx">process</span><span class="p">.</span><span class="nx">argv</span><span class="p">.</span><span class="nx">length</span> <span class="o">!=</span> <span class="mi">5</span> <span class="p">)</span> <span class="p">{</span>
   <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;Usage&#34;</span> <span class="p">)</span>
@@ -303,17 +270,17 @@ Peer dropped 6a4ed8b325acf3cb4a7c47625d0e66610ebc9be75b775e934efdb5440bb09097</c
 <span class="p">}</span>
 
 <span class="c1">// Strip out the awesome
-</span><span class="c1"></span><span class="k">const</span> <span class="nx">key</span> <span class="o">=</span>  <span class="nx">process</span><span class="p">.</span><span class="nx">argv</span><span class="p">[</span><span class="mi">2</span><span class="p">].</span><span class="nx">replace</span><span class="p">(</span><span class="s1">&#39;cabal://&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">).</span><span class="nx">replace</span><span class="p">(</span><span class="s1">&#39;cbl://&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">).</span><span class="nx">replace</span><span class="p">(</span><span class="s1">&#39;dat://&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">).</span><span class="nx">replace</span><span class="p">(</span><span class="sr">/\//g</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+</span><span class="c1"></span><span class="kr">const</span> <span class="nx">key</span> <span class="o">=</span>  <span class="nx">process</span><span class="p">.</span><span class="nx">argv</span><span class="p">[</span><span class="mi">2</span><span class="p">].</span><span class="nx">replace</span><span class="p">(</span><span class="s1">&#39;cabal://&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">).</span><span class="nx">replace</span><span class="p">(</span><span class="s1">&#39;cbl://&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">).</span><span class="nx">replace</span><span class="p">(</span><span class="s1">&#39;dat://&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">).</span><span class="nx">replace</span><span class="p">(</span><span class="sr">/\//g</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
 <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;Connecting to&#34;</span><span class="p">,</span> <span class="nx">key</span><span class="p">)</span>
-<span class="k">const</span> <span class="nx">channel</span> <span class="o">=</span> <span class="nx">process</span><span class="p">.</span><span class="nx">argv</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>
-<span class="k">const</span> <span class="nx">message</span> <span class="o">=</span> <span class="nx">process</span><span class="p">.</span><span class="nx">argv</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span>
+<span class="kr">const</span> <span class="nx">channel</span> <span class="o">=</span> <span class="nx">process</span><span class="p">.</span><span class="nx">argv</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>
+<span class="kr">const</span> <span class="nx">message</span> <span class="o">=</span> <span class="nx">process</span><span class="p">.</span><span class="nx">argv</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span>
 
 <span class="c1">// For testing to keep things clean
-</span><span class="c1"></span><span class="k">const</span> <span class="nx">storage_dir</span> <span class="o">=</span> <span class="nx">process</span><span class="p">.</span><span class="nx">env</span><span class="p">.</span><span class="nx">CABAL_DIR</span> <span class="o">||</span> <span class="nx">tmp</span><span class="p">.</span><span class="nx">dirSync</span><span class="p">().</span><span class="nx">name</span><span class="p">;</span>
+</span><span class="c1"></span><span class="kr">const</span> <span class="nx">storage_dir</span> <span class="o">=</span> <span class="nx">process</span><span class="p">.</span><span class="nx">env</span><span class="p">.</span><span class="nx">CABAL_DIR</span> <span class="o">||</span> <span class="nx">tmp</span><span class="p">.</span><span class="nx">dirSync</span><span class="p">().</span><span class="nx">name</span><span class="p">;</span>
 <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;Storing our database in&#34;</span><span class="p">,</span> <span class="nx">storage_dir</span><span class="p">);</span>
 
 <span class="c1">// Create a cabal instance
-</span><span class="c1"></span><span class="k">const</span> <span class="nx">cabal</span> <span class="o">=</span> <span class="nx">Cabal</span><span class="p">(</span> <span class="nx">storage_dir</span><span class="p">,</span> <span class="nx">key</span><span class="p">,</span> <span class="p">{</span><span class="nx">maxFeeds</span><span class="o">:</span><span class="mi">1000</span><span class="p">}</span> <span class="p">)</span>
+</span><span class="c1"></span><span class="kr">const</span> <span class="nx">cabal</span> <span class="o">=</span> <span class="nx">Cabal</span><span class="p">(</span> <span class="nx">storage_dir</span><span class="p">,</span> <span class="nx">key</span><span class="p">,</span> <span class="p">{</span><span class="nx">maxFeeds</span><span class="o">:</span><span class="mi">1000</span><span class="p">}</span> <span class="p">)</span>
 
 <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;Connecting to swarm&#34;</span><span class="p">)</span>
 <span class="nx">swarm</span><span class="p">(</span><span class="nx">cabal</span><span class="p">);</span>
@@ -349,17 +316,11 @@ Peer dropped 6a4ed8b325acf3cb4a7c47625d0e66610ebc9be75b775e934efdb5440bb09097</c
   <span class="p">}</span>
 <span class="p">})</span>
 </code></pre></div>
-
 <p>Then try running this code with a running cabal node on the remote host and without one.  You&rsquo;ll notice that the messages that were stored locally will eventually be delivered once a connection is made.</p>
-
 <h2 id="next-steps">Next steps</h2>
-
 <p>One thing that I&rsquo;m interested in playing around with is using this as a message bus of sorts, to each have remote devices report in on what they are doing (raspberry pi&rsquo;s for example) or be able to script it, to have a bot listening that takes commands in and run actions on the server and then pushes the results out (to IPFS for example.)  But that&rsquo;s for another post.</p>
-
-<hr />
-
+<hr>
 <p>References</p>
-
 <ol>
 <li><a href="https://cabal-club.github.io/">https://cabal-club.github.io/</a></li>
 <li><a href="https://www.datprotocol.com/">https://www.datprotocol.com/</a></li>

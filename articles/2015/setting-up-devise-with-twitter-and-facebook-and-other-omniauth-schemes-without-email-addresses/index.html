@@ -106,16 +106,10 @@ if (!doNotTrack) {
   
 
   <article class="article mt-5">
-    
-
-<p>Adding social login to your sites really makes it easier to get users onboard.  Devise is great to help get an authentication system up and running, but there are a few tricky things to get right.  The first challenge is that you don&rsquo;t always get the user&rsquo;s email address when the first connect.  The second challenge is that we want to request the minimum permissions first so that the user is more likely to sign up, and gradually ask more as the time arises.</p>
-
+    <p>Adding social login to your sites really makes it easier to get users onboard.  Devise is great to help get an authentication system up and running, but there are a few tricky things to get right.  The first challenge is that you don&rsquo;t always get the user&rsquo;s email address when the first connect.  The second challenge is that we want to request the minimum permissions first so that the user is more likely to sign up, and gradually ask more as the time arises.</p>
 <p>This post is going to go through the strategy that <a href="http://seed.happyfuncorp.com">happy_seed</a> uses to support these use cases.  The easiest way to get started is to use seed to get things up and running, but we&rsquo;ll walk through how to do it all in detail below.</p>
-
 <h2 id="install-devise-and-omniauth">Install devise and omniauth</h2>
-
 <p>Let&rsquo;s install a few gems.  We&rsquo;ll go through how to install twitter, facebook, and google.</p>
-
 <p><code>Gemfile</code>:</p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="n">gem</span> <span class="s1">&#39;devise&#39;</span><span class="p">,</span> <span class="s1">&#39;~&gt; 3.4&#39;</span>
 <span class="n">gem</span> <span class="s1">&#39;omniauth&#39;</span>
@@ -125,74 +119,59 @@ if (!doNotTrack) {
 <span class="n">gem</span> <span class="s1">&#39;twitter&#39;</span>
 <span class="n">gem</span> <span class="s1">&#39;instagram&#39;</span>
 <span class="n">gem</span> <span class="s1">&#39;omniauth-google-oauth2&#39;</span>
-<span class="n">gem</span> <span class="s1">&#39;google-api-client&#39;</span><span class="p">,</span> <span class="nb">require</span><span class="p">:</span> <span class="s1">&#39;google/api_client&#39;</span></code></pre></div>
-<p>Now we need to run the <code>devise</code> generators.  I like to copy over the views so that I can fix them up to look like the rest of my app.  If you are using seed, these views will be generated with <code>HAML</code> and the <code>bootstrap helpers</code> gem.</p>
-
+<span class="n">gem</span> <span class="s1">&#39;google-api-client&#39;</span><span class="p">,</span> <span class="nb">require</span><span class="p">:</span> <span class="s1">&#39;google/api_client&#39;</span>
+</code></pre></div><p>Now we need to run the <code>devise</code> generators.  I like to copy over the views so that I can fix them up to look like the rest of my app.  If you are using seed, these views will be generated with <code>HAML</code> and the <code>bootstrap helpers</code> gem.</p>
 <p>First install devise:</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ rails generate devise:install</code></pre></div>
-<p><code>devise:install</code> copies over <code>config/initializers/devise.rb</code> and a localized message file.  We will configure devise here.  <em>Follow the outputed instuctions to setup flashes and mailer configs.</em></p>
-
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ rails generate devise:install
+</code></pre></div><p><code>devise:install</code> copies over <code>config/initializers/devise.rb</code> and a localized message file.  We will configure devise here.  <em>Follow the outputed instuctions to setup flashes and mailer configs.</em></p>
 <p>Now create a model, call it user:</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ rails generate devise User</code></pre></div>
-<p>This creates a <code>User</code> model and configures devise routes to use it.  We will edit both of these.</p>
-
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ rails generate devise User
+</code></pre></div><p>This creates a <code>User</code> model and configures devise routes to use it.  We will edit both of these.</p>
 <p>Finally, copy over the views so you can style them as you need:</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ rails generate devise:views</code></pre></div>
-<h2 id="make-sure-regular-login-in-works">Make sure regular login in works</h2>
-
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ rails generate devise:views
+</code></pre></div><h2 id="make-sure-regular-login-in-works">Make sure regular login in works</h2>
 <p>Lets create a basic controller to see if our login works:</p>
 <div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ rails g controller welcome index
 $ rake db:migrate
-$ rails s</code></pre></div>
-<p>Edit <code>routes.rb</code>:</p>
+$ rails s
+</code></pre></div><p>Edit <code>routes.rb</code>:</p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="n">get</span> <span class="s1">&#39;welcome/index&#39;</span>
-  <span class="n">root</span> <span class="s1">&#39;welcome#index&#39;</span></code></pre></div>
-<p>And change your <code>WeclomeController</code> to require user authentication:</p>
+  <span class="n">root</span> <span class="s1">&#39;welcome#index&#39;</span>
+</code></pre></div><p>And change your <code>WeclomeController</code> to require user authentication:</p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="k">class</span> <span class="nc">WelcomeController</span>
   <span class="n">before_action</span> <span class="ss">:authenticate_user!</span>
 
   <span class="k">def</span> <span class="nf">index</span>
   <span class="k">end</span>
-<span class="k">end</span></code></pre></div>
-<p>Now if you go to <a href="http://localhost:3000/">http://localhost:3000/</a> you should get redirected to a login page.  If you create a user you should be able to then see the protected page.</p>
-
+<span class="k">end</span>
+</code></pre></div><p>Now if you go to <a href="http://localhost:3000/">http://localhost:3000/</a> you should get redirected to a login page.  If you create a user you should be able to then see the protected page.</p>
 <p>Let&rsquo;s add a logout button to the index page for testing: <code>app/views/welcome/index.html.erb</code>:</p>
-<div class="highlight"><pre class="chroma"><code class="language-erb" data-lang="erb">&lt;%= link_to &#34;Signout&#34;, destroy_user_session_path, method: :delete %&gt;</code></pre></div>
-<p>Now we can go back and forth.  The <code>method: :delete</code> part is something that I often forget about.</p>
-
+<pre><code class="language-erb" data-lang="erb">&lt;%= link_to &quot;Signout&quot;, destroy_user_session_path, method: :delete %&gt;
+</code></pre><p>Now we can go back and forth.  The <code>method: :delete</code> part is something that I often forget about.</p>
 <h2 id="configure-omniauth">Configure Omniauth</h2>
-
 <p>We need to tell devise and omniauth how to talk to the various outside services.  The first thing you&rsquo;ll need to do is configure those services and collect their app ids and app secrets.  Then you put that information inside of <code>config/initializers/devise.rb</code>:</p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">    <span class="n">config</span><span class="o">.</span><span class="n">omniauth</span> <span class="ss">:google_oauth2</span><span class="p">,</span> <span class="no">ENV</span><span class="o">[</span><span class="s1">&#39;GOOGLE_OAUTH2_APP_ID&#39;</span><span class="o">]</span><span class="p">,</span> <span class="no">ENV</span><span class="o">[</span><span class="s1">&#39;GOOGLE_OAUTH2_APP_SECRET&#39;</span><span class="o">]</span><span class="p">,</span> <span class="ss">scope</span><span class="p">:</span> <span class="s2">&#34;email,profile,offline&#34;</span><span class="p">,</span> <span class="ss">prompt</span><span class="p">:</span> <span class="s2">&#34;consent&#34;</span>
     <span class="n">config</span><span class="o">.</span><span class="n">omniauth</span> <span class="ss">:instagram</span><span class="p">,</span> <span class="no">ENV</span><span class="o">[</span><span class="s1">&#39;INSTAGRAM_APP_ID&#39;</span><span class="o">]</span><span class="p">,</span> <span class="no">ENV</span><span class="o">[</span><span class="s1">&#39;INSTAGRAM_APP_SECRET&#39;</span><span class="o">]</span>
     <span class="n">config</span><span class="o">.</span><span class="n">omniauth</span> <span class="ss">:facebook</span><span class="p">,</span> <span class="no">ENV</span><span class="o">[</span><span class="s1">&#39;FACEBOOK_APP_ID&#39;</span><span class="o">]</span><span class="p">,</span> <span class="no">ENV</span><span class="o">[</span><span class="s1">&#39;FACEBOOK_APP_SECRET&#39;</span><span class="o">]</span><span class="p">,</span> <span class="ss">scope</span><span class="p">:</span> <span class="s2">&#34;email&#34;</span>
-    <span class="n">config</span><span class="o">.</span><span class="n">omniauth</span> <span class="ss">:twitter</span><span class="p">,</span> <span class="no">ENV</span><span class="o">[</span><span class="s1">&#39;TWITTER_APP_ID&#39;</span><span class="o">]</span><span class="p">,</span> <span class="no">ENV</span><span class="o">[</span><span class="s1">&#39;TWITTER_APP_SECRET&#39;</span><span class="o">]</span></code></pre></div>
-<p>Since we are building nice <a href="http://12factor.net">12 Factor Apps</a> we pull the config from the environment.  seed uses the <a href="https://github.com/bkeepers/dotenv">dotenv gem</a> to keep track of these things in a <code>.env</code> file, and when you deploy to heroku you will use heroku config variables.</p>
-
+    <span class="n">config</span><span class="o">.</span><span class="n">omniauth</span> <span class="ss">:twitter</span><span class="p">,</span> <span class="no">ENV</span><span class="o">[</span><span class="s1">&#39;TWITTER_APP_ID&#39;</span><span class="o">]</span><span class="p">,</span> <span class="no">ENV</span><span class="o">[</span><span class="s1">&#39;TWITTER_APP_SECRET&#39;</span><span class="o">]</span>
+</code></pre></div><p>Since we are building nice <a href="http://12factor.net">12 Factor Apps</a> we pull the config from the environment.  seed uses the <a href="https://github.com/bkeepers/dotenv">dotenv gem</a> to keep track of these things in a <code>.env</code> file, and when you deploy to heroku you will use heroku config variables.</p>
 <p>We also pass in <code>scope</code>s to a few strategies, which is where we can configure omniauth to request specific permissions.  Sometimes you need to enable them on the remote side before you can request things (<em>e.g.</em> google, twitter) so make sure that things are setup there.</p>
-
 <p>We&rsquo;ll go into how to dynamically set that scope later on.</p>
-
 <h2 id="tell-devise-about-omniauthable">Tell Devise about omniauthable</h2>
-
 <p>Open up <code>app/models/user.rb</code> and add <code>:omniauthable</code> to your <code>devise</code> line and remove <code>:validatable</code>:</p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="n">devise</span> <span class="ss">:omniauthable</span><span class="p">,</span> <span class="ss">:database_authenticatable</span><span class="p">,</span> <span class="ss">:registerable</span><span class="p">,</span>
-         <span class="ss">:recoverable</span><span class="p">,</span> <span class="ss">:rememberable</span><span class="p">,</span> <span class="ss">:trackable</span></code></pre></div>
-<p>Now you should see that there are a list of connect with our services when you go to your sign in or login pages.</p>
-
+         <span class="ss">:recoverable</span><span class="p">,</span> <span class="ss">:rememberable</span><span class="p">,</span> <span class="ss">:trackable</span>
+</code></pre></div><p>Now you should see that there are a list of connect with our services when you go to your sign in or login pages.</p>
 <h2 id="create-a-formuser-to-handle-validations">Create a FormUser to handle validations</h2>
-
 <p>Not all services return email addresses, and by default the devise validations expect them.  Let&rsquo;s move those validations out of the base <code>User</code> class into a <code>FormUser</code> class.</p>
-
 <ol>
 <li>Remove <code>:validatable</code> from <code>app/models/user.rb</code> (which you&rsquo;ve done above)</li>
 <li>Tell devise to use our new model.</li>
 <li>Create the forms_user.rb class.</li>
 </ol>
-
 <p>Inside of <code>config/routes.rb</code>:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="n">devise_for</span> <span class="ss">:users</span><span class="p">,</span> <span class="ss">class_name</span><span class="p">:</span> <span class="s1">&#39;FormUser&#39;</span></code></pre></div>
-<p>And <code>app/models/form_user.rb</code> should look like:</p>
+<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="n">devise_for</span> <span class="ss">:users</span><span class="p">,</span> <span class="ss">class_name</span><span class="p">:</span> <span class="s1">&#39;FormUser&#39;</span>
+</code></pre></div><p>And <code>app/models/form_user.rb</code> should look like:</p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="k">class</span> <span class="nc">FormUser</span> <span class="o">&lt;</span> <span class="no">User</span>
   <span class="kp">attr_accessor</span> <span class="ss">:current_password</span>
 
@@ -212,27 +191,21 @@ $ rails s</code></pre></div>
   <span class="k">def</span> <span class="nf">email_required?</span>
     <span class="kp">true</span>
   <span class="k">end</span>
-<span class="k">end</span></code></pre></div>
-<p>The <code>class_name</code> inside of the devise config will tell it to use this class for building forms, and we have the validations on this class so our error messages will work on the site, but we&rsquo;ll be able to save objects without it.</p>
-
-<h2 id="create-identity-model-to-store-access-keys-and-metadata">Create Identity model to store access_keys and metadata</h2>
-
+<span class="k">end</span>
+</code></pre></div><p>The <code>class_name</code> inside of the devise config will tell it to use this class for building forms, and we have the validations on this class so our error messages will work on the site, but we&rsquo;ll be able to save objects without it.</p>
+<h2 id="create-identity-model-to-store-access_keys-and-metadata">Create Identity model to store access_keys and metadata</h2>
 <p>Now we are ready to plug in oauth authentications.  The flow is:</p>
-
 <ol>
 <li>User requests <code>/users/auth/:provider</code>, where provider one of the strategies that you defined above.</li>
 <li>Omniauth does magic and directs the user to the remote service.</li>
 <li>The user grants us access and is redirected to the callback path.</li>
 <li>The OmniauthCallbacks controller is called on our application with the relavent info.</li>
 </ol>
-
 <p>We will use this info to create the user.  We are also going to store it to be able to access the service on behalf of the user, and we&rsquo;ll need to store the <code>access_token</code> in order to do so.</p>
-
 <p>Google is slightly more complicated and we&rsquo;ll need to store a <code>refresh_token</code> as well.</p>
-
 <p>Lets create that model now:</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ rails model identity user:references provider:string accesstoken:string refreshtoken:string uid:string name:string email:string nickname:string image:string phone:string urls:string</code></pre></div>
-<p>And flesh out <code>app/models/identity.rb</code></p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ rails model identity user:references provider:string accesstoken:string refreshtoken:string uid:string name:string email:string nickname:string image:string phone:string urls:string
+</code></pre></div><p>And flesh out <code>app/models/identity.rb</code></p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="k">class</span> <span class="nc">Identity</span> <span class="o">&lt;</span> <span class="no">ActiveRecord</span><span class="o">::</span><span class="no">Base</span>
   <span class="n">belongs_to</span> <span class="ss">:user</span>
   <span class="n">validates_presence_of</span> <span class="ss">:uid</span><span class="p">,</span> <span class="ss">:provider</span>
@@ -252,13 +225,10 @@ $ rails s</code></pre></div>
     <span class="n">identity</span><span class="o">.</span><span class="n">save</span>
     <span class="n">identity</span>
   <span class="k">end</span>
-<span class="k">end</span></code></pre></div>
-<p>Now we need to tell devise to use this model.</p>
-
+<span class="k">end</span>
+</code></pre></div><p>Now we need to tell devise to use this model.</p>
 <h2 id="create-omniauthcallbackscontroller-to-pull-in-data">Create OmniauthCallbacksController to pull in data</h2>
-
 <p>We&rsquo;re going to build one method to handle the different authentication callbacks, called <code>generic_callback</code>.  The logic of this controller is:</p>
-
 <ol>
 <li>Find or create an <code>Identity</code> object for the incoming oauth data.  Update it with the latest info.</li>
 <li>If there is no user associated with the Identity, associate it with the current_user.</li>
@@ -266,10 +236,9 @@ $ rails s</code></pre></div>
 <li>If the User object doesn&rsquo;t have an email address set yet, but we do have one from the remote service, set the email address to that.</li>
 <li>Log the user in and let the continue on their way.</li>
 </ol>
-
 <p>First we need to tell devise about our controller in <code>routes.rb</code></p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="n">devise_for</span> <span class="ss">:users</span><span class="p">,</span> <span class="ss">class_name</span><span class="p">:</span> <span class="s1">&#39;FormUser&#39;</span><span class="p">,</span> <span class="ss">:controllers</span> <span class="o">=&gt;</span> <span class="p">{</span> <span class="ss">omniauth_callbacks</span><span class="p">:</span> <span class="s1">&#39;omniauth_callbacks&#39;</span> <span class="p">}</span></code></pre></div>
-<p>Create <code>app/controllers/omniauth_callback_controller.rb</code>:</p>
+<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="n">devise_for</span> <span class="ss">:users</span><span class="p">,</span> <span class="ss">class_name</span><span class="p">:</span> <span class="s1">&#39;FormUser&#39;</span><span class="p">,</span> <span class="ss">:controllers</span> <span class="o">=&gt;</span> <span class="p">{</span> <span class="ss">omniauth_callbacks</span><span class="p">:</span> <span class="s1">&#39;omniauth_callbacks&#39;</span> <span class="p">}</span>
+</code></pre></div><p>Create <code>app/controllers/omniauth_callback_controller.rb</code>:</p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="k">class</span> <span class="nc">OmniauthCallbacksController</span> <span class="o">&lt;</span> <span class="no">Devise</span><span class="o">::</span><span class="no">OmniauthCallbacksController</span>
   <span class="k">def</span> <span class="nf">instagram</span>
     <span class="n">generic_callback</span><span class="p">(</span> <span class="s1">&#39;instagram&#39;</span> <span class="p">)</span>
@@ -312,12 +281,11 @@ $ rails s</code></pre></div>
       <span class="n">redirect_to</span> <span class="n">new_user_registration_url</span>
     <span class="k">end</span>
   <span class="k">end</span>
-<span class="k">end</span></code></pre></div>
-<h2 id="override-registrationscontroller-to-handle-adding-email-address-and-password">Override RegistrationsController to handle adding email address and password</h2>
-
+<span class="k">end</span>
+</code></pre></div><h2 id="override-registrationscontroller-to-handle-adding-email-address-and-password">Override RegistrationsController to handle adding email address and password</h2>
 <p>We want to let the user add an email address if they haven&rsquo;t already, and also let them set a password if they haven&rsquo;t already set one.  (Otherwise it requires the user to enter in <code>current_password</code>.)  Lets first tell devise about our new controller:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="n">devise_for</span> <span class="ss">:users</span><span class="p">,</span> <span class="ss">class_name</span><span class="p">:</span> <span class="s1">&#39;FormUser&#39;</span><span class="p">,</span> <span class="ss">:controllers</span> <span class="o">=&gt;</span> <span class="p">{</span> <span class="ss">omniauth_callbacks</span><span class="p">:</span> <span class="s1">&#39;omniauth_callbacks&#39;</span><span class="p">,</span> <span class="ss">registrations</span><span class="p">:</span> <span class="s1">&#39;registrations&#39;</span><span class="p">}</span></code></pre></div>
-<p>And then create that controller:</p>
+<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="n">devise_for</span> <span class="ss">:users</span><span class="p">,</span> <span class="ss">class_name</span><span class="p">:</span> <span class="s1">&#39;FormUser&#39;</span><span class="p">,</span> <span class="ss">:controllers</span> <span class="o">=&gt;</span> <span class="p">{</span> <span class="ss">omniauth_callbacks</span><span class="p">:</span> <span class="s1">&#39;omniauth_callbacks&#39;</span><span class="p">,</span> <span class="ss">registrations</span><span class="p">:</span> <span class="s1">&#39;registrations&#39;</span><span class="p">}</span>
+</code></pre></div><p>And then create that controller:</p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="k">class</span> <span class="nc">RegistrationsController</span> <span class="o">&lt;</span> <span class="no">Devise</span><span class="o">::</span><span class="no">RegistrationsController</span>
   <span class="k">def</span> <span class="nf">update_resource</span><span class="p">(</span><span class="n">resource</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">resource</span><span class="o">.</span><span class="n">encrypted_password</span><span class="o">.</span><span class="n">blank?</span> <span class="c1"># || params[:password].blank?</span>
@@ -334,11 +302,9 @@ $ rails s</code></pre></div>
       <span class="n">resource</span><span class="o">.</span><span class="n">update_with_password</span><span class="p">(</span><span class="n">params</span><span class="p">)</span>
     <span class="k">end</span>
   <span class="k">end</span>
-<span class="k">end</span></code></pre></div>
-<p>And now we should be good!  Give it a go and see how it looks!</p>
-
+<span class="k">end</span>
+</code></pre></div><p>And now we should be good!  Give it a go and see how it looks!</p>
 <h2 id="adding-methods-to-user-to-get-to-the-clients">Adding methods to User to get to the clients</h2>
-
 <p>This goes into <code>app/models/user.rb</code>:</p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="n">has_many</span> <span class="ss">:identities</span>
 
@@ -376,25 +342,21 @@ $ rails s</code></pre></div>
       <span class="vi">@google_oauth2_client</span><span class="o">.</span><span class="n">authorization</span><span class="o">.</span><span class="n">update_token!</span><span class="p">({</span><span class="ss">:access_token</span> <span class="o">=&gt;</span> <span class="n">google_oauth2</span><span class="o">.</span><span class="n">accesstoken</span><span class="p">,</span> <span class="ss">:refresh_token</span> <span class="o">=&gt;</span> <span class="n">google_oauth2</span><span class="o">.</span><span class="n">refreshtoken</span><span class="p">})</span>
     <span class="k">end</span>
     <span class="vi">@google_oauth2_client</span>
-  <span class="k">end</span></code></pre></div>
-<p>Now you can access a configured API client using things like <code>current_user.twitter</code>.</p>
-
+  <span class="k">end</span>
+</code></pre></div><p>Now you can access a configured API client using things like <code>current_user.twitter</code>.</p>
 <h2 id="passing-dynamic-scopes-to-omniauth">Passing dynamic scopes to omniauth</h2>
-
 <p>In the current scheme above, you have to hard code the scopes that you want to request for the user which doesn&rsquo;t always work.  It would be better to only request write access if the user really needs to have it, and by default only get read-only access.  In order to do this we can leverage the <code>Omniauth</code> setup property.  Inside of <code>devise.rb</code> add <code>setup: true</code> to each of the services you want to be able to upgrade.</p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">    <span class="n">config</span><span class="o">.</span><span class="n">omniauth</span> <span class="ss">:google_oauth2</span><span class="p">,</span> <span class="no">ENV</span><span class="o">[</span><span class="s1">&#39;GOOGLE_OAUTH2_APP_ID&#39;</span><span class="o">]</span><span class="p">,</span> <span class="no">ENV</span><span class="o">[</span><span class="s1">&#39;GOOGLE_OAUTH2_APP_SECRET&#39;</span><span class="o">]</span><span class="p">,</span> <span class="ss">scope</span><span class="p">:</span> <span class="s2">&#34;email,profile,offline&#34;</span><span class="p">,</span> <span class="ss">prompt</span><span class="p">:</span> <span class="s2">&#34;consent&#34;</span><span class="p">,</span> <span class="ss">setup</span><span class="p">:</span> <span class="kp">true</span>
     <span class="n">config</span><span class="o">.</span><span class="n">omniauth</span> <span class="ss">:instagram</span><span class="p">,</span> <span class="no">ENV</span><span class="o">[</span><span class="s1">&#39;INSTAGRAM_APP_ID&#39;</span><span class="o">]</span><span class="p">,</span> <span class="no">ENV</span><span class="o">[</span><span class="s1">&#39;INSTAGRAM_APP_SECRET&#39;</span><span class="o">]</span><span class="p">,</span> <span class="ss">setup</span><span class="p">:</span> <span class="kp">true</span>
     <span class="n">config</span><span class="o">.</span><span class="n">omniauth</span> <span class="ss">:facebook</span><span class="p">,</span> <span class="no">ENV</span><span class="o">[</span><span class="s1">&#39;FACEBOOK_APP_ID&#39;</span><span class="o">]</span><span class="p">,</span> <span class="no">ENV</span><span class="o">[</span><span class="s1">&#39;FACEBOOK_APP_SECRET&#39;</span><span class="o">]</span><span class="p">,</span> <span class="ss">scope</span><span class="p">:</span> <span class="s2">&#34;email&#34;</span><span class="p">,</span> <span class="ss">setup</span><span class="p">:</span> <span class="kp">true</span>
-    <span class="n">config</span><span class="o">.</span><span class="n">omniauth</span> <span class="ss">:twitter</span><span class="p">,</span> <span class="no">ENV</span><span class="o">[</span><span class="s1">&#39;TWITTER_APP_ID&#39;</span><span class="o">]</span><span class="p">,</span> <span class="no">ENV</span><span class="o">[</span><span class="s1">&#39;TWITTER_APP_SECRET&#39;</span><span class="o">]</span><span class="p">,</span> <span class="ss">setup</span><span class="p">:</span> <span class="kp">true</span></code></pre></div>
-<p>Let&rsquo;s add a few routes in <code>routes.rb</code> that we can have the user link to:</p>
+    <span class="n">config</span><span class="o">.</span><span class="n">omniauth</span> <span class="ss">:twitter</span><span class="p">,</span> <span class="no">ENV</span><span class="o">[</span><span class="s1">&#39;TWITTER_APP_ID&#39;</span><span class="o">]</span><span class="p">,</span> <span class="no">ENV</span><span class="o">[</span><span class="s1">&#39;TWITTER_APP_SECRET&#39;</span><span class="o">]</span><span class="p">,</span> <span class="ss">setup</span><span class="p">:</span> <span class="kp">true</span>
+</code></pre></div><p>Let&rsquo;s add a few routes in <code>routes.rb</code> that we can have the user link to:</p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="n">devise_scope</span> <span class="ss">:user</span> <span class="k">do</span>
     <span class="n">get</span> <span class="s1">&#39;/users/auth/:provider/upgrade&#39;</span> <span class="o">=&gt;</span> <span class="s1">&#39;omniauth_callbacks#upgrade&#39;</span><span class="p">,</span> <span class="ss">as</span><span class="p">:</span> <span class="ss">:user_omniauth_upgrade</span>
     <span class="n">get</span> <span class="s1">&#39;/users/auth/:provider/setup&#39;</span><span class="p">,</span> <span class="ss">:to</span> <span class="o">=&gt;</span> <span class="s1">&#39;omniauth_callbacks#setup&#39;</span>
-  <span class="k">end</span></code></pre></div>
-<p>The first route is something that we&rsquo;ll have the user link to, using <code>user_omniauth_upgrade_path( :google_oauth2 )</code> for example.  The second <code>setup</code> route is what omniauth will call internally that we can use to change the <code>scope</code> parameter.  These go into <code>omniauth_callbacks_controller.rb</code>.</p>
-
+  <span class="k">end</span>
+</code></pre></div><p>The first route is something that we&rsquo;ll have the user link to, using <code>user_omniauth_upgrade_path( :google_oauth2 )</code> for example.  The second <code>setup</code> route is what omniauth will call internally that we can use to change the <code>scope</code> parameter.  These go into <code>omniauth_callbacks_controller.rb</code>.</p>
 <p>The first <code>upgrade</code> method looks at the provider and sets a <code>flash</code> variable for the additional access.  In this case, we are asking for the <code>https://www.googleapis.com/auth/admin.directory.user</code> also.</p>
-
 <pre><code>  def upgrade
     scope = nil
     if params[:provider] == &quot;google_oauth2&quot;
@@ -403,23 +365,17 @@ $ rails s</code></pre></div>
 
     redirect_to user_omniauth_authorize_path( params[:provider] ), flash: { scope: scope }
   end
-</code></pre>
-
-<p>Then it directs the user back to the normal flow.</p>
-
+</code></pre><p>Then it directs the user back to the normal flow.</p>
 <p>When you specify <code>setup: true</code> inside of the omniauth configuration, there is magic that calls the <code>setup_path</code> by default, and this is the method where we change the scope from the default in the strategy:</p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="k">def</span> <span class="nf">setup</span>
     <span class="n">request</span><span class="o">.</span><span class="n">env</span><span class="o">[</span><span class="s1">&#39;omniauth.strategy&#39;</span><span class="o">].</span><span class="n">options</span><span class="o">[</span><span class="s1">&#39;scope&#39;</span><span class="o">]</span> <span class="o">=</span> <span class="n">flash</span><span class="o">[</span><span class="ss">:scope</span><span class="o">]</span> <span class="o">||</span> <span class="n">request</span><span class="o">.</span><span class="n">env</span><span class="o">[</span><span class="s1">&#39;omniauth.strategy&#39;</span><span class="o">].</span><span class="n">options</span><span class="o">[</span><span class="s1">&#39;scope&#39;</span><span class="o">]</span>
     <span class="n">render</span> <span class="ss">:text</span> <span class="o">=&gt;</span> <span class="s2">&#34;Setup complete.&#34;</span><span class="p">,</span> <span class="ss">:status</span> <span class="o">=&gt;</span> <span class="mi">404</span>
-  <span class="k">end</span></code></pre></div>
-<p>Now in your views, you can do</p>
-<div class="highlight"><pre class="chroma"><code class="language-erb" data-lang="erb">&lt;%= link_to &#34;Upgrade Access&#34;, user_omniauth_upgrade_path( :google_oauth2 ) %&gt;</code></pre></div>
-<p>And the user will go through the oauth flow again requesting the additional access.</p>
-
+  <span class="k">end</span>
+</code></pre></div><p>Now in your views, you can do</p>
+<pre><code class="language-erb" data-lang="erb">&lt;%= link_to &quot;Upgrade Access&quot;, user_omniauth_upgrade_path( :google_oauth2 ) %&gt;
+</code></pre><p>And the user will go through the oauth flow again requesting the additional access.</p>
 <h2 id="conclusion">Conclusion</h2>
-
 <p>Making all of this work is possible, but there are a lot of fiddly little bits to make it work.  Both devise and all of the many omniauth strategies out there make it easy to add this functionality to your application.</p>
-
 <p>Check out <a href="http://seed.happyfuncorp.com">seed</a> to quickly create an application will all of this stuff done for you!</p>
 
   </article>
@@ -500,7 +456,7 @@ In fact, if you just want to start playing with stuff now, head over to the rake
             <p>Middleman extensions, like rails plugins, are packaged as gems. There are three main ways to extend middleman. You can add helpers, add middleman commands, or extend the sitemap generation in someway. Lets go through those in detail.
 Creating the extension Create a gem using bundle gem _name_
 $ bundle gem middleman-graphviz Add middleman-core to your gem dependancies in the .gemspec file:
-spec.add_runtime_dependency &#39;middleman-core&#39;, [&#39;&gt;= 3.0.0&#39;] Register your extension into middleman.</p>
+spec.add_runtime_dependency &#39;middleman-core&#39;, [&#39;&gt;= 3.0.0&#39;] Register your extension into middleman. Our gem will be activated in the sites config.</p>
           
         </div>
         <a href="../../../articles/2014/building-middleman-extensions/" class="btn btn-primary">Read more</a>

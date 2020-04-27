@@ -102,18 +102,11 @@ I have an Intel NUC lying around that I wanted to use, so this is my effort to g
   
 
   <article class="article mt-5">
-    
-
-<p>I&rsquo;ve been getting into <a href="https://guix.gnu.org/">Guix</a> and <a href="https://www.gnu.org/software/emacs/">Emacs</a> lately, going back to my Free Software roots.  It&rsquo;s amazing.  Guix is a functional package manager that you can use on top of a linux distribution to have repeatable and rollbackable builds.  Guix System is a distrubution that&rsquo;s Guix all the way down.</p>
-
+    <p>I&rsquo;ve been getting into <a href="https://guix.gnu.org/">Guix</a> and <a href="https://www.gnu.org/software/emacs/">Emacs</a> lately, going back to my Free Software roots.  It&rsquo;s amazing.  Guix is a functional package manager that you can use on top of a linux distribution to have repeatable and rollbackable builds.  Guix System is a distrubution that&rsquo;s Guix all the way down.</p>
 <p>I have an Intel NUC lying around that I wanted to use, so this is my effort to get a working Guix System installation on it.  This post took me almost 14 days to write, because I wanted to use the WiFi interface rather than plugging it into my router directly, and so I had to build a custom kernel with non-free code.  If you have an ethernet cord, or your hardware is supported by the <a href="https://en.wikipedia.org/wiki/Linux-libre">linux-libre</a> kernel this is all overkill and just follow the <a href="https://guix.gnu.org/manual/en/html_node/USB-Stick-and-DVD-Installation.html#USB-Stick-and-DVD-Installation">Guix System installer instructions</a>.</p>
-
 <p>I should reiterate that if a) I plugged into the router or b) had the right network hardware that linux-libre supported this guide would be much much shorter, and this was largely an excersize to force me to get into the details of how Guix System worked.  This doesn&rsquo;t, you know, <em>make sense</em> as a thing to do.  Just plug in ethernet.</p>
-
 <h2 id="overview">Overview</h2>
-
 <p>This is our strategy:</p>
-
 <ol>
 <li>Install guix in a virtual host running on the host machine</li>
 <li>Pull down the latest guix and nonguix channels</li>
@@ -123,25 +116,18 @@ I have an Intel NUC lying around that I wanted to use, so this is my effort to g
 <li>Boot off of the USB</li>
 <li>Running <code>guix system init</code> to put the new operating system</li>
 </ol>
-
-<p>We have three options of setting up the environment &ndash; one is to install guix ontop of a current Linux installation, another one is to install guix in a debian docker container, use that to generate the installation image and export it out.  The other is to run an actual Guix System distrubution inside of qemu, use that the generate the installation image, and export it out.  I don&rsquo;t know how to make <code>qemu</code> work well on OSX so I used the docker strategy (B).  But (A) or &copy; is probably nicer if you are starting with a Linux machine.</p>
-
+<p>We have three options of setting up the environment &ndash; one is to install guix ontop of a current Linux installation, another one is to install guix in a debian docker container, use that to generate the installation image and export it out.  The other is to run an actual Guix System distrubution inside of qemu, use that the generate the installation image, and export it out.  I don&rsquo;t know how to make <code>qemu</code> work well on OSX so I used the docker strategy (B).  But (A) or (C) is probably nicer if you are starting with a Linux machine.</p>
 <h2 id="option-a-install-guix-ontop-of-linux">Option A: Install guix ontop of Linux</h2>
-
 <p>Follow the <a href="https://guix.gnu.org/manual/en/html_node/Binary-Installation.html#Binary-Installation">binary installation instructions</a> from the Guix documentation to get Guix installed in your local environment.  This will leave guix available on your machine, which could be great depending upon your use case.  I&rsquo;m doing this on a OSX machine which won&rsquo;t work.</p>
-
 <h2 id="option-b-dockerfile-for-guix">Option B: Dockerfile for guix</h2>
-
 <p>We are going to put the steps for <a href="https://www.gnu.org/software/guix/manual/en/html_node/Binary-Installation.html#Binary-Installation">binary installation</a> of Guix into a <code>Dockerfile</code>, which will be based upon <code>debian</code>.  This will all be in a container so once we are done we won&rsquo;t ahve anything on the host machine left over.</p>
-
 <p>One thing to note is that in order to run <code>guix pull</code> we&rsquo;ll need to run docker with <code>--privileged</code>.  Not totally sure why, but <a href="https://lists.gnu.org/archive/html/guix-devel/2017-11/msg00258.html">here is a list to the mailing list discussion about it.</a>  This <code>Dockerfile</code> is basically a simple rewrite of the installer script, that helped me understand how guix was setup under the hood.</p>
-
 <div class="highlight"><pre class="chroma"><code class="language-Dockerfile" data-lang="Dockerfile"><span class="k">FROM</span><span class="s"> debian:stretch-slim</span><span class="err">
 </span><span class="err">
 </span><span class="err"></span><span class="k">RUN</span> apt-get update <span class="o">&amp;&amp;</span> apt-get install -y wget gpg xz-utils make netbase<span class="err">
 </span><span class="err">
 </span><span class="err"></span><span class="k">RUN</span> groupadd guixbuild<span class="p">;</span> groupadd kxm<span class="p">;</span> <span class="se">\
-</span><span class="se"></span>  <span class="k">for</span> i in <span class="sb">`</span>seq -w <span class="m">1</span> <span class="m">10</span><span class="sb">`</span><span class="p">;</span> <span class="se">\
+</span><span class="se"></span>  <span class="k">for</span> i in <span class="sb">`</span>seq -w <span class="m">1</span> 10<span class="sb">`</span><span class="p">;</span> <span class="se">\
 </span><span class="se"></span>  <span class="k">do</span> <span class="se">\
 </span><span class="se"></span>    useradd -g guixbuild -G guixbuild,kxm       <span class="se">\
 </span><span class="se"></span>            -d /var/empty -s <span class="sb">`</span>which nologin<span class="sb">`</span>    <span class="se">\
@@ -153,155 +139,129 @@ I have an Intel NUC lying around that I wanted to use, so this is my effort to g
 </span><span class="err"></span><span class="k">RUN</span> wget https://ftp.gnu.org/gnu/guix/guix-binary-1.0.1.x86_64-linux.tar.xz -q<span class="err">
 </span><span class="err">
 </span><span class="err"></span><span class="k">RUN</span> <span class="nb">cd</span> /tmp <span class="o">&amp;&amp;</span> tar --warning<span class="o">=</span>no-timestamp -xf <span class="se">\
-</span><span class="se"></span> /guix-binary-1.0.1.x86_64-linux.tar.xz <span class="o">&amp;&amp;</span> <span class="se">\
-</span><span class="se"></span> mv var/guix /var/ <span class="o">&amp;&amp;</span> mv gnu /<span class="err">
+</span><span class="se"></span>	/guix-binary-1.0.1.x86_64-linux.tar.xz <span class="o">&amp;&amp;</span> <span class="se">\
+</span><span class="se"></span>	mv var/guix /var/ <span class="o">&amp;&amp;</span> mv gnu /<span class="err">
 </span><span class="err">
 </span><span class="err"></span><span class="k">RUN</span> mkdir -p ~root/.config/guix <span class="o">&amp;&amp;</span> ln -sf /var/guix/profiles/per-user/root/current-guix <span class="se">\
-</span><span class="se"></span> ~root/.config/guix/current<span class="err">
+</span><span class="se"></span>	~root/.config/guix/current<span class="err">
 </span><span class="err">
 </span><span class="err"></span><span class="k">RUN</span> mkdir -p /usr/local/bin<span class="p">;</span> <span class="nb">cd</span> /usr/local/bin<span class="p">;</span> ln -s /var/guix/profiles/per-user/root/current-guix/bin/guix<span class="err">
 </span><span class="err">
 </span><span class="err"></span><span class="k">RUN</span> bash -c <span class="s2">&#34;source /root/.config/guix/current/etc/profile &amp;&amp; guix archive --authorize &lt; \
 </span><span class="s2">     ~root/.config/guix/current/share/guix/ci.guix.gnu.org.pub&#34;</span><span class="err">
 </span><span class="err">
-</span><span class="err"></span><span class="k">CMD</span><span class="s"> bash</span></code></pre></div>
-
+</span><span class="err"></span><span class="k">CMD</span> bash</code></pre></div>
 <p>Then we build it and start it up.</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ docker build . -t guix <span class="o">&amp;&amp;</span>  docker run --privileged -it --rm guix</code></pre></div>
-<p>One of my favorite things about this command is that everything basically goes away after you exit out.  This is a play ground that will happy disappear and recreate itself as needed.  You might not want to have <code>--rm</code> flag since once you shut down or exist the container it will delete everything, but I like to have things clean up after themselves.</p>
-
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ docker build . -t guix <span class="o">&amp;&amp;</span>  docker run --privileged -it --rm guix
+</code></pre></div><p>One of my favorite things about this command is that everything basically goes away after you exit out.  This is a play ground that will happy disappear and recreate itself as needed.  You might not want to have <code>--rm</code> flag since once you shut down or exist the container it will delete everything, but I like to have things clean up after themselves.</p>
 <p>Once we are in, the first thing we need to do is to start up the <code>guix-daemon</code> inside of the container.</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="c1"># ~/.config/guix/current/bin/guix-daemon --build-users-group=guixbuild &amp;</span></code></pre></div>
-<p>Do a <code>guix pull</code> to make sure that everything is installed correctly.</p>
-
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="c1"># ~/.config/guix/current/bin/guix-daemon --build-users-group=guixbuild &amp;</span>
+</code></pre></div><p>Do a <code>guix pull</code> to make sure that everything is installed correctly.</p>
 <p>Once this is working, set your path:</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="c1"># export PATH=&#34;/root/.config/guix/current/bin${PATH:+:}$PATH&#34;</span></code></pre></div>
-<p>You can test out the installation by <code>guix install hello</code> and then trying to run <code>hello</code>.</p>
-
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="c1"># export PATH=&#34;/root/.config/guix/current/bin${PATH:+:}$PATH&#34;</span>
+</code></pre></div><p>You can test out the installation by <code>guix install hello</code> and then trying to run <code>hello</code>.</p>
 <h2 id="option-c-installing-qemu">Option C: Installing QEMU</h2>
-
 <p>You can install <code>qemu</code> and run the sample installer this way.  This is painfully slow on OSX, but works pretty well on the Chromebook.  This is because I remove <code>--enable-kvm</code> on the MacBook so I guess it falls back to software cpu emulation or something, I don&rsquo;t know the equivlent for how to do this on Darwin.</p>
 <div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="c1"># apt-get install qemu</span>
 <span class="c1"># wget https://ftp.gnu.org/gnu/guix/guix-system-vm-image-1.0.1.x86_64-linux.xz</span>
-<span class="c1"># xz -d guix-system-vm-image-1.0.1.x86_64-linux.xz</span></code></pre></div>
-<p>And then start it up.  For OSX take out <code>enable-kvm</code></p>
+<span class="c1"># xz -d guix-system-vm-image-1.0.1.x86_64-linux.xz</span>
+</code></pre></div><p>And then start it up.  For OSX take out <code>enable-kvm</code></p>
 <div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">qemu-system-x86_64 <span class="se">\
 </span><span class="se"></span>   -net user -net nic,model<span class="o">=</span>virtio <span class="se">\
 </span><span class="se"></span>   -enable-kvm -m <span class="m">2048</span> <span class="se">\
 </span><span class="se"></span>   -device virtio-blk,drive<span class="o">=</span>myhd <span class="se">\
-</span><span class="se"></span>   -drive <span class="k">if</span><span class="o">=</span>none,file<span class="o">=</span>guix-system-vm-image-1.0.1.x86_64-linux,id<span class="o">=</span>myhd</code></pre></div>
-<p>Once this is started up, our directions converge together below.  However, this is painfully slow on OSX so I don&rsquo;t think it&rsquo;s a viable option.</p>
-
+</span><span class="se"></span>   -drive <span class="k">if</span><span class="o">=</span>none,file<span class="o">=</span>guix-system-vm-image-1.0.1.x86_64-linux,id<span class="o">=</span>myhd
+</code></pre></div><p>Once this is started up, our directions converge together below.  However, this is painfully slow on OSX so I don&rsquo;t think it&rsquo;s a viable option.</p>
 <h2 id="include-the-nonguix-channel">Include the <code>nonguix</code> channel</h2>
-
 <p>As root, create a <code>~/.config/guix/channels.scm</code> file to include the <code>nonguix</code> channel:</p>
 <div class="highlight"><pre class="chroma"><code class="language-scheme" data-lang="scheme"><span class="o">#</span> <span class="nv">cat</span> <span class="nv">&gt;</span> <span class="nv">~/</span><span class="o">.</span><span class="nv">config/guix/channels</span><span class="o">.</span><span class="nv">scm</span>
 <span class="p">(</span><span class="nf">cons*</span> <span class="p">(</span><span class="nf">channel</span>
         <span class="p">(</span><span class="nf">name</span> <span class="ss">&#39;nonguix</span><span class="p">)</span>
         <span class="p">(</span><span class="nf">url</span> <span class="s">&#34;https://gitlab.com/nonguix/nonguix&#34;</span><span class="p">))</span>
-       <span class="nv">%default-channels</span><span class="p">)</span></code></pre></div>
-<p>And then run <code>guix pull</code> to update everything.  This should take a bit, but not terribly long.</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="c1"># guix pull</span></code></pre></div>
-<h2 id="build-the-boot-image">Build the boot image</h2>
-
+       <span class="nv">%default-channels</span><span class="p">)</span>
+</code></pre></div><p>And then run <code>guix pull</code> to update everything.  This should take a bit, but not terribly long.</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="c1"># guix pull</span>
+</code></pre></div><h2 id="build-the-boot-image">Build the boot image</h2>
 <p>Now we define the operating system that we will eventually install.  Copy this <a href="config.scm">config.scm</a> file into the docker container:</p>
-
 <div class="highlight"><pre class="chroma"><code class="language-scheme" data-lang="scheme"><span class="p">(</span><span class="nf">use-modules</span> <span class="p">(</span><span class="nf">gnu</span><span class="p">)</span> <span class="p">(</span><span class="nf">nongnu</span> <span class="nv">packages</span> <span class="nv">linux</span><span class="p">))</span>
 <span class="p">(</span><span class="nf">use-service-modules</span> <span class="nv">desktop</span> <span class="nv">networking</span> <span class="nv">ssh</span> <span class="nv">xorg</span><span class="p">)</span>
-
-<span class="p">(</span><span class="k">define </span><span class="nv">this-file</span>
-  <span class="p">(</span><span class="nf">local-file</span> <span class="p">(</span><span class="nf">basename</span> <span class="p">(</span><span class="nf">assoc-ref</span> <span class="p">(</span><span class="nf">current-source-location</span><span class="p">)</span> <span class="ss">&#39;filename</span><span class="p">))</span>
-          <span class="s">&#34;config.scm&#34;</span><span class="p">))</span>
-
-<span class="p">(</span><span class="nf">operating-system</span>
- <span class="p">(</span><span class="nf">kernel</span> <span class="nv">linux</span><span class="p">)</span>
- <span class="p">(</span><span class="nf">locale</span> <span class="s">&#34;en_US.utf8&#34;</span><span class="p">)</span>
- <span class="p">(</span><span class="nf">host-name</span> <span class="s">&#34;intelnuc&#34;</span><span class="p">)</span>
- <span class="p">(</span><span class="nf">timezone</span> <span class="s">&#34;America/New_York&#34;</span><span class="p">)</span>
-
- <span class="p">(</span><span class="nf">keyboard-layout</span> <span class="p">(</span><span class="nf">keyboard-layout</span> <span class="s">&#34;us&#34;</span> <span class="s">&#34;altgr-intl&#34;</span><span class="p">))</span>
-
- <span class="c1">;; This will be what is used on the target machine</span>
- <span class="c1">;;  (bootloader (bootloader-configuration</span>
- <span class="c1">;;              (bootloader grub-efi-bootloader)</span>
- <span class="c1">;;              (timeout 1)</span>
- <span class="c1">;;              (target &#34;/boot/efi&#34;)))</span>
-
- <span class="c1">;; This is needed to create a bootable USB</span>
- <span class="p">(</span><span class="nf">bootloader</span> <span class="p">(</span><span class="nf">bootloader-configuration</span>
-              <span class="p">(</span><span class="nf">bootloader</span> <span class="nv">grub-bootloader</span><span class="p">)</span>
-              <span class="p">(</span><span class="nf">target</span> <span class="s">&#34;/dev/sda&#34;</span><span class="p">)))</span>
- 
- <span class="p">(</span><span class="nf">firmware</span> <span class="p">(</span><span class="nb">append </span><span class="p">(</span><span class="nb">list </span><span class="nv">iwlwifi-firmware</span><span class="p">)</span>
-           <span class="nv">%base-firmware</span><span class="p">))</span>
- 
- <span class="p">(</span><span class="nf">users</span> <span class="p">(</span><span class="nf">cons*</span> <span class="p">(</span><span class="nf">user-account</span>
-        <span class="p">(</span><span class="nf">name</span> <span class="s">&#34;wschenk&#34;</span><span class="p">)</span>
-        <span class="p">(</span><span class="nf">group</span> <span class="s">&#34;users&#34;</span><span class="p">)</span>
-        <span class="p">(</span><span class="nf">supplementary-groups</span> <span class="o">&#39;</span><span class="p">(</span><span class="s">&#34;wheel&#34;</span> <span class="s">&#34;netdev&#34;</span> <span class="s">&#34;audio&#34;</span> <span class="s">&#34;lp&#34;</span> <span class="s">&#34;video&#34;</span><span class="p">))</span>
-        <span class="c1">;; TODO: Default to name?</span>
-        <span class="p">(</span><span class="nf">home-directory</span> <span class="s">&#34;/home/wschenk&#34;</span><span class="p">))</span>
-           <span class="nv">%base-user-accounts</span><span class="p">))</span>
- 
- <span class="p">(</span><span class="nf">packages</span>
-  <span class="p">(</span><span class="nf">append</span>
-   <span class="p">(</span><span class="nf">list</span>
-    <span class="p">(</span><span class="nf">specification-&gt;package</span> <span class="s">&#34;nss-certs&#34;</span><span class="p">))</span>
-   <span class="nv">%base-packages</span><span class="p">))</span>
-  
- 
- <span class="p">(</span><span class="nf">services</span>
-  <span class="p">(</span><span class="nf">append</span>
-   <span class="p">(</span><span class="nf">list</span>
-    <span class="c1">;; Copy current config to /etc/config.scm</span>
-    <span class="p">(</span><span class="nf">simple-service</span> <span class="ss">&#39;config-file</span> <span class="nv">etc-service-type</span>
-            <span class="o">`</span><span class="p">((</span><span class="s">&#34;config.scm&#34;</span> <span class="o">,</span><span class="nv">this-file</span><span class="p">)))</span>
-    <span class="p">(</span><span class="nf">service</span> <span class="nv">gnome-desktop-service-type</span><span class="p">)</span>
-    <span class="p">(</span><span class="nf">service</span> <span class="nv">openssh-service-type</span><span class="p">)</span>
-    <span class="p">(</span><span class="nf">set-xorg-configuration</span>
-     <span class="p">(</span><span class="nf">xorg-configuration</span>
-      <span class="p">(</span><span class="nf">keyboard-layout</span> <span class="nv">keyboard-layout</span><span class="p">))))</span>
-   <span class="nv">%desktop-services</span><span class="p">))</span>
- 
- <span class="p">(</span><span class="nf">file-systems</span> <span class="p">(</span><span class="nf">cons*</span> <span class="p">(</span><span class="nf">file-system</span>
-               <span class="p">(</span><span class="nf">device</span> <span class="p">(</span><span class="nf">file-system-label</span> <span class="s">&#34;guix&#34;</span><span class="p">))</span>
-               <span class="p">(</span><span class="nf">mount-point</span> <span class="s">&#34;/&#34;</span><span class="p">)</span>
-               <span class="p">(</span><span class="nf">type</span> <span class="s">&#34;ext4&#34;</span><span class="p">))</span>
+<p><span class="p">(</span><span class="k">define </span><span class="nv">this-file</span>
+<span class="p">(</span><span class="nf">local-file</span> <span class="p">(</span><span class="nf">basename</span> <span class="p">(</span><span class="nf">assoc-ref</span> <span class="p">(</span><span class="nf">current-source-location</span><span class="p">)</span> <span class="ss">'filename</span><span class="p">))</span>
+<span class="s">&quot;config.scm&quot;</span><span class="p">))</span></p>
+<p><span class="p">(</span><span class="nf">operating-system</span>
+<span class="p">(</span><span class="nf">kernel</span> <span class="nv">linux</span><span class="p">)</span>
+<span class="p">(</span><span class="nf">locale</span> <span class="s">&quot;en_US.utf8&quot;</span><span class="p">)</span>
+<span class="p">(</span><span class="nf">host-name</span> <span class="s">&quot;intelnuc&quot;</span><span class="p">)</span>
+<span class="p">(</span><span class="nf">timezone</span> <span class="s">&quot;America/New_York&quot;</span><span class="p">)</span></p>
+<p><span class="p">(</span><span class="nf">keyboard-layout</span> <span class="p">(</span><span class="nf">keyboard-layout</span> <span class="s">&quot;us&quot;</span> <span class="s">&quot;altgr-intl&quot;</span><span class="p">))</span></p>
+<p><span class="c1">;; This will be what is used on the target machine</span>
+<span class="c1">;;  (bootloader (bootloader-configuration</span>
+<span class="c1">;;              (bootloader grub-efi-bootloader)</span>
+<span class="c1">;;              (timeout 1)</span>
+<span class="c1">;;              (target &quot;/boot/efi&quot;)))</span></p>
+<p><span class="c1">;; This is needed to create a bootable USB</span>
+<span class="p">(</span><span class="nf">bootloader</span> <span class="p">(</span><span class="nf">bootloader-configuration</span>
+<span class="p">(</span><span class="nf">bootloader</span> <span class="nv">grub-bootloader</span><span class="p">)</span>
+<span class="p">(</span><span class="nf">target</span> <span class="s">&quot;/dev/sda&quot;</span><span class="p">)))</span></p>
+<p><span class="p">(</span><span class="nf">firmware</span> <span class="p">(</span><span class="nb">append </span><span class="p">(</span><span class="nb">list </span><span class="nv">iwlwifi-firmware</span><span class="p">)</span>
+<span class="nv">%base-firmware</span><span class="p">))</span></p>
+<p><span class="p">(</span><span class="nf">users</span> <span class="p">(</span><span class="nf">cons*</span> <span class="p">(</span><span class="nf">user-account</span>
+<span class="p">(</span><span class="nf">name</span> <span class="s">&quot;wschenk&quot;</span><span class="p">)</span>
+<span class="p">(</span><span class="nf">group</span> <span class="s">&quot;users&quot;</span><span class="p">)</span>
+<span class="p">(</span><span class="nf">supplementary-groups</span> <span class="o">'</span><span class="p">(</span><span class="s">&quot;wheel&quot;</span> <span class="s">&quot;netdev&quot;</span> <span class="s">&quot;audio&quot;</span> <span class="s">&quot;lp&quot;</span> <span class="s">&quot;video&quot;</span><span class="p">))</span>
+<span class="c1">;; TODO: Default to name?</span>
+<span class="p">(</span><span class="nf">home-directory</span> <span class="s">&quot;/home/wschenk&quot;</span><span class="p">))</span>
+<span class="nv">%base-user-accounts</span><span class="p">))</span></p>
+<p><span class="p">(</span><span class="nf">packages</span>
+<span class="p">(</span><span class="nf">append</span>
+<span class="p">(</span><span class="nf">list</span>
+<span class="p">(</span><span class="nf">specification-&gt;package</span> <span class="s">&quot;nss-certs&quot;</span><span class="p">))</span>
+<span class="nv">%base-packages</span><span class="p">))</span></p>
+<p><span class="p">(</span><span class="nf">services</span>
+<span class="p">(</span><span class="nf">append</span>
+<span class="p">(</span><span class="nf">list</span>
+<span class="c1">;; Copy current config to /etc/config.scm</span>
+<span class="p">(</span><span class="nf">simple-service</span> <span class="ss">'config-file</span> <span class="nv">etc-service-type</span>
+<span class="o">`</span><span class="p">((</span><span class="s">&quot;config.scm&quot;</span> <span class="o">,</span><span class="nv">this-file</span><span class="p">)))</span>
+<span class="p">(</span><span class="nf">service</span> <span class="nv">gnome-desktop-service-type</span><span class="p">)</span>
+<span class="p">(</span><span class="nf">service</span> <span class="nv">openssh-service-type</span><span class="p">)</span>
+<span class="p">(</span><span class="nf">set-xorg-configuration</span>
+<span class="p">(</span><span class="nf">xorg-configuration</span>
+<span class="p">(</span><span class="nf">keyboard-layout</span> <span class="nv">keyboard-layout</span><span class="p">))))</span>
+<span class="nv">%desktop-services</span><span class="p">))</span></p>
+<p><span class="p">(</span><span class="nf">file-systems</span> <span class="p">(</span><span class="nf">cons*</span> <span class="p">(</span><span class="nf">file-system</span>
+<span class="p">(</span><span class="nf">device</span> <span class="p">(</span><span class="nf">file-system-label</span> <span class="s">&quot;guix&quot;</span><span class="p">))</span>
+<span class="p">(</span><span class="nf">mount-point</span> <span class="s">&quot;/&quot;</span><span class="p">)</span>
+<span class="p">(</span><span class="nf">type</span> <span class="s">&quot;ext4&quot;</span><span class="p">))</span>
 <span class="c1">;; Not needed for bootable usb but needed for final system</span>
-<span class="c1">;;           (file-system</span>
-<span class="c1">;;            (device &#34;/dev/nvme0n1p1&#34;)</span>
-<span class="c1">;;            (type &#34;vfat&#34;)</span>
-<span class="c1">;;            (mount-point &#34;/boot/efi&#34;))</span>
-              <span class="p">(</span><span class="nf">file-system</span>
-               <span class="p">(</span><span class="nf">mount-point</span> <span class="s">&#34;/tmp&#34;</span><span class="p">)</span>
-               <span class="p">(</span><span class="nf">device</span> <span class="s">&#34;none&#34;</span><span class="p">)</span>
-               <span class="p">(</span><span class="nf">type</span> <span class="s">&#34;tmpfs&#34;</span><span class="p">)</span>
-               <span class="p">(</span><span class="nf">check?</span> <span class="no">#f</span><span class="p">))</span>
-              <span class="nv">%base-file-systems</span><span class="p">)))</span></code></pre></div>
-
+<span class="c1">;;		      (file-system</span>
+<span class="c1">;;		       (device &quot;/dev/nvme0n1p1&quot;)</span>
+<span class="c1">;;		       (type &quot;vfat&quot;)</span>
+<span class="c1">;;		       (mount-point &quot;/boot/efi&quot;))</span>
+<span class="p">(</span><span class="nf">file-system</span>
+<span class="p">(</span><span class="nf">mount-point</span> <span class="s">&quot;/tmp&quot;</span><span class="p">)</span>
+<span class="p">(</span><span class="nf">device</span> <span class="s">&quot;none&quot;</span><span class="p">)</span>
+<span class="p">(</span><span class="nf">type</span> <span class="s">&quot;tmpfs&quot;</span><span class="p">)</span>
+<span class="p">(</span><span class="nf">check?</span> <span class="no">#f</span><span class="p">))</span>
+<span class="nv">%base-file-systems</span><span class="p">)))</span></p>
+<p></code></pre></div></p>
 <p>And build the image with</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ guix system disk-image config.scm</code></pre></div>
-<p>This command will take <em>forever</em> (around 1 hour) mainly because it&rsquo;s compiling the linux kernel and other fun stuff.  There isn&rsquo;t a substition server for the <code>nonguix</code> pacakges so everything will happen using source on your local machine.  My MacBook runneth hot.</p>
-
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ guix system disk-image config.scm
+</code></pre></div><p>This command will take <em>forever</em> (around 1 hour) mainly because it&rsquo;s compiling the linux kernel and other fun stuff.  There isn&rsquo;t a substition server for the <code>nonguix</code> pacakges so everything will happen using source on your local machine.  My MacBook runneth hot.</p>
 <p>If you get an error, make sure that the guixbuild users are added to the kvm group.  (Edit /etc/group if needed.)</p>
-
 <p>When this is done, you should a path name printed that has the installation image.</p>
 <div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ ls -hl /gnu/store/5v93jajj81mjfpp0lvkx61yk89r572cf-disk-image
--r--r--r-- <span class="m">2</span> root root <span class="m">2</span>.9G Jan  <span class="m">1</span>  <span class="m">1970</span> /gnu/store/5v93jajj81mjfpp0lvkx61yk89r572cf-disk-image</code></pre></div>
-<h2 id="copy-the-install-image-and-a-linux-export-to-the-host-machine">Copy the install image and a linux export to the host machine</h2>
-
+-r--r--r-- <span class="m">2</span> root root 2.9G Jan  <span class="m">1</span>  <span class="m">1970</span> /gnu/store/5v93jajj81mjfpp0lvkx61yk89r572cf-disk-image
+</code></pre></div><h2 id="copy-the-install-image-and-a-linux-export-to-the-host-machine">Copy the install image and a linux export to the host machine</h2>
 <p>Make sure that ssh is installed and copy to your local machine, in my case <code>wschenk@192.168.1.52</code>.  Yours should probably be somewhere else.</p>
 <div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="c1"># guix install openssh</span>
 <span class="c1"># export PATH=/root/.guix-profile/bin:$PATH</span>
-<span class="c1"># scp /gnu/store/5v93jajj81mjfpp0lvkx61yk89r572cf-disk-image wschenk@192.168.1.52:/tmp/myguix.iso</span></code></pre></div>
-<h2 id="write-the-iso-into-the-usb">Write the ISO into the USB</h2>
-
+<span class="c1"># scp /gnu/store/5v93jajj81mjfpp0lvkx61yk89r572cf-disk-image wschenk@192.168.1.52:/tmp/myguix.iso</span>
+</code></pre></div><h2 id="write-the-iso-into-the-usb">Write the ISO into the USB</h2>
 <p>And on the host machine, lets put it onto the USB stick.  If you are on OSX, <a href="https://www.balena.io/etcher/">Etcher</a> is a nice app for doing this.  Otherwise you can use <code>dd</code> and if it&rsquo;s in <code>/dev/disk2</code></p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ sudo dd <span class="k">if</span><span class="o">=</span>/tmp/myguix.iso <span class="nv">of</span><span class="o">=</span>/dev/disk2</code></pre></div>
-<h2 id="booting-the-internuc-off-of-the-usb-key">Booting the InterNUC off of the USB key</h2>
-
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ sudo dd <span class="k">if</span><span class="o">=</span>/tmp/myguix.iso <span class="nv">of</span><span class="o">=</span>/dev/disk2
+</code></pre></div><h2 id="booting-the-internuc-off-of-the-usb-key">Booting the InterNUC off of the USB key</h2>
 <p>As documented <a href="https://forums.intel.com/s/question/0D50P0000490X0zSAE/image-authorization-fail-system-can-not-boot-to-this-usb-device?language=en_US">here</a>:</p>
-
 <blockquote>
 <ol>
 <li>At BIOS POST (i.e. when the &ldquo;Intel NUC&rdquo; splash screen appears), rapidly press the F2 key over and over until the BIOS Setup (Visual BIOS) display appears.</li>
@@ -310,87 +270,59 @@ I have an Intel NUC lying around that I wanted to use, so this is my effort to g
 <li>Press F10 and then select Yes to save this change and reboot the system.</li>
 </ol>
 </blockquote>
-
 <h2 id="the-installation">The installation</h2>
-
 <p>Now you should boot up off of the USB key and have guix running on your system!  The <code>root</code> user doesn&rsquo;t have a password and neither does the user account defined.</p>
-
 <p><code>C-Alt-F2</code> will switch to a console.  Log in as <code>root</code> here (without password), and set the password for your user, in my case <code>passwd wschenk</code>.</p>
-
 <p><code>C-Alt-F7</code> will go back to the Gnome login screen, where you&rsquo;ll be able to login as your user if you want to use Gnome.</p>
-
 <h2 id="setting-up-wifi">Setting up WiFi</h2>
-
 <p><code>sudo rfkill unblock all</code> will turn on your network card, which you can figure by going to the <code>Activities</code> menu and selecting <code>Settings</code>.  You need to enable the interface in order for the Gnome network manager to be able to connect to WiFi. Go to a terminal and <code>ping 1.1.1.1</code> to see if you can connect to the internet!</p>
-
 <p>To do this in terminal (you can switch with <code>C-Alt-F2</code> the steps are:</p>
-
 <ol>
 <li><code>rfkill unblock all</code></li>
 <li><code>nmcli device wifi</code> to list out the available SSIDs</li>
 <li><code>nmcli device wifi connect HappyFunCorp password mysekretpassword</code> to actually make the connection.</li>
 <li><code>ping 1.1.1.1</code> to verify that things are working</li>
 </ol>
-
 <h2 id="preparing-the-target-disk">Preparing the target disk</h2>
-
 <p>The easiest way is probably to use <code>cfdisk</code> or <code>GNOME Disk</code> to format your target drive.  I&rsquo;m going to walk through using the CLI to do this, but it doesn&rsquo;t really matter what you use.</p>
-
 <p>First run <code>lsblk</code> to see which devices are on your system.</p>
 <div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">wschenk@intelnuc ~$ lsblk
 NAME        MAJ:MIN RM   SIZE RO TYPE MOUNTPOINT
-sda           <span class="m">8</span>:0    <span class="m">1</span>  <span class="m">14</span>.9G  <span class="m">0</span> disk 
-├─sda1        <span class="m">8</span>:1    <span class="m">1</span>   <span class="m">5</span>.4G  <span class="m">0</span> part 
-└─sda2        <span class="m">8</span>:2    <span class="m">1</span>    40M  <span class="m">0</span> part 
-nvme0n1     <span class="m">259</span>:0    <span class="m">0</span> <span class="m">465</span>.8G  <span class="m">0</span> disk </code></pre></div>
-<p>From there we can use <code>fdisk</code> to create the partitions on, in my case, <code>/dev/nvme0n1</code>.</p>
-
+sda           8:0    <span class="m">1</span>  14.9G  <span class="m">0</span> disk 
+├─sda1        8:1    <span class="m">1</span>   5.4G  <span class="m">0</span> part 
+└─sda2        8:2    <span class="m">1</span>    40M  <span class="m">0</span> part 
+nvme0n1     259:0    <span class="m">0</span> 465.8G  <span class="m">0</span> disk 
+</code></pre></div><p>From there we can use <code>fdisk</code> to create the partitions on, in my case, <code>/dev/nvme0n1</code>.</p>
 <p><code>n</code> to create the first partition for with a size of <code>+100M</code>.  I don&rsquo;t know if this is big or small, but seemed fine.</p>
-
 <p><code>t</code> to change the partition type, select <code>1</code> for <code>EFI System</code>.</p>
-
 <p><code>n</code> to create another partition for the rest of the disk.</p>
-
 <p><code>t</code> to change the partition type, select <code>20</code> for <code>Linux Filesystem</code></p>
-
 <p><code>w</code> to write the partition table.</p>
-
 <p>Run <code>sync</code> just to be safe.</p>
-
 <p>Lets setup the first partition to be formatted as FAT32 and be bootable, and mount it on <code>/boot/efi</code></p>
 <div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="c1"># guix install dosfstools parted</span>
 <span class="c1"># export PATH=/root/.guix-profile/sbin:$PATH</span>
 <span class="c1"># mkfs.vfat -F32 /dev/nvme0n1p1</span>
 <span class="c1"># parted /dev/nvme0n1 set 1 esp on</span>
-<span class="c1"># mount /dev/nvme01n1p1 /boot/efi</span></code></pre></div>
-<p>Initialize the file system, which in my case is the 2nd partition, and label it as <code>guix</code>, and then mount it on <code>/mnt</code>.</p>
+<span class="c1"># mount /dev/nvme01n1p1 /boot/efi</span>
+
+</code></pre></div><p>Initialize the file system, which in my case is the 2nd partition, and label it as <code>guix</code>, and then mount it on <code>/mnt</code>.</p>
 <div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="c1"># mkfs.ext4 -L guix /dev/nvme0n1p2</span>
-<span class="c1"># mount LABEL=guix /mnt</span></code></pre></div>
-<h2 id="edit-config-scm-file">Edit <code>config.scm</code> file</h2>
-
+<span class="c1"># mount LABEL=guix /mnt</span>
+</code></pre></div><h2 id="edit-configscm-file">Edit <code>config.scm</code> file</h2>
 <p>You should find the <code>config.scm</code> file that you built the system with in <code>/etc/config.scm</code>.  If not bring it over from the internet, and edit it to uncomment out the correct bootloader, and specify the right mount point for <code>/boot/efi</code> so that the kernel will be installed in the right place.</p>
-
 <h2 id="run-guix-system-init">Run <code>guix system init</code></h2>
-
 <p>Finally we are going to build our system onto our target disk!  Make sure that the target system is mounted at <code>/mnt</code> and here we go!</p>
 <div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="c1"># guix pull</span>
-<span class="c1"># guix system init config.scm /mnt</span></code></pre></div>
-<p>Depending up on the time between building the USB key image and doing the pull, this will time to some time to build.  (The main thing is if the linux kernel version is different.)  This builds all of the dependant packages from our <code>operatating-system</code> definition, and then moves overything over to the filesystem in <code>/mnt</code> and should update the grub bootloader.</p>
-
+<span class="c1"># guix system init config.scm /mnt</span>
+</code></pre></div><p>Depending up on the time between building the USB key image and doing the pull, this will time to some time to build.  (The main thing is if the linux kernel version is different.)  This builds all of the dependant packages from our <code>operatating-system</code> definition, and then moves overything over to the filesystem in <code>/mnt</code> and should update the grub bootloader.</p>
 <p>Once this is done you should be able to reboot, remove the USB key, and them boot into your new Guix System installation!</p>
-
 <h2 id="setup">Setup</h2>
-
 <p>Once the system is booted, do <code>C-Alt-F2</code> to get a console, and log in as root.  Then give root and your username a password using <code>passwd</code>.</p>
-
 <p>Turn the wifi on using <code>rfkill unblock all</code>.</p>
-
 <p>You may want to put the <code>nonguix</code> channel back into <code>/root/.config/guix/channels.scm</code> to help with changing things in the future.</p>
-
 <p>Enjoy!</p>
-
 <h2 id="references">References</h2>
-
 <ol>
 <li><a href="https://www.gnu.org/software/guix/download/">https://www.gnu.org/software/guix/download/</a></li>
 <li><a href="https://www.gnu.org/software/guix/manual/en/html_node/Binary-Installation.html#Binary-Installation">https://www.gnu.org/software/guix/manual/en/html_node/Binary-Installation.html#Binary-Installation</a></li>

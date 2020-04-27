@@ -106,45 +106,32 @@ cd /tmp wget https://releases.hashicorp.com/terraform/0.12.18/terraform_0.12.18_
   
 
   <article class="article mt-5">
-    
-
-<p>Terraform orchastrates the setting up of your infrastructure, and packer helps you build images.  We are going to setup terraform to work with Digital Ocean, and then use package to create and image and deploy it.</p>
-
+    <p>Terraform orchastrates the setting up of your infrastructure, and packer helps you build images.  We are going to setup terraform to work with Digital Ocean, and then use package to create and image and deploy it.</p>
 <h2 id="install-terraform">Install terraform</h2>
-
 <p>Install terraform from <a href="https://www.terraform.io/downloads.html">the download page</a>.  I&rsquo;m on Linux, so we&rsquo;ll download the latest version and put it in <code>/usr/local/bin</code>.</p>
 <div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="nb">cd</span> /tmp
 wget https://releases.hashicorp.com/terraform/0.12.18/terraform_0.12.18_linux_amd64.zip
 unzip terraform_0.12.18_linux_amd64.zip
-sudo mv terraform /usr/local/bin</code></pre></div>
-<h2 id="setup-digital-ocean-api">Setup Digital Ocean API</h2>
-
+sudo mv terraform /usr/local/bin
+</code></pre></div><h2 id="setup-digital-ocean-api">Setup Digital Ocean API</h2>
 <p>We need two tokens.  One for accessing the Digital Ocean API for infrastructure, and the other to access the spaces API.</p>
-
 <p>Log into your account at <a href="cloud.digitalocean.com">cloud.digitalocean.com</a> and go to <code>API</code> on the left.  Generate a new access token with read and write privileges.</p>
-
 <p>Copy this token and keep it somewhere safe.  Our terraform scripts will access this token, but we&rsquo;ll keep the actual values in the environment rather than hardcoding them.  We&rsquo;ll be able to pass things in when prefixed with <code>TF_VAR</code>.</p>
-
 <p>Then create a Spaces API key, which will have an Access Token and a Secret Key.</p>
-
 <p>We are going to setup 4 environment variables that we will use for terraform.</p>
-
 <ol>
 <li>do_token: the actual API token</li>
 <li>do_access_key: the spaces api access key</li>
 <li>do_secret_key: the spaces api secret key</li>
 <li>ssh_fingerprint: a finger print for installing a key on a droplet</li>
 </ol>
-
 <p>Note that my public key is in <code>~/.ssh/id_rsa.pub</code></p>
 <div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="nb">export</span> <span class="nv">TF_VAR_do_token</span><span class="o">=</span>9a4d341ec0a512bfef2ae9....
 <span class="nb">export</span> <span class="nv">TF_VAR_do_access_key</span><span class="o">=</span>asdfasdf...
 <span class="nb">export</span> <span class="nv">TF_VAR_do_secret_key</span><span class="o">=</span>asdfasd...
-<span class="nb">export</span> <span class="nv">TF_VAR_ssh_fingerprint</span><span class="o">=</span><span class="k">$(</span>ssh-keygen -E md5 -lf ~/.ssh/id_rsa.pub <span class="p">|</span> awk <span class="s1">&#39;{print $2}&#39;</span> <span class="p">|</span> sed <span class="s1">&#39;s/MD5://&#39;</span><span class="k">)</span></code></pre></div>
-<h2 id="create-provider-tf">Create <code>provider.tf</code></h2>
-
+<span class="nb">export</span> <span class="nv">TF_VAR_ssh_fingerprint</span><span class="o">=</span><span class="k">$(</span>ssh-keygen -E md5 -lf ~/.ssh/id_rsa.pub <span class="p">|</span> awk <span class="s1">&#39;{print $2}&#39;</span> <span class="p">|</span> sed <span class="s1">&#39;s/MD5://&#39;</span><span class="k">)</span>
+</code></pre></div><h2 id="create-providertf">Create <code>provider.tf</code></h2>
 <p>The first file we are going to use is <a href="provider.tf"><code>provider.tf</code></a>:</p>
-
 <div class="highlight"><pre class="chroma"><code class="language-tf" data-lang="tf"><span class="kr">variable</span> <span class="s">&#34;do_token&#34;</span> {}
 <span class="kr">variable</span> <span class="s">&#34;do_access_key&#34;</span> {}
 <span class="kr">variable</span> <span class="s">&#34;do_secret_key&#34;</span> {}
@@ -163,26 +150,17 @@ sudo mv terraform /usr/local/bin</code></pre></div>
 <span class="na">  spaces_access_id</span>  <span class="o">=</span> <span class="err">var</span><span class="p">.</span><span class="err">do_access_key</span>
 <span class="na">  spaces_secret_key</span> <span class="o">=</span> <span class="err">var</span><span class="p">.</span><span class="err">do_secret_key</span>
 }</code></pre></div>
-
 <p>We are declaring the variables at top, which will look first in the environment for them and if not found will prompt you to enter a value.  We are going to use the name for the space that we&rsquo;re storing the terraform state in multiple places, so we&rsquo;ll define it as a variable, though unforunately we&rsquo;ll need to hard code it when we setup the terraform backend.</p>
-
 <p>Now run <code>terraform init</code>.  This should download the <code>digitalocean</code> plugin in the <code>.terraform</code> directory, and we should be ready to start making terraform commands!  When we do <code>terraform plan</code> it should say that everything is up to date.</p>
-
 <h2 id="create-a-secure-store-for-holding-the-config">Create a secure store for holding the config</h2>
-
 <p>Now lets use terraform to create a digitalocean store to save our deployment state. <a href="spaces.tf"><code>spaces.tf</code></a>:</p>
-
 <div class="highlight"><pre class="chroma"><code class="language-tf" data-lang="tf"><span class="kr">resource</span> <span class="s">&#34;digitalocean_spaces_bucket&#34; &#34;terraform-state&#34;</span> {
 <span class="na">  name</span>   <span class="o">=</span> <span class="err">var</span><span class="p">.</span><span class="err">backend_space_name</span>
 <span class="na">  acl</span>    <span class="o">=</span> <span class="s2">&#34;private&#34;</span>
 }</code></pre></div>
-
 <p>As a reminder, space names need to be globally unique so you&rsquo;ll need to update your name to make it your own.  Now run <code>terraform plan</code> to see what its going to do.  You should see that it wants to create the space.</p>
-
 <p>Run <code>terraform apply</code> to actually bring your environment up!</p>
-
 <p>Once your space is up and running, lets configure terraform to use this as a backend. <a href="backend.tf"><code>backend.tf</code></a>:</p>
-
 <div class="highlight"><pre class="chroma"><code class="language-tf" data-lang="tf"><span class="err">terraform</span> {
   <span class="err">backend</span> <span class="s2">&#34;s3&#34;</span> {
 <span class="na">    bucket</span> <span class="o">=</span> <span class="s2">&#34;xx-internal-will&#34;</span>
@@ -194,22 +172,15 @@ sudo mv terraform /usr/local/bin</code></pre></div>
 <span class="na">    skip_metadata_api_check</span> <span class="o">=</span> <span class="kt">true</span>
   }
 }</code></pre></div>
-
 <p>We are using the S3 backend but pointing it to Digital Ocean&rsquo;s endpoint.  If you don&rsquo;t know what endpoint you are using, you can see inside of the Digital Ocean console.</p>
-
 <p>I don&rsquo;t want to keep my access keys inside this file, but we can&rsquo;t pull them out using variables due to the way that terraform works.  So since we are pretending to be AWS, let&rsquo;s set the environment variables for AWS access to the keys that we got from the Spaces API.</p>
-
 <p><em>Note: While I don&rsquo;t use AWS and therefor don&rsquo;t mind messing with these keys, if you do use AWS from the shell you are working in this will point to the wrong place.</em></p>
 <div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="nb">export</span> <span class="nv">AWS_ACCESS_KEY_ID</span><span class="o">=</span><span class="nv">$TF_VAR_do_access_key</span>
-<span class="nb">export</span> <span class="nv">AWS_SECRET_ACCESS_KEY</span><span class="o">=</span><span class="nv">$TF_VAR_do_secret_key</span></code></pre></div>
-<p>We need to run <code>terraform init</code> again to pull down the right plugins and configure everything.  If all goes well, you&rsquo;ll be asked to migrate your local state over.  Go for it!</p>
-
+<span class="nb">export</span> <span class="nv">AWS_SECRET_ACCESS_KEY</span><span class="o">=</span><span class="nv">$TF_VAR_do_secret_key</span>
+</code></pre></div><p>We need to run <code>terraform init</code> again to pull down the right plugins and configure everything.  If all goes well, you&rsquo;ll be asked to migrate your local state over.  Go for it!</p>
 <h2 id="create-a-droplet">Create a droplet</h2>
-
 <p>Now that we have the plumbing working, lets create an actual droplet to play with.</p>
-
 <p>In <a href="droplets.tf.orig"><code>droplets.tf.orig</code></a>:</p>
-
 <div class="highlight"><pre class="chroma"><code class="language-tf" data-lang="tf"><span class="kr">resource</span> <span class="s">&#34;digitalocean_droplet&#34; &#34;playserver&#34;</span> {
 <span class="na">  name</span>     <span class="o">=</span> <span class="s2">&#34;playserver&#34;</span>
 <span class="na">  image</span>    <span class="o">=</span> <span class="s2">&#34;debian-10-x64&#34;</span>
@@ -219,59 +190,48 @@ sudo mv terraform /usr/local/bin</code></pre></div>
       <span class="err">var</span><span class="p">.</span><span class="err">ssh_fingerprint</span>
   <span class="p">]</span>
 }
-
-<span class="err">output</span> <span class="s2">&#34;ip&#34;</span> {
-<span class="na">  value</span> <span class="o">=</span> <span class="s2">&#34;${digitalocean_droplet.playserver.ipv4_address}&#34;</span>
-}</code></pre></div>
-
+<p><span class="err">output</span> <span class="s2">&quot;ip&quot;</span> {
+<span class="na">  value</span> <span class="o">=</span> <span class="s2">&quot;${digitalocean_droplet.playserver.ipv4_address}&quot;</span>
+}
+</code></pre></div></p>
 <p>When going through this, rename to <code>droplet.rf</code>.  Later, we will be editing this file and so this is the base version of it.</p>
-
 <p>You can find a list of <a href="https://slugs.do-api.dev/">Digital Ocean image and sizes</a> to choose from, here we are using <code>debian-10</code> and one of the smaller vms.</p>
-
 <p>We also define an <code>output</code> named <code>ip</code> that pulls from the digital ocean API based on what has been created.</p>
-
 <p>Additionally we have added an SSH key to the image.</p>
-
 <p>So to connect, we can do</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">ssh <span class="s2">&#34;root@</span><span class="k">$(</span>terraform output ip<span class="k">)</span><span class="s2">&#34;</span></code></pre></div>
-<p>And you should be able to connect to your server.</p>
-
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">ssh <span class="s2">&#34;root@</span><span class="k">$(</span>terraform output ip<span class="k">)</span><span class="s2">&#34;</span>
+</code></pre></div><p>And you should be able to connect to your server.</p>
 <h2 id="creating-a-custom-image">Creating a custom image</h2>
-
 <p>From this point you should be able to add other services with terraform to wire up your application.  We&rsquo;ll skip a more elaborate network and service configuration &ndash; which is really where terraform makes sense &ndash; since there are plenty of other places that document that.</p>
-
 <p>Instead, lets look at how to build a custom image that, perhaps, would contain your application.  We&rsquo;re going to use <code>packer</code> to build this image, on which we&rsquo;ll just install <code>docker</code>.  There&rsquo;s already an official docker image in Digital Ocean so this is really just an excersize so you get the idea.</p>
 <div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">wget https://releases.hashicorp.com/packer/1.5.1/packer_1.5.1_linux_amd64.zip
 unzip packer_1.5.1_linux_amd64.zip
-sudo mv packer /usr/local/bin</code></pre></div>
-<p>Now we create a <a href="docker.json"><code>docker.json</code></a> file that we&rsquo;ll give to <code>packer</code> that will provision the instance for us.  Inside you&rsquo;ll notice that I named the snapshot <code>packer-docker-0.0.1</code>.  In a real build process, this should probably be passed into packer.</p>
-
+sudo mv packer /usr/local/bin
+</code></pre></div><p>Now we create a <a href="docker.json"><code>docker.json</code></a> file that we&rsquo;ll give to <code>packer</code> that will provision the instance for us.  Inside you&rsquo;ll notice that I named the snapshot <code>packer-docker-0.0.1</code>.  In a real build process, this should probably be passed into packer.</p>
 <div class="highlight"><pre class="chroma"><code class="language-json" data-lang="json"><span class="p">{</span>
     <span class="nt">&#34;variables&#34;</span><span class="p">:</span> <span class="p">{</span>
-    <span class="nt">&#34;api_token&#34;</span><span class="p">:</span> <span class="s2">&#34;{{env `TF_VAR_do_token`}}&#34;</span><span class="p">,</span>
-    <span class="nt">&#34;region&#34;</span><span class="p">:</span> <span class="s2">&#34;{{env `TF_VAR_do_region`}}&#34;</span>
+	<span class="nt">&#34;api_token&#34;</span><span class="p">:</span> <span class="s2">&#34;{{env `TF_VAR_do_token`}}&#34;</span><span class="p">,</span>
+	<span class="nt">&#34;region&#34;</span><span class="p">:</span> <span class="s2">&#34;{{env `TF_VAR_do_region`}}&#34;</span>
     <span class="p">},</span>
     <span class="nt">&#34;builders&#34;</span><span class="p">:</span> <span class="p">[{</span>
-    <span class="nt">&#34;type&#34;</span><span class="p">:</span> <span class="s2">&#34;digitalocean&#34;</span><span class="p">,</span>
-    <span class="nt">&#34;api_token&#34;</span><span class="p">:</span> <span class="s2">&#34;{{user `api_token`}}&#34;</span><span class="p">,</span>
-    <span class="nt">&#34;image&#34;</span><span class="p">:</span> <span class="s2">&#34;debian-10-x64&#34;</span><span class="p">,</span>
-    <span class="nt">&#34;region&#34;</span><span class="p">:</span> <span class="s2">&#34;{{ user `region` }}&#34;</span><span class="p">,</span>
-    <span class="nt">&#34;size&#34;</span><span class="p">:</span> <span class="s2">&#34;s-1vcpu-1gb&#34;</span><span class="p">,</span>
-    <span class="nt">&#34;ssh_username&#34;</span><span class="p">:</span> <span class="s2">&#34;root&#34;</span><span class="p">,</span>
-    <span class="nt">&#34;snapshot_name&#34;</span><span class="p">:</span> <span class="s2">&#34;packer-docker-0.0.1&#34;</span><span class="p">,</span>
-    <span class="nt">&#34;tags&#34;</span><span class="p">:</span> <span class="p">[</span> <span class="s2">&#34;Docker&#34;</span> <span class="p">]</span>
+	<span class="nt">&#34;type&#34;</span><span class="p">:</span> <span class="s2">&#34;digitalocean&#34;</span><span class="p">,</span>
+	<span class="nt">&#34;api_token&#34;</span><span class="p">:</span> <span class="s2">&#34;{{user `api_token`}}&#34;</span><span class="p">,</span>
+	<span class="nt">&#34;image&#34;</span><span class="p">:</span> <span class="s2">&#34;debian-10-x64&#34;</span><span class="p">,</span>
+	<span class="nt">&#34;region&#34;</span><span class="p">:</span> <span class="s2">&#34;{{ user `region` }}&#34;</span><span class="p">,</span>
+	<span class="nt">&#34;size&#34;</span><span class="p">:</span> <span class="s2">&#34;s-1vcpu-1gb&#34;</span><span class="p">,</span>
+	<span class="nt">&#34;ssh_username&#34;</span><span class="p">:</span> <span class="s2">&#34;root&#34;</span><span class="p">,</span>
+	<span class="nt">&#34;snapshot_name&#34;</span><span class="p">:</span> <span class="s2">&#34;packer-docker-0.0.1&#34;</span><span class="p">,</span>
+	<span class="nt">&#34;tags&#34;</span><span class="p">:</span> <span class="p">[</span> <span class="s2">&#34;Docker&#34;</span> <span class="p">]</span>
     <span class="p">}],</span>
     <span class="nt">&#34;provisioners&#34;</span><span class="p">:</span> <span class="p">[</span>
-    <span class="p">{</span>
-        <span class="nt">&#34;type&#34;</span><span class="p">:</span> <span class="s2">&#34;shell&#34;</span><span class="p">,</span>
-        <span class="nt">&#34;scripts&#34;</span><span class="p">:</span> <span class="p">[</span> <span class="s2">&#34;docker_install.sh&#34;</span> <span class="p">]</span>
-    <span class="p">}</span>
+	<span class="p">{</span>
+	    <span class="nt">&#34;type&#34;</span><span class="p">:</span> <span class="s2">&#34;shell&#34;</span><span class="p">,</span>
+	    <span class="nt">&#34;scripts&#34;</span><span class="p">:</span> <span class="p">[</span> <span class="s2">&#34;docker_install.sh&#34;</span> <span class="p">]</span>
+	<span class="p">}</span>
     <span class="p">]</span>
-        
+		
 <span class="p">}</span></code></pre></div>
-
 <p>And then a script that will be run on the build image that actually installs docker.  <a href="docker_install.sh"><code>docker_install.sh</code></a>:</p>
-
 <div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="cp">#!/bin/bash
 </span><span class="cp"></span>
 apt-get update
@@ -296,15 +256,11 @@ apt-get install -y docker-ce docker-ce-cli containerd.io
 groupadd docker
 
 usermod -aG docker <span class="nv">$USER</span></code></pre></div>
-
 <p>We also need to set the region as the same you have it in the <code>providers.tf</code> file.</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="nb">export</span> <span class="nv">TF_VAR_do_region</span><span class="o">=</span>nyc3</code></pre></div>
-<p>Then run <code>packer validate docker.json</code> to make sure that everything is copacitic.  Once that&rsquo;s good, then run <code>packer build docker.json</code>.</p>
-
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="nb">export</span> <span class="nv">TF_VAR_do_region</span><span class="o">=</span>nyc3
+</code></pre></div><p>Then run <code>packer validate docker.json</code> to make sure that everything is copacitic.  Once that&rsquo;s good, then run <code>packer build docker.json</code>.</p>
 <h2 id="telling-terraform-to-use-your-image">Telling terraform to use your image</h2>
-
 <p>Once this is done, use this new <a href="droplets.tf"><code>droplets.tf</code></a> file to deploy this image onto your droplet.  The first stanza looks up the image from the snapshot name, and then we use that inside of the <code>image</code> attribute to tell <code>terraform</code> which droplet should be running.</p>
-
 <div class="highlight"><pre class="chroma"><code class="language-tf" data-lang="tf"><span class="err">data</span> <span class="s2">&#34;digitalocean_image&#34; &#34;docker-snapshot&#34;</span> {
 <span class="na">  name</span> <span class="o">=</span> <span class="s2">&#34;packer-docker-0.0.1&#34;</span>
 }
@@ -322,25 +278,18 @@ usermod -aG docker <span class="nv">$USER</span></code></pre></div>
 <span class="err">output</span> <span class="s2">&#34;ip&#34;</span> {
 <span class="na">  value</span> <span class="o">=</span> <span class="s2">&#34;${digitalocean_droplet.playserver.ipv4_address}&#34;</span>
 }</code></pre></div>
-
 <p>Now lets test it out:</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">terraform apply</code></pre></div>
-<p>And then connect:</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">ssh <span class="s2">&#34;root@</span><span class="k">$(</span>terraform output ip<span class="k">)</span><span class="s2">&#34;</span></code></pre></div>
-<p>Once it connects, you should be able to run on the host machine:</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">docker run --rm hello-world</code></pre></div>
-<p>At which point we end our tutorial!</p>
-
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">terraform apply
+</code></pre></div><p>And then connect:</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">ssh <span class="s2">&#34;root@</span><span class="k">$(</span>terraform output ip<span class="k">)</span><span class="s2">&#34;</span>
+</code></pre></div><p>Once it connects, you should be able to run on the host machine:</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">docker run --rm hello-world
+</code></pre></div><p>At which point we end our tutorial!</p>
 <h2 id="cleanup">Cleanup</h2>
-
 <p>To clean up everything, you can run <code>terraform destroy</code>.  This will leave the snapshot, which was created by <code>packer</code> and not managed by <code>terraform</code>, and it will probably leave the space that we created since its not empty.  Which is fine, since its better to keep the state around anyway, these things can be cleaned up by hand.</p>
-
 <p>This is basically just a howto to get things initially setup, there&rsquo;s a lot more you can do with organizing your files and managing different environments.  The droplet that we created is on the public internet which is where most of my toys live, and we didn&rsquo;t explore the more interesting parts of terraform where you setup networks and other services.  But most of the tutorials I&rsquo;ve seen are for setting things up with AWS, and I wanted to see how to get it done with Digital Ocean.</p>
-
-<hr />
-
+<hr>
 <p>References</p>
-
 <ol>
 <li><a href="https://www.digitalocean.com/community/tutorials/how-to-use-terraform-with-digitalocean">https://www.digitalocean.com/community/tutorials/how-to-use-terraform-with-digitalocean</a></li>
 <li><a href="https://medium.com/@chris_linguine/dont-push-your-terraform-state-files-945cfdf71f88">https://medium.com/@chris_linguine/dont-push-your-terraform-state-files-945cfdf71f88</a></li>

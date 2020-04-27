@@ -104,78 +104,63 @@ Repositories and Work Directories The normal usage of git is to type git clone &
   
 
   <article class="article mt-5">
-    
-
-<p>I found a tutorial on <a href="https://www.atlassian.com/git/tutorials/dotfiles">how to manage your dotfiles</a>, that works by splitting up the git repository (normally the <code>.git</code> directory) from the work directory.  Since I have a lot of code that I put in my tutorials, I adapted the technique to have individual article directories mirrored in their own github repository.</p>
-
+    <p>I found a tutorial on <a href="https://www.atlassian.com/git/tutorials/dotfiles">how to manage your dotfiles</a>, that works by splitting up the git repository (normally the <code>.git</code> directory) from the work directory.  Since I have a lot of code that I put in my tutorials, I adapted the technique to have individual article directories mirrored in their own github repository.</p>
 <h2 id="repositories-and-work-directories">Repositories and Work Directories</h2>
-
 <p>The normal usage of <code>git</code> is to type <code>git clone &lt;remote&gt;</code> to get a copy of the local directory, mess with stuff, and then <code>add</code> and <code>commit</code> your changes.  If you have multiple branches, you switch the files in your work directory to a different branch, but you are still using the same repository.</p>
-
 <p>The structure looks like this (you&rsquo;ll see more files in the lsit if you do this command, I edited them out for clarity)</p>
 <div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ git clone https://github.com/wschenk/willschenk.com
 $ ls -la willschenk.com
-drwxr-xr-x <span class="m">1</span> wschenk wschenk  <span class="m">280</span> Apr <span class="m">20</span> <span class="m">14</span>:32 .
-drwxr-xr-x <span class="m">1</span> wschenk wschenk  <span class="m">870</span> Apr <span class="m">20</span> <span class="m">14</span>:58 ..
-drwxr-xr-x <span class="m">1</span> wschenk wschenk  <span class="m">102</span> Apr <span class="m">18</span> <span class="m">13</span>:11 content
-drwxr-xr-x <span class="m">1</span> wschenk wschenk  <span class="m">204</span> Apr <span class="m">20</span> <span class="m">14</span>:54 .git
--rw-r--r-- <span class="m">1</span> wschenk wschenk  <span class="m">501</span> Apr <span class="m">20</span> <span class="m">14</span>:32 .gitignore
-drwxr-xr-x <span class="m">1</span> wschenk wschenk   <span class="m">64</span> Apr <span class="m">20</span> <span class="m">14</span>:22 layouts
-drwxr-xr-x <span class="m">1</span> wschenk wschenk   <span class="m">18</span> Mar <span class="m">31</span> <span class="m">22</span>:21 themes</code></pre></div>
-<p>The <code>.git</code> directory inside of this folder is where the git database lives, all of the commits and history and branches and all that.  At the same level you have the working copy, which in this case is the <code>master</code> branch.</p>
-
+drwxr-xr-x <span class="m">1</span> wschenk wschenk  <span class="m">280</span> Apr <span class="m">20</span> 14:32 .
+drwxr-xr-x <span class="m">1</span> wschenk wschenk  <span class="m">870</span> Apr <span class="m">20</span> 14:58 ..
+drwxr-xr-x <span class="m">1</span> wschenk wschenk  <span class="m">102</span> Apr <span class="m">18</span> 13:11 content
+drwxr-xr-x <span class="m">1</span> wschenk wschenk  <span class="m">204</span> Apr <span class="m">20</span> 14:54 .git
+-rw-r--r-- <span class="m">1</span> wschenk wschenk  <span class="m">501</span> Apr <span class="m">20</span> 14:32 .gitignore
+drwxr-xr-x <span class="m">1</span> wschenk wschenk   <span class="m">64</span> Apr <span class="m">20</span> 14:22 layouts
+drwxr-xr-x <span class="m">1</span> wschenk wschenk   <span class="m">18</span> Mar <span class="m">31</span> 22:21 themes
+</code></pre></div><p>The <code>.git</code> directory inside of this folder is where the git database lives, all of the commits and history and branches and all that.  At the same level you have the working copy, which in this case is the <code>master</code> branch.</p>
 <p>What I&rsquo;d like to do is to keep this whole structure intact, but also have the files in <code>content/articles/2019/splitting_git_repos_and_workdirectories/</code> tracked in an additional github repository for better sharing and collaboration.</p>
-
 <h2 id="splitting">Splitting</h2>
-
 <p>This script is meant to be used as a replacement to the <code>git</code> command line on the shell to interact with the mirrored repository.</p>
-
 <p>For this to work great create a remote repository somewhere <a href="https://github.com/new">like GitHub</a> and then put the resulting <code>repostory</code> in the front matter.  (I use <code>yml</code> so adjust the awk parsing if you use something else.)</p>
-
 <ol>
 <li>First it checks to see if there&rsquo;s a local .gitignore, and if not creates one.</li>
 <li>Then it loads the <code>.local-git</code> file where we are checkout out the repository.  If this goes away we don&rsquo;t care, because&hellip;</li>
 <li>It pulls down the repo from the root.</li>
 <li>Then it passes all your commands to <code>git</code> pointing to the seperate repository and with the working dir set to the current directory.</li>
 </ol>
-
 <p><a href="seperate-git.bash"><code>seperate-git.bash</code></a>:</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="cp">#!/usr/bin/env bash
+</span><span class="cp"></span>
+<span class="c1"># Ensure that we dont inadvertantly checkin any node node_modules</span>
+<span class="c1"># or the file that we use to track our local_git repository</span>
+<span class="k">if</span> <span class="o">[</span> ! -f .gitignore <span class="o">]</span><span class="p">;</span> <span class="k">then</span>
+  cat &gt; .gitignore <span class="s">&lt;&lt; ENDIGNORE
+</span><span class="s">node_modules
+</span><span class="s">.local_git
+</span><span class="s">ENDIGNORE</span>
+<span class="k">fi</span>
 
-<div class="highlight"><pre class="chroma"><code class="language-js" data-lang="js"><span class="ch">#!/usr/bin/env bash
-</span><span class="ch"></span>
-<span class="err">#</span> <span class="nx">Ensure</span> <span class="nx">that</span> <span class="nx">we</span> <span class="nx">dont</span> <span class="nx">inadvertantly</span> <span class="nx">checkin</span> <span class="nx">any</span> <span class="nx">node</span> <span class="nx">node_modules</span>
-<span class="err">#</span> <span class="nx">or</span> <span class="nx">the</span> <span class="nx">file</span> <span class="nx">that</span> <span class="nx">we</span> <span class="nx">use</span> <span class="nx">to</span> <span class="nx">track</span> <span class="nx">our</span> <span class="nx">local_git</span> <span class="nx">repository</span>
-<span class="k">if</span> <span class="p">[</span> <span class="o">!</span> <span class="o">-</span><span class="nx">f</span> <span class="p">.</span><span class="nx">gitignore</span> <span class="p">];</span> <span class="nx">then</span>
-  <span class="nx">cat</span> <span class="o">&gt;</span> <span class="p">.</span><span class="nx">gitignore</span> <span class="o">&lt;&lt;</span> <span class="nx">ENDIGNORE</span>
-<span class="nx">node_modules</span>
-<span class="p">.</span><span class="nx">local_git</span>
-<span class="nx">ENDIGNORE</span>
-<span class="nx">fi</span>
+<span class="c1"># Look inside of our post to load up where the remote</span>
+<span class="c1"># is configured, bail if not set</span>
+<span class="nv">REMOTE</span><span class="o">=</span><span class="k">$(</span>awk <span class="s1">&#39;/^remote:/ {print $2}&#39;</span> index.md <span class="p">|</span>head -n 1<span class="k">)</span>
 
-<span class="err">#</span> <span class="nx">Look</span> <span class="nx">inside</span> <span class="k">of</span> <span class="nx">our</span> <span class="nx">post</span> <span class="nx">to</span> <span class="nx">load</span> <span class="nx">up</span> <span class="nx">where</span> <span class="nx">the</span> <span class="nx">remote</span>
-<span class="err">#</span> <span class="nx">is</span> <span class="nx">configured</span><span class="p">,</span> <span class="nx">bail</span> <span class="k">if</span> <span class="nx">not</span> <span class="nx">set</span>
-<span class="nx">REMOTE</span><span class="o">=</span><span class="nx">$</span><span class="p">(</span><span class="nx">awk</span> <span class="s1">&#39;/^remote:/ {print $2}&#39;</span> <span class="nx">index</span><span class="p">.</span><span class="nx">md</span> <span class="o">|</span><span class="nx">head</span> <span class="o">-</span><span class="nx">n</span> <span class="mi">1</span><span class="p">)</span>
+<span class="k">if</span> <span class="o">[</span> -z <span class="s2">&#34;</span><span class="si">${</span><span class="nv">REMOTE</span><span class="si">}</span><span class="s2">&#34;</span> <span class="o">]</span><span class="p">;</span> <span class="k">then</span>
+  <span class="nb">echo</span> remote is not defined in the front matter of index.md
+  <span class="nb">exit</span> <span class="m">1</span>
+<span class="k">fi</span>
 
-<span class="k">if</span> <span class="p">[</span> <span class="o">-</span><span class="nx">z</span> <span class="s2">&#34;${REMOTE}&#34;</span> <span class="p">];</span> <span class="nx">then</span>
-  <span class="nx">echo</span> <span class="nx">remote</span> <span class="nx">is</span> <span class="nx">not</span> <span class="nx">defined</span> <span class="k">in</span> <span class="nx">the</span> <span class="nx">front</span> <span class="nx">matter</span> <span class="k">of</span> <span class="nx">index</span><span class="p">.</span><span class="nx">md</span>
-  <span class="nx">exit</span> <span class="mi">1</span>
-<span class="nx">fi</span>
+<span class="nv">LOCAL_GIT</span><span class="o">=</span><span class="k">$(</span>cat .local_git 2&gt; /dev/null<span class="k">)</span>
 
-<span class="nx">LOCAL_GIT</span><span class="o">=</span><span class="nx">$</span><span class="p">(</span><span class="nx">cat</span> <span class="p">.</span><span class="nx">local_git</span> <span class="mi">2</span><span class="o">&gt;</span> <span class="err">/dev/null)</span>
+<span class="c1"># If blank or doest exist checkout the bare repository</span>
+<span class="k">if</span> <span class="o">[</span> -z <span class="s2">&#34;</span><span class="si">${</span><span class="nv">LOCAL_GIT</span><span class="si">}</span><span class="s2">&#34;</span> <span class="o">]</span> <span class="o">||</span> <span class="o">[</span> ! -d <span class="s2">&#34;</span><span class="si">${</span><span class="nv">LOCAL_GIT</span><span class="si">}</span><span class="s2">&#34;</span> <span class="o">]</span><span class="p">;</span> <span class="k">then</span>
+  <span class="nv">LOCAL_GIT</span><span class="o">=</span><span class="k">$(</span>mktemp -d<span class="k">)</span>
+  <span class="nb">echo</span> Pulling down remote git repository into <span class="nv">$LOCAL_GIT</span>
+  git clone --bare --progress <span class="nv">$REMOTE</span> <span class="nv">$LOCAL_GIT</span>
+  <span class="nb">echo</span> <span class="nv">$LOCAL_GIT</span> &gt; .local_git
+<span class="k">fi</span>
 
-<span class="err">#</span> <span class="nx">If</span> <span class="nx">blank</span> <span class="nx">or</span> <span class="nx">doest</span> <span class="nx">exist</span> <span class="nx">checkout</span> <span class="nx">the</span> <span class="nx">bare</span> <span class="nx">repository</span>
-<span class="k">if</span> <span class="p">[</span> <span class="o">-</span><span class="nx">z</span> <span class="s2">&#34;${LOCAL_GIT}&#34;</span> <span class="p">]</span> <span class="o">||</span> <span class="p">[</span> <span class="o">!</span> <span class="o">-</span><span class="nx">d</span> <span class="s2">&#34;${LOCAL_GIT}&#34;</span> <span class="p">];</span> <span class="nx">then</span>
-  <span class="nx">LOCAL_GIT</span><span class="o">=</span><span class="nx">$</span><span class="p">(</span><span class="nx">mktemp</span> <span class="o">-</span><span class="nx">d</span><span class="p">)</span>
-  <span class="nx">echo</span> <span class="nx">Pulling</span> <span class="nx">down</span> <span class="nx">remote</span> <span class="nx">git</span> <span class="nx">repository</span> <span class="nx">into</span> <span class="nx">$LOCAL_GIT</span>
-  <span class="nx">git</span> <span class="nx">clone</span> <span class="o">--</span><span class="nx">bare</span> <span class="o">--</span><span class="nx">progress</span> <span class="nx">$REMOTE</span> <span class="nx">$LOCAL_GIT</span>
-  <span class="nx">echo</span> <span class="nx">$LOCAL_GIT</span> <span class="o">&gt;</span> <span class="p">.</span><span class="nx">local_git</span>
-<span class="nx">fi</span>
-
-<span class="nx">git</span> <span class="o">--</span><span class="nx">git</span><span class="o">-</span><span class="nx">dir</span><span class="o">=</span><span class="nx">$</span><span class="p">{</span><span class="nx">LOCAL_GIT</span><span class="p">}</span> <span class="o">--</span><span class="nx">work</span><span class="o">-</span><span class="nx">tree</span><span class="o">=</span><span class="p">.</span> <span class="nx">$</span><span class="err">@</span>
-</code></pre></div>
-
+git --git-dir<span class="o">=</span><span class="si">${</span><span class="nv">LOCAL_GIT</span><span class="si">}</span> --work-tree<span class="o">=</span>. <span class="nv">$@</span></code></pre></div>
 <h2 id="running">Running</h2>
-
 <p>Here&rsquo;s a comparison of what running looks like using the new command</p>
 <div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ bash seperate-git.bash status
 Pulling down remote git repository into /tmp/tmp.p4KSGNKQNh
@@ -196,8 +181,8 @@ nothing added to commit but untracked files present <span class="o">(</span>use 
 
 $ bash seperate-git.bash remote -v
 origin  git@github.com:wschenk/split-git.git <span class="o">(</span>fetch<span class="o">)</span>
-origin  git@github.com:wschenk/split-git.git <span class="o">(</span>push<span class="o">)</span></code></pre></div>
-<p>And compare that with the regular <code>git</code> command:</p>
+origin  git@github.com:wschenk/split-git.git <span class="o">(</span>push<span class="o">)</span>
+</code></pre></div><p>And compare that with the regular <code>git</code> command:</p>
 <div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ git status
 Changes not staged <span class="k">for</span> commit:
   <span class="o">(</span>use <span class="s2">&#34;git add &lt;file&gt;...&#34;</span> to update what will be committed<span class="o">)</span>
@@ -209,11 +194,9 @@ no changes added to commit <span class="o">(</span>use <span class="s2">&#34;git
 
 $ git remote -v
 origin  git@github.com:wschenk/willschenk.com.git <span class="o">(</span>fetch<span class="o">)</span>
-origin  git@github.com:wschenk/willschenk.com.git <span class="o">(</span>push<span class="o">)</span></code></pre></div>
-<p>And if this script actually works, you should be able to see the results here: <a href="https://github.com/wschenk/split-git">https://github.com/wschenk/split-git</a></p>
-
+origin  git@github.com:wschenk/willschenk.com.git <span class="o">(</span>push<span class="o">)</span>
+</code></pre></div><p>And if this script actually works, you should be able to see the results here: <a href="https://github.com/wschenk/split-git">https://github.com/wschenk/split-git</a></p>
 <h2 id="references">References</h2>
-
 <ol>
 <li><a href="https://www.atlassian.com/git/tutorials/dotfiles">https://www.atlassian.com/git/tutorials/dotfiles</a></li>
 </ol>

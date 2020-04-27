@@ -98,16 +98,10 @@ We are going to adjust the settings of node-gyp to make it compile things right 
   
 
   <article class="article mt-5">
-    
-
-<p><code>firebase</code> depends on <code>grpc</code>, which isn’t set to build right on the Chromebook. This is because <code>node-pre-gyp</code>, which is used to download precompiled binaries, is not setup correctly. In then uses <code>node-gyp</code> to compile the C++ bindings directly, which is also not setup correctly.</p>
-
+    <p><code>firebase</code> depends on <code>grpc</code>, which isn’t set to build right on the Chromebook. This is because <code>node-pre-gyp</code>, which is used to download precompiled binaries, is not setup correctly. In then uses <code>node-gyp</code> to compile the C++ bindings directly, which is also not setup correctly.</p>
 <p>We are going to adjust the settings of node-gyp to make it compile things right under <code>termux</code>, and then we are going to tweak the <code>grpc</code> package itself in our local cache to make it build correctly.</p>
-
 <p>This took way to long to sort out.</p>
-
-<h3 id="installing-the-basics">Installing the Basics</h3>
-
+<h3 id="installing-thebasics">Installing the Basics</h3>
 <ol>
 <li><code>pkg install nodejs python2 make clang pkg-config</code></li>
 <li><code>termux-chroot</code></li>
@@ -115,41 +109,30 @@ We are going to adjust the settings of node-gyp to make it compile things right 
 <li><code>mkdir /tmp/t; cd /tmp/t</code></li>
 <li><code>npm install -g yarn</code></li>
 </ol>
-
-<h3 id="start-the-grpc-install">Start the grpc install</h3>
-
+<h3 id="start-the-grpcinstall">Start the grpc install</h3>
 <ol>
 <li><code>yarn add grpc</code></li>
 <li>This should take a long time but then fail because <code>-zdefs</code> is not a valid option.</li>
 </ol>
-
-<h3 id="update-node-gyp-settings">Update node-gyp settings</h3>
-
-<p>First we update node-gyp, as <a href="http://blog.akehir.com/2017/05/building-node-sass-libsass-python.html">talked about here</a>.</p>
-
+<h3 id="update-node-gypsettings">Update node-gyp settings</h3>
+<p>First we update node-gyp, as <a href="http://blog.akehir.com/2017/05/building-node-sass-libsass-python.html" title="">talked about here</a>.</p>
 <ol>
 <li><code>cd ~/. node-gyp/8.9.3/include/node</code> (or whatever version you have)</li>
 <li>Update <code>common.gpyi</code> to change references of <code>-fPIE</code> to <code>-fPIC</code>, and get rid of <code>-pie</code></li>
 </ol>
-
-<h3 id="update-the-grpc-npm-package-in-the-yarn-cache">Update the grpc npm package in the yarn cache</h3>
-
+<h3 id="update-the-grpc-npm-package-in-the-yarncache">Update the grpc npm package in the yarn cache</h3>
 <ol>
 <li><code>cd ~/.cache/yarn/v1/npm-grpc</code> (tab tab to find the actual version)</li>
 <li>open up <code>bindings.gyp</code> and remove the line ‘<code>-zdefs</code>’ which for me is line 941</li>
 <li>Also in <code>deps/grpc/bindings.gyp</code> remove <code>-zdefs</code> again. Not sure where this is coming from but <code>clang</code> doesn’t like it.</li>
 </ol>
-
 <p>Note that every time there’s another version of grpc released, you’ll need to update that version in your yarn cache!</p>
-
-<h3 id="try-to-add-again">Try to add again</h3>
-
+<h3 id="try-to-addagain">Try to add again</h3>
 <ol>
 <li><code>cd /tmp/t</code></li>
 <li><code>rm -rf node_modules/grpc</code></li>
 <li><code>yarn add grpc</code></li>
 </ol>
-
 <p>And there you go. Does anyone have a better fix that they could share?</p>
 
   </article>

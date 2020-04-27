@@ -104,58 +104,40 @@ Let&rsquo;s go through the dateslices gem which I wrote to extend active record 
   
 
   <article class="article mt-5">
-    
-
-<p>Ruby on Rails is a very modular framework since the merging with Merb in 2008.  The <em>opinionated conventions</em> are implemented under using techniques that let you jump in and build your own components, picking and choosing different parts that let you build Rails apps in the same straightforward way you would if using the official modules.</p>
-
+    <p>Ruby on Rails is a very modular framework since the merging with Merb in 2008.  The <em>opinionated conventions</em> are implemented under using techniques that let you jump in and build your own components, picking and choosing different parts that let you build Rails apps in the same straightforward way you would if using the official modules.</p>
 <p>Let&rsquo;s go through the <a href="https://github.com/HappyFunCorp/dateslices"><code>dateslices</code> gem</a> which I wrote to extend active record so that we could better interact with the <code>group by</code> sql command when dealing with dates.  Thanks to <a href="https://github.com/mbrookes">mbrookes</a> this command now outputs in a format compatible with <a href="http://ankane.github.io/chartkick/">Chartkick</a> making it a good tool to use when graphing date related things, say user signups, on an admin panel for your application.</p>
-
 <h2 id="databases">Databases</h2>
-
 <p><a href="http://guides.rubyonrails.org/active_record_basics.html">ActiveRecord</a> is how Rails interacts with the database, this includes both SQL generation, validations, and a whole bunch more.  It creates a startardized interface over the many subtle differences between SQL implementations on different databases.  Date handling and grouping on dymanic terms is one area where databases differer greatly from one another, and when we want to find counts and sums grouped by different dates we need to tune our SQL for the vagaries of switching to different databases.</p>
-
 <h2 id="keeping-development-the-same-as-production">Keeping development the same as production</h2>
-
 <p>I tend to develop locally on Sqlite3 and deploy on Postgres.  When we get into something fancy where we want to use some of the amazing features that Postgres has, like <a href="http://www.postgresql.org/docs/9.2/static/libpq-notify.html">LISTEN/NOTIFY</a> or <a href="http://postgresguide.com/sexy/hstore.html">hstore</a> , then it makes sense to run a Postgres instance locally.  But most of the time it&rsquo;s overkill, and I prefer running with Sqlite3 since I just need to checkout the project, run bundle, and I&rsquo;m in a self contained environment.</p>
-
 <p>Pub/sub and attribute store are cool enough things to warrant managing a local Postgres instance, grouping by date doesn&rsquo;t cut it in my book.</p>
-
 <p>If you do already have a Postgres instance running locally, then you should check out the <a href="https://github.com/ankane/groupdate"><code>groupdate</code> gem</a>, which is better and worse than <code>dateslice</code>: better because it supports Timezones which is awesome and difficult to solve well and worse because it doesn&rsquo;t support Sqlite3.</p>
-
 <h2 id="enter-dataslice">Enter dataslice</h2>
-
 <p>Lets first take a look at how the SQL differs between the different databases.  The basic structure is</p>
-<div class="highlight"><pre class="chroma"><code class="language-sql" data-lang="sql"><span class="k">select</span> <span class="n">aggregation</span><span class="p">(</span><span class="n">aggregation_column</span><span class="p">),</span> <span class="n">timeslice</span> <span class="k">from</span> <span class="k">table</span> <span class="k">group</span> <span class="k">by</span> <span class="n">timeslice</span></code></pre></div>
-<p>Where <code>aggregation</code> is one of <code>count</code>, <code>sum</code>, and <code>avg</code>.</p>
-
+<div class="highlight"><pre class="chroma"><code class="language-sql" data-lang="sql"><span class="k">select</span> <span class="n">aggregation</span><span class="p">(</span><span class="n">aggregation_column</span><span class="p">),</span> <span class="n">timeslice</span> <span class="k">from</span> <span class="k">table</span> <span class="k">group</span> <span class="k">by</span> <span class="n">timeslice</span>
+</code></pre></div><p>Where <code>aggregation</code> is one of <code>count</code>, <code>sum</code>, and <code>avg</code>.</p>
 <p><code>aggregation_column</code> is the column we are counting, summing or averaging.  For counts, normally we do <code>count(*)</code> but we can also do <code>count(distinct(aggregation_column))</code> if you only want to count the number of unique occurances.</p>
-
 <p><code>timeslice</code> is the time period that we want to look at.  The basic idea here is that we convert a <code>datetime</code> to a string with lower precision (getting rid of the seconds, or minutes, or hours, or days) and then group on that string.  We need to select this on the left side of the query, and we also need it as the input of the <code>GROUP BY</code> on the right.</p>
-
 <p>For example, if we want to group by day, this is the SQL that we&rsquo;d need for the 3 different database variants we are targetting:</p>
-
 <table class="table table-bordered table-sm table-striped">
   <tr><th>Database</th><th>Time Slice</th></tr>
   <tr><th>Mysql</th><td><code>DATE_FORMAT(#{column}, '%Y-%m-%d 00:00:00 UTC')</code></td></tr>
   <tr><th>Sqlite3</th><td><code>strftime( \"%Y-%m-%d 00:00:00 UTC\", #{column} )</code></td></tr>
   <tr><th>Postgres</th><td><code>DATE_TRUNC( 'day' , #{column} )</code></td></tr>
 </table>
-
 <p>The different variants can be found in the sourecode for <a href="https://github.com/HappyFunCorp/dateslices/blob/master/lib/dateslices/mysql.rb">mysql</a>, <a href="https://github.com/HappyFunCorp/dateslices/blob/master/lib/dateslices/sqlite.rb">sqlite</a>, and <a href="https://github.com/HappyFunCorp/dateslices/blob/master/lib/dateslices/postgresql.rb">Postgres</a>.  (Notice how Postgres is better here too!)</p>
-
 <h2 id="our-api">Our api</h2>
-
 <p>We want to add <code>group_by_second</code>, <code>group_by_minute</code>, <code>group_by_hour</code>, <code>group_by_day</code>, <code>group_by_week</code>, <code>group_by_day_of_week</code>, <code>group_by_month</code>, <code>group_by_year</code> to ActiveRecord classes that we can use either on the model itself:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="no">User</span><span class="o">.</span><span class="n">group_by_day</span></code></pre></div>
-<p>Or on a scope:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="no">Post</span><span class="o">.</span><span class="n">unmoderated</span><span class="o">.</span><span class="n">group_by_day</span></code></pre></div>
-<p>And get a resulting hash back like:</p>
+<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="no">User</span><span class="o">.</span><span class="n">group_by_day</span>
+</code></pre></div><p>Or on a scope:</p>
+<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="no">Post</span><span class="o">.</span><span class="n">unmoderated</span><span class="o">.</span><span class="n">group_by_day</span>
+</code></pre></div><p>And get a resulting hash back like:</p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="p">{</span>
       <span class="s2">&#34;2014-07-12 00:00:00 UTC&#34;</span> <span class="o">=&gt;</span> <span class="mi">1</span><span class="p">,</span>
       <span class="s2">&#34;2014-07-18 00:00:00 UTC&#34;</span> <span class="o">=&gt;</span> <span class="mi">2</span><span class="p">,</span>
       <span class="s2">&#34;2014-07-19 00:00:00 UTC&#34;</span> <span class="o">=&gt;</span> <span class="mi">1</span>
-<span class="p">}</span></code></pre></div>
-<p>Or, in a <code>rspec</code> test, something like this:</p>
+<span class="p">}</span>
+</code></pre></div><p>Or, in a <code>rspec</code> test, something like this:</p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="n">it</span> <span class="s2">&#34;should return items grouped by day&#34;</span> <span class="k">do</span>
     <span class="n">expect</span><span class="p">(</span> <span class="no">User</span><span class="o">.</span><span class="n">count</span> <span class="p">)</span><span class="o">.</span><span class="n">to</span> <span class="n">eq</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
 
@@ -174,26 +156,20 @@ Let&rsquo;s go through the dateslices gem which I wrote to extend active record 
       <span class="s2">&#34;2014-07-12 00:00:00 UTC&#34;</span> <span class="o">=&gt;</span> <span class="mi">1</span><span class="p">,</span>
       <span class="s2">&#34;2014-07-18 00:00:00 UTC&#34;</span> <span class="o">=&gt;</span> <span class="mi">2</span><span class="p">,</span>
       <span class="s2">&#34;2014-07-19 00:00:00 UTC&#34;</span> <span class="o">=&gt;</span> <span class="mi">1</span><span class="p">})</span>
-  <span class="k">end</span></code></pre></div>
-<h2 id="building-the-rails-extension">Building the Rails Extension</h2>
-
+  <span class="k">end</span>
+</code></pre></div><h2 id="building-the-rails-extension">Building the Rails Extension</h2>
 <p>Now that we have an idea of what we want to generate, lets take a look at how we build a rails extension.  This is done with the <code>rails plugin new</code> command.  We saw the <code>bundle gem</code> command before back in the <a href="../../../making-a-command-line-utility-with-gems-and-thor/">making a command line utility with gems and thor</a> post, and in many ways they are similar.  But the <code>rails plugin new</code> command creates a gem setup for a rails environment for testing and developing your app.</p>
-
 <p><a href="http://seed.happyfuncorp.com/">Happy Seed</a> also has a rails plugin generator which will setup rspec testing for you, instead of the default <code>TestUnit</code>.  This runs the <code>rails plugin new</code> command which sets up the rails gem environment and does a few other things you need to do to get rspec working correctly, and HappySeed will do that stuff for you.</p>
-
 <p>Either way, now you have a new folder with an empty gem that we need to fill out.</p>
-
 <p>We&rsquo;re going to create a <code>Module</code>,  <code>Datelices::Scope</code>, with our methods and then register our methods with the <code>ActiveRecord::Base</code> class.  This looks like so:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"> <span class="no">ActiveRecord</span><span class="o">::</span><span class="no">Base</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="ss">:extend</span><span class="p">,</span> <span class="no">Dateslices</span><span class="o">::</span><span class="no">Scopes</span><span class="p">)</span></code></pre></div>
-<p>This will mixin our methods into all of the classes that extend <code>ActiveRecord::Base</code>.</p>
-
+<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="no">ActiveRecord</span><span class="o">::</span><span class="no">Base</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="ss">:extend</span><span class="p">,</span> <span class="no">Dateslices</span><span class="o">::</span><span class="no">Scopes</span><span class="p">)</span>
+</code></pre></div><p>This will mixin our methods into all of the classes that extend <code>ActiveRecord::Base</code>.</p>
 <h2 id="metaprogramming-with-ruby">Metaprogramming with Ruby</h2>
-
 <p>Inside of <code>lib/dateslices.rb</code> lets define all of the fields that we want to define.</p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="k">module</span> <span class="nn">Dateslices</span>
   <span class="no">FIELDS</span> <span class="o">=</span> <span class="o">[</span><span class="ss">:second</span><span class="p">,</span> <span class="ss">:minute</span><span class="p">,</span> <span class="ss">:hour</span><span class="p">,</span> <span class="ss">:day</span><span class="p">,</span> <span class="ss">:week</span><span class="p">,</span> <span class="ss">:day_of_week</span><span class="p">,</span> <span class="ss">:month</span><span class="p">,</span> <span class="ss">:year</span> <span class="o">]</span>
-<span class="k">end</span></code></pre></div>
-<p>Now inside of <code>lib/dateslices/scopes.rb</code> we can sketch out our scopes method generator:</p>
+<span class="k">end</span>
+</code></pre></div><p>Now inside of <code>lib/dateslices/scopes.rb</code> we can sketch out our scopes method generator:</p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="k">module</span> <span class="nn">Dateslices</span>
   <span class="k">module</span> <span class="nn">Scopes</span>
     <span class="no">Dateslices</span><span class="o">::</span><span class="no">FIELDS</span><span class="o">.</span><span class="n">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">field</span><span class="o">|</span>
@@ -202,15 +178,11 @@ Let&rsquo;s go through the dateslices gem which I wrote to extend active record 
       <span class="k">end</span>
     <span class="k">end</span>
   <span class="k">end</span>
-<span class="k">end</span></code></pre></div>
-<p>Lets go through this for a second.  When this code is evaluated, we are going to loop over <code>Dateslices::FIELDS</code> and call the <code>define_method</code> function for each type of grouping.  These are defined inside of the main <code>Dateslices</code> module, and we are naming our method <code>:&quot;group_by_#{field}&quot;</code>.  Image that a developer writes <code>User.group_by_day( :updated_at )</code>, what happens then?</p>
-
+<span class="k">end</span>
+</code></pre></div><p>Lets go through this for a second.  When this code is evaluated, we are going to loop over <code>Dateslices::FIELDS</code> and call the <code>define_method</code> function for each type of grouping.  These are defined inside of the main <code>Dateslices</code> module, and we are naming our method <code>:&quot;group_by_#{field}&quot;</code>.  Image that a developer writes <code>User.group_by_day( :updated_at )</code>, what happens then?</p>
 <p>When that is invoked the Ruby runtime is actually invoking the closure that we are passing into <code>define_method</code>, which is generated inside of the loop with a different value for <code>field</code> on each one.  In addition to using this inside of the name of the function, this value is available inside of the body.  The <code>*args</code> on the other hand, and in our example it would equal <code>[:updated_at]</code>, comes from the method invocation as we would expect.</p>
-
 <p>We are writing code which generates code, and some of the variables are part of our desire &ldquo;not to write 15 of the basically the same methods&rdquo; and some of the variables are there to tweak the functionality of the API.</p>
-
 <h2 id="the-sql-bit">The SQL Bit</h2>
-
 <p>The full details can be found in <a href="https://github.com/HappyFunCorp/dateslices/blob/master/lib/dateslices/scopes.rb">the repo</a> but here&rsquo;s the bit that actually generates the query switching out to the various classes that know how to deal with each of the databases that we saw before.</p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="n">args</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">dup</span>
 
@@ -233,15 +205,11 @@ Let&rsquo;s go through the dateslices gem which I wrote to extend active record 
 
 <span class="n">sql</span> <span class="o">&lt;&lt;</span> <span class="s2">&#34;</span><span class="si">#{</span><span class="n">time_filter</span><span class="si">}</span><span class="s2"> as date_slice&#34;</span>
 
-<span class="n">slices</span> <span class="o">=</span> <span class="nb">select</span><span class="p">(</span> <span class="n">sql</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;, &#39;</span><span class="p">))</span><span class="o">.</span><span class="n">where</span><span class="o">.</span><span class="n">not</span><span class="p">(</span><span class="n">column</span> <span class="o">=&gt;</span> <span class="kp">nil</span><span class="p">)</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;date_slice&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">order</span><span class="p">(</span><span class="s1">&#39;date_slice&#39;</span><span class="p">)</span></code></pre></div>
-<p>The full code does a bit more to figure out how you want to see the data, but that&rsquo;s the tricky stuff.</p>
-
+<span class="n">slices</span> <span class="o">=</span> <span class="nb">select</span><span class="p">(</span> <span class="n">sql</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;, &#39;</span><span class="p">))</span><span class="o">.</span><span class="n">where</span><span class="o">.</span><span class="n">not</span><span class="p">(</span><span class="n">column</span> <span class="o">=&gt;</span> <span class="kp">nil</span><span class="p">)</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;date_slice&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">order</span><span class="p">(</span><span class="s1">&#39;date_slice&#39;</span><span class="p">)</span>
+</code></pre></div><p>The full code does a bit more to figure out how you want to see the data, but that&rsquo;s the tricky stuff.</p>
 <h2 id="testing-a-rails-plugin-that-talks-to-many-databases">Testing a rails plugin that talks to many databases</h2>
-
 <p>The first thing that&rsquo;s a little strange when testing a plugin is that you can test your gem in two different contexts: one in a basic ruby context, and your tests go into <code>spec/</code>, and the other in a rails context.  The plugin generator will create a sample rails app inside of <code>spec/dummy</code> (or <code>test/dummy</code> if you are using <code>rails plugin new</code> without our fancy rspec stuff).</p>
-
 <p>Let&rsquo;s take a look now at how to test a gem that talks to many different databases.  Normally when we start up a rails environment, test or otherwise, it connects to a database and that&rsquo;s that.  However, we need to run the same test suite over 3 different databases making sure that the gem behaves in exactly the same way for each one.</p>
-
 <p>Here&rsquo;s our <code>spec/dummy/spec/models/test_spec.rb</code></p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="nb">require</span> <span class="s1">&#39;rails_helper&#39;</span>
 <span class="nb">require</span> <span class="s1">&#39;dateslice_tester&#39;</span>
@@ -259,11 +227,9 @@ Let&rsquo;s go through the dateslices gem which I wrote to extend active record 
       <span class="n">include_examples</span> <span class="nb">format</span><span class="p">,</span> <span class="n">database</span>
     <span class="k">end</span>
   <span class="k">end</span>
-<span class="k">end</span></code></pre></div>
-<p><em>This code was based on something I cobbled together but cleaned up by <a href="https://github.com/mbrookes">mbrookes</a>, thanks mbrooks!</em></p>
-
+<span class="k">end</span>
+</code></pre></div><p><em>This code was based on something I cobbled together but cleaned up by <a href="https://github.com/mbrookes">mbrookes</a>, thanks mbrooks!</em></p>
 <p>We first define a set a database configuration for our test databases.  We then loop over that, and use the <code>include_examples</code> feature of <code>RSpec</code>, passing in the both the output format and the database configuration that we want to test.  We have two files of examples, one which defines the <code>groupdate</code> format, and the other which defines the <code>dateslices</code> format.  Once again I&rsquo;d like to point out that if you don&rsquo;t care about SQLite3 support and want Timezone support, the <a href="https://github.com/ankane/groupdate">groupdate</a> is what you want.</p>
-
 <p>Lets look at the opening stanzas of <code>spec/dummy/spec/dateslice_tester.rb</code></p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="no">RSpec</span><span class="o">.</span><span class="n">shared_examples</span> <span class="s2">&#34;dateslice&#34;</span> <span class="k">do</span> <span class="o">|</span><span class="n">config</span><span class="o">|</span>
   <span class="n">before</span> <span class="ss">:context</span> <span class="k">do</span>
@@ -286,15 +252,12 @@ Let&rsquo;s go through the dateslices gem which I wrote to extend active record 
   <span class="k">end</span>
 
   <span class="n">it</span> <span class="s2">&#34;should return items grouped by day&#34;</span>
-<span class="k">end</span></code></pre></div>
-<p><code>RSpec.shared_examples</code> is the counter part to the <code>include</code> examples above, and when it gets called the database <code>config</code> is passed in.  We then call  <code>ActiveRecord::Base.establish_connection config</code> to connect <code>ActiveRecord</code> to the database as part of the <code>before :context</code> part of the RSpec life cycle.</p>
-
+<span class="k">end</span>
+</code></pre></div><p><code>RSpec.shared_examples</code> is the counter part to the <code>include</code> examples above, and when it gets called the database <code>config</code> is passed in.  We then call  <code>ActiveRecord::Base.establish_connection config</code> to connect <code>ActiveRecord</code> to the database as part of the <code>before :context</code> part of the RSpec life cycle.</p>
 <p>Next we need to actually create the database tables that we are going to run tests over.  Since we are switching the databases as part of the testing process itself, it makes no sense to use <code>rake db:create:test</code> to create the DDL, since which database would that be creating?  We need to do 3 different ones, and we certainly don&rsquo;t want to have an elaborate process to start any of the tests if you decide to add an additional migration.  So we call a migration directly from the code, turning <code>:force =&gt; true</code> so even if it already exists we push the current definition there.</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="no">ActiveRecord</span><span class="o">::</span><span class="no">Migration</span><span class="o">.</span><span class="n">create_table</span> <span class="ss">:users</span><span class="p">,</span> <span class="ss">:force</span> <span class="o">=&gt;</span> <span class="kp">true</span></code></pre></div>
-<p>And then in the regular <code>before</code> callback we make sure that the tables are cleared our ready for the next test.</p>
-
+<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="no">ActiveRecord</span><span class="o">::</span><span class="no">Migration</span><span class="o">.</span><span class="n">create_table</span> <span class="ss">:users</span><span class="p">,</span> <span class="ss">:force</span> <span class="o">=&gt;</span> <span class="kp">true</span>
+</code></pre></div><p>And then in the regular <code>before</code> callback we make sure that the tables are cleared our ready for the next test.</p>
 <h2 id="just-a-bit-of-activerecord">Just a bit of ActiveRecord</h2>
-
 <p>We&rsquo;ve just gone through an ActiveRecord extention and that barely scratches the surface of what else you can do with Rails.  <a href="https://pragprog.com/book/jvrails2/crafting-rails-4-applications">Crafting Rails 4 Applications</a> is the best resource I&rsquo;ve found to get a sense of what is possible, but when I sat down to work on something there was a lot of trial and error.  They through how they created <a href="https://github.com/plataformatec/mail_form">mail_form</a>, or at least a simplified version of it, that lets you use rails validations from ActiveRecord without having to back up the model with a database.  (As you might infer from the name, something that is useful for Contact forms that send out email.)  The book also goes through how Rails Engines work, which are very much like rails plugins but with additional integration points into the rails application lifecycle.</p>
 
   </article>

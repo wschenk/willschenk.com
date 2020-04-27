@@ -101,18 +101,16 @@ if (!doNotTrack) {
 
   <article class="article mt-5">
     <p>Go binaries are self contained, which means that they don&rsquo;t need anything special installed in the environment to deploy them.  When people make <code>Dockerfiles</code> to build go projects, they often include the the golang compilers and build tools, which isn&rsquo;t necessary for running the container.  I&rsquo;m going to use <a href="https://github.com/somarat/healer">healer</a> Docker container that &ldquo;Automatically heal docker containers that report themselves unhealthy&rdquo; as an example of reducing the image size from 648MB to 17MB.</p>
-
 <div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ docker images  <span class="p">|</span>grep healer
 somarat/healer             latest              76313596c92a        <span class="m">15</span> months ago       642MB
-wschenk/healer             latest              2502c0b68d5e        About a minute ago  <span class="m">17</span>.4MB</code></pre></div>
-<h2 id="original-dockerfile">Original Dockerfile</h2>
-
+wschenk/healer             latest              2502c0b68d5e        About a minute ago  17.4MB
+</code></pre></div><h2 id="original-dockerfile">Original Dockerfile</h2>
 <p>The original file uses a golang image, copies everything into the work dir, installs some additional packages
 a configuration and then uses the <code>go-wrapper</code> command to build and run the app.</p>
 <div class="highlight"><pre class="chroma"><code class="language-Dockerfile" data-lang="Dockerfile"><span class="k">FROM</span><span class="s"> golang:1.9.2-alpine3.7</span><span class="err">
 </span><span class="err">
 </span><span class="err"></span><span class="k">WORKDIR</span><span class="s"> /go/src/app</span><span class="err">
-</span><span class="err"></span>COPY . .<span class="err">
+</span><span class="err"></span><span class="k">COPY</span> . .<span class="err">
 </span><span class="err">
 </span><span class="err"></span><span class="k">RUN</span> apk --no-cache add -t build-deps build-base git <span class="se">\
 </span><span class="se"></span>	<span class="o">&amp;&amp;</span> apk --no-cache add ca-certificates <span class="se">\
@@ -121,17 +119,12 @@ a configuration and then uses the <code>go-wrapper</code> command to build and r
 </span><span class="err"></span><span class="k">RUN</span> go-wrapper download<span class="err">
 </span><span class="err"></span><span class="k">RUN</span> go-wrapper install<span class="err">
 </span><span class="err">
-</span><span class="err"></span><span class="k">CMD</span><span class="s"> [&#34;go-wrapper&#34;, &#34;run&#34;]</span></code></pre></div>
-<p>Lets change it around (also because new version of the golang images don&rsquo;t have <code>go-wrapper</code> anymore!)</p>
-
+</span><span class="err"></span><span class="k">CMD</span> <span class="p">[</span><span class="s2">&#34;go-wrapper&#34;</span><span class="p">,</span> <span class="s2">&#34;run&#34;</span><span class="p">]</span><span class="err">
+</span></code></pre></div><p>Lets change it around (also because new version of the golang images don&rsquo;t have <code>go-wrapper</code> anymore!)</p>
 <h2 id="build-and-deploy-containers">Build and deploy containers</h2>
-
 <p>The basic idea is that we first bring down a full development environment for the code, and build it using the standard ways of building go applications.  Once that is done we will use a very slimmed down container and copy the built artifacts to it.</p>
-
 <p>While we still should create a <code>.dockerignore</code> file to slim down the docker build context, none of the files will inadvertantly make it to the final image.  (In this case we only really need to copy in one file at all, <code>healer.go</code>, but we&rsquo;re copying in everything.)</p>
-
 <p>We skip the additional package installs completely because they aren&rsquo;t needed.  We are relying upone the golang image being up to date and copying the certificates there over.</p>
-
 <p>To do the build, we simply run <code>go get -d</code> to install the depenancies and then <code>go build</code> to create final binary over.</p>
 <div class="highlight"><pre class="chroma"><code class="language-Dockerfile" data-lang="Dockerfile"><span class="k">FROM</span><span class="s"> golang:1.12.3-stretch</span><span class="err">
 </span><span class="err"></span><span class="k">MAINTAINER</span><span class="s"> Will Schenk &lt;wschenk@gmail.com&gt;</span><span class="err">
@@ -141,7 +134,7 @@ a configuration and then uses the <code>go-wrapper</code> command to build and r
 </span><span class="err">
 </span><span class="err"></span><span class="c"># Copy the single source file to the app directory</span><span class="err">
 </span><span class="err"></span><span class="k">WORKDIR</span><span class="s"> /go/src/app</span><span class="err">
-</span><span class="err"></span>COPY . .<span class="err">
+</span><span class="err"></span><span class="k">COPY</span> . .<span class="err">
 </span><span class="err">
 </span><span class="err"></span><span class="c"># Install depenancies</span><span class="err">
 </span><span class="err"></span><span class="k">RUN</span> go get -d<span class="err">
@@ -154,28 +147,26 @@ a configuration and then uses the <code>go-wrapper</code> command to build and r
 </span><span class="err"></span><span class="k">MAINTAINER</span><span class="s"> Will Schenk &lt;wschenk@gmail.com&gt;</span><span class="err">
 </span><span class="err">
 </span><span class="err"></span><span class="c"># Copy the binary over from the deploy container</span><span class="err">
-</span><span class="err"></span>COPY --from<span class="o">=</span><span class="m">0</span> /go/src/app/app /usr/bin/healer<span class="err">
+</span><span class="err"></span><span class="k">COPY</span> --from<span class="o">=</span><span class="m">0</span> /go/src/app/app /usr/bin/healer<span class="err">
 </span><span class="err">
 </span><span class="err"></span><span class="c"># Get the TLS CA certificates from the build container, they&#39;re not provided by busybox.</span><span class="err">
 </span><span class="err">
-</span><span class="err"></span>COPY --from<span class="o">=</span><span class="m">0</span> /etc/ssl/certs /etc/ssl/certs<span class="err">
+</span><span class="err"></span><span class="k">COPY</span> --from<span class="o">=</span><span class="m">0</span> /etc/ssl/certs /etc/ssl/certs<span class="err">
 </span><span class="err">
-</span><span class="err"></span><span class="k">CMD</span><span class="s"> healer</span></code></pre></div>
-<p>Then all we need to do is build and tag it:</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">docker build . -t wschenk/healer:latest</code></pre></div>
-<h2 id="verifying">Verifying</h2>
-
+</span><span class="err"></span><span class="k">CMD</span> healer<span class="err">
+</span></code></pre></div><p>Then all we need to do is build and tag it:</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">docker build . -t wschenk/healer:latest
+</code></pre></div><h2 id="verifying">Verifying</h2>
 <p>I&rsquo;m using my docker hub user id, you should replace it with your own.</p>
-
 <p>To test it out, you can start it up and make sure that you give it access to the <code>docker.sock</code> socket file.</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">docker run -d --name healer -v /var/run/docker.sock:/tmp/docker.sock --restart unless-stopped wschenk/healer</code></pre></div>
-<p>And then check out the logs:</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">docker run -d --name healer -v /var/run/docker.sock:/tmp/docker.sock --restart unless-stopped wschenk/healer
+</code></pre></div><p>And then check out the logs:</p>
 <div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ docker logs healer
-<span class="m">2019</span>/04/09 <span class="m">20</span>:07:05 Monitoring container health</code></pre></div>
-<p>To make sure that everything is good.</p>
-
+2019/04/09 20:07:05 Monitoring container health
+</code></pre></div><p>To make sure that everything is good.</p>
 <p>Finally, push it to the hub to be able to access it from other machines!</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">docker push wschenk/healer</code></pre></div>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">docker push wschenk/healer
+</code></pre></div>
   </article>
 
   

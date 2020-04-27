@@ -106,25 +106,20 @@ Partials The index.html.haml, articles.html.haml, tag.html.haml and calendar.htm
   
 
   <article class="article mt-5">
-    
-
-<p>As part of the process of getting this site to work, I learned some more things about how to better build a site with middleman.  Building off of our <a href="../../../building-sites-with-middleman/">foundational article</a> here are a few other things that I found very useful when using middleman to build a static site with a bunch of dynamically generated content.</p>
-
+    <p>As part of the process of getting this site to work, I learned some more things about how to better build a site with middleman.  Building off of our <a href="../../../building-sites-with-middleman/">foundational article</a> here are a few other things that I found very useful when using middleman to build a static site with a bunch of dynamically generated content.</p>
 <h2 id="partials">Partials</h2>
-
 <p>The <code>index.html.haml</code>, <code>articles.html.haml</code>, <code>tag.html.haml</code> and <code>calendar.html.haml</code> pages all use the same partial to list out the post archives, which are mostly the same.</p>
-
 <p>On the <em>index</em> page it&rsquo;s called like this, where I&rsquo;m supressing the date heading:</p>
-<div class="highlight"><pre class="chroma"><code class="language-haml" data-lang="haml">= partial &#34;post_list&#34;, :locals =&gt; {:page_articles =&gt; blog.articles[1..4], :no_date =&gt; true }</code></pre></div>
-<p>and in the <em>articles</em> I&rsquo;m including draft posts for my own reference, and since they don&rsquo;t have a published date we need to check for that.</p>
-<div class="highlight"><pre class="chroma"><code class="language-haml" data-lang="haml">= partial &#34;post_list&#34;, :locals =&gt; {:page_articles =&gt; (drafts + page_articles)}</code></pre></div>
-<p>The <code>_post_list.haml</code> file then has some logic to show date headings based upon the published dates of the articles.  (This assumes that the posts are sorted by time, either ascending or descending.)</p>
-<div class="highlight"><pre class="chroma"><code class="language-haml" data-lang="haml">- last_date = nil
+<pre><code class="language-haml" data-lang="haml">= partial &quot;post_list&quot;, :locals =&gt; {:page_articles =&gt; blog.articles[1..4], :no_date =&gt; true }
+</code></pre><p>and in the <em>articles</em> I&rsquo;m including draft posts for my own reference, and since they don&rsquo;t have a published date we need to check for that.</p>
+<pre><code class="language-haml" data-lang="haml">= partial &quot;post_list&quot;, :locals =&gt; {:page_articles =&gt; (drafts + page_articles)}
+</code></pre><p>The <code>_post_list.haml</code> file then has some logic to show date headings based upon the published dates of the articles.  (This assumes that the posts are sorted by time, either ascending or descending.)</p>
+<pre><code class="language-haml" data-lang="haml">- last_date = nil
 - no_date = !!no_date
 %ul
   - page_articles.each do |current_post|
     - if !no_date &amp;&amp; current_post.date
-      - date_string = current_post.date.strftime(&#39;%b %Y&#39;)
+      - date_string = current_post.date.strftime('%b %Y')
       - if last_date != date_string
         %li.date
           %h2= date_string
@@ -132,53 +127,40 @@ Partials The index.html.haml, articles.html.haml, tag.html.haml and calendar.htm
     %li
       .more
         - unless current_post.is_a? ::Middleman::Blog::Drafts::DraftArticle
-          = current_post.date.strftime( &#39;%b %e&#39; )
+          = current_post.date.strftime( '%b %e' )
         - else
           Draft
       %div= link_to current_post.title, current_post
       %div
-        = current_post.data[&#39;subtitle&#39;]
+        = current_post.data['subtitle']
 
         .tags
           - current_post.tags.sort.each do |tag|
-            .tag= link_to tag, tag_path( tag )</code></pre></div>
-<p>Partials also work better when using <a href="../../../bootstrap-advanced-grid-tricks/">semantic CSS classes</a> to define my layouts, since the same class can have different meaning depending upon what it is embedded in.</p>
-
+            .tag= link_to tag, tag_path( tag )
+</code></pre><p>Partials also work better when using <a href="../../../bootstrap-advanced-grid-tricks/">semantic CSS classes</a> to define my layouts, since the same class can have different meaning depending upon what it is embedded in.</p>
 <h2 id="layouts-and-partials-for-articles">Layouts and partials for articles</h2>
-
 <p>Middleman posts are generally written in markdown, which translates into a series of <code>&lt;p&gt;</code> tags that are dumped into a layout file.  In order to create the table of contents on the left, the navigation to other articles on the right, the unique header and footer, I used a seperate <code>article_layout</code> for article pages.  Setting up <strong>Scrollspy</strong> and <strong>Affix</strong> means we need to change things on the <code>&lt;body&gt;</code> tag that we don&rsquo;t need to do for other pages, so it makes more sense to use a seperate file here rather than a <em>nested layout</em>.</p>
-
 <p>This means that all the things that are shared between the two layouts, the main layout for all the meta pages and the article layout for the content pages, should be factored into partials.  I put these partials in the <code>layouts/</code> directory.</p>
-
 <h2 id="communication-between-partials">Communication between partials</h2>
-
 <p>The top and the bottom of these pages change together.  If the page has a header image &ndash; something I specify in the YAML preamble of my post &ndash; then both the <code>article_header</code> and <code>footer</code> partials display slightly different things.  The logic for this check is in the <code>article_header</code>, where I set a <em>instance variable</em> that I use in a later partial to add a class.</p>
-
 <p>In <code>layouts/_article_header.haml</code>:</p>
-<div class="highlight"><pre class="chroma"><code class="language-haml" data-lang="haml">- @lighter ||= &#34;&#34;
-- @dark_header = &#34;dark_header&#34; if current_article.data[&#39;dark_header&#39;]
-- if !current_article.data[&#39;header_image&#39;].nil? &amp;&amp; current_article.data[&#39;header_image&#39;] != &#34;&#34;
-  - @lighter = &#34;lighter&#34;
+<pre><code class="language-haml" data-lang="haml">- @lighter ||= &quot;&quot;
+- @dark_header = &quot;dark_header&quot; if current_article.data['dark_header']
+- if !current_article.data['header_image'].nil? &amp;&amp; current_article.data['header_image'] != &quot;&quot;
+  - @lighter = &quot;lighter&quot;
   .banner
-    = image_tag current_article.data[&#39;header_image&#39;], class: &#34;fadeInDown animated&#34;
+    = image_tag current_article.data['header_image'], class: &quot;fadeInDown animated&quot;
 
-%div{ class: &#34;article-header #{@lighter} #{@dark_header}&#34; }</code></pre></div>
-<p>and then in <code>layouts/_footer.haml</code> I use the same variable to add a class to the <code>footer</code> element which changes the background.</p>
-
+%div{ class: &quot;article-header #{@lighter} #{@dark_header}&quot; }
+</code></pre><p>and then in <code>layouts/_footer.haml</code> I use the same variable to add a class to the <code>footer</code> element which changes the background.</p>
 <pre><code>%footer{ class: &quot;footer #{@lighter} #{@dark_header}&quot; }
-</code></pre>
-
-<h2 id="markdown-with-toc-data">Markdown with toc data</h2>
-
+</code></pre><h2 id="markdown-with-toc-data">Markdown with toc data</h2>
 <p>Inside of <code>config.rb</code> we can add some better markdown processing options.  I switched to redcarpet and enabled <code>with_toc_data</code>.  This generates id tags on the <code>&lt;h1&gt;</code>, <code>&lt;h2&gt;</code> etc elements that we can use as anchors.</p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="n">set</span> <span class="ss">:markdown</span><span class="p">,</span> <span class="ss">:tables</span> <span class="o">=&gt;</span> <span class="kp">true</span><span class="p">,</span> <span class="ss">:autolink</span> <span class="o">=&gt;</span> <span class="kp">true</span><span class="p">,</span> <span class="ss">:gh_blockcode</span> <span class="o">=&gt;</span> <span class="kp">true</span><span class="p">,</span> <span class="ss">:fenced_code_blocks</span> <span class="o">=&gt;</span> <span class="kp">true</span><span class="p">,</span> <span class="ss">with_toc_data</span><span class="p">:</span> <span class="kp">true</span>
-<span class="n">set</span> <span class="ss">:markdown_engine</span><span class="p">,</span> <span class="ss">:redcarpet</span></code></pre></div>
-<p>These ids are generated by sanitizing the text between the tags, but <code>redcarpet</code> only makes things lowercase and changes spaces to underscores, and unfortunately it doesn&rsquo;t strip out punctuation characters and will result in ids that aren&rsquo;t valid.  So I had to change my headers, at least until I can take a look at the redcarpet code in more detail.</p>
-
+<span class="n">set</span> <span class="ss">:markdown_engine</span><span class="p">,</span> <span class="ss">:redcarpet</span>
+</code></pre></div><p>These ids are generated by sanitizing the text between the tags, but <code>redcarpet</code> only makes things lowercase and changes spaces to underscores, and unfortunately it doesn&rsquo;t strip out punctuation characters and will result in ids that aren&rsquo;t valid.  So I had to change my headers, at least until I can take a look at the redcarpet code in more detail.</p>
 <p><strong>Update</strong> This looks like it&rsquo;s fixed in the latest git version of redcarpet, but it hasn&rsquo;t been released as a gem yet.</p>
-
 <h2 id="helpers-that-parse-the-source-file">Helpers that parse the source file</h2>
-
 <p>Now that we have the anchors in there, we need to generate the links to those anchors.  This can be done by parsing the source file on the article page with a helper.  It&rsquo;s a poor man&rsquo;s markdown processor, but it does the job.  This code lives in <code>config.rb</code>:</p>
 <div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="n">helpers</span> <span class="k">do</span>
   <span class="k">def</span> <span class="nf">chapters</span><span class="p">(</span> <span class="n">post</span> <span class="p">)</span>
@@ -190,46 +172,36 @@ Partials The index.html.haml, articles.html.haml, tag.html.haml and calendar.htm
       <span class="k">end</span>
     <span class="k">end</span><span class="o">.</span><span class="n">select</span> <span class="p">{</span> <span class="o">|</span><span class="n">x</span><span class="o">|</span> <span class="n">x</span> <span class="p">}</span>
   <span class="k">end</span>
-<span class="k">end</span></code></pre></div>
-<p>And we can then use it to generate the list of links:</p>
-<div class="highlight"><pre class="chroma"><code class="language-haml" data-lang="haml">%ul.nav.toc
-  %li= link_to current_article.title, &#34;#top&#34;
+<span class="k">end</span>
+</code></pre></div><p>And we can then use it to generate the list of links:</p>
+<pre><code class="language-haml" data-lang="haml">%ul.nav.toc
+  %li= link_to current_article.title, &quot;#top&quot;
   - chapters( current_article ).each do |chapter|
-    %li= link_to chapter, &#34;##{chapter.downcase.gsub( /\s/, &#34;-&#34; )}&#34;</code></pre></div>
-<h2 id="helper-methods-to-do-query-ish-things">Helper methods to do query-ish things</h2>
-
+    %li= link_to chapter, &quot;##{chapter.downcase.gsub( /\s/, &quot;-&quot; )}&quot;
+</code></pre><h2 id="helper-methods-to-do-query-ish-things">Helper methods to do query-ish things</h2>
 <p>The logic to calculate the <em>next</em> and <em>previous</em> articles in the series work using the tag system, and it cycles though all of the tags of the current article to find articles with corresponding tags.  Rather than showing the same article for multiple tags, I wanted to group the tags together if they all pointed to the same article.</p>
-
 <p>This is the type of logic that would normally be in a rails Model.  Either you&rsquo;d do it directly out of the database, or you would process the results somehow and return something that was easy to iterate over in the view.</p>
-
 <p>Moving this code into helper method isolated all of that logic out of the views themselves.</p>
-
 <h2 id="site-data-as-database">Site data as database</h2>
-
 <p>The other thing I wanted to do was to associate additional data with specific tags.  If this was an article, you could put it in the preamble, but since tags are generated dynamically from the article files we need to put them somewhere else.  That place is <code>data/topics.yml</code></p>
 <div class="highlight"><pre class="chroma"><code class="language-yml" data-lang="yml">---<span class="w">
-</span><span class="w"></span><span class="p">:</span>howto<span class="p">:</span><span class="w">
-</span><span class="w">  </span><span class="p">:</span>title<span class="p">:</span><span class="w"> </span>Howtos<span class="w">
-</span><span class="w">  </span><span class="p">:</span>desc<span class="p">:</span><span class="w"> </span>In<span class="w"> </span>which<span class="w"> </span>we<span class="w"> </span>go<span class="w"> </span>through<span class="w"> </span>step<span class="w"> </span>by<span class="w"> </span>step<span class="w"> </span>to<span class="w"> </span>achieve<span class="w"> </span>a<span class="w"> </span>particular<span class="w"> </span>goal.<span class="w">
-</span><span class="w"></span><span class="p">:</span>overview<span class="p">:</span><span class="w">
-</span><span class="w">  </span><span class="p">:</span>title<span class="p">:</span><span class="w"> </span>Overviews<span class="w">
-</span><span class="w">  </span><span class="p">:</span>desc<span class="p">:</span><span class="w"> </span>In<span class="w"> </span>which<span class="w"> </span>we<span class="w"> </span>cover<span class="w"> </span>a<span class="w"> </span>topic<span class="w"> </span>in<span class="w"> </span>depth<span class="w"> </span>to<span class="w"> </span>orient<span class="w"> </span>ourselves<span class="w"> </span>with<span class="w"> </span>the<span class="w"> </span>technology.</code></pre></div>
-<p>This is referenced in views like:</p>
-<div class="highlight"><pre class="chroma"><code class="language-haml" data-lang="haml">- data[&#39;topics&#39;].each do |k,d|
+</span><span class="w"></span><span class="k">:howto</span><span class="p">:</span><span class="w">
+</span><span class="w">  </span><span class="k">:title</span><span class="p">:</span><span class="w"> </span>Howtos<span class="w">
+</span><span class="w">  </span><span class="k">:desc</span><span class="p">:</span><span class="w"> </span>In<span class="w"> </span>which<span class="w"> </span>we<span class="w"> </span>go<span class="w"> </span>through<span class="w"> </span>step<span class="w"> </span>by<span class="w"> </span>step<span class="w"> </span>to<span class="w"> </span>achieve<span class="w"> </span>a<span class="w"> </span>particular<span class="w"> </span>goal.<span class="w">
+</span><span class="w"></span><span class="k">:overview</span><span class="p">:</span><span class="w">
+</span><span class="w">  </span><span class="k">:title</span><span class="p">:</span><span class="w"> </span>Overviews<span class="w">
+</span><span class="w">  </span><span class="k">:desc</span><span class="p">:</span><span class="w"> </span>In<span class="w"> </span>which<span class="w"> </span>we<span class="w"> </span>cover<span class="w"> </span>a<span class="w"> </span>topic<span class="w"> </span>in<span class="w"> </span>depth<span class="w"> </span>to<span class="w"> </span>orient<span class="w"> </span>ourselves<span class="w"> </span>with<span class="w"> </span>the<span class="w"> </span>technology.<span class="w">
+</span></code></pre></div><p>This is referenced in views like:</p>
+<pre><code class="language-haml" data-lang="haml">- data['topics'].each do |k,d|
   .track
-    %h2= link_to d[:title], &#34;/tags/#{k}.html&#34;</code></pre></div>
-<p>This data is also referenced in the tag page as well as the main header.  It&rsquo;s only stored in one place, which is nice and DRY.  If it got any more complicated than this, where we wanted to filter or sort it in some dynamic way then we implement that code in a helper so it could be shared across the site.</p>
-
-<h2 id="directory-index-and-url-for">Directory index and url_for</h2>
-
+    %h2= link_to d[:title], &quot;/tags/#{k}.html&quot;
+</code></pre><p>This data is also referenced in the tag page as well as the main header.  It&rsquo;s only stored in one place, which is nice and DRY.  If it got any more complicated than this, where we wanted to filter or sort it in some dynamic way then we implement that code in a helper so it could be shared across the site.</p>
+<h2 id="directory-index-and-url_for">Directory index and url_for</h2>
 <p>To make pretty urls work in the blog, you need to have <code>activate :directory_indexes</code> <em>after</em> <code>activate :blog</code> in your <code>config.rb</code> file.  <em>The order of middleman extensions in the config file matter.</em></p>
-
 <p>The plugin works by changing the way that the <code>link_to</code> helper works.  If you have a link that&rsquo;s generated in another way, you should use the <code>url_for</code> method to make sure that it get&rsquo;s rewritten.  For example</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="o">=</span> <span class="n">navbar_item</span> <span class="n">d</span><span class="o">[</span><span class="s1">&#39;title&#39;</span><span class="o">]</span><span class="p">,</span> <span class="n">url_for</span><span class="p">(</span> <span class="s2">&#34;/tags/</span><span class="si">#{</span><span class="n">topic</span><span class="si">}</span><span class="s2">.html&#34;</span> <span class="p">)</span></code></pre></div>
-<h2 id="not-a-lot-of-tradeoffs">Not a lot of tradeoffs</h2>
-
+<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="o">=</span> <span class="n">navbar_item</span> <span class="n">d</span><span class="o">[</span><span class="s1">&#39;title&#39;</span><span class="o">]</span><span class="p">,</span> <span class="n">url_for</span><span class="p">(</span> <span class="s2">&#34;/tags/</span><span class="si">#{</span><span class="n">topic</span><span class="si">}</span><span class="s2">.html&#34;</span> <span class="p">)</span>
+</code></pre></div><h2 id="not-a-lot-of-tradeoffs">Not a lot of tradeoffs</h2>
 <p>Other than the one issue with redcarpet where I couldn&rsquo;t control the way that the ids were being generated, there hasn&rsquo;t been much that I haven&rsquo;t be able to achieve with a statically generated site.  The implementation is different, but overall most of the time was spent fiddling with the CSS rather than fighting the build system.</p>
-
 <p>Which is how it should be.</p>
 
   </article>

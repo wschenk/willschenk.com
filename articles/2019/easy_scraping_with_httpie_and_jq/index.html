@@ -105,36 +105,32 @@ if (!doNotTrack) {
 
   <article class="article mt-5">
     <p>I recently saw a tweet mentioning the combination of using <a href="https://httpie.org/">HTTPie</a> (a command line HTTP client), <a href="https://stedolan.github.io/jq/">jq</a> (a lightweight and flexible command-line JSON processor) and <a href="https://github.com/tomnomnom/gron">Gron</a> (Make JSON greppable!) was &ldquo;all you needed to build a scraper.&rdquo;  Lets see if that&rsquo;s true.</p>
-
 <h2 id="first-install">First install</h2>
-
 <p>Linux:</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">sudo apt-get install httpie jq</code></pre></div>
-<p>OSX</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">sudo apt-get install httpie jq
+</code></pre></div><p>OSX</p>
 <div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">brew install httpie
-brew install jq</code></pre></div>
-<h2 id="lets-get-some-stars">Lets get some stars</h2>
-
+brew install jq
+</code></pre></div><h2 id="lets-get-some-stars">Lets get some stars</h2>
 <p>We can pull down the list of repositories people have starred on Github using the URL scheme <code>https://api.github.com/users/:username/starred</code>.  Try this:</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">http https://api.github.com/users/wschenk/starred</code></pre></div>
-<p>This returns a wall of data!  <code>HTTPie</code> does a nice job of formatting the JSON out and showing the response headers.</p>
-
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">http https://api.github.com/users/wschenk/starred
+</code></pre></div><p>This returns a wall of data!  <code>HTTPie</code> does a nice job of formatting the JSON out and showing the response headers.</p>
 <p>Let&rsquo;s use <code>jq</code> to print out the first response:</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">http https://api.github.com/users/wschenk/starred <span class="p">|</span> jq <span class="s1">&#39;.[0]&#39;</span></code></pre></div>
-<p>Weirdly, the Github API returns the items in the order starred, but doesn&rsquo;t include the date that we starred them.  There&rsquo;s an <a href="https://developer.github.com/v3/activity/starring/#alternative-response-with-star-creation-timestamps-1">alternative api call</a> that we can use to get the date that I pushed the Star button.  For this to work we need to pass in an Accept header of <code>application/vnd.github.v3.star+json</code> which is done like so:</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"> http https://api.github.com/users/wschenk/starred Accept:application/vnd.github.v3.star+json<span class="p">|</span> jq <span class="s1">&#39;.[0]&#39;</span></code></pre></div>
-<p><code>jq</code> lets us slice and dice the JSON.  Lets pull out the fields that we want.  We are using the <code>.[]</code> syntax and piping it to a json writer, which is pulling only the fields out that we want.  And we write the output to the data directory in our hugo app.</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">http https://api.github.com/users/wschenk/starred <span class="se">\
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">http https://api.github.com/users/wschenk/starred <span class="p">|</span> jq <span class="s1">&#39;.[0]&#39;</span>
+</code></pre></div><p>Weirdly, the Github API returns the items in the order starred, but doesn&rsquo;t include the date that we starred them.  There&rsquo;s an <a href="https://developer.github.com/v3/activity/starring/#alternative-response-with-star-creation-timestamps-1">alternative api call</a> that we can use to get the date that I pushed the Star button.  For this to work we need to pass in an Accept header of <code>application/vnd.github.v3.star+json</code> which is done like so:</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">http https://api.github.com/users/wschenk/starred Accept:application/vnd.github.v3.star+json<span class="p">|</span> jq <span class="s1">&#39;.[0]&#39;</span>
+</code></pre></div><p><code>jq</code> lets us slice and dice the JSON.  Lets pull out the fields that we want.  We are using the <code>.[]</code> syntax and piping it to a json writer, which is pulling only the fields out that we want.  And we write the output to the data directory in our hugo app.</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">
+http https://api.github.com/users/wschenk/starred <span class="se">\
 </span><span class="se"></span>  Accept:application/vnd.github.v3.star+json <span class="p">|</span> <span class="se">\
 </span><span class="se"></span>  jq <span class="s1">&#39;[.[] | {name: .repo.name, full_name: .repo.full_name,
 </span><span class="s1">  avatar_url: .repo.owner.avatar_url, login: .repo.owner.login,
 </span><span class="s1">  description: .repo.description, starred_at: .starred_at,
 </span><span class="s1">  html_url: .repo.html_url, language: .repo.language,
-</span><span class="s1">  updated_at: .repo.updated_at}] &#39;</span> &gt; data/stars.json</code></pre></div>
-<h2 id="using-the-hugo-data-directory">Using the hugo data directory</h2>
+</span><span class="s1">  updated_at: .repo.updated_at}] &#39;</span> &gt; data/stars.json
 
+</code></pre></div><h2 id="using-the-hugo-data-directory">Using the hugo data directory</h2>
 <p>Now that we have the data in a JSON format that Hugo can understand, lets build a page to render this glory.</p>
-
 <p>Create a simple file in <code>content/stars.md</code> that we&rsquo;ll use to define a kind of <code>stars</code></p>
 <div class="highlight"><pre class="chroma"><code class="language-md" data-lang="md">---
 title: GitHub stars
@@ -142,8 +138,8 @@ type: stars
 ---
 
 I like software.  Here is some of the stuff I&#39;ve found on GitHub that
-I&#39;ve marked as interesting.</code></pre></div>
-<p>Now we create a single page template that we&rsquo;ll use to render it in <code>layouts/stars/single.html</code>:</p>
+I&#39;ve marked as interesting.
+</code></pre></div><p>Now we create a single page template that we&rsquo;ll use to render it in <code>layouts/stars/single.html</code>:</p>
 <div class="highlight"><pre class="chroma"><code class="language-go-html-template" data-lang="go-html-template"><span class="cp">{{</span><span class="w"> </span><span class="nx">define</span><span class="w"> </span><span class="s">&#34;main&#34;</span><span class="w"> </span><span class="cp">}}</span>
 <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">&#34;container&#34;</span><span class="p">&gt;</span>
   <span class="p">&lt;</span><span class="nt">h1</span> <span class="na">class</span><span class="o">=</span><span class="s">&#34;display-4 text-center&#34;</span><span class="p">&gt;</span><span class="cp">{{</span><span class="na">.Title</span><span class="cp">}}</span><span class="p">&lt;/</span><span class="nt">h1</span><span class="p">&gt;</span>
@@ -170,13 +166,10 @@ I&#39;ve marked as interesting.</code></pre></div>
   <span class="p">&lt;/</span><span class="nt">ul</span><span class="p">&gt;</span>
 <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
 
-<span class="cp">{{</span><span class="w"> </span><span class="k">end</span><span class="w"> </span><span class="cp">}}</span></code></pre></div>
-<p>Now start up your server and go to <a href="http://localhost:1313/stars">http://localhost:1313/stars</a> !</p>
-
+<span class="cp">{{</span><span class="w"> </span><span class="k">end</span><span class="w"> </span><span class="cp">}}</span>
+</code></pre></div><p>Now start up your server and go to http://localhost:1313/stars !</p>
 <h2 id="less-easy-scraping">Less easy scraping</h2>
-
 <p>So it turns out that I&rsquo;ve been liking lots of things on GitHub and I have more than one page of results.  The GitHub api used the HTTP <code>Link</code> header to point to <code>next</code>, <code>prev</code>, <code>first</code>, and <code>last</code> last pages.  We&rsquo;ll write a little script that saves that and then parses it out.</p>
-
 <ol>
 <li>We create a small function that passes in <code>-dh</code> flags to <code>http</code>, redirecting stdout to our file <code>&gt;page1.json</code> and stderr to a file containing the headers <code>2&gt;headers</code>.</li>
 <li>Then we&rsquo;ll parse the headers using grep, tr, and sed to pull out the url that&rsquo;s matched with <code>rel=&quot;next&quot;</code>.</li>
@@ -184,14 +177,13 @@ I&#39;ve marked as interesting.</code></pre></div>
 <li>Then we&rsquo;ll merge all of the files together using <code>jq --slurp '[.[][]]' *json</code> so the muliple files of JSON Arrays is one big JSON array.</li>
 <li>And then copy over our existing <code>jq</code> parsing</li>
 </ol>
-
 <p>Here&rsquo;s <code>update_github_stars.sh</code>:</p>
 <div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="cp">#!/bin/bash
 </span><span class="cp"></span>
 <span class="c1"># Download a url</span>
 <span class="k">function</span> scrape_page<span class="o">()</span> <span class="o">{</span>
   <span class="nb">echo</span> Downloading <span class="nv">$1</span> to <span class="nv">$2</span>
-  http <span class="nv">$1</span> Accept:application/vnd.github.v3.star+json -dh &gt;<span class="nv">$2</span> <span class="m">2</span>&gt;<span class="nv">$3</span>
+  http <span class="nv">$1</span> Accept:application/vnd.github.v3.star+json -dh &gt;<span class="nv">$2</span> 2&gt;<span class="nv">$3</span>
 <span class="o">}</span>
 
 <span class="k">function</span> next_link_from_header<span class="o">()</span> <span class="o">{</span>
@@ -223,9 +215,8 @@ jq -s <span class="s1">&#39;[.[][]]&#39;</span> <span class="nv">$OUTDIR</span>/
 </span><span class="s1">  avatar_url: .repo.owner.avatar_url, login: .repo.owner.login,
 </span><span class="s1">  description: .repo.description, starred_at: .starred_at,
 </span><span class="s1">  html_url: .repo.html_url, language: .repo.language,
-</span><span class="s1">  updated_at: .repo.updated_at}] &#39;</span> &gt; data/stars.json</code></pre></div>
-<h2 id="conclusion">Conclusion</h2>
-
+</span><span class="s1">  updated_at: .repo.updated_at}] &#39;</span> &gt; data/stars.json
+</code></pre></div><h2 id="conclusion">Conclusion</h2>
 <p>My <a href="../../../stars/">Star List</a> is a little unwieldy right now with 120 entries (<code>js '. | length' data/stars.json</code>) and not all of the descriptions are that informative, but this was all built with simple tools and minimal dependacies.  We didn&rsquo;t need any special libraries to script this, <code>Gemfile</code> or <code>package.json</code> installations, just a relatively simple bash script.</p>
   </article>
 

@@ -104,50 +104,29 @@ There are two complementary principle&rsquo;s that I focus on. One is reproducib
   
 
   <article class="article mt-5">
-    
-
-<p>I play around with a lot of technology to see what&rsquo;s out there and keep myself current, especially trying to find simpler ways to do <a href="https://happyfuncorp.com/work">our work</a>. One of the issues is that this can leave lots of stuff laying which can be messy.  Here are some techniques I use to keep things under control.</p>
-
+    <p>I play around with a lot of technology to see what&rsquo;s out there and keep myself current, especially trying to find simpler ways to do <a href="https://happyfuncorp.com/work">our work</a>. One of the issues is that this can leave lots of stuff laying which can be messy.  Here are some techniques I use to keep things under control.</p>
 <p>There are two complementary principle&rsquo;s that I focus on.  One is reproducibility, and the other is disposibility.  I want to be able to easily recreate what I was working on so that I don&rsquo;t care if I throw it away. The easier I can reproduce things the better I can revisit them &ndash; especially if I&rsquo;m deep into something when I realize that there was a fundamental misunderstanding at the beginning.</p>
-
 <h2 id="labnotes-and-scripts">Labnotes and scripts</h2>
-
 <p>The first thing is that you should get into a habit of writing everything down.  A lot of posts on this site start out as me copy and pasting commands that I&rsquo;m running into a text file for later reference.  Often I find that after I get to a certain place I realize that I&rsquo;ve over complicated something and that there is a simpler way to do something, and my workflow in that situation is to delete everything that I was working on, go back and follow the steps I was had used to get there making corrections on how I went.</p>
-
 <p>Initially this is a simple text file that I copy commands into.  Depending upon how far I get, this turns into a executable shell script, a <code>Dockerfile</code>, a set of terraform provisioning files, ansible scripts or kubernetes files, etc. I prefer bash scripts overall since that&rsquo;s the most flexible. Since this stuff isn&rsquo;t in production I really don&rsquo;t need to upgrade in place so I can cut some corners with idempotency by, basically, throwing away the entire container/instance/vm if I&rsquo;ve made a mess.</p>
-
-<h2 id="cd-mktemp-d"><code>cd $(mktemp -d)</code></h2>
-
+<h2 id="cd-mktemp--d"><code>cd $(mktemp -d)</code></h2>
 <p>Which means that it should be easy to delete everything. I will generally create a working directory inside of a temp folder to play around in.  This means that once I drop the idea, or that I reboot the computer the files all clean themselves up and go away. But I have a script I can follow to recreate things.</p>
-
 <p>This is especially useful for cloning things out of github to really poke around in them.  Especially node projects that vomit out a massive <code>node_modules</code> directory which I don&rsquo;t need eating up hard disk space that I&rsquo;ll need to track down in some unknown future.</p>
-
 <h2 id="provisioning-your-local-computer-with-a-script">Provisioning your local computer with a script</h2>
-
 <p>I split my computer time between a couple Pixelbooks, a MacBook Air and, well, my phone. Doing stuff on the phone using <a href="https://termux.com/">TermUX</a> is possible but its a different enough environment that it&rsquo;s not really worth it, since most linux things don&rsquo;t really support arm processors in a first-class way. If you do a lot of RaspberryPI stuff maybe.</p>
-
 <p>But for the laptops setting up a script that installs your base environment is super useful, and when you find a tool that you use regularly it helps to consolidate the install script in one place.  The Pixelbook in particular lends itself to this since it&rsquo;s so natural to delete the entire linux environment and recreate it that it makes it easy to test. For debian machines (aka the Pixelbook) this is <a href="../../2019/computer_setup_script/">the script that I use</a>, so on a clean VM I do:</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="nb">cd</span> /tmp <span class="p">;</span> curl https://willschenk.com/bootstrap.bash &gt; bootstrap.bash<span class="p">;</span> bash bootstrap.bash</code></pre></div>
-<p>And a few minutes later I&rsquo;m good to go.  When there&rsquo;s something else that I think I&rsquo;d want in my toolbox, I add it to this script and install it from there so I never need to remember how to do it again.</p>
-
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="nb">cd</span> /tmp <span class="p">;</span> curl https://willschenk.com/bootstrap.bash &gt; bootstrap.bash<span class="p">;</span> bash bootstrap.bash
+</code></pre></div><p>And a few minutes later I&rsquo;m good to go.  When there&rsquo;s something else that I think I&rsquo;d want in my toolbox, I add it to this script and install it from there so I never need to remember how to do it again.</p>
 <p>I&rsquo;m experimenting with putting my config files in there also, or rather pulling them from a github repository. My <code>.emacs</code> file for example is a contender.  At the moment this doesn&rsquo;t seem to be worth the overhead but your mileage may vary.</p>
-
 <h2 id="docker-to-spin-up-one-off-services">Docker to spin up one-off services</h2>
-
 <p>I was testing out how to connect <a href="https://deno.land/">deno</a> to <a href="https://redis.io/">redis</a> the other day, and I needed a redis server to play around with.  So I ran</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">docker run --rm -p <span class="m">6379</span>:6379 redis</code></pre></div>
-<p>And it pulled down the latest image and started it up.  One line.  When I kill that command, since I passed the <code>--rm</code> it cleans up the container afterwards and makes everything go away.</p>
-
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">docker run --rm -p 6379:6379 redis
+</code></pre></div><p>And it pulled down the latest image and started it up.  One line.  When I kill that command, since I passed the <code>--rm</code> it cleans up the container afterwards and makes everything go away.</p>
 <p>This works for other things other than redis.  As a distribution mechanism this is super cool and easy.</p>
-
 <p><code>docker-compose</code> is often more trouble than it&rsquo;s worth.  It&rsquo;s really useful when you are setting up private networks between the server or managing long term volumes, but compare how hard it was to setup <code>certbot</code> using <code>docker-compose</code> in <a href="../../2019/setting_up_an_ipfs_node/">setting up an ipfs_node</a> vs <a href="../server_templating_with_terraform/setup.bash">setting it up with a bash script</a>. The bash script is much simpler to understand, reason about, and more importantly, tweak when you come back to it 6 month later.</p>
-
 <h2 id="single-binary-deploys">Single binary deploys</h2>
-
 <p>In many ways what Docker gives you is a way to treat everything as a single binary deploy.  Yes the registry makes it easier, and yes having standard ways to set network ingress and volume access control are also super amazing, but really the part where it shines is the distribution method. One of the things that&rsquo;s great about go and (maybe?) rust is that you get the single binary. After playing around with a lot of these different packaging systems it really makes things nicer. Docker helps with that which I think is a reason why it&rsquo;s so popular.</p>
-
 <h2 id="docker-to-isolate-the-build-environment">Docker to isolate the build environment</h2>
-
 <ul>
 <li><code>node</code> projects require that you install <code>nvm</code> &ndash; which needs to mess with your environment variables &ndash; and often install stuff in the global name space (though <code>npx</code> is helping with that) and then vomit out a <code>node_modules</code>.</li>
 <li><code>ruby</code> projects imply <code>rbenv</code> &ndash; which needs to mess with your environment variables &ndash; and then run <code>bundler</code> and install the gems who knows where.</li>
@@ -155,50 +134,33 @@ There are two complementary principle&rsquo;s that I focus on. One is reproducib
 <li><code>go</code> is shifting things around and I think it&rsquo;s getting better with go modules but you still have a (frankly very weird idea) of <code>GOPATH</code> that puts everything in one honking workspace that you&rsquo;ll need to isolate.</li>
 <li>I&rsquo;m sure there&rsquo;s something similar and exactly as annoying for <code>rust</code> and <code>php</code> projects but the same techniques should apply.</li>
 </ul>
-
 <p>This annoys me, because it&rsquo;s hard to isolate everything so that I can throw it away.</p>
-
 <p>One technique I&rsquo;ll use here is to actually work inside of a docker container to get all of this stuff out of the way. Lets say we are talking about <code>create-react-app</code>.  We can create a <code>Dockerfile</code> like this:</p>
 <div class="highlight"><pre class="chroma"><code class="language-Dockerfile" data-lang="Dockerfile"><span class="k">FROM</span><span class="s"> node:11</span><span class="err">
-</span><span class="err"></span><span class="k">CMD</span><span class="s"> mkdir -p /app &amp; cd /app</span><span class="err">
-</span><span class="err"></span><span class="k">CMD</span><span class="s"> bash</span></code></pre></div>
-<p>Then build it:</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">docker build . -t nodeimg</code></pre></div>
-<p>Then start it up as an interactive shell, connecting to the host network with the current directory mounted in <code>/app</code>:</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">docker run --rm -it --network host -v <span class="si">${</span><span class="nv">PWD</span><span class="si">}</span>:/app nodeimg</code></pre></div>
-<p>And inside of it run <code>cd /app &amp;&amp; npx create-react-app myapp</code> which will install a <code>cra</code> templated application. Inside of this you can run <code>yarn start</code> or whatever to bring up a server, use whatever editor you want on the local machine, etc.  And once you quit that shell all of the <code>node</code> stuff on your machine is gone.</p>
-
+</span><span class="err"></span><span class="k">CMD</span> mkdir -p /app <span class="p">&amp;</span> <span class="nb">cd</span> /app<span class="err">
+</span><span class="err"></span><span class="k">CMD</span> bash<span class="err">
+</span></code></pre></div><p>Then build it:</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">docker build . -t nodeimg
+</code></pre></div><p>Then start it up as an interactive shell, connecting to the host network with the current directory mounted in <code>/app</code>:</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">docker run --rm -it --network host -v <span class="si">${</span><span class="nv">PWD</span><span class="si">}</span>:/app nodeimg
+</code></pre></div><p>And inside of it run <code>cd /app &amp;&amp; npx create-react-app myapp</code> which will install a <code>cra</code> templated application. Inside of this you can run <code>yarn start</code> or whatever to bring up a server, use whatever editor you want on the local machine, etc.  And once you quit that shell all of the <code>node</code> stuff on your machine is gone.</p>
 <p>By the way:</p>
 <div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ du -sh myapp
-229M    myapp/</code></pre></div>
-<p>229 megabytes for an empty project!</p>
-
+229M    myapp/
+</code></pre></div><p>229 megabytes for an empty project!</p>
 <p>If you are a node person anyway and already have things setup than you don&rsquo;t need to do this obviously.  And depending upon how your editor is setup it may make sense to have a system install.</p>
-
 <p>But imagine that you are working on a remote server for some reason and you need to get into some node stuff real quick &ndash; how much cleaner would this be to spend your 30 minutes doing whatever and then getting out cleanly, rather than having to mess around with installing system packages!</p>
-
 <p>OSX is clearly a second class citizen in the Docker world.  The filesystem performace is shockingly atrocious.  It works but&hellip; And these commands won&rsquo;t actually work if the volume you mount isn&rsquo;t in the right filesystem &ndash; i.e. you can&rsquo;t develop like this in a <code>mktemp -d</code> &ldquo;environment&rdquo;, since Docker won&rsquo;t let you mount files from there.</p>
-
 <p>Another caveat here is that if you are on OSX this will give you a linux <code>node_modules</code>, so if there is anything that requires native libs you need to reinstall <code>node_modules</code> if you want to move locally, but you should have all the lockfiles in place to give you the same versions.</p>
-
 <h2 id="http2-requires-https-which-requires-a-cert-which-requires-a-domain">HTTP2 requires HTTPS which requires a cert which requires a domain</h2>
-
 <p>We are going full encryption everywhere which is great and a lot of things refuse to work right if its not run over HTTPS. You can get around this a bit by using HTTPS=true in lot of development environments which setup a self-signed certificate which is OK-ish, but often you need a server.  I&rsquo;ve documented how I <a href="../server_templating_with_terraform">spin up a linode server, point a name to it, and setup nginx with certbot</a> earlier and this was a game changer. <code>terraform</code> provisions the server and sets up DNS for me, and then I run a script to setup nginx and install a <a href="https://letsencrypt.org/">LetsEncrypt</a> certificate.</p>
-
 <p>The key thing about this setup is <code>terraform destroy</code> which cleans up everything after itself.</p>
-
 <p>This makes a lot of possible things easy, and as they get easier you are more likely to do it.</p>
-
-<h2 id="why-i-don-t-like-one-click-installers">Why I don&rsquo;t like one-click installers</h2>
-
+<h2 id="why-i-dont-like-one-click-installers">Why I don&rsquo;t like one-click installers</h2>
 <p>A common workaround to this is to have one-click installers on DigitalOcean or Heroku or something.  I don&rsquo;t really like this because it hides too much stuff &ndash; my goal often isn&rsquo;t to actually run <a href="http://dokku.viewdocs.io/dokku/">dokku</a> or <a href="https://www.discourse.org/">discourse</a> or <a href="https://docs.joinmastodon.org/admin/install/">mastodon</a> or whatever, it&rsquo;s to explore how it works. Actually running a production system is more complicated and by assembling the pieces myself I get a better sense of what is involved. There&rsquo;s nothing wrong with the approach of setting up quickly and I think it&rsquo;s necessary for easy on-boarding to using the project.</p>
-
 <p>Especially if you already have supported infrastructure it makes sense to figure out how deploy on that rather than provisioning new stuff. In terms of actual deployment we use a lot of PaaS stuff &ndash; I for one am happy never to have to run a database server again in my life &ndash; so understanding how to pull out the Postgres install to use CloudSQL or whatever is valuable if we do decide to adopt something.</p>
-
 <p>The workflow here would be to get it working with the script, migrate those scripts to terraform to deal with the provisioning and coordination, and then use packer, ansible or kubernetes as needed to configure all the packages.  But it starts with the scripts.</p>
-
 <h2 id="in-summary">In summary</h2>
-
 <ol>
 <li>Write every step down in a work file and constantly iterate</li>
 <li>Prefer bash scripts that assume stock OS image install</li>
