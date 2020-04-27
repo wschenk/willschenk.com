@@ -15,7 +15,9 @@ I learned most of what I know about coding by looking at source code -- especial
 
 From `unpkg` we will link to tailwindcss in the `head` tag, and then `import` vuejs from using a `script type="module"` tag.
 
-{{% embed "static/0base.html" "html" %}}
+{{< highlight "html" >}}
+{{% raw "static/0base.html" %}}
+{{< / highlight >}}
 
 Using `import` we are pulling the `vue.esm.browser.js` build straight from the CDN!  So easy.
 
@@ -25,11 +27,15 @@ Using `import` we are pulling the `vue.esm.browser.js` build straight from the C
 
 [pika.dev](https://pika.dev) is an index of packages that you can import as ES modules. That's a great place to search for packages that can be `import`ed directly. So lets import `chartXkcd` and wire it up with some sample data.
 
-{{% embed "static/1line.html" "html" %}}
+{{< highlight "html" >}}
+{{% raw "static/1line.html" %}}
+{{< / highlight >}}
 
 Which should generate the following image:
 
+<p>
 {{% img img="graph.png" style="max-width: 100%" %}}
+</p>
 
 ## Pulling in data from a file
 
@@ -65,16 +71,21 @@ awk 'BEGIN {print "Month,Commits"} // {print $2 "," $1}' > commits_by_month.csv
 
 That gives us a csv file like this:
 
-{{% embed "static/commits_by_month.csv" "csv" %}}
+{{< highlight "csv" >}}
+{{% raw "static/commits_by_month.csv" %}}
+{{< / highlight >}}
 
 And now we can hack together some JavaScript to parse this file and create a data driven `dataSet` that we'll pass off to the charting library.
 
-{{% embed "static/3csv.html" "html" %}}
+{{< highlight "html" >}}
+{{% raw "static/3csv.html" %}}
+{{< / highlight >}}
 
 Parsing a csv file using `split` and not bothering to do any error checking for `parseInt` is serious cowboy style coding, but it is something that we can hack together quickly. Just expect to throw it out after you get it working.  
 
+<p>
 {{% img img="monthlygraph.png" style="max-width: 100%" %}}
-
+</p>
 
 ## Next steps
 

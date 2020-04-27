@@ -52,7 +52,9 @@ export TF_VAR_ssh_fingerprint=$(ssh-keygen -E md5 -lf ~/.ssh/id_rsa.pub | awk '{
 
 The first file we are going to use is [`provider.tf`](provider.tf):
 
-{{% code file="content/articles/2019/terraform_with_digitalocean/provider.tf" language="tf" %}}
+{{< highlight "tf" >}}
+{{% raw "provider.tf" %}}
+{{< /highlight >}}
 
 We are declaring the variables at top, which will look first in the environment for them and if not found will prompt you to enter a value.  We are going to use the name for the space that we're storing the terraform state in multiple places, so we'll define it as a variable, though unforunately we'll need to hard code it when we setup the terraform backend.
 
@@ -62,7 +64,9 @@ Now run `terraform init`.  This should download the `digitalocean` plugin in the
 
 Now lets use terraform to create a digitalocean store to save our deployment state. [`spaces.tf`](spaces.tf):
 
-{{% code file="content/articles/2019/terraform_with_digitalocean/spaces.tf" language="tf" %}}
+{{< highlight "tf" >}}
+{{% raw "spaces.tf" %}}
+{{< /highlight >}}
 
 As a reminder, space names need to be globally unique so you'll need to update your name to make it your own.  Now run `terraform plan` to see what its going to do.  You should see that it wants to create the space.
 
@@ -70,7 +74,9 @@ Run `terraform apply` to actually bring your environment up!
 
 Once your space is up and running, lets configure terraform to use this as a backend. [`backend.tf`](backend.tf):
 
-{{% code file="content/articles/2019/terraform_with_digitalocean/backend.tf" language="tf" %}}
+{{< highlight "tf" >}}
+{{% raw "backend.tf" %}}
+{{< /highlight >}}
 
 We are using the S3 backend but pointing it to Digital Ocean's endpoint.  If you don't know what endpoint you are using, you can see inside of the Digital Ocean console.
 
@@ -123,11 +129,15 @@ sudo mv packer /usr/local/bin
 
 Now we create a [`docker.json`](docker.json) file that we'll give to `packer` that will provision the instance for us.  Inside you'll notice that I named the snapshot `packer-docker-0.0.1`.  In a real build process, this should probably be passed into packer.
 
-{{% code file="content/articles/2019/terraform_with_digitalocean/docker.json" language="json" %}}
+{{< highlight "json" >}}
+{{% raw "docker.json" %}}
+{{< /highlight >}}
 
 And then a script that will be run on the build image that actually installs docker.  [`docker_install.sh`](docker_install.sh):
 
-{{% code file="content/articles/2019/terraform_with_digitalocean/docker_install.sh" language="bash" %}}
+{{< highlight "bash" >}}
+{{% raw "docker_install.sh" %}}
+{{< /highlight >}}
 
 We also need to set the region as the same you have it in the `providers.tf` file.
 
@@ -141,7 +151,9 @@ Then run `packer validate docker.json` to make sure that everything is copacitic
 
 Once this is done, use this new [`droplets.tf`](droplets.tf) file to deploy this image onto your droplet.  The first stanza looks up the image from the snapshot name, and then we use that inside of the `image` attribute to tell `terraform` which droplet should be running.
 
-{{% code file="content/articles/2019/terraform_with_digitalocean/droplets.tf" language="tf" %}}
+{{< highlight "tf" >}}
+{{% raw "droplets.tf" %}}
+{{< /highlight >}}
 
 Now lets test it out:
 

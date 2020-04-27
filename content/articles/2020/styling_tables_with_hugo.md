@@ -14,7 +14,14 @@ Markdown is a nice format to write it, but sometimes you need to add HTML classe
 
 Put this in `/layouts/shortcodes/table.html`:
 
-{{% code file="/layouts/shortcodes/table.html" language="html" %}}
+```html
+{{ $htmlTable := .Inner | markdownify }}
+{{ $class := .Get 0 }}
+{{ $old := "<table>" }}
+{{ $new := printf "<table class=\"%s\">" $class }}
+{{ $htmlTable := replace $htmlTable $old $new }}
+{{ $htmlTable | safeHTML }}
+```
 
 ## Create a table
 
@@ -38,7 +45,6 @@ Which should render like so:
 
 <code><pre>
 &#123;&#123;&#60;table "table table-striped table-bordered">&#125;&#125;
-| Header 1 | Header 2 | Header 3 |
 |----------|----------|----------|
 | Item 1   | Item 2   | Item 3   |
 | Item 1a  | Item 2a  | Item 3a  |

@@ -37,7 +37,10 @@ Lets go through some code that starts up chrome, then navigates to a profile pag
 From here, we'll save it in `output/${screename}/profile.json`
 
 [`profile.js`](`profile.js`)
-{{% code file="articles/2020/scraping_twitter_using_puppeteer/profile.js" language="js" %}}
+
+{{< highlight "js" >}}
+{{% raw "profile.js"  %}}
+{{< /highlight >}}
 
 You'll need to pass in the username that you are looking for in an environment variable, for example:
 
@@ -50,7 +53,9 @@ $ TWITTER_USER=wschenk node profile.js
 Next lets look at pulling out the tweets from the rendered HTML. Twitter's HTML is... interesting.  Lets first download the HTML so we can look at it in our browser. This is how the Chrome browser interprets the data, which is different than what I see using the developer tools.  It seems that you get a different version of the twitter front end based on whether you are logged in or not.
 
 [`timeline_dump.js`](`timeline_dump.js`)
-{{% code file="articles/2020/scraping_twitter_using_puppeteer/timeline_dump.js" language="js" %}}
+{{< highlight "js" >}}
+{{% raw "timeline_dump.js"  %}}
+{{< /highlight >}}
 
 Running this will create a file called `timeline.html` inside of the output folder, which we can then open up.
 
@@ -63,7 +68,9 @@ This gives us a good view of what the rendered HTML looks like after JavaScript 
 ## Printing out the tweets
 
 [`timeline.js`](`timeline.js`)
-{{% code file="articles/2020/scraping_twitter_using_puppeteer/timeline.js" language="js" %}}
+{{< highlight "js" >}}
+{{% raw "timeline.js" %}}
+{{< /highlight >}}
 
 ## Scrolling to past pages
 

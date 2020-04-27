@@ -42,7 +42,9 @@ export TF_VAR_linode_token=$LINODE_TOKEN
 In this script, we are setting up a Debian linode server with our local ssh keys installed. (It installs the public key found in `~/.ssh/id_rsa.pub`.)
 
 [`linode.tf`](`linode.tf`)
-{{% code file="articles/2020/server_templating_with_terraform/linode.tf" language="tf" %}}
+{{< highlight "tf" >}}
+{{% raw "linode.tf" %}}
+{{< /highlight >}}
 
 Running `terraform init` will validate this file and make sure that the right plugins are installed. You can then set up the server but running `terraform apply`.
 
@@ -107,7 +109,9 @@ export TF_VAR_dns_domain=willschenk.com
 ```
 
 [`dnsimple.tf`](`dnsimple.tf`)
-{{% code file="articles/2020/server_templating_with_terraform/dnsimple.tf" language="tf" %}}
+{{< highlight "tf" >}}
+{{% raw "dnsimple.tf" %}}
+{{< /highlight >}}
 
 Then run `terraform init` to download the DNSimple provisioner, and `terraform apply` to set the `web` address of the `TF_VAR_dns_domain` domain to the public IP that linode gave you.
 
@@ -127,7 +131,10 @@ This is what we're going to do:
 
 
 [`setup.bash`](`setup.bash`)
-{{% code file="articles/2020/server_templating_with_terraform/setup.bash" language="bash" %}}
+
+{{< highlight "bash" >}}
+{{% raw "setup.bash" %}}
+{{< /highlight >}}
 
 Run this with `bash setup.bash` and it will copy itself over to the remote server and run the setup scripts. It may take a minute or two for the remote server to be up and accepting ssh connections. 
 

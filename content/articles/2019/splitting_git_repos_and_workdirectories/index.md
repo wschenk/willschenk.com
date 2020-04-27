@@ -48,7 +48,9 @@ For this to work great create a remote repository somewhere [like GitHub](https:
 
 [`seperate-git.bash`](seperate-git.bash):
 
-{{% code file="articles/2019/splitting_git_repos_and_workdirectories/seperate-git.bash" language="js" %}}
+{{< highlight "bash" >}}
+{{% raw "seperate-git.bash" %}}
+{{< /highlight >}}
 
 ## Running
 

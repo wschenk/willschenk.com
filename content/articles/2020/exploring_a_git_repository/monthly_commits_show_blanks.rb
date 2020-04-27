@@ -11,9 +11,8 @@ CSV.open( ARGV[1] || "monthly_commits_show_blanks.csv", "w" ) do |csv|
 
   File.readlines( ARGV[0] || "commits.log" ).each do |line|
     date, email, name = line.split( "|" )
-    month = date.gsub( /-\d\dT.*/, "" ).chomp
-
-    if month != last_month && last_month
+    month = date.gsub( /-\d\dT.*/, "" ).chomp;
+    if( month != last_month && last_month )
       csv << [last_month, count, people.length, people.to_json]
 
       count = 0

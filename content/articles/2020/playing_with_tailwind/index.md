@@ -23,7 +23,9 @@ mkdir projectname && cd projectname
 
 Now we will create a base html file that we'll use to start styling. We are going to include the full `tailwind.min.css` file from a CDN so there's no build process here.
 
-{{% embed "static/base.html" "html" %}}
+{{< highlight "html" >}}
+{{% raw "static/base.html" "html" %}}
+{{< /highlight >}}
 
 Let's start up a preview server by running `npx live-server` which should open up a browser window which will update files.  You should see a window open up.  If you edit some of the text, you should see it updated in the browser once you save. So far so good. All we've needed is an html file and node installed on the machine.
 
@@ -33,9 +35,13 @@ I pulled in my company logo and a headshot (well, I needed a passport photo for 
 
 Lets build this:
 
+<p>
 {{% img img="profile_done.png" style="max-width: 600px" %}}
+</p>
 
-{{% embed "static/profile.html.base" "html" "yes" %}}
+{{< highlight "html" >}}
+{{% raw "static/profile.html.base" "html" "yes" %}}
+{{< /highlight >}}
 
 There are two sections here, one for the header and the other for the bio. Let's open up the [Tailwind Documentation](https://tailwindcss.com/) and walk through the process of styling everything. The workflow here is to press the `/` key and type in what we are looking for to find the classes that we'll need to apply it.
 
@@ -132,9 +138,13 @@ For everything is
 
 For our directory pages, we know that we are going to repeat the same element multiple times. We'll use the html `template` tag to let us edit stuff in place.  We'll define the template, a `div` to hold it in, and some short javascript to add 10 copies of it to the container.
 
+<p>
 {{< img img="directory_done.png" style="max-width: 600px" >}}
+</p>
 
-{{% embed "static/directory.html.base" "html" %}}
+{{< highlight "html" >}}
+{{% raw "static/directory.html.base" "html" %}}
+{{< /highlight >}}
 
 Now let's get a better layout, using flexbox to lay it out. Add `flex` to the container div and we see that everything is laid out horizontally. This is a bit intense since everything is on one row.  Let's add `flex-wrap` and `justify-around` to it also, to have it span multiple lines and equally spread out the space around each element.
 

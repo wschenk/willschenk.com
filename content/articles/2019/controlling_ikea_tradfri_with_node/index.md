@@ -39,7 +39,9 @@ yarn add node-tradfri-client delay conf
 
 [`gateway.js`](gateway.js):
 
-{{% code file="articles/2019/controlling_ikea_tradfri_with_node/gateway.js" language="js" %}}
+{{< highlight "js" >}}
+{{% raw "gateway.js" %}}
+{{< /highlight >}}
 
 ## Getting a security token
 
@@ -53,7 +55,9 @@ $ export IKEASECURITY=akakakak
 
 [`connection.js`](connection.js):
 
-{{% code file="articles/2019/controlling_ikea_tradfri_with_node/connection.js" language="js" %}}
+{{< highlight "js" >}}
+{{% raw "connection.js" %}}
+{{< /highlight >}}
 
 ## Printing out discovered device info
 
@@ -61,7 +65,9 @@ Calling the `observeDevices()` method will make the client start listening for d
 
 [`devices.js`](devices.js):
 
-{{% code file="articles/2019/controlling_ikea_tradfri_with_node/devices.js" language="js" %}}
+{{< highlight "js" >}}
+{{% raw "devices.js" %}}
+{{< /highlight >}}
 
 ## Registering our own device listeners
 
@@ -69,7 +75,9 @@ We can register a listener callback to watch for when thing change, keeping our 
 
 [`device_watcher.js`](device_watcher.js):
 
-{{% code file="articles/2019/controlling_ikea_tradfri_with_node/device_watcher.js" language="js" %}}
+{{< highlight "js" >}}
+{{% raw "device_watcher.js" %}}
+{{< /highlight >}}
 
 ## Switching and dimming
 
@@ -77,7 +85,9 @@ Now that we have code that can react to changes, lets write some code that contr
 
 [`device_changer.js`](device_changer.js):
 
-{{% code file="articles/2019/controlling_ikea_tradfri_with_node/device_changer.js" language="js" %}}
+{{< highlight "js" >}}
+{{% raw "device_changer.js" %}}
+{{< /highlight >}}
 
 This lets you add multiple commands on the line, so if we wanted to make a few changes at once you could do something like this:
 
@@ -91,7 +101,9 @@ The library also has methods to deal with scenes and rooms all at once.  Let's t
 
 [`scenes.js`](scenes.js):
 
-{{% code file="articles/2019/controlling_ikea_tradfri_with_node/scenes.js" language="js" %}}
+{{< highlight "js" >}}
+{{% raw "scenes.js" %}}
+{{< /highlight >}}
 
 ## Setting the scene
 
@@ -99,7 +111,9 @@ Lets write another small utility to be able to change a room to a preset setting
 
 [`scene_changer.js`](scene_changer.js):
 
-{{% code file="articles/2019/controlling_ikea_tradfri_with_node/scene_changer.js" language="js" %}}
+{{< highlight "js" >}}
+{{% raw "scene_changer.js" %}}
+{{< /highlight >}}
 
 ## Other stuff
 

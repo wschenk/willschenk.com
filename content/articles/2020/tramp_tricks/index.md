@@ -19,13 +19,17 @@ Lets say that you have a remote server named `ssb.willschenk.com` and you want t
 
 So, for example, if I type `C-x C-f /ssh:root@ssb.willschenk.com:/etc/host`= it connects over ssh to the remote server and edits that file.  If I save the file, copy and paste stuff, etc it will transparently sync the file over the network. We don't need to install a text editor on this server, and we'll have all of our local configurations and copy and paste and all that stuff that we are used to. No installing `vim` for some quick configuration file editing.
 
+<p>
 {{% img img="etchost.png" style="width: 100%" %}}
+</p>
 
 ## Directory browsing
 
-=dired= mode also works, so if you want to move around just =C-x C-f= and select the directory, then you can navigate around as you normally would.
+`dired` mode also works, so if you want to move around just `C-x C-f` and select the directory, then you can navigate around as you normally would.
 
+<p>
 {{% img img="etcdir.png" style="width: 100%" %}}
+</p>
 
 ## Open a shell
 
@@ -37,7 +41,9 @@ This also keeps track of which directory you are in, so if, inside of the shell 
 
 Inside of shell mode you can use `C-up` and `C-down` to cycle through command history, all the normal things work.
 
+<p>
 {{% img img="shell.png" style="width: 100%" %}}
+</p>
 
 ## Edit a file as root
 
@@ -97,7 +103,9 @@ We can also chain things together!  Lets say that we have a `docker` container n
 
 This works for file browsing as well as opening up a shell on the container.
 
+<p>
 {{% img img="redis.png" style="width: 100%" %}}
+</p>
 
 ## It requires play
 

@@ -38,7 +38,9 @@ We are going to put the steps for [binary installation](https://www.gnu.org/soft
 
 One thing to note is that in order to run `guix pull` we'll need to run docker with `--privileged`.  Not totally sure why, but [here is a list to the mailing list discussion about it.](https://lists.gnu.org/archive/html/guix-devel/2017-11/msg00258.html)  This `Dockerfile` is basically a simple rewrite of the installer script, that helped me understand how guix was setup under the hood.
 
-{{% code file="content/articles/2019/installing_guix_on_nuc/Dockerfile" language="Dockerfile" %}}
+{{< highlight "Dockerfile" >}}
+{{% raw "Dockerfile" %}}
+{{< /highlight >}}
 
 Then we build it and start it up.
 

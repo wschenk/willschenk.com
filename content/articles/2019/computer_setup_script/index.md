@@ -64,5 +64,7 @@ And you should be good to go!
 
 ## The code:
 
-{{% code file="content/articles/2019/computer_setup_script/bootstrap.sh" language="bash" %}}
+{{< highlight "bash" >}}
+{{% raw "bootstrap.sh" %}}
+{{< /highlight >}}
 

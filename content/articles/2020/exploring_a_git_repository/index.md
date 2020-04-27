@@ -50,15 +50,21 @@ We can process this data to get a sense of what is happening in the project.  Le
 4. If we are in a different month, print out the current stats and reset
 5. Print out the current month stats at the end
 
-{{% embed "monthly_commits.rb" "ruby" "yes" %}}
+{{< highlight "ruby" >}}
+{{% raw "monthly_commits.rb" "ruby" "yes" %}}
+{{< /highlight >}}
 
 We can visualize this with a simple HTML file
 
-{{% embed "monthly.html" "html" %}}
+{{< highlight "html" >}}
+{{% raw "monthly.html" "html" %}}
+{{< /highlight >}}
 
 Which looks like this:
 
+<p>
 {{% img img="monthly.png" style="width:100%" %}}
+</p>
 
 This repo is more that 12 years old at the time of this writing, and its clear that there's been different times when it's active and inactive. Lets fill in data for the months where "nothing" happened to the repository. As we cycle through the dates (which have been sorted previously) when we see a "new" month, we check to see if we expect to something between. If so, we add a line with zeros, and then repeat until we find the month in the file
 
@@ -67,7 +73,9 @@ This repo is more that 12 years old at the time of this writing, and its clear t
 3. Go back to step 1, shifting our expect date a month forward
 4. Unless we've skipped 24 months which seems like a long time for a project to be idle
 
-{{% embed "monthly_commits_show_blanks.rb" "ruby" "yes" %}}
+{{< highlight "ruby" >}}
+{{% raw "monthly_commits_show_blanks.rb" "ruby" "yes" %}}
+{{< /highlight >}}
 
 Here we can see that there have been long periods of time where nothing was happening with the code. Looking at the data, there was a bunch of stuff that happened starting 2007-11 though about 2009-10, then things got quiet again until 2011-08 through 2012-04, then a false start in 2013-01, and 2013-04 to 2015-01, a couple tweaks 2015-10, 2016-02, then 2018-01 through 2020-02 (time of writing). So some stopping and starting on this project.  Does that mean everything is stable? Maybe a new version of git came out, or Ruby idioms have changed or something.  We could probably look at the log messages or the actual code changes to tell.  But first lets figure out a timeline to see.
 
@@ -94,39 +102,42 @@ Logic:
 8. At the end of the file, output a `last_data` event with the current list of period contributions.
 9. Sort everything by date and output the file.
 
-{{% embed "project_timeline.rb" "ruby" "yes" %}}
+{{< highlight "ruby" >}}
+{{% raw "project_timeline.rb" "ruby" "yes" %}}
+{{< /highlight >}}
 
 This will spit out a CSV file that summarizes what happens to the project to get an overall sense of the timeline. Lets create an HTML page to visualize this.  In this we will calculate the duration between active and idle states so we can group a bit of what's happening over all.  Also we can look at who actually made the tag, which will give us a sense of who is the active maintainer of the project.
 
-{{% embed "project_timeline.html" "html" "yes" %}}
+{{< highlight "html" >}}
+{{% raw "project_timeline.html" "html" "yes" %}}
+{{< /highlight >}}
 
 ## Nights and weekends
 
-Since we have the author commit time with their local timezone, we can look at when the code was actually checked in. Are they working turning business hours, or nights and weekends?
+Since we have the author commit time with their local timezone, we can look at when the code was actually checked in. Are they working turning business hours, or nights and weekends? Here are some arbitrary categories.  Note that we are looking at the time that a commit was made to the repository, so all of the work that happened is preceeding this.
 
 {{<table "table table-striped">}}
-| hours | category      |
-| ----- | --------      |
-| 4-6   | dawn          |
-| 6-8   | early morning |
-| 8-12  | mid morning   |
-| 12-18 | afternoon     |
-| 18-22 | evening       |
-| 22-4  | late night    |
+| hours | category |
+| ----- | -------- |
+| 0-6   | night    |
+| 6-18  | day      |
+| 18-24 | evening  |
 {{</table>}}
 
-{{<table "table table-dark" >}}
-| hours | category       |
-|-------|----------------|
-| 4-6   | dawn           |
-| 6-8   | something else |
-| nifty | super duper    |
-{{</table>}}
+Lets parse through our `commits.log` to bucket the categories:
+
+{{< highlight "ruby" >}}
+{{% raw "worktime.rb" "ruby" "yes" %}}
+{{< /highlight >}}
+
+And we can look at a breakdown of when people were working.  This might give us a sense of is this a night and weekend thing, or is all the activity mainly in the workday.
+
+{{< highlight "html" >}}
+{{% raw "worktime.html" "html" "yes" %}}
+{{< /highlight >}}
 
 
 
-
-{{% embed "worktime.rb" "ruby" "yes" %}}
 
 
 ## Looking at entities

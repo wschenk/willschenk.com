@@ -43,7 +43,9 @@ First lets create some basic scaffolds:
 mkdir -p static && cd static
 ```
 
-{{% embed "static/index.base.html" "html" "yes" %}}
+{{< highlight "html" >}}
+{{% raw "static/index.base.html" "html" "yes" %}}
+{{< /highlight >}}
 
 1. Create a A record in your DNS provider, in my case `directory.happyfuncorp.com` pointing to `45.55.110.124`. We'll have to clean this up later.
 2. Create a file `static/CNAME` with the domain we want to host on (again `directory.happyfuncorp.com`)

@@ -35,17 +35,21 @@ I like keeping things in Docker containers when playing around so that no unnece
 This is a very basic node-based Dockerfile.  Cabal/Dat uses port `3282` to communicate, so we'll need to expose and open that.
 
 [`Dockerfile`](Dockerfile)
-{{% code file="articles/2019/playing_with_cabal/Dockerfile" language="Dockerfile" %}}
+{{< highlight "Dockerfile" >}}
+{{% raw "Dockerfile" %}}
+{{< /highlight >}}
 
 Then build like so:
 
-```
+```bash
 docker build . -t $USER/cabal
 ```
 
 Create a simple script to make it easier to run in the future.  (Note I'm using `--network host` here because I was having trouble getting dat to punch through the Docker networking/NAT stuff.)
 
-{{% code file="articles/2019/playing_with_cabal/run.sh" language="bash" %}}
+{{< highlight "bash" >}}
+{{% raw "run.sh" %}}
+{{< /highlight >}}
 
 This script is for running one off commands, and it throws away the container each time so you'll lose the history.  If you really wanted to use this for something more than an experiment you should mount the internal `/root/.cabal` directory to a docker volume and/or not make it a temporary container.
 
@@ -80,7 +84,9 @@ yarn add cabal-core tmp delay
 
 Here's it in code form [`dump.js`](read.js):
 
-{{% code file="articles/2019/playing_with_cabal/dump.js" language="js" %}}
+{{< highlight "js" >}}
+{{% raw "dump.js" %}}
+{{< /highlight >}}
 
 Now lets restart everything and see what happens!  When I start up `node dump.js key` on my machine, and then start up the `cabal-cli` client on the other machine and:
 
@@ -92,7 +98,9 @@ Now lets restart everything and see what happens!  When I start up `node dump.js
 6. Type `/topic Serious Stuff`
 7. Type `/quit`
 
-{{% code file="articles/2019/playing_with_cabal/dump.out" language="bash" %}}
+{{< highlight "bash" >}}
+{{% raw "dump.out" %}}
+{{< /highlight >}}
 
 ## Publishing a message
 
@@ -107,7 +115,9 @@ Of course, if you just want to publish a message and serve the swarm forever, we
 
 [`publish.js`](publish.js):
 
-{{% code file="articles/2019/playing_with_cabal/publish.js" language="js" %}}
+{{< highlight "js" >}}
+{{% raw "publish.js" %}}
+{{< /highlight >}}
 
 Then try running this code with a running cabal node on the remote host and without one.  You'll notice that the messages that were stored locally will eventually be delivered once a connection is made.
 

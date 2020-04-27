@@ -16,7 +16,9 @@ draft: true
 
 First lets layout the structure of our html.  There's a header with a "logo" and a button, some content text, and finally what we are going to use for a modal.
 
-{{% embed "static/0base.html" "html" %}}
+{{< highlight "html" >}}
+{{% raw "static/0base.html" %}}
+{{< / highlight >}}
 
 Pretty straightforward
 
@@ -69,7 +71,7 @@ We want to have the who screen overlayed with a transparent background, which we
 
 For the inner `div` -- the modal itself -- we'll make that `relative` positioned, a little above the background with `z-50`, and center and fix the size using `max-w-md m-auto`.  With some padding and a background we are done.
 
-```htmll
+```html
 <div
   class="fixed inset-0 z-40 overflow-auto flex" style="background-color: rgba(0,0,0,.1);"
   x-show.transition.opacity="open">
@@ -86,10 +88,13 @@ For the inner `div` -- the modal itself -- we'll make that `relative` positioned
 
 Here is our final file
 
-{{% embed "static/2styles.html" "html" %}}
+{{< highlight "html" >}}
+{{% raw "static/2styles.html" %}}
+{{< / highlight >}}
 
 which looks like
 
+<p>
 {{% img img="final.png" style="max-width: 100%" %}}
-
+</p>
 

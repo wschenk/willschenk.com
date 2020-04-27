@@ -23,7 +23,9 @@ These particular tools work great, but scripting `bash` is a little bit awkward.
 
 The first thing we need to do is go to click the login button and go to the login page to see what's going on.  Click around on the site until you find the login form.  (If you are already logged in, log out first.)  For PocketCasts this should leave you here: https://play.pocketcasts.com/web/user/sign_in  Now we want to [open the developer tools](https://developers.google.com/web/tools/chrome-devtools/open).  You can do this by pressing `ctrl-shift-c`, or right clicking on the page and selecting `Inspect Element`.
 
+<p>
 <img src="open_console.png" class="img-fluid" alt="Chrome Developer Console"/>
+</p>
 
 Looking at this we can see a few things:
 
@@ -45,7 +47,9 @@ Lets key Chrome recording the API requests so we can pull them out.  First selec
 4. I've selected the `/login` request on the left.  You'll probably have a bunch of requests here that you'll need to filter through to find what you are looking for.
 4. On the bottom right, you can see the Request Headers (which we need to emulate), the Response Headers (which is what the server sends back) and the "Request Payload", which we also need to send to the server.
 
+<p>
 <img src="network.png" class="img-fluid" alt="Network pane view"/>
+</p>
 
 So lets see what we can see:
 
@@ -97,14 +101,18 @@ Now that we have logged in, lets see how to get the list of podcast episodes tha
 
 Anyway, back to the network tab.  Filter again on "XHR" requests and (probably) reload the page.  You should see something like:
 
+<p>
 <img src="starred.png" class="img-fluid" alt="the starred podcast request"/>
+</p>
 
 1. Again a `POST` request, this time to `https://api.pocketcasts.com/user/starred`
 2. There's an `Authorization: Bearer` in the request headers.
 3. The request payload is `{}` which is sort of silly but ok.  (This is not really REST, where it should be a `GET` request on the collection object, but when you are writing both the client and the server of a private API you are free to do whatever you want!)
 4. If we click over to the "Response" subtab, we get a sense of the data that we are working with:
 
+<p>
 <img src="response_detail.png" class="img-fluid" alt="details of the response"/>
+</p>
 
 Interesting things to note here:
 
@@ -137,7 +145,9 @@ So now we have a list of episodes that we've starred, but we are missing relaven
 
 If we click on an episode itself on the website and look through what is being loaded, we can see that it's a `GET` request from a different server.  It's still passing back the Bearer token (which is weird again but I'm going with it.)
 
+<p>
 <img src="show_notes.png" class="img-fluid" alt="Show notes"/>
+</p>
 
 1. We create a work directory to store all the JSON that we'll get from the server.
 2. We'll use `jq` to parse the `starred.json` and pull out the episide `uuid`.
@@ -163,7 +173,9 @@ done
 
 Lets look again to see where we can get information about the podcasts.  Looking at the network inspector, we can see that it loads `https://api.pocketcasts.com/user/podcast/list` for the full list of podcast that I subscribe to.  We'll need to pull down this list and then figure out how to combine the information together with the episodes to get the full information.  This is another strange POST instead of GET request.  In this case it's sending `{v:1}` so we will too:
 
+<p>
 <img src="podcast_list.png" class="img-fluid" alt="podcast list info"/>
+</p>
 
 ```bash
 curl -d "{v:1}" -X POST \
