@@ -1,0 +1,30 @@
+{{ $isbn := .Get "isbn" }}
+{{ $isbnJson := printf "%s.json" $isbn }}
+{{ $jsonResources := .Page.Resources.Match $isbnJson }}
+{{ $jsonFile := index $jsonResources 0 }}
+{{ $showImage := .Get "img" }}
+{{ if $jsonFile }}
+  {{ $data := $jsonFile.Content | unmarshal }}
+  {{ $isbnImage := printf "%s.jpg" $isbn }}
+  {{ $classes := "float-left mr-3" }}
+  {{ if eq $showImage "right" }}{{ $classes = "float-right ml-3" }}{{ end }}
+  {{ if $showImage }}<p class="clearfix">{{ end }}
+  <a href="{{ $data.url }}">
+    {{ $imgResources := .Page.Resources.Match $isbnImage }}
+    {{ $image := index $imgResources 0 }}
+    {{ if $showImage }}
+    <img src="{{ $image.RelPermalink }}" class="{{ $classes }}" style="max-height: 200px" alt="{{$data.title}}">
+    {{ else }}
+    {{ $title := .Get "title" }}
+    {{ if $title }}{{ $title }}{{ else }}{{ $data.title }}{{ end }}
+    {{ end }}
+  </a>
+
+  {{ .Inner }}
+{{ if $showImage }}</p>{{ end }}
+{{ else }}
+{{ if $showImage }}<p>{{ end }}
+  <b>Run <code>bookshop_lookup.sh {{ $isbn }}</code> to load the meta data into {{$isbn}}.json</b>
+  {{ .Inner }}
+{{ if $showImage }}</p>{{ end }}
+{{ end }}
