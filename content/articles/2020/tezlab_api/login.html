@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8"/>
+    <title>Tezlab Login</title>
+    <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0"/>
+    <link href="https://unpkg.com/tailwindcss@^1.2.0/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/gh/alpinejs/alpine@v2.0.0/dist/alpine.js" defer></script>
+    <script src="./api.js"></script>
+  </head>
+  <body
+    x-data="{ loginopen: false, nav: 'profile', profile: { vehicle: {} } }"
+    x-init="() => { loadProfile( (result) => {loginopen = false; profile = result}, (err) => loginopen = true ) }"
+    @login-success="loadProfile( (result) => {loginopen = false; profile = $event.detail} )">
+
+    <div
+      class="max-w-screen-lg m-auto"
+      x-show="profile.name">
+      <div class="flex items-center"> 
+        <img class="h-20 w-20" :src="profile.image" :alt="profile.name">
+        <div class="pl-2">
+          <p x-text="profile.vehicle.model_name"/>
+          <p x-text="profile.name"/>
+          <p x-text="profile.first_driving_trip"/>
+        </div>
+      </div>
+
+      <ul class="flex border border-solid border-grey-200 rounded text-blue-600 p-2 my-2">
+        <li class="text-center flex-1 border-r border-solid border-grey-200 px-2">
+          <button class="w-full py-2 mr-3 rounded" :class="{'bg-blue-600 text-white' : nav === 'profile'}" @click.prevent="nav = 'profile'">Profile</button>
+        </li>
+        <li class="text-center flex-1 border-r border-solid border-grey-200 px-2">
+          <button class="w-full py-2 mr-3 rounded" :class="{'bg-blue-600 text-white' : nav === 'badges'}" @click.prevent="nav = 'badges'">Badges</button>
+        </li>
+        <li class="text-center flex-1 px-2">
+          <button class="w-full py-2 mr-3 rounded" :class="{'bg-blue-600 text-white' : nav === 'superchargers'}" @click.prevent="nav = 'superchargers'">Superchargers</button>
+        </li>
+      </ul>
+
+      <div x-show="nav == 'profile'">
+        Profile
+
+        <table class="border border-grey-200">
+          <tr><th>Stats</th><th>Value</th></tr>
+          <template x-for="stat in (profile.trip_stats || [])" :key="stat">
+            <tr>
+              <th class="text-right" x-text="stat[0]"/>
+              <td class="text-left" x-text="stat[1]"/></tr>
+          </template>
+        </table>
+      </div>
+
+      <div x-show="nav == 'badges'">
+        Badges
+      </div>
+
+      <pre class="overflow-scroll" x-text="JSON.stringify(profile, null, '\t')"/>
+    </div>
+
+    <!-- Login Modal -->
+    <div
+      class="fixed inset-0 z-40 overflow-auto flex" style="background-color: rgba(0,0,0,.1);"
+      x-show.transition.opacity="loginopen">
+      
+      <div
+	@click.away="loginopen = false"
+	class="relative z-50 max-w-md m-auto flex-col bg-white p-8 rounded"
+	x-show.transition.scale="loginopen"
+	>
+
+        <form action=""
+              x-data="{username: '', password: '', loginerror: false}"
+              @submit.prevent="loginerror = 'Authorizing...';login( username, password, (good) => {loginerror = 'Loading...'; $dispatch( 'login-success', good )}, (bad) => {loading = false; loginerror = bad.errors} )">
+          <div class="mb-4">
+            <label class="block text-gray-700 text-sm font-bold mb-2" for="username">
+              Username
+            </label>
+            <input
+              class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              id="username"
+              type="text"
+              placeholder="Username"
+              x-model="username">
+          </div>
+          <div class="mb-4">
+            <label class="block text-gray-700 text-sm font-bold mb-2" for="password">
+              Password
+            </label>
+            <input
+              class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 mb-3 leading-tight focus:outline-none focus:shadow-outline"
+              id="password"
+              type="password"
+              placeholder="******************"
+              x-model="password">
+            <p x-show="loginerror" class="text-red-500 text-xs italic" x-text="loginerror ? loginerror : ''"></p>
+          </div>
+          <div class="flex items-center justify-between">
+            <button
+              class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+              type="submit">
+              Sign In
+            </button>
+            <a class="inline-block align-baseline font-bold text-sm text-blue-500 hover:text-blue-800" href="https://tezlabapp.com/">
+              Go to tezlabapp.com
+            </a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </body>
+</html>
