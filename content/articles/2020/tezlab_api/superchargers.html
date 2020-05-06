@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8"/>
+    <title>Tezlab Superchargers</title>
+    <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0"/>
+    <link href="https://unpkg.com/tailwindcss@^1.2.0/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/gh/alpinejs/alpine@v2.0.0/dist/alpine.js" defer></script>
+    <script src="https://unpkg.com/timeago.js@4.0.2/dist/timeago.min.js" defer></script>
+    <script src='https://api.mapbox.com/mapbox-gl-js/v1.10.0/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v1.10.0/mapbox-gl.css' rel='stylesheet' />
+    <script src="./api.js"></script>
+  </head>
+  <body
+      x-data="{ loginopen: false, nav: 'superchargers', profile: { vehicle: {} }, superchargers: [] }"
+      x-init="() => { loadProfile( (result) => $dispatch( 'set-profile', result ), (err) => loginopen = true ) }"
+      @login-success="loadProfile( (result) => $dispatch( 'set-profile', result ) )"
+      @set-profile="
+              console.log( 'set-profile' );
+              loginopen = false;
+              profile = $event.detail;
+              superchargers = profile.superchargers.superchargers_visited.map( (x) => x).sort( (x,y) => y.visits - x.visits );
+              getBoundBox( superchargers );
+              ">
+
+    <div
+        class="max-w-screen-lg m-auto"
+        x-show="profile.name">
+      <div class="flex items-center"> 
+        <img class="h-20 w-20" :src="profile.image ? profile.image : ''" :alt="profile.name">
+        <div class="pl-2 flex-grow">
+          <p x-text="profile.vehicle ? profile.vehicle.model_name : ''"/>
+          <p x-text="profile.name"/>
+          <p x-text="profile.first_driving_trip"/>
+        </div>
+        <div>
+          <button
+              class="rounded bg-blue-600 text-white px-4 py-2"
+              x-show="profile.name"
+              @click.prevent="localStorage.clear(); profile={}; loginopen=true;">
+            Logout
+          </button>
+          <button
+              class="rounded bg-blue-600 text-white px-4 py-2"
+              x-show="!profile.name"
+              @click.prevent="loginopen = true">
+            Login
+          </button>
+        </div>
+      </div>
+
+      <ul class="flex border border-solid border-grey-200 rounded text-blue-600 p-2 my-2">
+        <li class="text-center flex-1 border-r border-solid border-grey-200 px-2">
+          <button class="w-full py-2 mr-3 rounded" :class="{'bg-blue-600 text-white' : nav === 'profile'}" @click.prevent="nav = 'profile'">Profile</button>
+        </li>
+        <li class="text-center flex-1 border-r border-solid border-grey-200 px-2">
+          <button class="w-full py-2 mr-3 rounded" :class="{'bg-blue-600 text-white' : nav === 'superchargers'}" @click.prevent="nav = 'superchargers'">Superchargers</button>
+        </li>
+        <li class="text-center flex-1 px-2">
+          <button class="w-full py-2 mr-3 rounded" :class="{'bg-blue-600 text-white' : nav === 'raw'}" @click.prevent="nav = 'raw'">Raw</button>
+        </li>
+      </ul>
+
+      <div x-show="nav == 'profile'">
+        <h2>Profile</h2>
+
+        <div class="flex">
+          <table class="flex-1 border border-grey-200">
+            <tr><th>Stats</th><th>Value</th></tr>
+            <template x-for="stat in (profile.trip_stats || [])" :key="stat">
+              <tr>
+                <th class="text-right" x-text="stat[0]"/>
+                <td class="text-left" x-text="stat[1]"/>
+              </tr>
+            </template>
+          </table>
+          <ul class="flex-1">
+            <template x-for="badge in (profile.badges || [])" :key="badge">
+              <li>
+<!--                <span x-text="badge.type"></span> -->
+                <span x-text="badge.description"></span>
+                <span
+                    x-text="timeago.format( new Date( badge.created_at ) )"></span>
+              </li>
+            </template>
+          </ul>
+        </div>
+      </div>
+
+      <div x-show="nav == 'raw'">
+        <pre class="overflow-scroll" x-text="JSON.stringify(profile, null, '\t')"/>
+      </div>
+    </div>
+
+    <div x-show="profile.name && nav == 'superchargers'">
+      <div class="flex m-2">
+        <div class="flex-1 w-1/3">
+          <h2 class="text-5xl font-bold tracking-wide leading-none" x-text="superchargers[0] ? superchargers[0].supercharger : ''"></h2>
+          <p class="text-gray-700 mb-2">
+            Top supercharger with
+            <span
+                x-text="superchargers[0] ? superchargers[0].visits : ''"></span>
+            visits.
+          </p>
+          <p>
+            Last visit
+            <span
+                x-text="superchargers[0] ? superchargers[0].time_ago : ''"></span>
+            ago,
+            <span
+                x-text="superchargers[0] ? superchargers[0].summary : ''"></span>
+          </p>
+
+          <div class="flex my-2">
+            <div class="w-1/2 text-center">
+              <h2 class="text-gray-700 text-lg">Mayor</h2>
+              <img class="text-center m-auto rounded-full h-16 w-16"
+                  :src="superchargers[0] ? superchargers[0].current_mayor.image : ''"
+              >
+              <p x-text="superchargers[0] ? superchargers[0].current_mayor.name : ''"></p>
+            </div>
+            <div class="w-1/2 text-center">
+              <h2 class="text-gray-700 text-lg">Charger in Charge</h2>
+              <img class="text-center m-auto rounded-full h-16 w-16"
+                  :src="(superchargers[0] && superchargers[0].current_charger_in_charge && superchargers[0].current_charger_in_charge.image) || ''"
+              >
+              <p x-text="(superchargers[0] && superchargers[0].current_charger_in_charge && superchargers[0].current_charger_in_charge.name) || ''"></p>
+              
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="mapid" style="height: 500px" class="w-full"></div>
+      <div class="flex flex-wrap m-4" >
+        <template x-for="sc in (superchargers || [])" :key="sc">
+          <div class="w-1/3 h-64 p-2">
+            <h2 class="text-xl font-bold tracking-wide leading-none" x-text="sc.supercharger"></h2>
+            <p class="text-gray-700 mb-2">
+              <span
+                  x-text="sc.visits"></span>
+              visits.
+            </p>
+            <p>
+              Last visit
+              <span
+                  x-text="sc.time_ago"></span>
+              ago,
+              <span
+                  x-text="sc.summary"></span>
+            </p>
+
+            <div class="flex mt-2">
+              <div class="w-1/2 text-center">
+                <h2 class="text-gray-700 text-lg">Mayor</h2>
+                <img class="text-center m-auto rounded-full h-16 w-16"
+                     :src="sc.current_mayor ? sc.current_mayor.image : ''"
+                >
+                <p x-text="sc.current_mayor ? sc.current_mayor.name : ''"></p>
+              </div>
+              <div class="w-1/2 text-center">
+                <h2 class="text-gray-700 text-lg">Charger in Charge</h2>
+                <img class="text-center m-auto rounded-full h-16 w-16"
+                     :src="sc.current_charger_in_charge ? sc.current_charger_in_charge.image : ''"
+                >
+                <p x-text="sc.current_charger_in_charge ? sc.current_charger_in_charge.name : ''"></p>
+              </div>
+            </div>
+          </div>
+        </template>        
+      </div>
+    </div>
+
+    <!-- Login Modal -->
+    <div
+        class="fixed inset-0 z-40 overflow-auto flex" style="background-color: rgba(0,0,0,.1);"
+        x-show.transition.opacity="loginopen">
+      
+      <div
+	@click.away="loginopen = false"
+	             class="relative z-50 max-w-md m-auto flex-col bg-white p-8 rounded"
+	             x-show.transition.scale="loginopen"
+      >
+
+        <form action=""
+              x-data="{username: '', password: '', loginerror: false}"
+              @submit.prevent="loginerror = 'Authorizing...';login( username, password, (good) => {loginerror = 'Loading...'; $dispatch( 'login-success', good )}, (bad) => {loading = false; loginerror = bad.errors} )">
+          <div class="mb-4">
+            <label class="block text-gray-700 text-sm font-bold mb-2" for="username">
+              Username
+            </label>
+            <input
+                class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                id="username"
+                type="text"
+                placeholder="Username"
+                x-model="username">
+          </div>
+          <div class="mb-4">
+            <label class="block text-gray-700 text-sm font-bold mb-2" for="password">
+              Password
+            </label>
+            <input
+                class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 mb-3 leading-tight focus:outline-none focus:shadow-outline"
+                id="password"
+                type="password"
+                placeholder="******************"
+                x-model="password">
+            <p x-show="loginerror" class="text-red-500 text-xs italic" x-text="loginerror ? loginerror : ''"></p>
+          </div>
+          <div class="flex items-center justify-between">
+            <button
+                class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+                type="submit">
+              Sign In
+            </button>
+            <a class="inline-block align-baseline font-bold text-sm text-blue-500 hover:text-blue-800" href="https://tezlabapp.com/">
+              Go to tezlabapp.com
+            </a>
+          </div>
+        </form>
+      </div>
+    </div>
+    <script>
+     mapboxgl.accessToken =
+         'pk.eyJ1Ijoid3NjaGVuayIsImEiOiJjazl2Nzd4NjcwOWU3M21xbzRzdjkwNDV0In0.dp3uaAniKU9DODuTwH7CwQ';
+
+     var map = new mapboxgl.Map({
+         container: 'mapid',
+         //         style: 'mapbox://styles/mapbox/streets-v9',
+         style: 'mapbox://styles/mapbox/dark-v10', //hosted style id
+         center: [-77.38, 39], // starting position
+         zoom: 9 // starting zoom
+     });
+
+     map.addControl(new mapboxgl.NavigationControl());
+
+     function getBoundBox( superchargers ) {
+         if( !superchargers[0] || !superchargers[0].location ) {
+             return;
+         }
+         
+         let ws = [superchargers[0].location.longitude,superchargers[0].location.latitude];
+         let en = [superchargers[0].location.longitude,superchargers[0].location.latitude];
+         for( sc in superchargers ) {
+             let s = superchargers[sc];
+             if( s.location ) {
+                 if( s.location.longitude < ws[0] )
+                     ws[0] = s.location.longitude;
+
+                 if( s.location.latitude > ws[1] )
+                     ws[1] = s.location.latitude;
+                 
+                 if( s.location.longitude > en[0] )
+                     en[0] = s.location.longitude;
+
+                 if( s.location.latitude < en[1] )
+                     en[1] = s.location.latitude;
+
+                 let popup = new mapboxgl.Popup( {offset: 25} ).setText(
+                     `${s.supercharger} ${s.visits} visits ${s.time_ago} ago`
+                 );
+                 
+                 marker = new mapboxgl.Marker()
+                                      .setLngLat([s.location.longitude, s.location.latitude])
+                                      .setPopup( popup )
+                                      .addTo(map);
+
+             }
+         }
+
+         console.log( [ws,en] );
+
+         map.fitBounds( [ws, en] );
+     }
+     
+    </script>
+  </body>
+</html>
