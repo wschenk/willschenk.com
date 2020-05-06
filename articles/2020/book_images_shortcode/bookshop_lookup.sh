@@ -30,11 +30,14 @@ if [ ! -f "${ISBN}.json" ]; then
     grep meta ${ISBN}_book.html | awk 'BEGIN {RS="<meta "} // { print } ' > ${WORKFILE}
 
     IMG_URL=$(grep twitter:image\" ${WORKFILE} | sed -E 's/.*content=\"([^"]*).*/\1/')
+    echo Image $IMG_URL
     DESCRIPTION=$(grep twitter:description ${WORKFILE} | sed -E 's/.*content=\"([^"]*).*/\1/')
+    echo Desc $DESCRIPTION
     TITLE=$(grep og:title ${WORKFILE} | sed -E 's/.*content=\"([^"]*).*/\1/')
-
-    AUTHOR=$(awk '/\(Author\)/ {print}' ${ISBN}_book.html | sed -E 's/\s*<[^>]*>//' | sed -E 's/<\/a.*//')
-
+    echo Title $TITLE
+    AUTHOR=$(awk '/\(Author\)/ {print}' ${ISBN}_book.html | sed -E 's/\s*<[^>]*>//g' | sed -E 's/<\/a.*//')
+    echo Author $AUTHOR
+    
     echo "{\"title\": \"${TITLE}\", \"url\": \"https://bookshop.org${URL}\", \"img\": \"${IMG_URL}\", \"author\": \"${AUTHOR}\"}" | jq -r '.' > ${ISBN}.json
 
     if [ -f ${WORKFILE} ]; then
