@@ -1,0 +1,1 @@
+../content/articles/2020/book_images_shortcode/bookshop_lookup.sh
