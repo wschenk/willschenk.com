@@ -35,13 +35,13 @@ Where I ended up majoring in Math and Philosphy.  Every 7 or 8 years I will rere
 Buddhism was big in our household and I read quite a lot of that. {{< bookshop isbn="9781570629334" />}} in particular I read a few times in a few different contexts, and I read {{< bookshop isbn="9781570627477" />}} by candle light when I was in Lhasa in the late 90s, back before the Chinese electrified and paved the town. But the biggest influence is more Taoism than Buddhism. {{< bookshop isbn="9780231105958" />}} has the "I had a dream that I was a butterfly, and when I awoke I didn't know if I was a man dreaming I was a butterfly or a butterfly dreaming than I was a man" zinger in it. In many ways Chuang Tzu and the {{< bookshop isbn="9781611807240" />}}
 {{< /bookshop >}}
 
-Most books are pop junk. Both Joy and I like to get things from the bibliography of the books that we read, which means that there are a lot of old books in our house.  I'll get things that were from back in the 60s and 70s, though she will often go back to the 17Th and 18Th century, but she reads in 5 languages and I'm limited to English. There's a minor industry of poorly typeset public domain books that you can order printed which gives you a sense of how active the forgetting process is.
 
-Jane Austin was considered to be in the to-be-forgotten pop junk category for a while but clearly not anymore, so it's not like all of these things are forgotten for a just reason; they are just forgotten. People think that Amazon sells a lot of books but compared to a good library their selection is both surprisingly broad and incredibly superficial.
 
-Most of the big events in my life therefor have books associated with them. Good or bad, the experience of reading them triggered something in my mind that I associate with the resulting change in my life. Some books I take thoughts directly from but more often the books create a space that my thoughts roam around in -- I have no allegiage to the fidelity of the authors intent, and coming out of a book saying "everything this author is saying is wrong" still gives you something valuable. More often than not it's "this confused drivel isn't even wrong", so you appreciate a clear signal.
 
-Lets get into some good ones.
+https://bookshop.org/books/animal-architects-building-and-the-evolution-of-intelligence/9780465028382
+
+
+https://bookshop.org/books/false-prophets-the-gurus-who-created-modern-management-and-why-their-ideas-are-bad-for-business-today/9780738207988
 
 
 

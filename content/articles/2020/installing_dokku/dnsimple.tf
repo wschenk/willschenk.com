@@ -1,16 +1,44 @@
-variable "dns_token" {}
-variable "dns_account_id" {}
-variable "dns_domain" {}
-
-provider "dnsimple" {
-  token = var.dns_token
-  account = var.dns_account_id
+variable "dnsimple_token" {
+  description = "dnssimple api access token"
 }
 
-resource "dnsimple_record" "web" {
-  domain = var.dns_domain
-  name   = "web"
-  value  = linode_instance.web.ip_address
+variable "dnsimple_account_id" {
+  description = "dnsimple account id"
+}
+
+variable "dnsimple_domain" {
+  description = "dnsimple domain name"
+}
+
+provider "dnsimple" {
+  token = var.dnsimple_token
+  account = var.dnsimple_account_id
+}
+
+resource "dnsimple_record" "dokku" {
+  domain = var.dnsimple_domain
+  name   = "dokku"
+  value  = digitalocean_droplet.dokku.ipv4_address
   type   = "A"
   ttl    = 3600
+}
+
+resource "dnsimple_record" "tezlab" {
+  domain = var.dnsimple_domain
+  name   = "tezlab"
+  value  = digitalocean_droplet.dokku.ipv4_address
+  type   = "A"
+  ttl    = 3600
+}
+
+resource "dnsimple_record" "deno" {
+  domain = var.dnsimple_domain
+  name   = "deno"
+  value  = digitalocean_droplet.dokku.ipv4_address
+  type   = "A"
+  ttl    = 3600
+}
+
+output "hostname" {
+  value = dnsimple_record.dokku.hostname
 }

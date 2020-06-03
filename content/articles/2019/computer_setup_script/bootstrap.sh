@@ -655,7 +655,7 @@ if [ "${USER}" == "wschenk" ]; then
 	echo "Your path is correctly set"
     else
 	info Adding willschenk.com/bin to the path
-	echo "export PATH=$HOME/willschenk.com/bin:$PATH" >> ~/.profile
+	echo 'export PATH=$HOME/willschenk.com/bin:$PATH' >> ~/.profile
 	source ~/.profile
 	RESET_TERMINAL=1
     fi
