@@ -1,8 +1,7 @@
 ---
 title: IPFS and Fuse
 subtitle: the worlds data in your filesystem
-date: "2020-02-18"
-draft: true
+date: "2020-06-05"
 tags:
   - ipfs
   - fuse
@@ -51,8 +50,8 @@ sudo chown $USER /ipns
 
 ```bash
 cd $(mktemp -d)
-wget https://dist.ipfs.io/go-ipfs/v0.4.23/go-ipfs_v0.4.23_linux-amd64.tar.gz
-tar xzvf go-ipfs_v0.4.23_linux-amd64.tar.gz
+wget https://dist.ipfs.io/go-ipfs/v0.5.1/go-ipfs_v0.5.1_linux-amd64.tar.gz
+tar xzvf go-ipfs_v0.5.1_linux-amd64.tar.gz
 cd go-ipfs
 sudo sh install.sh
 ```
@@ -74,7 +73,6 @@ dig +noall +answer TXT _dnslink.docs.ipfs.io| sed 's/.*\/ipfs/\/ipfs/;s/"//'
 ```
 
 Which at the time of this writing outputs `/ipfs/bafybeicksctt6uom4iltnel6hqmgwaphlazrpzq5wv37bpjnmzintdq7su`.
-```
 
 And then we can go into that directory and start up a webserver.
 
@@ -88,5 +86,10 @@ Lets start up a webserver and check it out:
 python -m SimpleHTTPServer
 ```
 
-And when you visit [localhost:8000](http://localhost:8000) you have a copy of that specific version of their documentation site served from your local filesystem!
+And when you visit [localhost:8000](http://localhost:8000) you have a copy of that specific version of their documentation site served from your local filesystem.
 
+## Thoughts
+
+The FUSE gateway isn't super stable, so there are some potential issues with this. But its an interesting distrubtion mechanism where you could have ngnix serving files right from /ipfs or /ipns, and be able to push changed locally on your computer and then have the webservers automatically pick them up.
+
+This is also an easy way to interact with large files using a basic script that doesn't need to interact with the ipfs api's directly.
