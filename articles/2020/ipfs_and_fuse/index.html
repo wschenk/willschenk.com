@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html><head>
+  <title>IPFS and Fuse</title>
+  
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  <link rel="stylesheet" href="../../../css/theme.css"/>
+  <link rel="stylesheet" href="../../../css/syntax.css"/>
+
+  
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-56296045-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  <meta property="og:title" content="IPFS and Fuse" />
+<meta property="og:description" content="IPFS is cool. It&rsquo;s a peer to peer distributed file system, or graph database, where you reference the data by its hash. This has the great property that the data is no longer tied to a particular computer or server. It can be spread around and you can get it from anybody without worrying if they&rsquo;ve changed or alterted it in any way. If you know what you are looking for, you don&rsquo;t need to worry about who you get it from." />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://willschenk.com/articles/2020/ipfs_and_fuse/" />
+<meta property="article:published_time" content="2020-06-05T00:00:00+00:00" />
+<meta property="article:modified_time" content="2020-06-05T00:00:00+00:00" />
+
+  <meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="IPFS and Fuse"/>
+<meta name="twitter:description" content="IPFS is cool. It&rsquo;s a peer to peer distributed file system, or graph database, where you reference the data by its hash. This has the great property that the data is no longer tied to a particular computer or server. It can be spread around and you can get it from anybody without worrying if they&rsquo;ve changed or alterted it in any way. If you know what you are looking for, you don&rsquo;t need to worry about who you get it from."/>
+<meta name="twitter:site" content="@wschenk"/>
+
+
+  <style>
+    .article p, .article ul, .article ol, .article table {
+      max-width: 45em;
+    }
+
+    .article pre p {
+    max-width: none;
+    margin-top: -1.5rem;
+    }
+
+    article.article p:first-child, .article blockquote {
+      font-size: 1.25em;
+      font-weight: 300;
+      max-width: 36em;  
+    }
+  </style>
+</head>
+<body><nav class="container my-5">
+  <h1 class="pt-md-5 display-3"><a class="text-dark" href="../../../">Will Schenk</a></h1>
+  <p>
+    
+      <a class="text-dark h4 mr-3 font-weight-light" href="../../../articles/" title="">Articles</a>
+    
+      <a class="text-dark h4 mr-3 font-weight-light" href="../../../contact" title="">Contact</a>
+    
+      <a class="text-dark h4 mr-3 font-weight-light" href="../../../tags/" title="">Tags</a>
+    
+    <a href="../../../feed.xml" class="mr-3 h4 text-light"><img src="../../../img/rss.svg" alt="rss" height="20" width="20"/></a>
+    
+      <a href="https://twitter.com/@wschenk" class="mr-3 h4 text-light"><img src="../../../img/twitter.svg" alt="twitter" height="20" width="20"/></a>
+    
+    
+      <a href="https://instagram.com/wschenk" class="mr-3 h4 text-light"><img src="../../../img/instagram.svg" alt="instagram" height="20" width="20"/></a>
+    
+    
+      <a href="https://github.com/wschenk" class="mr-3 h4 text-light"><img src="../../../img/github.svg" alt="github" height="20" width="20"/></a>
+    
+    
+      <a href="https://linkedin.com/in/will-schenk-420266" class="mr-3 h4 text-light"><img src="../../../img/linkedin.svg" alt="linkedin" height="20" width="20"/></a>
+    
+  </p>
+</nav>
+
+<div class="container">
+  <h1 class="mt-5">IPFS and Fuse</h1>
+
+  
+    <h2 class="font-weight-light font-italic mb-3">the worlds data in your filesystem</h2>
+  
+
+  <p class="text-muted mt-3">
+    <a class="text-muted" href="https://willschenk.com/articles/2020/ipfs_and_fuse/">Published June 5, 2020</a>
+
+    
+      <a class="text-muted" href="../../../tags/ipfs">#ipfs</a>
+    
+      <a class="text-muted" href="../../../tags/fuse">#fuse</a>
+    
+      <a class="text-muted" href="../../../tags/howto">#howto</a>
+    
+  </p>
+
+  
+
+  
+
+  <article class="article mt-5">
+    <p><a href="https://ipfs.io/">IPFS</a> is cool. It&rsquo;s a peer to peer distributed file system, or graph database, where you reference the data by its hash. This has the great property that the data is no longer tied to a particular computer or server.  It can be spread around and you can get it from anybody without worrying if they&rsquo;ve changed or alterted it in any way.  If you know what you are looking for, you don&rsquo;t need to worry about who you get it from.</p>
+<p>Lets see how we can use the Fuse interface, so that we can use our regular shell scripting toolbox to access and process data on the network.</p>
+<h2 id="installing-fuse-on-linux">Installing fuse on Linux</h2>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">sudo apt-get install fuse
+</code></pre></div><p>Make sure you are in the <code>fuse</code> group:</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">sudo groupadd fuse
+sudo usermod -a -G fuse <span class="nv">$USER</span>
+</code></pre></div><p>Edit <code>/etc/fuse.conf</code> and enable <code>user_allow_other</code>.</p>
+<h2 id="installing-fuse-on-osx">Installing Fuse on OSX</h2>
+<p>I&rsquo;ve not tried it, but here&rsquo;s <a href="https://osxfuse.github.io/">a link to the OSXFuse project</a>.</p>
+<h2 id="setting-up-the-mount-points">Setting up the mount points</h2>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="c1"># make the directories</span>
+sudo mkdir /ipfs
+sudo mkdir /ipns
+
+<span class="c1"># chown them so ipfs can use them without root permissions</span>
+sudo chown <span class="nv">$USER</span> /ipfs
+sudo chown <span class="nv">$USER</span> /ipns
+</code></pre></div><h2 id="install-ipfs">Install IPFS</h2>
+<p><a href="https://dist.ipfs.io/#go-ipfs">Download ipfs</a> for your platform and install. e.g.:</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="nb">cd</span> <span class="k">$(</span>mktemp -d<span class="k">)</span>
+wget https://dist.ipfs.io/go-ipfs/v0.5.1/go-ipfs_v0.5.1_linux-amd64.tar.gz
+tar xzvf go-ipfs_v0.5.1_linux-amd64.tar.gz
+<span class="nb">cd</span> go-ipfs
+sudo sh install.sh
+</code></pre></div><p>The initialise ipfs and start ipfs</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">ipfs init
+ipfs config --json Mounts.FuseAllowOther <span class="nb">true</span>
+ipfs daemon --mount
+</code></pre></div><h2 id="find-some-content">Find some content</h2>
+<p>We can look up the CID of some files</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">dig +noall +answer TXT _dnslink.docs.ipfs.io<span class="p">|</span> sed <span class="s1">&#39;s/.*\/ipfs/\/ipfs/;s/&#34;//&#39;</span>
+</code></pre></div><p>Which at the time of this writing outputs <code>/ipfs/bafybeicksctt6uom4iltnel6hqmgwaphlazrpzq5wv37bpjnmzintdq7su</code>.</p>
+<p>And then we can go into that directory and start up a webserver.</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="nb">cd</span> /ipfs/bafybeicksctt6uom4iltnel6hqmgwaphlazrpzq5wv37bpjnmzintdq7su
+</code></pre></div><p>Lets start up a webserver and check it out:</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">python -m SimpleHTTPServer
+</code></pre></div><p>And when you visit <a href="http://localhost:8000">localhost:8000</a> you have a copy of that specific version of their documentation site served from your local filesystem.</p>
+<h2 id="thoughts">Thoughts</h2>
+<p>The FUSE gateway isn&rsquo;t super stable, so there are some potential issues with this. But its an interesting distrubtion mechanism where you could have ngnix serving files right from /ipfs or /ipns, and be able to push changed locally on your computer and then have the webservers automatically pick them up.</p>
+<p>This is also an easy way to interact with large files using a basic script that doesn&rsquo;t need to interact with the ipfs api&rsquo;s directly.</p>
+
+  </article>
+
+  
+</div>
+
+
+  <div class="bg-light py-5">
+    <div class="container">
+      <h2 class="text-center">Read next</h2>
+
+      <div class="row">
+        <div class="col-md-6 text-center">
+          
+        </div>
+        <div class="col-md-6 text-center">
+          
+            Previous Post:
+            <a href="../../../articles/2020/deno/">Playing with deno</a>
+          
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+
+
+<div class="container mt-5">
+  <h2 class="text-center">See also</h2>
+  <div class="row">
+  	
+      <div class="col-md mb-3">
+        <p class="lead mb-0"><a class="text-body" href="../../../articles/2019/setting_up_ipfs_on_chromebook/">Setting up IPFS on a chromebook</a></p>
+
+        
+          <p class="lead font-italic mb-0">Connecting to the world</p>
+        
+        <div class="font-weight-light mt-3">
+          
+          
+            <p>Lets look at how to run an ipfs node on a chromebook.  We are using the linux container for this, and in order to get the experience right we&rsquo;ll need to install some chrome extensions to make it work seamlessly.</p>
+          
+        </div>
+        <a href="../../../articles/2019/setting_up_ipfs_on_chromebook/" class="btn btn-primary">Read more</a>
+      </div>
+    
+      <div class="col-md mb-3">
+        <p class="lead mb-0"><a class="text-body" href="../../../articles/2020/book_images_shortcode/">Book Image Shortcode for Hugo</a></p>
+
+        
+          <p class="lead font-italic mb-0">Lets link to bookshop</p>
+        
+        <div class="font-weight-light mt-3">
+          
+          
+            <p>HappyFunCorp helped build Bookshop.org which is an online bookstore that distributes 30% of the book profits to independant bookstores in your area. Basically it&rsquo;s a place that people can link to that isn&rsquo;t Amazon, and that will kick some money to your local community.
+I wanted to find a way to easily create links to these product pages, and show images if needed. There&rsquo;s no API to access bookshop (I asked on our internal dev channel) but I know how to write a script so I cobbled something together and made a hugo shortcode to render stuff on my blog.</p>
+          
+        </div>
+        <a href="../../../articles/2020/book_images_shortcode/" class="btn btn-primary">Read more</a>
+      </div>
+    
+      <div class="col-md mb-3">
+        <p class="lead mb-0"><a class="text-body" href="../../../articles/2020/styling_tables_with_hugo/">Styling tables with Hugo</a></p>
+
+        
+          <p class="lead font-italic mb-0">Markdown sometimes isn&rsquo;t enough</p>
+        
+        <div class="font-weight-light mt-3">
+          
+          
+            <p>Markdown is a nice format to write it, but sometimes you need to add HTML classes directly to the output to make it look how you want. Here&rsquo;s a way to do that using hugo shortcodes.
+Create a table shortcode Put this in /layouts/shortcodes/table.html:
+{{ $htmlTable := .Inner | markdownify }} {{ $class := .Get 0 }} {{ $old := &#34;&lt;table&gt;&#34; }} {{ $new := printf &#34;&lt;table class=\&#34;%s\&#34;&gt;&#34; $class }} {{ $htmlTable := replace $htmlTable $old $new }} {{ $htmlTable | safeHTML }} Create a table Like this:</p>
+          
+        </div>
+        <a href="../../../articles/2020/styling_tables_with_hugo/" class="btn btn-primary">Read more</a>
+      </div>
+    
+  </div>
+</div>
+
+
+<footer class="footer bg-dark text-light mt-3">
+  <div class="container">
+    <h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2>
+  </div>
+</footer>
+</body>
+</html>
