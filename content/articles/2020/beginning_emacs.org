@@ -1,22 +1,35 @@
-#+title: Beginning Emacs for JavaScript Development
+#+title: Beginning Emacs
 #+subtitle: Rediscovering emacs
 #+tags[]: emacs, javascript, floss
-#+date: 2019-12-11
-#+draft: true
+#+date: 2020-06-06
 
 * Intro
 
-I've dipped back into the world of Free Software, a place that I used to know very well and it's now even better than I remember it.  I love the package manager!  I've started using emacs again -- a lot of the muscle memory is still there.  Lets look at how to setup emacs to do JavaScript development.
+I've been dipping back ito the world of free software, and have been having a huge amount of fun getting back into emacs.  I'm using it more of an operating system than I ever did before, as a way to navigate the world using a text interface.  I'd never thought I'd be done with the terminal, but this is the first time that I've got something better and more powerful.
+
+Since I do a lot of server wrangling and web development, lets look at how to setup emacs to do JavaScript development.  My setup is a Pixelbook, and I run three virtual desktops.  The first is a full screen Chrome window with multiple tabs, and the second and third are emacs frames.  I flip back and forth between them as needed.
 
 First install emacs.  You need emacs > 25 to use magit, so its probable that you'll need to upgrade the emacs in your system.  If you are using linux I'll let you sort that out directly, but below are the instructions for OSX.
 
 * Installing on debian
 
-The latest emacs (26 at the time of this writing) isn't available yet, but you can install 25.
+The latest emacs (26 at the time of this writing) is on buster, so upgrade to that.
 
 #+BEGIN_SRC bash
-sudo apt-get install emacs25
+sudo apt-get install emacs
 #+END_SRC
+
+Documentation is not available in the =free= part of debian.  Don't ask me, something complicated.  In order to get the info pages, you need to install the package =emacs-common-non-dfsg= which is in the =non-free= part.  
+
+Start up emacs and then you can do =C-x C-f /sudo::/etc/apt/sources.list= to open up the sources file as =root=!  That's pretty neat, part of the =Tramp= system which lets you use local buffers to edit things that are "remote", in this case as another user but also on different hosts.
+
+Add =non-free= to the end of first line to have access to the other set of packages.  Then do =M-x shell= to startup a bash shell, and you can install the rest of it from there:
+
+#+BEGIN_SRC bash
+sudo apt-get install emacs-common-non-dfsg install-info
+#+END_SRC
+
+You may need to run =install-info= to get emacs to recognize other stuff in the =/usr/share/info= directory.
 
 * Using homebrew to install emacs on OSX
 
@@ -109,7 +122,7 @@ Also add =https://melpa.org/packages/=.
 
 I also like to set =visual-line-mode= globally to true.
 
-Then =Apply and Save=
+Then =Apply and Save=, or do =C-x C-f=
 
 Refresh the package list using =M-x package-refresh-contents=
 
@@ -118,18 +131,22 @@ Refresh the package list using =M-x package-refresh-contents=
 Go to =customize= again and change =package-check-signature= to nil.  Apply and save.  Then =M-x package-install RET gnu-elpa-keyring-update RET=.  Then go back to customize and revert =package-check-signature= to =allow-unsigned=
 
 * Changing themes and fonts
-Use =M-x customize-themes= to change your theme.  I also like to have a much large font, which you can adjust using =M-x customize-face= and setting the =default= size to something like 140.
+Use =M-x customize-themes= to change your theme.  I also like to have a much larger font, which you can adjust using =M-x customize-face= and setting the =default= size to something like 140.
 
 * 2 spaced tabs
-#+BEGIN_SRC elisp
 
+Open up your =.emacs= file and add:
+
+#+BEGIN_SRC elisp
 ;; https://www.emacswiki.org/emacs/NoTabs
 (setq-default indent-tabs-mode nil)
 
 ;; https://www.emacswiki.org/emacs/TabStopList
 (setq tab-stop-list (number-sequence 2 120 2))
-
 #+END_SRC 
+
+Use =C-space= to start a selection, the arrow keys to move around to select it all.  Then type =M-x eval-region= to run the lisp.
+
 * Install =use-package=
 =M-x package-install RET use-package RET=
 
@@ -172,6 +189,21 @@ To install =M-x package-install emmet-mode=
 (setq emmet-move-cursor-between-quotes t)
 #+END_SRC
 
+* Install =web-mode=
+I find webmode handles indention better for files that have embedded submodes, such as javascript inside of an HTML file.
+
+#+BEGIN_SRC elisp
+(require 'web-mode)
+(add-to-list 'auto-mode-alist '("\\.phtml\\'" . web-mode))
+(add-to-list 'auto-mode-alist '("\\.tpl\\.php\\'" . web-mode))
+(add-to-list 'auto-mode-alist '("\\.[agj]sp\\'" . web-mode))
+(add-to-list 'auto-mode-alist '("\\.as[cp]x\\'" . web-mode))
+(add-to-list 'auto-mode-alist '("\\.erb\\'" . web-mode))
+(add-to-list 'auto-mode-alist '("\\.mustache\\'" . web-mode))
+(add-to-list 'auto-mode-alist '("\\.djhtml\\'" . web-mode))
+(add-to-list 'auto-mode-alist '("\\.html?\\'" . web-mode))
+#+END_SRC
+
 * Install =lsp-mode=
 
   This is the big one.  [[https://github.com/emacs-lsp/lsp-mode]] gives you a list of all of the languages supported and what needs to be installed, but lets focus on =javascript= for now.
@@ -202,34 +234,7 @@ And then install some of the language servers.  In the case of javascript
 npm i -g typescript-language-server; npm i -g typescript
 #+END_SRC
 
-* Test with =create-react-app=
-
-Lets now test out what we've done.  First lets create a simple react-app.
-
-#+BEGIN_SRC bash
-
-npx create-react-app testapp
-
-#+END_SRC
-
-* Install =rjsx-mode= and =xref-js2=
-
-I mainly do react development on the front end, and the =rjsx-mode= depends on the =js2-mode= which is pretty great.  We'll install this and =xref-js2= to help navigate through files better.
-
-=M-x package-install= then =rjsx-mode=
-
-=M-x package-install= then =xref-js2=
-
-And add to your =~/.emacs=
-
-#+BEGIN_SRC elisp
-(add-to-list 'auto-mode-alist '("\\.js\\'" . rjsx-mode))
-#+END_SRC
-
-You can use the mouse to select -- or =C-space= to select the start of the region and move the pointer around. Once you have the region selected do =M-x eval-buffer= to load the config in place.
-
 * Install =magit=
-
 
 =M-x package-install RET magit RET=
 
@@ -243,16 +248,6 @@ Magit is amazingly powerful, and I'm still trying to learn it.
 
 Probably the best way to get into it is to first run =C-x g= (or =M-x magit-status=) and then use =C-h m=, which will show you the documentation for the current /mode/, in this case magit.  This is a good way to poke around, though it makes sense to check out [[https://magit.vc/manual/][the manual]] which is pretty extensive.
 
-* Install =golden-ratio=
-
-This is silly but fun. =M-x package-install RET golden-ratio RET= and then in =.emacs=
-
-#+BEGIN_SRC elisp
-(require 'golden-ratio)
-
-(golden-ratio-mode 1)
-#+END_SRC
-
 * Usage example
 After I checkout my repo, I bookmark the base folder using =C-x r m=.  Then I can go there faster without having to navigate through the filesystem.
 
@@ -263,6 +258,7 @@ I start up a shell using =M-x shell= to run commands.  You can =M-x rename-buffe
 * References
 
 1. https://www.masteringemacs.org/
+2. https://www.emacswiki.org/emacs/EmacsForDebian
 2. https://blog.vifortech.com/posts/emacs-tls-fix/
 3. https://github.com/emacs-lsp/lsp-mode
 3. https://gist.github.com/CodyReichert/9dbc8bd2a104780b64891d8736682cea
