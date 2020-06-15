@@ -6,6 +6,7 @@ tags:
   - vuejs
   - buildless
   - onefilecoding
+  - static_sites
 date: "2020-02-19"
 ---
 
