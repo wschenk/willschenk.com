@@ -11,7 +11,7 @@ draft: true
 
 ## Install guile
 
-The debian that I'm on only has guile-2.0 and Geiser needs at least 2.3.  So lets download the latest and install.
+The debian that I'm on only has guile-2.0 and Geiser needs at least 2.3.  
 
 ```bash
 sudo apt-get install libgmp10-dev libtool libunistring-dev
