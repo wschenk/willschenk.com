@@ -1,0 +1,408 @@
+#+title: Checking health of RSS feeds
+#+subtitle: Lets clean out the old stuff
+#+date: 2020-06-19
+#+tags: ruby, script
+#+draft: true
+
+I still use RSS feeds as my main way of consuming stuff on the
+internet.  Old school.  I was looking at the list of things that I've
+subscribed to which has been imported back from the Google Reader
+days, and figured I'd do some exploration of ye old OPML file.
+
+* Setup the =Gemfile=
+
+We'll need to pull in a few gems here:
+
+#+begin_src ruby :tangle Gemfile
+source 'https://rubygems.org'
+
+gem 'httparty'     # To pull stuff from the network
+gem 'feedjira'     # To parse RSS feeds
+gem 'nokogiri'     # To parse XML
+gem 'domainator'   # To figured out the domain from the hostname
+gem 'whois'        # To see how old the domain is
+gem 'whois-parser' # To actually make sense of the result
+
+#+end_src
+
+And install everything
+
+#+begin_src bash
+bundle
+#+end_src
+
+* Look at domains
+First, lets see what we can find out about the machine that hosts the
+feed. First we see if the hostname resolves, then we pull out the
+domain from the hostname to see when it was registered.
+
+
+#+begin_src ruby :tangle load_dns.rb :results output
+  require 'resolv'
+  require 'domainator'
+  require 'whois'
+  require 'whois-parser'
+
+  def load_dns feed_url
+    uri = URI.parse feed_url
+  
+    info = {}
+    info[:hostname] = uri.hostname
+  
+    # See if the name is still on the internet
+    info[:resolved] = Resolv.getaddress uri.hostname
+  
+    # Find the domain from the url
+    info[:domain] = Domainator.parse(feed_url)
+  
+    # Lookup whois to see how old it is
+    client = Whois::Client.new
+    record = client.lookup(info[:domain])
+    result = record.parser
+  
+    info[:registered] = result.registered?
+    info[:created_on] = result.created_on
+    info[:updated_on] = result.updated_on
+    info[:expires_on] = result.expires_on
+  
+    info
+  end
+
+  if $PROGRAM_NAME == __FILE__
+    pp load_dns( "https://codex.happyfuncorp.com/feed" )
+    pp load_dns( "https://aestheticsofjoy.com/feed" )
+  end
+#+end_src
+
+#+RESULTS:
+#+begin_example
+{:hostname=>"codex.happyfuncorp.com",
+ :resolved=>"52.6.3.192",
+ :domain=>"happyfuncorp.com",
+ :registered=>true,
+ :created_on=>2010-10-27 19:39:32 UTC,
+ :updated_on=>2019-10-12 12:39:11 UTC,
+ :expires_on=>2020-10-27 19:39:32 UTC}
+{:hostname=>"aestheticsofjoy.com",
+ :resolved=>"104.31.75.74",
+ :domain=>"aestheticsofjoy.com",
+ :registered=>true,
+ :created_on=>2009-05-14 04:36:37 UTC,
+ :updated_on=>nil,
+ :expires_on=>2021-05-14 04:36:37 UTC}
+#+end_example
+
+So this domain has been around for a few years!  There's also
+=.contacts= that we in theory could use, but poking around it seems like
+things are wrapped up in privacy proxies for the most part.
+
+* Reading the OPLM
+
+Lets say that you have a OPML file called =feeds.opml=.  We'll parse the
+XML to pull out the awesome that we need.
+
+#+begin_src ruby :tangle load_opml.rb :results output
+  require 'nokogiri'
+
+  def load_opml feed_file
+    doc = Nokogiri.XML(File.read(feed_file))
+
+    doc.xpath( "//body//outline" ).select do |x|
+      x['xmlUrl']
+    end.collect do |x|
+      { title: x['title'], feed_url: x['xmlUrl'], site_url: x['htmlUrl'] }
+    end
+  end
+
+  if $PROGRAM_NAME == __FILE__
+    load_opml( "feeds.opml" ).each do |x|
+      printf "%35s %s %s\n", x[:title], x[:feed_url], x[:site_url] if x[:feed_url]
+    end
+  end
+
+#+end_src
+
+Which prints out all those old RSS feeds, in all their 375 lines of
+glory in my case.
+
+* Testing loading a Feed
+
+Loading the feed and parsing it is fairly simple using feedjira.  We
+pull in the feed with HTTParty, and just pass the body right into
+feedjira.  One statistic that's interesting is the generator, which is
+the blogging platform that the person is using.  It'll be interesting
+to see what the world is using.
+
+We also need to deal with the fun world of redirect, so lets put in a
+bit of logic for that.
+
+#+begin_src ruby :tangle load_feed.rb :results output org 
+  require 'feedjira'
+  require 'httparty'
+
+  def load_feed feed_url
+    resp = HTTParty.get feed_url
+
+    if resp.code == 200
+      Feedjira::Feed.add_common_feed_element("generator")
+
+      feed = Feedjira.parse(resp.body)
+
+      info = {
+        title: feed.title,
+        feed: feed_url,
+        link: feed.url,
+        description: feed.description,
+        generator: feed.generator,
+        entries: feed.entries.length
+      }
+
+      if feed.entries.length > 0
+        info[:last_published] = feed.entries.first.published
+        info[:earliest_post] = feed.entries.last.published
+      end
+
+      info
+    else
+      puts "Response status #{resp.code}"
+      {}
+    end
+  end
+
+  # Test harness
+  if $PROGRAM_NAME == __FILE__
+    feed_info = load_feed "https://willschenk.com/feed.xml"
+
+    feed_info.each { |key,value| puts "|#{key}|#{value}|"}
+  end
+#+end_src
+* Looking for renamed feeds
+It's possible that the feed has simply moved and never gotten update.
+Perhaps the site is still there serving HTML, but they switch
+platforms years ago and the feed url never got updated.  So lets go
+through all of the output and see for the domains that still resolve
+if the root has a =link alternative= defined inside of the =head= block
+and then try and get that new feed.  Who knows what we might discover!
+
+#+begin_src ruby :tangle load_alt_link.rb :results output replace drawer
+  require 'nokogiri'
+  require 'httparty'
+
+  def find_feed_from_url feed_url
+    puts "Looking at #{feed_url}"
+    resp = HTTParty.get feed_url, timeout: 10
+
+    if resp.code == 200
+      page = Nokogiri.parse resp.body
+
+      page.css( 'head link[rel="alternate"]' ).each do |x|
+        url = x['href']
+        return URI.join( feed_url, x['href'] ).to_s
+      end
+    else
+      puts "Unable to load #{feed_url} #{resp.code}"
+    end
+
+    nil
+  end
+
+  # Test harness
+  if $PROGRAM_NAME == __FILE__
+    puts find_feed_from_url( "http://willschenk.com" )
+    puts find_feed_from_url( "http://tomcritchlow.com/" )
+  end
+#+end_src
+
+Note that in the first case we pass in a =http= link which gets updated
+to a =https= served feed, and in the second case it's a relative link
+that gets the correct final link.
+
+#+RESULTS:
+:results:
+Looking at http://willschenk.com
+https://willschenk.com/feed.xml
+Looking at http://tomcritchlow.com/
+http://tomcritchlow.com/feed.xml
+:end:
+
+* Combining everything
+
+The idea here is that we will go through all the feeds and look to see
+if their domain is still active.  If it is, we attempt to pull in the
+feed to fill in the rest of the information.  And from there we can
+decide what it is that we want to do.
+
+#+begin_src ruby :tangle feed_checker.rb :results output
+  require 'csv'
+  require './load_dns'
+  require './load_feed'
+  require './load_opml'
+  require './load_alt_link'
+
+  headers = [ :site_url, :feed_url, :old_feed_url, :resolved,
+              :registered, :created_on, :updated_on, :title, :link,
+              :description, :generator, :entries, :earliest_post,
+              :last_published]
+
+
+  CSV.open "feed_info.csv", "w" do |csv|
+    csv << headers
+
+    feeds = load_opml "feeds.opml"
+    feeds.each do |feed|
+      whois = {}
+      feed_info = {}
+
+      site_url = feed[:site_url]
+      feed_url = feed[:feed_url]
+      feed[:old_feed_url] = feed_url
+
+      if !site_url.nil? && site_url != ""
+        # Look for updated feed
+        begin
+          puts "Check to see if #{feed_url} has an update"
+
+          new_feed_url = find_feed_from_url site_url
+          if new_feed_url
+            feed_url = new_feed_url
+            feed_info[:feed_url] = feed_url
+          end
+        rescue 
+          puts "Error looking up #{site_url}"
+        end
+      end
+
+      begin
+        puts "Getting whois for #{feed_url}"
+        whois = load_dns feed_url
+        if whois[:resolved]
+          puts "Loading #{feed_url}"
+          feed_info = load_feed feed_url
+          pp feed_info
+        else
+          puts "#{feed_url} doesn't resolve"
+        end
+      rescue Resolv::ResolvError
+        puts "No host"
+      rescue Exception => e
+        puts "Error with #{feed_url}"
+        puts e
+        puts "************"
+      end
+
+      csv << headers.collect { |x| feed[x] || whois[x] || feed_info[x] }
+    end
+  end
+#+end_src
+
+This goes through all of the feeds, so it will take a while to run.
+
+* Some stats
+Lets look at what the state of my RSS feeds are looking like, here in
+June of 2020.
+
+#+begin_src ruby :tangle stats.rb :results output replace org
+  require 'csv'
+
+  stats = { total: 0, resolved: 0, last_month: 0, last_year: 0,
+            has_entries: 0, total_entries: 0, generator: {} }
+
+  headers = nil
+
+  CSV.open( "feed_info.csv" ).each do |line|
+    if headers.nil?
+      headers = line
+    else
+      stats[:total] += 1
+      if line[headers.index( "resolved" )]
+        stats[:resolved] += 1
+      end
+
+      entries = line[headers.index( "entries" )]
+      if !entries.nil?
+        stats[:has_entries] += 1
+        stats[:total_entries] += entries.to_i
+      end
+
+      updated_on = line[headers.index( "last_published" )]
+      if !updated_on.nil? && updated_on != ""
+        updated_on = Date.parse( updated_on )
+        days_old = (Time.now.to_date - updated_on).to_i
+
+        if days_old < 30
+          stats[:last_month] += 1
+        end
+
+        if days_old < 365
+          stats[:last_year] += 1
+
+          g = line[headers.index( "generator" )]
+          # Collapse some where the username is in the generator field
+          g = 'LiveJournal' if g =~ /LiveJournal/
+          g = 'Tumblr' if g =~ /Tumblr/
+          stats[:generator][g] ||= 0
+          stats[:generator][g] += 1
+        end
+      end
+    end
+  end
+
+  puts "| Total | #{stats[:total]} |"
+  puts "| Resolved | #{stats[:resolved]} |"
+  puts "| Active with 30 days | #{stats[:last_month]} |"
+  puts "| Active within a year | #{stats[:last_year]} |"
+  puts "| Feeds with entries | #{stats[:has_entries]} |"
+  puts "| Total posts | #{stats[:total_entries]} |"
+
+  g = stats[:generator]
+  g.keys.sort { |a,b| g[b] <=> g[a]}.each do |generator|
+    puts "| #{generator} | #{g[generator]} |" if g[generator]>1
+  end
+#+end_src
+
+#+end_src
+
+#+ATTR_HTML: :class table table-striped
+| Total                |  358 |
+| Resolved             |  292 |
+| Active with 30 days  |   69 |
+| Active within a year |  101 |
+| Feeds with entries   |  203 |
+| Total posts          | 5346 |
+
+So of the =358= feeds in the file, a whopping =69= are still being updated
+and =203= are still on the internet!
+
+It would be interesting to see when those =69= were first created and
+how many posts they have to get a sense of who really is still
+publishing with =RSS=.
+
+As for what people are using:
+
+#+ATTR_HTML: :class table table-striped
+| unset                                                                                                                               | 35 |
+| https://wordpress.org/?v=5.4.2                                                                                                      | 12 |
+| Hugo -- gohugo.io                                                                                                                   |  7 |
+| Tumblr                                                                                                                              |  6 |
+| https://wordpress.org/?v=5.3.4                                                                                                      |  5 |
+| Blogger                                                                                                                             |  5 |
+| http://wordpress.com/                                                                                                               |  4 |
+| Medium                                                                                                                              |  4 |
+| LiveJournal                                                                                                                         |  2 |
+| https://wordpress.org/?v=5.2.7                                                                                                      |  2 |
+| Jekyll                                                                                                                              |  2 |
+
+What's interesting to me here is:
+
+1. Not everyone seems to set a generator, in fact most don't.
+2. Most are running the latest version of WordPress, but why would it
+   advertise the version number externally?
+3. Hugo has a much stronger showing than GatbsyJS, but I perceive
+   Gatsby to be more popular in overall front end development.  Maybe
+   people just don't make blogs out of it.
+
+* References
+
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

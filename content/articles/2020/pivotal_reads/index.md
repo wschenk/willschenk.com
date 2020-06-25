@@ -48,3 +48,5 @@ https://bookshop.org/books/false-prophets-the-gurus-who-created-modern-managemen
 
 
 
+https://bookshop.org/books/microserfs/9780061624261
+https://bookshop.org/books/the-soul-of-a-new-machine/9780316491976
