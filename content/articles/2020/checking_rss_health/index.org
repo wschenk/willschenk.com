@@ -1,8 +1,7 @@
 #+title: Checking health of RSS feeds
 #+subtitle: Lets clean out the old stuff
-#+date: 2020-06-19
-#+tags: ruby, script
-#+draft: true
+#+date: 2020-06-26
+#+tags: ruby, script, rss, history
 
 I still use RSS feeds as my main way of consuming stuff on the
 internet.  Old school.  I was looking at the list of things that I've
@@ -297,7 +296,7 @@ decide what it is that we want to do.
 
 This goes through all of the feeds, so it will take a while to run.
 
-* Some stats
+* Looking at some stats
 Lets look at what the state of my RSS feeds are looking like, here in
 June of 2020.
 
@@ -305,7 +304,8 @@ June of 2020.
   require 'csv'
 
   stats = { total: 0, resolved: 0, last_month: 0, last_year: 0,
-            has_entries: 0, total_entries: 0, generator: {} }
+            has_entries: 0, total_entries: 0, generator: {},
+            updated_year: {}, feed_active: {} }
 
   headers = nil
 
@@ -343,10 +343,29 @@ June of 2020.
           stats[:generator][g] ||= 0
           stats[:generator][g] += 1
         end
+
+        year = updated_on.year.to_i
+        if year > 1900 # Validation
+          stats[:updated_year][year] ||= 0
+          stats[:updated_year][year] += 1
+        end
+
+        earliest_post = line[headers.index( "earliest_post" )]
+        if !earliest_post.nil? && earliest_post != ""
+          earliest_post = Date.parse( earliest_post )
+          if earliest_post.year > 1900 # Validation
+            (earliest_post.year..updated_on.year).each do |year|
+              stats[:feed_active][year] ||= 0
+              stats[:feed_active][year] += 1
+            end
+          end
+        end
       end
+
     end
   end
 
+  puts "Overall"
   puts "| Total | #{stats[:total]} |"
   puts "| Resolved | #{stats[:resolved]} |"
   puts "| Active with 30 days | #{stats[:last_month]} |"
@@ -354,44 +373,140 @@ June of 2020.
   puts "| Feeds with entries | #{stats[:has_entries]} |"
   puts "| Total posts | #{stats[:total_entries]} |"
 
+  puts "Last year updated"
+  years = stats[:updated_year].keys.sort.each do |year|
+    puts "|#{year}|#{stats[:updated_year][year]}|"
+  end
+
+  puts "Active per year"
+  years = stats[:feed_active].keys.sort.each do |year|
+    puts "|#{year}|#{stats[:feed_active][year]}|"
+  end
+
+  puts "Generators"
   g = stats[:generator]
   g.keys.sort { |a,b| g[b] <=> g[a]}.each do |generator|
     puts "| #{generator} | #{g[generator]} |" if g[generator]>1
   end
 #+end_src
 
-#+end_src
+*** Summary
 
 #+ATTR_HTML: :class table table-striped
 | Total                |  358 |
-| Resolved             |  292 |
-| Active with 30 days  |   69 |
-| Active within a year |  101 |
-| Feeds with entries   |  203 |
-| Total posts          | 5346 |
+| Resolved             |  322 |
+| Active with 30 days  |   75 |
+| Active within a year |  111 |
+| Feeds with entries   |  222 |
+| Total posts          | 5708 |
 
-So of the =358= feeds in the file, a whopping =69= are still being updated
-and =203= are still on the internet!
+So of the =358= feeds in the file, a whopping =75= are still being updated
+and =222= are still on the internet!  =111= posting within the last year.
 
-It would be interesting to see when those =69= were first created and
+It would be interesting to see when those =75= were first created and
 how many posts they have to get a sense of who really is still
 publishing with =RSS=.
 
+*** Active each year
+Are there more blogs out there in 2016?  Did I start reading more
+then? Interesting that it crept up at this point.  But it's also
+possible that the older subscriptions are part of the internet that
+disappeared.
+
+{{< img img="active_year.png" class="img-fluid" >}}
+
+**** Data                                                       :noexport:
+#+NAME: active_year
+| 2004 |   1 |
+| 2005 |   3 |
+| 2006 |   4 |
+| 2007 |  10 |
+| 2008 |  24 |
+| 2009 |  26 |
+| 2010 |  34 |
+| 2011 |  35 |
+| 2012 |  32 |
+| 2013 |  31 |
+| 2014 |  31 |
+| 2015 |  35 |
+| 2016 |  42 |
+| 2017 |  44 |
+| 2018 |  46 |
+| 2019 |  53 |
+| 2020 | 100 |
+
+#+begin_src gnuplot :var data=active_year :noexport:  :file active_year.png
+set title "Active Feeds per year"
+
+set xlabel "Year"
+set ylabel "Feeds"
+
+set style fill solid
+set boxwidth 0.5
+
+plot data with boxes
+#+end_src
+
+#+RESULTS:
+[[file:active_year.png]]
+
+*** How Old
+Looks like a pretty regular number of feeds stop updating every year,
+though it's been creeping up slowly since 2014.
+
+{{< img img="last_post_year.png" class="img-fluid" >}}
+**** Data                                                       :noexport:
+#+NAME: year_data
+| 2004 |   1 |
+| 2005 |   1 |
+| 2007 |   2 |
+| 2008 |  10 |
+| 2009 |   4 |
+| 2010 |  11 |
+| 2011 |  13 |
+| 2012 |   6 |
+| 2013 |   7 |
+| 2014 |   5 |
+| 2015 |   5 |
+| 2016 |   8 |
+| 2017 |  11 |
+| 2018 |  11 |
+| 2019 |  16 |
+| 2020 | 102 |
+
+#+begin_src gnuplot :var data=year_data :noexport:  :file last_post_year.png
+set title "Year last updated"
+
+set xlabel "Year"
+set ylabel "Feeds"
+
+set style fill solid
+set boxwidth 0.5
+
+plot data with boxes
+#+end_src
+
+#+RESULTS:
+[[file:last_post_year.png]]
+
+*** Generator
 As for what people are using (I'm only showing the generators with 2
-or more entries)::
+or more entries), here's a list of the generators for the blogs still
+actively updating.
 
 #+ATTR_HTML: :class table table-striped
-| unset                                                                                                                               | 35 |
-| https://wordpress.org/?v=5.4.2                                                                                                      | 12 |
-| Hugo -- gohugo.io                                                                                                                   |  7 |
-| Tumblr                                                                                                                              |  6 |
-| https://wordpress.org/?v=5.3.4                                                                                                      |  5 |
-| Blogger                                                                                                                             |  5 |
-| http://wordpress.com/                                                                                                               |  4 |
-| Medium                                                                                                                              |  4 |
-| LiveJournal                                                                                                                         |  2 |
-| https://wordpress.org/?v=5.2.7                                                                                                      |  2 |
-| Jekyll                                                                                                                              |  2 |
+| unset                          | 36 |
+| https://wordpress.org/?v=5.4.2 | 16 |
+| Hugo -- gohugo.io              |  7 |
+| Tumblr                         |  6 |
+| https://wordpress.org/?v=5.3.4 |  5 |
+| Medium                         |  5 |
+| Blogger                        |  5 |
+| http://wordpress.com/          |  4 |
+| Jekyll                         |  3 |
+| LiveJournal                    |  2 |
+| https://wordpress.org/?v=5.2.7 |  2 |
+
 
 What's interesting to me here is:
 
@@ -404,7 +519,43 @@ What's interesting to me here is:
    people just don't make blogs out of it.
 4. People still use tumblr!
 
-* References
+* Extracting Active Feeds
+My whole goal here was to look for active feeds that I subscribe to
+rather than just dumping everything into my =elfeed.org= file. Lets
+write that now (finally!).
+
+#+begin_src ruby :tangle active.rb :results output replace org
+  require 'csv'
+
+  headers = nil
+
+  CSV.open( "feed_info.csv" ).each do |line|
+    if headers.nil?
+      headers = line
+    else
+      updated_on = line[headers.index( "last_published" )]
+      if !updated_on.nil? && updated_on != ""
+        updated_on = Date.parse( updated_on )
+        days_old = (Time.now.to_date - updated_on).to_i
+
+        if days_old < 365
+          puts "** #{line[headers.index( "feed_url" )]}"
+        end
+      end
+    end
+  end
+#+end_src
+
+* Running this yourself
+
+The code for this page is all available in [[https://github.com/wschenk/willschenk.com/tree/master/content/articles/2020/checking_rss_health][the site's repository]].  Or
+just copy any paste from this page.  You'll need an export of your
+=OPML= file, name it =feeds.opml=, then run =ruby feed_checker.rb= to scan
+through the internet, and =ruby stats.rb= to summarize the resulting
+=feed_info.csv= file.  I like =csv= for this since you could also easily
+import it into Google Sheets and figure out whatever else you want
+from it.
+
 
 # Local Variables:
 # eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
