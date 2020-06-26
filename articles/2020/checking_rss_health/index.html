@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html><head>
+  <title>Checking health of RSS feeds</title>
+  
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  <link rel="stylesheet" href="../../../css/theme.css"/>
+  <link rel="stylesheet" href="../../../css/syntax.css"/>
+
+  
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-56296045-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+  <meta property="og:title" content="Checking health of RSS feeds" />
+<meta property="og:description" content="I still use RSS feeds as my main way of consuming stuff on the internet. Old school. I was looking at the list of things that I&#39;ve subscribed to which has been imported back from the Google Reader days, and figured I&#39;d do some exploration of ye old OPML file. Setup the Gemfile   We&#39;ll need to pull in a few gems here: source &#39;https://rubygems.org&#39; gem &#39;httparty&#39; # To pull stuff from the network gem &#39;feedjira&#39; # To parse RSS feeds gem &#39;nokogiri&#39; # To parse XML gem &#39;domainator&#39; # To figured out the domain from the hostname gem &#39;whois&#39; # To see how old the domain is gem &#39;whois-parser&#39; # To actually make sense of the result   And install everything bundle  Look at domains   First, lets see what we can find out about the machine that hosts the feed." />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://willschenk.com/articles/2020/checking_rss_health/" />
+<meta property="article:published_time" content="2020-06-26T00:00:00+00:00" />
+<meta property="article:modified_time" content="2020-06-26T00:00:00+00:00" />
+
+  <meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="Checking health of RSS feeds"/>
+<meta name="twitter:description" content="I still use RSS feeds as my main way of consuming stuff on the internet. Old school. I was looking at the list of things that I&#39;ve subscribed to which has been imported back from the Google Reader days, and figured I&#39;d do some exploration of ye old OPML file. Setup the Gemfile   We&#39;ll need to pull in a few gems here: source &#39;https://rubygems.org&#39; gem &#39;httparty&#39; # To pull stuff from the network gem &#39;feedjira&#39; # To parse RSS feeds gem &#39;nokogiri&#39; # To parse XML gem &#39;domainator&#39; # To figured out the domain from the hostname gem &#39;whois&#39; # To see how old the domain is gem &#39;whois-parser&#39; # To actually make sense of the result   And install everything bundle  Look at domains   First, lets see what we can find out about the machine that hosts the feed."/>
+<meta name="twitter:site" content="@wschenk"/>
+
+
+  <style>
+    .article p, .article ul, .article ol, .article table {
+      max-width: 45em;
+    }
+
+    .article pre p {
+    max-width: none;
+    margin-top: -1.5rem;
+    }
+
+    article.article p:first-child, .article blockquote {
+      font-size: 1.25em;
+      font-weight: 300;
+      max-width: 36em;  
+    }
+  </style>
+</head>
+<body><nav class="container my-5">
+  <h1 class="pt-md-5 display-3"><a class="text-dark" href="../../../">Will Schenk</a></h1>
+  <p>
+    
+      <a class="text-dark h4 mr-3 font-weight-light" href="../../../articles/" title="">Articles</a>
+    
+      <a class="text-dark h4 mr-3 font-weight-light" href="../../../contact" title="">Contact</a>
+    
+      <a class="text-dark h4 mr-3 font-weight-light" href="../../../tags/" title="">Tags</a>
+    
+    <a href="../../../feed.xml" class="mr-3 h4 text-light"><img src="../../../img/rss.svg" alt="rss" height="20" width="20"/></a>
+    
+      <a href="https://twitter.com/@wschenk" class="mr-3 h4 text-light"><img src="../../../img/twitter.svg" alt="twitter" height="20" width="20"/></a>
+    
+    
+      <a href="https://instagram.com/wschenk" class="mr-3 h4 text-light"><img src="../../../img/instagram.svg" alt="instagram" height="20" width="20"/></a>
+    
+    
+      <a href="https://github.com/wschenk" class="mr-3 h4 text-light"><img src="../../../img/github.svg" alt="github" height="20" width="20"/></a>
+    
+    
+      <a href="https://linkedin.com/in/will-schenk-420266" class="mr-3 h4 text-light"><img src="../../../img/linkedin.svg" alt="linkedin" height="20" width="20"/></a>
+    
+  </p>
+</nav>
+
+<div class="container">
+  <h1 class="mt-5">Checking health of RSS feeds</h1>
+
+  
+    <h2 class="font-weight-light font-italic mb-3">Lets clean out the old stuff</h2>
+  
+
+  <p class="text-muted mt-3">
+    <a class="text-muted" href="https://willschenk.com/articles/2020/checking_rss_health/">Published June 26, 2020</a>
+
+    
+      <a class="text-muted" href="../../../tags/ruby">#ruby,</a>
+    
+      <a class="text-muted" href="../../../tags/script">#script,</a>
+    
+      <a class="text-muted" href="../../../tags/rss">#rss,</a>
+    
+      <a class="text-muted" href="../../../tags/history">#history</a>
+    
+  </p>
+
+  
+
+  
+
+  <article class="article mt-5">
+    
+<p>
+I still use RSS feeds as my main way of consuming stuff on the
+internet.  Old school.  I was looking at the list of things that I&#39;ve
+subscribed to which has been imported back from the Google Reader
+days, and figured I&#39;d do some exploration of ye old OPML file.
+</p>
+<h2 id="headline-1">
+Setup the <code class="verbatim">Gemfile</code>
+</h2>
+<p>
+We&#39;ll need to pull in a few gems here:
+</p>
+<div class="src src-ruby">
+<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="n">source</span> <span class="s1">&#39;https://rubygems.org&#39;</span>
+
+<span class="n">gem</span> <span class="s1">&#39;httparty&#39;</span>     <span class="c1"># To pull stuff from the network</span>
+<span class="n">gem</span> <span class="s1">&#39;feedjira&#39;</span>     <span class="c1"># To parse RSS feeds</span>
+<span class="n">gem</span> <span class="s1">&#39;nokogiri&#39;</span>     <span class="c1"># To parse XML</span>
+<span class="n">gem</span> <span class="s1">&#39;domainator&#39;</span>   <span class="c1"># To figured out the domain from the hostname</span>
+<span class="n">gem</span> <span class="s1">&#39;whois&#39;</span>        <span class="c1"># To see how old the domain is</span>
+<span class="n">gem</span> <span class="s1">&#39;whois-parser&#39;</span> <span class="c1"># To actually make sense of the result</span></code></pre></div>
+</div>
+<p>
+And install everything
+</p>
+<div class="src src-bash">
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">bundle</code></pre></div>
+</div>
+<h2 id="headline-2">
+Look at domains
+</h2>
+<p>
+First, lets see what we can find out about the machine that hosts the
+feed. First we see if the hostname resolves, then we pull out the
+domain from the hostname to see when it was registered.
+</p>
+<div class="src src-ruby">
+<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="nb">require</span> <span class="s1">&#39;resolv&#39;</span>
+  <span class="nb">require</span> <span class="s1">&#39;domainator&#39;</span>
+  <span class="nb">require</span> <span class="s1">&#39;whois&#39;</span>
+  <span class="nb">require</span> <span class="s1">&#39;whois-parser&#39;</span>
+
+  <span class="k">def</span> <span class="nf">load_dns</span> <span class="n">feed_url</span>
+    <span class="n">uri</span> <span class="o">=</span> <span class="no">URI</span><span class="o">.</span><span class="n">parse</span> <span class="n">feed_url</span>
+  
+    <span class="n">info</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">info</span><span class="o">[</span><span class="ss">:hostname</span><span class="o">]</span> <span class="o">=</span> <span class="n">uri</span><span class="o">.</span><span class="n">hostname</span>
+  
+    <span class="c1"># See if the name is still on the internet</span>
+    <span class="n">info</span><span class="o">[</span><span class="ss">:resolved</span><span class="o">]</span> <span class="o">=</span> <span class="no">Resolv</span><span class="o">.</span><span class="n">getaddress</span> <span class="n">uri</span><span class="o">.</span><span class="n">hostname</span>
+  
+    <span class="c1"># Find the domain from the url</span>
+    <span class="n">info</span><span class="o">[</span><span class="ss">:domain</span><span class="o">]</span> <span class="o">=</span> <span class="no">Domainator</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">feed_url</span><span class="p">)</span>
+  
+    <span class="c1"># Lookup whois to see how old it is</span>
+    <span class="n">client</span> <span class="o">=</span> <span class="no">Whois</span><span class="o">::</span><span class="no">Client</span><span class="o">.</span><span class="n">new</span>
+    <span class="n">record</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">lookup</span><span class="p">(</span><span class="n">info</span><span class="o">[</span><span class="ss">:domain</span><span class="o">]</span><span class="p">)</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">record</span><span class="o">.</span><span class="n">parser</span>
+  
+    <span class="n">info</span><span class="o">[</span><span class="ss">:registered</span><span class="o">]</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">registered?</span>
+    <span class="n">info</span><span class="o">[</span><span class="ss">:created_on</span><span class="o">]</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">created_on</span>
+    <span class="n">info</span><span class="o">[</span><span class="ss">:updated_on</span><span class="o">]</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">updated_on</span>
+    <span class="n">info</span><span class="o">[</span><span class="ss">:expires_on</span><span class="o">]</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">expires_on</span>
+  
+    <span class="n">info</span>
+  <span class="k">end</span>
+
+  <span class="k">if</span> <span class="vg">$PROGRAM_NAME</span> <span class="o">==</span> <span class="bp">__FILE__</span>
+    <span class="n">pp</span> <span class="n">load_dns</span><span class="p">(</span> <span class="s2">&#34;https://codex.happyfuncorp.com/feed&#34;</span> <span class="p">)</span>
+    <span class="n">pp</span> <span class="n">load_dns</span><span class="p">(</span> <span class="s2">&#34;https://aestheticsofjoy.com/feed&#34;</span> <span class="p">)</span>
+  <span class="k">end</span></code></pre></div>
+</div>
+<pre class="example">
+{:hostname=>"codex.happyfuncorp.com",
+ :resolved=>"52.6.3.192",
+ :domain=>"happyfuncorp.com",
+ :registered=>true,
+ :created_on=>2010-10-27 19:39:32 UTC,
+ :updated_on=>2019-10-12 12:39:11 UTC,
+ :expires_on=>2020-10-27 19:39:32 UTC}
+{:hostname=>"aestheticsofjoy.com",
+ :resolved=>"104.31.75.74",
+ :domain=>"aestheticsofjoy.com",
+ :registered=>true,
+ :created_on=>2009-05-14 04:36:37 UTC,
+ :updated_on=>nil,
+ :expires_on=>2021-05-14 04:36:37 UTC}
+</pre>
+<p>
+So this domain has been around for a few years!  There&#39;s also
+<code class="verbatim">.contacts</code> that we in theory could use, but poking around it seems like
+things are wrapped up in privacy proxies for the most part.
+</p>
+<h2 id="headline-3">
+Reading the OPLM
+</h2>
+<p>
+Lets say that you have a OPML file called <code class="verbatim">feeds.opml</code>.  We&#39;ll parse the
+XML to pull out the awesome that we need.
+</p>
+<div class="src src-ruby">
+<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="nb">require</span> <span class="s1">&#39;nokogiri&#39;</span>
+
+  <span class="k">def</span> <span class="nf">load_opml</span> <span class="n">feed_file</span>
+    <span class="n">doc</span> <span class="o">=</span> <span class="no">Nokogiri</span><span class="o">.</span><span class="n">XML</span><span class="p">(</span><span class="no">File</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">feed_file</span><span class="p">))</span>
+
+    <span class="n">doc</span><span class="o">.</span><span class="n">xpath</span><span class="p">(</span> <span class="s2">&#34;//body//outline&#34;</span> <span class="p">)</span><span class="o">.</span><span class="n">select</span> <span class="k">do</span> <span class="o">|</span><span class="n">x</span><span class="o">|</span>
+      <span class="n">x</span><span class="o">[</span><span class="s1">&#39;xmlUrl&#39;</span><span class="o">]</span>
+    <span class="k">end</span><span class="o">.</span><span class="n">collect</span> <span class="k">do</span> <span class="o">|</span><span class="n">x</span><span class="o">|</span>
+      <span class="p">{</span> <span class="ss">title</span><span class="p">:</span> <span class="n">x</span><span class="o">[</span><span class="s1">&#39;title&#39;</span><span class="o">]</span><span class="p">,</span> <span class="ss">feed_url</span><span class="p">:</span> <span class="n">x</span><span class="o">[</span><span class="s1">&#39;xmlUrl&#39;</span><span class="o">]</span><span class="p">,</span> <span class="ss">site_url</span><span class="p">:</span> <span class="n">x</span><span class="o">[</span><span class="s1">&#39;htmlUrl&#39;</span><span class="o">]</span> <span class="p">}</span>
+    <span class="k">end</span>
+  <span class="k">end</span>
+
+  <span class="k">if</span> <span class="vg">$PROGRAM_NAME</span> <span class="o">==</span> <span class="bp">__FILE__</span>
+    <span class="n">load_opml</span><span class="p">(</span> <span class="s2">&#34;feeds.opml&#34;</span> <span class="p">)</span><span class="o">.</span><span class="n">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">x</span><span class="o">|</span>
+      <span class="nb">printf</span> <span class="s2">&#34;%35s %s %s</span><span class="se">\n</span><span class="s2">&#34;</span><span class="p">,</span> <span class="n">x</span><span class="o">[</span><span class="ss">:title</span><span class="o">]</span><span class="p">,</span> <span class="n">x</span><span class="o">[</span><span class="ss">:feed_url</span><span class="o">]</span><span class="p">,</span> <span class="n">x</span><span class="o">[</span><span class="ss">:site_url</span><span class="o">]</span> <span class="k">if</span> <span class="n">x</span><span class="o">[</span><span class="ss">:feed_url</span><span class="o">]</span>
+    <span class="k">end</span>
+  <span class="k">end</span></code></pre></div>
+</div>
+<p>
+Which prints out all those old RSS feeds, in all their 375 lines of
+glory in my case.
+</p>
+<h2 id="headline-4">
+Testing loading a Feed
+</h2>
+<p>
+Loading the feed and parsing it is fairly simple using feedjira.  We
+pull in the feed with HTTParty, and just pass the body right into
+feedjira.  One statistic that&#39;s interesting is the generator, which is
+the blogging platform that the person is using.  It&#39;ll be interesting
+to see what the world is using.
+</p>
+<p>
+We also need to deal with the fun world of redirect, so lets put in a
+bit of logic for that.
+</p>
+<div class="src src-ruby">
+<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="nb">require</span> <span class="s1">&#39;feedjira&#39;</span>
+  <span class="nb">require</span> <span class="s1">&#39;httparty&#39;</span>
+
+  <span class="k">def</span> <span class="nf">load_feed</span> <span class="n">feed_url</span>
+    <span class="n">resp</span> <span class="o">=</span> <span class="no">HTTParty</span><span class="o">.</span><span class="n">get</span> <span class="n">feed_url</span>
+
+    <span class="k">if</span> <span class="n">resp</span><span class="o">.</span><span class="n">code</span> <span class="o">==</span> <span class="mi">200</span>
+      <span class="no">Feedjira</span><span class="o">::</span><span class="no">Feed</span><span class="o">.</span><span class="n">add_common_feed_element</span><span class="p">(</span><span class="s2">&#34;generator&#34;</span><span class="p">)</span>
+
+      <span class="n">feed</span> <span class="o">=</span> <span class="no">Feedjira</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">resp</span><span class="o">.</span><span class="n">body</span><span class="p">)</span>
+
+      <span class="n">info</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="ss">title</span><span class="p">:</span> <span class="n">feed</span><span class="o">.</span><span class="n">title</span><span class="p">,</span>
+        <span class="ss">feed</span><span class="p">:</span> <span class="n">feed_url</span><span class="p">,</span>
+        <span class="ss">link</span><span class="p">:</span> <span class="n">feed</span><span class="o">.</span><span class="n">url</span><span class="p">,</span>
+        <span class="ss">description</span><span class="p">:</span> <span class="n">feed</span><span class="o">.</span><span class="n">description</span><span class="p">,</span>
+        <span class="ss">generator</span><span class="p">:</span> <span class="n">feed</span><span class="o">.</span><span class="n">generator</span><span class="p">,</span>
+        <span class="ss">entries</span><span class="p">:</span> <span class="n">feed</span><span class="o">.</span><span class="n">entries</span><span class="o">.</span><span class="n">length</span>
+      <span class="p">}</span>
+
+      <span class="k">if</span> <span class="n">feed</span><span class="o">.</span><span class="n">entries</span><span class="o">.</span><span class="n">length</span> <span class="o">&gt;</span> <span class="mi">0</span>
+        <span class="n">info</span><span class="o">[</span><span class="ss">:last_published</span><span class="o">]</span> <span class="o">=</span> <span class="n">feed</span><span class="o">.</span><span class="n">entries</span><span class="o">.</span><span class="n">first</span><span class="o">.</span><span class="n">published</span>
+        <span class="n">info</span><span class="o">[</span><span class="ss">:earliest_post</span><span class="o">]</span> <span class="o">=</span> <span class="n">feed</span><span class="o">.</span><span class="n">entries</span><span class="o">.</span><span class="n">last</span><span class="o">.</span><span class="n">published</span>
+      <span class="k">end</span>
+
+      <span class="n">info</span>
+    <span class="k">else</span>
+      <span class="nb">puts</span> <span class="s2">&#34;Response status </span><span class="si">#{</span><span class="n">resp</span><span class="o">.</span><span class="n">code</span><span class="si">}</span><span class="s2">&#34;</span>
+      <span class="p">{}</span>
+    <span class="k">end</span>
+  <span class="k">end</span>
+
+  <span class="c1"># Test harness</span>
+  <span class="k">if</span> <span class="vg">$PROGRAM_NAME</span> <span class="o">==</span> <span class="bp">__FILE__</span>
+    <span class="n">feed_info</span> <span class="o">=</span> <span class="n">load_feed</span> <span class="s2">&#34;https://willschenk.com/feed.xml&#34;</span>
+
+    <span class="n">feed_info</span><span class="o">.</span><span class="n">each</span> <span class="p">{</span> <span class="o">|</span><span class="n">key</span><span class="p">,</span><span class="n">value</span><span class="o">|</span> <span class="nb">puts</span> <span class="s2">&#34;|</span><span class="si">#{</span><span class="n">key</span><span class="si">}</span><span class="s2">|</span><span class="si">#{</span><span class="n">value</span><span class="si">}</span><span class="s2">|&#34;</span><span class="p">}</span>
+  <span class="k">end</span></code></pre></div>
+</div>
+<h2 id="headline-5">
+Looking for renamed feeds
+</h2>
+<p>
+It&#39;s possible that the feed has simply moved and never gotten update.
+Perhaps the site is still there serving HTML, but they switch
+platforms years ago and the feed url never got updated.  So lets go
+through all of the output and see for the domains that still resolve
+if the root has a <code class="verbatim">link alternative</code> defined inside of the <code class="verbatim">head</code> block
+and then try and get that new feed.  Who knows what we might discover!
+</p>
+<div class="src src-ruby">
+<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="nb">require</span> <span class="s1">&#39;nokogiri&#39;</span>
+  <span class="nb">require</span> <span class="s1">&#39;httparty&#39;</span>
+
+  <span class="k">def</span> <span class="nf">find_feed_from_url</span> <span class="n">feed_url</span>
+    <span class="nb">puts</span> <span class="s2">&#34;Looking at </span><span class="si">#{</span><span class="n">feed_url</span><span class="si">}</span><span class="s2">&#34;</span>
+    <span class="n">resp</span> <span class="o">=</span> <span class="no">HTTParty</span><span class="o">.</span><span class="n">get</span> <span class="n">feed_url</span><span class="p">,</span> <span class="ss">timeout</span><span class="p">:</span> <span class="mi">10</span>
+
+    <span class="k">if</span> <span class="n">resp</span><span class="o">.</span><span class="n">code</span> <span class="o">==</span> <span class="mi">200</span>
+      <span class="n">page</span> <span class="o">=</span> <span class="no">Nokogiri</span><span class="o">.</span><span class="n">parse</span> <span class="n">resp</span><span class="o">.</span><span class="n">body</span>
+
+      <span class="n">page</span><span class="o">.</span><span class="n">css</span><span class="p">(</span> <span class="s1">&#39;head link[rel=&#34;alternate&#34;]&#39;</span> <span class="p">)</span><span class="o">.</span><span class="n">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">x</span><span class="o">|</span>
+        <span class="n">url</span> <span class="o">=</span> <span class="n">x</span><span class="o">[</span><span class="s1">&#39;href&#39;</span><span class="o">]</span>
+        <span class="k">return</span> <span class="no">URI</span><span class="o">.</span><span class="n">join</span><span class="p">(</span> <span class="n">feed_url</span><span class="p">,</span> <span class="n">x</span><span class="o">[</span><span class="s1">&#39;href&#39;</span><span class="o">]</span> <span class="p">)</span><span class="o">.</span><span class="n">to_s</span>
+      <span class="k">end</span>
+    <span class="k">else</span>
+      <span class="nb">puts</span> <span class="s2">&#34;Unable to load </span><span class="si">#{</span><span class="n">feed_url</span><span class="si">}</span><span class="s2"> </span><span class="si">#{</span><span class="n">resp</span><span class="o">.</span><span class="n">code</span><span class="si">}</span><span class="s2">&#34;</span>
+    <span class="k">end</span>
+
+    <span class="kp">nil</span>
+  <span class="k">end</span>
+
+  <span class="c1"># Test harness</span>
+  <span class="k">if</span> <span class="vg">$PROGRAM_NAME</span> <span class="o">==</span> <span class="bp">__FILE__</span>
+    <span class="nb">puts</span> <span class="n">find_feed_from_url</span><span class="p">(</span> <span class="s2">&#34;http://willschenk.com&#34;</span> <span class="p">)</span>
+    <span class="nb">puts</span> <span class="n">find_feed_from_url</span><span class="p">(</span> <span class="s2">&#34;http://tomcritchlow.com/&#34;</span> <span class="p">)</span>
+  <span class="k">end</span></code></pre></div>
+</div>
+<p>
+Note that in the first case we pass in a <code class="verbatim">http</code> link which gets updated
+to a <code class="verbatim">https</code> served feed, and in the second case it&#39;s a relative link
+that gets the correct final link.
+</p>
+<p>
+Looking at <a href="http://willschenk.com">http://willschenk.com</a>
+<a href="https://willschenk.com/feed.xml">https://willschenk.com/feed.xml</a>
+Looking at <a href="http://tomcritchlow.com/">http://tomcritchlow.com/</a>
+<a href="http://tomcritchlow.com/feed.xml">http://tomcritchlow.com/feed.xml</a>
+</p>
+<p>
+:END:
+</p>
+<h2 id="headline-6">
+Combining everything
+</h2>
+<p>
+The idea here is that we will go through all the feeds and look to see
+if their domain is still active.  If it is, we attempt to pull in the
+feed to fill in the rest of the information.  And from there we can
+decide what it is that we want to do.
+</p>
+<div class="src src-ruby">
+<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="nb">require</span> <span class="s1">&#39;csv&#39;</span>
+  <span class="nb">require</span> <span class="s1">&#39;./load_dns&#39;</span>
+  <span class="nb">require</span> <span class="s1">&#39;./load_feed&#39;</span>
+  <span class="nb">require</span> <span class="s1">&#39;./load_opml&#39;</span>
+  <span class="nb">require</span> <span class="s1">&#39;./load_alt_link&#39;</span>
+
+  <span class="n">headers</span> <span class="o">=</span> <span class="o">[</span> <span class="ss">:site_url</span><span class="p">,</span> <span class="ss">:feed_url</span><span class="p">,</span> <span class="ss">:old_feed_url</span><span class="p">,</span> <span class="ss">:resolved</span><span class="p">,</span>
+              <span class="ss">:registered</span><span class="p">,</span> <span class="ss">:created_on</span><span class="p">,</span> <span class="ss">:updated_on</span><span class="p">,</span> <span class="ss">:title</span><span class="p">,</span> <span class="ss">:link</span><span class="p">,</span>
+              <span class="ss">:description</span><span class="p">,</span> <span class="ss">:generator</span><span class="p">,</span> <span class="ss">:entries</span><span class="p">,</span> <span class="ss">:earliest_post</span><span class="p">,</span>
+              <span class="ss">:last_published</span><span class="o">]</span>
+
+
+  <span class="no">CSV</span><span class="o">.</span><span class="n">open</span> <span class="s2">&#34;feed_info.csv&#34;</span><span class="p">,</span> <span class="s2">&#34;w&#34;</span> <span class="k">do</span> <span class="o">|</span><span class="n">csv</span><span class="o">|</span>
+    <span class="n">csv</span> <span class="o">&lt;&lt;</span> <span class="n">headers</span>
+
+    <span class="n">feeds</span> <span class="o">=</span> <span class="n">load_opml</span> <span class="s2">&#34;feeds.opml&#34;</span>
+    <span class="n">feeds</span><span class="o">.</span><span class="n">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">feed</span><span class="o">|</span>
+      <span class="n">whois</span> <span class="o">=</span> <span class="p">{}</span>
+      <span class="n">feed_info</span> <span class="o">=</span> <span class="p">{}</span>
+
+      <span class="n">site_url</span> <span class="o">=</span> <span class="n">feed</span><span class="o">[</span><span class="ss">:site_url</span><span class="o">]</span>
+      <span class="n">feed_url</span> <span class="o">=</span> <span class="n">feed</span><span class="o">[</span><span class="ss">:feed_url</span><span class="o">]</span>
+      <span class="n">feed</span><span class="o">[</span><span class="ss">:old_feed_url</span><span class="o">]</span> <span class="o">=</span> <span class="n">feed_url</span>
+
+      <span class="k">if</span> <span class="o">!</span><span class="n">site_url</span><span class="o">.</span><span class="n">nil?</span> <span class="o">&amp;&amp;</span> <span class="n">site_url</span> <span class="o">!=</span> <span class="s2">&#34;&#34;</span>
+        <span class="c1"># Look for updated feed</span>
+        <span class="k">begin</span>
+          <span class="nb">puts</span> <span class="s2">&#34;Check to see if </span><span class="si">#{</span><span class="n">feed_url</span><span class="si">}</span><span class="s2"> has an update&#34;</span>
+
+          <span class="n">new_feed_url</span> <span class="o">=</span> <span class="n">find_feed_from_url</span> <span class="n">site_url</span>
+          <span class="k">if</span> <span class="n">new_feed_url</span>
+            <span class="n">feed_url</span> <span class="o">=</span> <span class="n">new_feed_url</span>
+            <span class="n">feed_info</span><span class="o">[</span><span class="ss">:feed_url</span><span class="o">]</span> <span class="o">=</span> <span class="n">feed_url</span>
+          <span class="k">end</span>
+        <span class="k">rescue</span> 
+          <span class="nb">puts</span> <span class="s2">&#34;Error looking up </span><span class="si">#{</span><span class="n">site_url</span><span class="si">}</span><span class="s2">&#34;</span>
+        <span class="k">end</span>
+      <span class="k">end</span>
+
+      <span class="k">begin</span>
+        <span class="nb">puts</span> <span class="s2">&#34;Getting whois for </span><span class="si">#{</span><span class="n">feed_url</span><span class="si">}</span><span class="s2">&#34;</span>
+        <span class="n">whois</span> <span class="o">=</span> <span class="n">load_dns</span> <span class="n">feed_url</span>
+        <span class="k">if</span> <span class="n">whois</span><span class="o">[</span><span class="ss">:resolved</span><span class="o">]</span>
+          <span class="nb">puts</span> <span class="s2">&#34;Loading </span><span class="si">#{</span><span class="n">feed_url</span><span class="si">}</span><span class="s2">&#34;</span>
+          <span class="n">feed_info</span> <span class="o">=</span> <span class="n">load_feed</span> <span class="n">feed_url</span>
+          <span class="n">pp</span> <span class="n">feed_info</span>
+        <span class="k">else</span>
+          <span class="nb">puts</span> <span class="s2">&#34;</span><span class="si">#{</span><span class="n">feed_url</span><span class="si">}</span><span class="s2"> doesn&#39;t resolve&#34;</span>
+        <span class="k">end</span>
+      <span class="k">rescue</span> <span class="no">Resolv</span><span class="o">::</span><span class="no">ResolvError</span>
+        <span class="nb">puts</span> <span class="s2">&#34;No host&#34;</span>
+      <span class="k">rescue</span> <span class="no">Exception</span> <span class="o">=&gt;</span> <span class="n">e</span>
+        <span class="nb">puts</span> <span class="s2">&#34;Error with </span><span class="si">#{</span><span class="n">feed_url</span><span class="si">}</span><span class="s2">&#34;</span>
+        <span class="nb">puts</span> <span class="n">e</span>
+        <span class="nb">puts</span> <span class="s2">&#34;************&#34;</span>
+      <span class="k">end</span>
+
+      <span class="n">csv</span> <span class="o">&lt;&lt;</span> <span class="n">headers</span><span class="o">.</span><span class="n">collect</span> <span class="p">{</span> <span class="o">|</span><span class="n">x</span><span class="o">|</span> <span class="n">feed</span><span class="o">[</span><span class="n">x</span><span class="o">]</span> <span class="o">||</span> <span class="n">whois</span><span class="o">[</span><span class="n">x</span><span class="o">]</span> <span class="o">||</span> <span class="n">feed_info</span><span class="o">[</span><span class="n">x</span><span class="o">]</span> <span class="p">}</span>
+    <span class="k">end</span>
+  <span class="k">end</span></code></pre></div>
+</div>
+<p>
+This goes through all of the feeds, so it will take a while to run.
+</p>
+<h2 id="headline-7">
+Looking at some stats
+</h2>
+<p>
+Lets look at what the state of my RSS feeds are looking like, here in
+June of 2020.
+</p>
+<div class="src src-ruby">
+<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="nb">require</span> <span class="s1">&#39;csv&#39;</span>
+
+  <span class="n">stats</span> <span class="o">=</span> <span class="p">{</span> <span class="ss">total</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="ss">resolved</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="ss">last_month</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="ss">last_year</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="ss">has_entries</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="ss">total_entries</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="ss">generator</span><span class="p">:</span> <span class="p">{},</span>
+            <span class="ss">updated_year</span><span class="p">:</span> <span class="p">{},</span> <span class="ss">feed_active</span><span class="p">:</span> <span class="p">{}</span> <span class="p">}</span>
+
+  <span class="n">headers</span> <span class="o">=</span> <span class="kp">nil</span>
+
+  <span class="no">CSV</span><span class="o">.</span><span class="n">open</span><span class="p">(</span> <span class="s2">&#34;feed_info.csv&#34;</span> <span class="p">)</span><span class="o">.</span><span class="n">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">line</span><span class="o">|</span>
+    <span class="k">if</span> <span class="n">headers</span><span class="o">.</span><span class="n">nil?</span>
+      <span class="n">headers</span> <span class="o">=</span> <span class="n">line</span>
+    <span class="k">else</span>
+      <span class="n">stats</span><span class="o">[</span><span class="ss">:total</span><span class="o">]</span> <span class="o">+=</span> <span class="mi">1</span>
+      <span class="k">if</span> <span class="n">line</span><span class="o">[</span><span class="n">headers</span><span class="o">.</span><span class="n">index</span><span class="p">(</span> <span class="s2">&#34;resolved&#34;</span> <span class="p">)</span><span class="o">]</span>
+        <span class="n">stats</span><span class="o">[</span><span class="ss">:resolved</span><span class="o">]</span> <span class="o">+=</span> <span class="mi">1</span>
+      <span class="k">end</span>
+
+      <span class="n">entries</span> <span class="o">=</span> <span class="n">line</span><span class="o">[</span><span class="n">headers</span><span class="o">.</span><span class="n">index</span><span class="p">(</span> <span class="s2">&#34;entries&#34;</span> <span class="p">)</span><span class="o">]</span>
+      <span class="k">if</span> <span class="o">!</span><span class="n">entries</span><span class="o">.</span><span class="n">nil?</span>
+        <span class="n">stats</span><span class="o">[</span><span class="ss">:has_entries</span><span class="o">]</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">stats</span><span class="o">[</span><span class="ss">:total_entries</span><span class="o">]</span> <span class="o">+=</span> <span class="n">entries</span><span class="o">.</span><span class="n">to_i</span>
+      <span class="k">end</span>
+
+      <span class="n">updated_on</span> <span class="o">=</span> <span class="n">line</span><span class="o">[</span><span class="n">headers</span><span class="o">.</span><span class="n">index</span><span class="p">(</span> <span class="s2">&#34;last_published&#34;</span> <span class="p">)</span><span class="o">]</span>
+      <span class="k">if</span> <span class="o">!</span><span class="n">updated_on</span><span class="o">.</span><span class="n">nil?</span> <span class="o">&amp;&amp;</span> <span class="n">updated_on</span> <span class="o">!=</span> <span class="s2">&#34;&#34;</span>
+        <span class="n">updated_on</span> <span class="o">=</span> <span class="no">Date</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span> <span class="n">updated_on</span> <span class="p">)</span>
+        <span class="n">days_old</span> <span class="o">=</span> <span class="p">(</span><span class="no">Time</span><span class="o">.</span><span class="n">now</span><span class="o">.</span><span class="n">to_date</span> <span class="o">-</span> <span class="n">updated_on</span><span class="p">)</span><span class="o">.</span><span class="n">to_i</span>
+
+        <span class="k">if</span> <span class="n">days_old</span> <span class="o">&lt;</span> <span class="mi">30</span>
+          <span class="n">stats</span><span class="o">[</span><span class="ss">:last_month</span><span class="o">]</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">end</span>
+
+        <span class="k">if</span> <span class="n">days_old</span> <span class="o">&lt;</span> <span class="mi">365</span>
+          <span class="n">stats</span><span class="o">[</span><span class="ss">:last_year</span><span class="o">]</span> <span class="o">+=</span> <span class="mi">1</span>
+
+          <span class="n">g</span> <span class="o">=</span> <span class="n">line</span><span class="o">[</span><span class="n">headers</span><span class="o">.</span><span class="n">index</span><span class="p">(</span> <span class="s2">&#34;generator&#34;</span> <span class="p">)</span><span class="o">]</span>
+          <span class="c1"># Collapse some where the username is in the generator field</span>
+          <span class="n">g</span> <span class="o">=</span> <span class="s1">&#39;LiveJournal&#39;</span> <span class="k">if</span> <span class="n">g</span> <span class="o">=~</span> <span class="sr">/LiveJournal/</span>
+          <span class="n">g</span> <span class="o">=</span> <span class="s1">&#39;Tumblr&#39;</span> <span class="k">if</span> <span class="n">g</span> <span class="o">=~</span> <span class="sr">/Tumblr/</span>
+          <span class="n">stats</span><span class="o">[</span><span class="ss">:generator</span><span class="o">][</span><span class="n">g</span><span class="o">]</span> <span class="o">||=</span> <span class="mi">0</span>
+          <span class="n">stats</span><span class="o">[</span><span class="ss">:generator</span><span class="o">][</span><span class="n">g</span><span class="o">]</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">end</span>
+
+        <span class="n">year</span> <span class="o">=</span> <span class="n">updated_on</span><span class="o">.</span><span class="n">year</span><span class="o">.</span><span class="n">to_i</span>
+        <span class="k">if</span> <span class="n">year</span> <span class="o">&gt;</span> <span class="mi">1900</span> <span class="c1"># Validation</span>
+          <span class="n">stats</span><span class="o">[</span><span class="ss">:updated_year</span><span class="o">][</span><span class="n">year</span><span class="o">]</span> <span class="o">||=</span> <span class="mi">0</span>
+          <span class="n">stats</span><span class="o">[</span><span class="ss">:updated_year</span><span class="o">][</span><span class="n">year</span><span class="o">]</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">end</span>
+
+        <span class="n">earliest_post</span> <span class="o">=</span> <span class="n">line</span><span class="o">[</span><span class="n">headers</span><span class="o">.</span><span class="n">index</span><span class="p">(</span> <span class="s2">&#34;earliest_post&#34;</span> <span class="p">)</span><span class="o">]</span>
+        <span class="k">if</span> <span class="o">!</span><span class="n">earliest_post</span><span class="o">.</span><span class="n">nil?</span> <span class="o">&amp;&amp;</span> <span class="n">earliest_post</span> <span class="o">!=</span> <span class="s2">&#34;&#34;</span>
+          <span class="n">earliest_post</span> <span class="o">=</span> <span class="no">Date</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span> <span class="n">earliest_post</span> <span class="p">)</span>
+          <span class="k">if</span> <span class="n">earliest_post</span><span class="o">.</span><span class="n">year</span> <span class="o">&gt;</span> <span class="mi">1900</span> <span class="c1"># Validation</span>
+            <span class="p">(</span><span class="n">earliest_post</span><span class="o">.</span><span class="n">year</span><span class="o">..</span><span class="n">updated_on</span><span class="o">.</span><span class="n">year</span><span class="p">)</span><span class="o">.</span><span class="n">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">year</span><span class="o">|</span>
+              <span class="n">stats</span><span class="o">[</span><span class="ss">:feed_active</span><span class="o">][</span><span class="n">year</span><span class="o">]</span> <span class="o">||=</span> <span class="mi">0</span>
+              <span class="n">stats</span><span class="o">[</span><span class="ss">:feed_active</span><span class="o">][</span><span class="n">year</span><span class="o">]</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">end</span>
+          <span class="k">end</span>
+        <span class="k">end</span>
+      <span class="k">end</span>
+
+    <span class="k">end</span>
+  <span class="k">end</span>
+
+  <span class="nb">puts</span> <span class="s2">&#34;Overall&#34;</span>
+  <span class="nb">puts</span> <span class="s2">&#34;| Total | </span><span class="si">#{</span><span class="n">stats</span><span class="o">[</span><span class="ss">:total</span><span class="o">]</span><span class="si">}</span><span class="s2"> |&#34;</span>
+  <span class="nb">puts</span> <span class="s2">&#34;| Resolved | </span><span class="si">#{</span><span class="n">stats</span><span class="o">[</span><span class="ss">:resolved</span><span class="o">]</span><span class="si">}</span><span class="s2"> |&#34;</span>
+  <span class="nb">puts</span> <span class="s2">&#34;| Active with 30 days | </span><span class="si">#{</span><span class="n">stats</span><span class="o">[</span><span class="ss">:last_month</span><span class="o">]</span><span class="si">}</span><span class="s2"> |&#34;</span>
+  <span class="nb">puts</span> <span class="s2">&#34;| Active within a year | </span><span class="si">#{</span><span class="n">stats</span><span class="o">[</span><span class="ss">:last_year</span><span class="o">]</span><span class="si">}</span><span class="s2"> |&#34;</span>
+  <span class="nb">puts</span> <span class="s2">&#34;| Feeds with entries | </span><span class="si">#{</span><span class="n">stats</span><span class="o">[</span><span class="ss">:has_entries</span><span class="o">]</span><span class="si">}</span><span class="s2"> |&#34;</span>
+  <span class="nb">puts</span> <span class="s2">&#34;| Total posts | </span><span class="si">#{</span><span class="n">stats</span><span class="o">[</span><span class="ss">:total_entries</span><span class="o">]</span><span class="si">}</span><span class="s2"> |&#34;</span>
+
+  <span class="nb">puts</span> <span class="s2">&#34;Last year updated&#34;</span>
+  <span class="n">years</span> <span class="o">=</span> <span class="n">stats</span><span class="o">[</span><span class="ss">:updated_year</span><span class="o">].</span><span class="n">keys</span><span class="o">.</span><span class="n">sort</span><span class="o">.</span><span class="n">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">year</span><span class="o">|</span>
+    <span class="nb">puts</span> <span class="s2">&#34;|</span><span class="si">#{</span><span class="n">year</span><span class="si">}</span><span class="s2">|</span><span class="si">#{</span><span class="n">stats</span><span class="o">[</span><span class="ss">:updated_year</span><span class="o">][</span><span class="n">year</span><span class="o">]</span><span class="si">}</span><span class="s2">|&#34;</span>
+  <span class="k">end</span>
+
+  <span class="nb">puts</span> <span class="s2">&#34;Active per year&#34;</span>
+  <span class="n">years</span> <span class="o">=</span> <span class="n">stats</span><span class="o">[</span><span class="ss">:feed_active</span><span class="o">].</span><span class="n">keys</span><span class="o">.</span><span class="n">sort</span><span class="o">.</span><span class="n">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">year</span><span class="o">|</span>
+    <span class="nb">puts</span> <span class="s2">&#34;|</span><span class="si">#{</span><span class="n">year</span><span class="si">}</span><span class="s2">|</span><span class="si">#{</span><span class="n">stats</span><span class="o">[</span><span class="ss">:feed_active</span><span class="o">][</span><span class="n">year</span><span class="o">]</span><span class="si">}</span><span class="s2">|&#34;</span>
+  <span class="k">end</span>
+
+  <span class="nb">puts</span> <span class="s2">&#34;Generators&#34;</span>
+  <span class="n">g</span> <span class="o">=</span> <span class="n">stats</span><span class="o">[</span><span class="ss">:generator</span><span class="o">]</span>
+  <span class="n">g</span><span class="o">.</span><span class="n">keys</span><span class="o">.</span><span class="n">sort</span> <span class="p">{</span> <span class="o">|</span><span class="n">a</span><span class="p">,</span><span class="n">b</span><span class="o">|</span> <span class="n">g</span><span class="o">[</span><span class="n">b</span><span class="o">]</span> <span class="o">&lt;=&gt;</span> <span class="n">g</span><span class="o">[</span><span class="n">a</span><span class="o">]</span><span class="p">}</span><span class="o">.</span><span class="n">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">generator</span><span class="o">|</span>
+    <span class="nb">puts</span> <span class="s2">&#34;| </span><span class="si">#{</span><span class="n">generator</span><span class="si">}</span><span class="s2"> | </span><span class="si">#{</span><span class="n">g</span><span class="o">[</span><span class="n">generator</span><span class="o">]</span><span class="si">}</span><span class="s2"> |&#34;</span> <span class="k">if</span> <span class="n">g</span><span class="o">[</span><span class="n">generator</span><span class="o">]&gt;</span><span class="mi">1</span>
+  <span class="k">end</span></code></pre></div>
+</div>
+<h4 id="headline-8">
+Summary
+</h4>
+<table class="table table-striped">
+<tbody>
+<tr>
+<td>Total</td>
+<td class="align-right">358</td>
+</tr>
+<tr>
+<td>Resolved</td>
+<td class="align-right">322</td>
+</tr>
+<tr>
+<td>Active with 30 days</td>
+<td class="align-right">75</td>
+</tr>
+<tr>
+<td>Active within a year</td>
+<td class="align-right">111</td>
+</tr>
+<tr>
+<td>Feeds with entries</td>
+<td class="align-right">222</td>
+</tr>
+<tr>
+<td>Total posts</td>
+<td class="align-right">5708</td>
+</tr>
+</tbody>
+</table>
+<p>
+So of the <code class="verbatim">358</code> feeds in the file, a whopping <code class="verbatim">75</code> are still being updated
+and <code class="verbatim">222</code> are still on the internet!  <code class="verbatim">111</code> posting within the last year.
+</p>
+<p>
+It would be interesting to see when those <code class="verbatim">75</code> were first created and
+how many posts they have to get a sense of who really is still
+publishing with <code class="verbatim">RSS</code>.
+</p>
+<h4 id="headline-9">
+Active each year
+</h4>
+<p>
+Are there more blogs out there in 2016?  Did I start reading more
+then? Interesting that it crept up at this point.  But it&#39;s also
+possible that the older subscriptions are part of the internet that
+disappeared.
+</p>
+<p>
+
+
+
+
+
+
+
+
+
+<img class='img-fluid' style='' src='../../../articles/2020/checking_rss_health/active_year.png'>
+
+</p>
+<h4 id="headline-11">
+How Old
+</h4>
+<p>
+Looks like a pretty regular number of feeds stop updating every year,
+though it&#39;s been creeping up slowly since 2014.
+</p>
+<p>
+
+
+
+
+
+
+
+
+
+<img class='img-fluid' style='' src='../../../articles/2020/checking_rss_health/last_post_year.png'>
+
+</p>
+<h4 id="headline-13">
+Generator
+</h4>
+<p>
+As for what people are using (I&#39;m only showing the generators with 2
+or more entries), here&#39;s a list of the generators for the blogs still
+actively updating.
+</p>
+<table class="table table-striped">
+<tbody>
+<tr>
+<td>unset</td>
+<td class="align-right">36</td>
+</tr>
+<tr>
+<td><a href="https://wordpress.org/?v=5.4.2">https://wordpress.org/?v=5.4.2</a></td>
+<td class="align-right">16</td>
+</tr>
+<tr>
+<td>Hugo – gohugo.io</td>
+<td class="align-right">7</td>
+</tr>
+<tr>
+<td>Tumblr</td>
+<td class="align-right">6</td>
+</tr>
+<tr>
+<td><a href="https://wordpress.org/?v=5.3.4">https://wordpress.org/?v=5.3.4</a></td>
+<td class="align-right">5</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td class="align-right">5</td>
+</tr>
+<tr>
+<td>Blogger</td>
+<td class="align-right">5</td>
+</tr>
+<tr>
+<td><a href="http://wordpress.com/">http://wordpress.com/</a></td>
+<td class="align-right">4</td>
+</tr>
+<tr>
+<td>Jekyll</td>
+<td class="align-right">3</td>
+</tr>
+<tr>
+<td>LiveJournal</td>
+<td class="align-right">2</td>
+</tr>
+<tr>
+<td><a href="https://wordpress.org/?v=5.2.7">https://wordpress.org/?v=5.2.7</a></td>
+<td class="align-right">2</td>
+</tr>
+</tbody>
+</table>
+<p>
+What&#39;s interesting to me here is:
+</p>
+<ol>
+<li>
+<p>
+Not everyone seems to set a generator, in fact most don&#39;t.
+</p>
+</li>
+<li>
+<p>
+Most are running the latest version of WordPress, but why would it
+advertise the version number externally? Seems like that might not
+be the smartest thing since its such a broad attack target.
+</p>
+</li>
+<li>
+<p>
+Hugo has a much stronger showing than GatbsyJS, but I perceive
+Gatsby to be more popular in overall front end development.  Maybe
+people just don&#39;t make blogs out of it.
+</p>
+</li>
+<li>
+<p>
+People still use tumblr!
+</p>
+</li>
+</ol>
+<h2 id="headline-14">
+Extracting Active Feeds
+</h2>
+<p>
+My whole goal here was to look for active feeds that I subscribe to
+rather than just dumping everything into my <code class="verbatim">elfeed.org</code> file. Lets
+write that now (finally!).
+</p>
+<div class="src src-ruby">
+<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="nb">require</span> <span class="s1">&#39;csv&#39;</span>
+
+  <span class="n">headers</span> <span class="o">=</span> <span class="kp">nil</span>
+
+  <span class="no">CSV</span><span class="o">.</span><span class="n">open</span><span class="p">(</span> <span class="s2">&#34;feed_info.csv&#34;</span> <span class="p">)</span><span class="o">.</span><span class="n">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">line</span><span class="o">|</span>
+    <span class="k">if</span> <span class="n">headers</span><span class="o">.</span><span class="n">nil?</span>
+      <span class="n">headers</span> <span class="o">=</span> <span class="n">line</span>
+    <span class="k">else</span>
+      <span class="n">updated_on</span> <span class="o">=</span> <span class="n">line</span><span class="o">[</span><span class="n">headers</span><span class="o">.</span><span class="n">index</span><span class="p">(</span> <span class="s2">&#34;last_published&#34;</span> <span class="p">)</span><span class="o">]</span>
+      <span class="k">if</span> <span class="o">!</span><span class="n">updated_on</span><span class="o">.</span><span class="n">nil?</span> <span class="o">&amp;&amp;</span> <span class="n">updated_on</span> <span class="o">!=</span> <span class="s2">&#34;&#34;</span>
+        <span class="n">updated_on</span> <span class="o">=</span> <span class="no">Date</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span> <span class="n">updated_on</span> <span class="p">)</span>
+        <span class="n">days_old</span> <span class="o">=</span> <span class="p">(</span><span class="no">Time</span><span class="o">.</span><span class="n">now</span><span class="o">.</span><span class="n">to_date</span> <span class="o">-</span> <span class="n">updated_on</span><span class="p">)</span><span class="o">.</span><span class="n">to_i</span>
+
+        <span class="k">if</span> <span class="n">days_old</span> <span class="o">&lt;</span> <span class="mi">365</span>
+          <span class="nb">puts</span> <span class="s2">&#34;** </span><span class="si">#{</span><span class="n">line</span><span class="o">[</span><span class="n">headers</span><span class="o">.</span><span class="n">index</span><span class="p">(</span> <span class="s2">&#34;feed_url&#34;</span> <span class="p">)</span><span class="o">]</span><span class="si">}</span><span class="s2">&#34;</span>
+        <span class="k">end</span>
+      <span class="k">end</span>
+    <span class="k">end</span>
+  <span class="k">end</span></code></pre></div>
+</div>
+<h2 id="headline-15">
+Running this yourself
+</h2>
+<p>
+The code for this page is all available in <a href="https://github.com/wschenk/willschenk.com/tree/master/content/articles/2020/checking_rss_health">the site&#39;s repository</a>.  Or
+just copy any paste from this page.  You&#39;ll need an export of your
+<code class="verbatim">OPML</code> file, name it <code class="verbatim">feeds.opml</code>, then run <code class="verbatim">ruby feed_checker.rb</code> to scan
+through the internet, and <code class="verbatim">ruby stats.rb</code> to summarize the resulting
+<code class="verbatim">feed_info.csv</code> file.  I like <code class="verbatim">csv</code> for this since you could also easily
+import it into Google Sheets and figure out whatever else you want
+from it.
+</p>
+
+  </article>
+
+  
+</div>
+
+
+  <div class="bg-light py-5">
+    <div class="container">
+      <h2 class="text-center">Read next</h2>
+
+      <div class="row">
+        <div class="col-md-6 text-center">
+          
+        </div>
+        <div class="col-md-6 text-center">
+          
+            Previous Post:
+            <a href="../../../articles/2020/using_syncthing/">Using Syncthing</a>
+          
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+
+
+
+<footer class="footer bg-dark text-light mt-3">
+  <div class="container">
+    <h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2>
+  </div>
+</footer>
+</body>
+</html>
