@@ -12,7 +12,7 @@ CSV.open( "feed_info.csv" ).each do |line|
       days_old = (Time.now.to_date - updated_on).to_i
 
       if days_old < 365
-        puts "** #{line[headers.index( "feed_url" )]}"
+        puts "** [[#{line[headers.index( "feed_url" )]}]] - [[#{line[headers.index("site_url")]}]]"
       end
     end
   end
