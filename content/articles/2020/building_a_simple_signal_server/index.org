@@ -1,0 +1,544 @@
+#+title: Building a Simple Signal Server
+#+subtitle: bounce bounce
+#+tags: deno, howto, websockets
+#+date: 2020-06-29
+#+draft: true
+
+Lets look at how to build a simple signalling server with deno.
+
+* Setup
+
+Make sure you have deno installed.  I use [[https://asdf-vm.com/#/][asdf]] but the official you
+could also follow [[https://deno.land/manual/getting_started/installation][the official installation instructions]].
+
+* Echo Server
+
+For the server itself (call this =echo_server.ts=) we are going to
+=listenAndServe= on port 3000, and if the request is eligible to upgrade
+we'll turn it into a websocket and pass it over to the handler in
+=echo.ts= (which will we define next.)  If not, we are going to serve
+the file =web.html= which we'll define below.
+
+#+begin_src javascript :tangle echo_server.ts
+  import { listenAndServe } from "https://deno.land/std/http/server.ts";
+  import {
+      acceptWebSocket,
+      acceptable,
+      isWebSocketCloseEvent,
+      isWebSocketPingEvent,
+      WebSocket,
+  } from "https://deno.land/std/ws/mod.ts";
+
+  const portString = Deno.env.get('PORT') || "3000";
+  const port = parseInt( portString );
+
+  async function echo(sock: WebSocket) {
+      console.log("socket connected!");
+      try {
+          for await (const ev of sock) {
+              if (typeof ev === "string") {
+                  // text message
+                  console.log("ws:Text", ev);
+                  await sock.send(ev);
+              } else if (ev instanceof Uint8Array) {
+                  // binary message
+                  console.log("ws:Binary", ev);
+              } else if (isWebSocketPingEvent(ev)) {
+                  const [, body] = ev;
+                  // ping
+                  console.log("ws:Ping", body);
+              } else if (isWebSocketCloseEvent(ev)) {
+                  // close
+                  const { code, reason } = ev;
+                  console.log("ws:Close", code, reason);
+              }
+          }
+      } catch (err) {
+          console.error(`failed to receive frame: ${err}`);
+
+          if (!sock.isClosed) {
+              await sock.close(1000).catch(console.error);
+          }
+      }
+
+  }
+
+  listenAndServe( `0.0.0.0:${port}`, async (req) => {
+      if (acceptable(req)) {
+          acceptWebSocket({
+              conn: req.conn,
+              bufReader: req.r,
+              bufWriter: req.w,
+              headers: req.headers,
+          }).then(echo);
+      } else {
+          const decoder = new TextDecoder("utf-8");
+          const bytes = Deno.readFileSync("echo.html");
+          const body = decoder.decode(bytes);  
+          req.respond({ body });
+      }
+
+  });
+
+  console.log(`Server started on port ${port}`);
+
+#+end_src
+
+Now run with
+
+#+begin_src bash
+deno run --allow-net --allow-read --allow-env echo_server.ts
+#+end_src
+
+But there's a file not found error, which is the fact that =echo.html=
+doesn't exist.  Lets do something quickly for that now:
+
+* Web Echo Client
+
+This is a very simple HTML page that gives you a text input box.  When
+you press enter, it sends the message to the server.  When it gets a
+messge, it adds to a text box.  Remember when JavaScript was this
+simple?
+
+#+begin_src html :tangle echo.html
+  <html>
+    <head>
+      <title>HTML "Interface"</title>
+    </head>
+
+    <body>
+        <pre id="console"></pre>
+        <input type="text" id="input">
+        <script>
+          // Wire up the user interface
+          const l = document.querySelector("#console");
+
+          const i = document.querySelector("#input");
+          i.onkeypress = (key) => {
+            if( key.key == "Enter" ) {
+              log( `sending ${i.value}` );
+              say( i.value );
+              i.value = "";
+            }
+          }
+
+          const log = (message, data) => {
+            console.log( message, data );
+            l.innerText += `${message}`;
+            if( data ) {
+              l.innertext += ' ';
+              l.innerText += JSON.stringify( data );
+            }
+            l.innerText += "\n";
+          }
+
+          // Connect to the server over the websocket
+          log( "Connecting to the websocket..." );
+          const server = new WebSocket(window.location.href.replace( "http", "ws" ));
+
+          server.onopen = (event) => {
+            log( "Connection established", event );
+            console.log( "use the say() method to send something to the server" )
+          }
+
+          server.onmessage = (event) => {
+            log( "Message from server ", event.data );
+          }
+
+          server.onerror = (error) => {
+            log( "WebSocket Error", error )
+          }
+
+          server.onclose = (event) => {
+            log( "WebSocket close", event )
+          }
+
+          window.say = (message) => server.send( message )
+      </script>
+    </body>
+  </html>
+#+end_src
+* Cli Client
+
+This is straight copied from the [[https://deno.land/std/ws/README.md][deno ws README]]
+
+#+begin_src javascript :tangle client.ts
+import {
+  connectWebSocket,
+  isWebSocketCloseEvent,
+  isWebSocketPingEvent,
+  isWebSocketPongEvent,
+} from "https://deno.land/std/ws/mod.ts";
+import { encode } from "https://deno.land/std/encoding/utf8.ts";
+import { BufReader } from "https://deno.land/std/io/bufio.ts";
+import { TextProtoReader } from "https://deno.land/std/textproto/mod.ts";
+import { blue, green, red, yellow } from "https://deno.land/std/fmt/colors.ts";
+
+const endpoint = Deno.args[0] || "ws://127.0.0.1:8080";
+/** simple websocket cli */
+try {
+  const sock = await connectWebSocket(endpoint);
+  console.log(green("ws connected! (type 'close' to quit)"));
+
+  const messages = async (): Promise<void> => {
+    for await (const msg of sock) {
+      if (typeof msg === "string") {
+        console.log(yellow(`< ${msg}`));
+      } else if (isWebSocketPingEvent(msg)) {
+        console.log(blue("< ping"));
+      } else if (isWebSocketPongEvent(msg)) {
+        console.log(blue("< pong"));
+      } else if (isWebSocketCloseEvent(msg)) {
+        console.log(red(`closed: code=${msg.code}, reason=${msg.reason}`));
+      }
+    }
+  };
+
+  const cli = async (): Promise<void> => {
+    const tpr = new TextProtoReader(new BufReader(Deno.stdin));
+    while (true) {
+      await Deno.stdout.write(encode("> "));
+      const line = await tpr.readLine();
+      if (line === null || line === "close") {
+        break;
+      } else if (line === "ping") {
+        await sock.ping();
+      } else {
+        await sock.send(line);
+      }
+    }
+  };
+
+  await Promise.race([messages(), cli()]).catch(console.error);
+
+  if (!sock.isClosed) {
+    await sock.close(1000).catch(console.error);
+  }
+} catch (err) {
+  console.error(red(`Could not connect to WebSocket: '${err}'`));
+}
+
+Deno.exit(0);
+
+#+end_src
+
+And in another window you can run
+
+#+begin_src bash
+deno run --allow-net client.ts
+#+end_src
+
+* Deploy
+
+Lets create a =Dockerfile=
+
+#+begin_src docker :tangle Dockerfile
+FROM hayd/alpine-deno:1.1.1
+
+COPY . ./
+
+RUN deno cache echo_server.ts
+
+EXPOSE 5000
+
+CMD ["run", "--allow-net", "--allow-read", "--allow-env", "echo_server.ts" ]
+
+#+end_src
+
+And then build the image and test with:
+
+#+begin_src bash
+docker build . -t deno && docker run --rm -it -p5000:3000 deno
+#+end_src
+
+* Pushing to a server
+
+I'm using a [[http://dokku.viewdocs.io/dokku/][dokku]] instance, but you can also use something like
+[[https://www.heroku.com/][heroku]].  The goal here is to get something up on the internet to see
+if it actually runs!
+
+Check also to see if this is working over HTTPS.  The connect string
+replaces =http= with =ws=, so if the location is =https= it will
+automatically convert to using =wss=.
+
+Lets also try out the cli client to see how it works.  I'm deploying
+on =deno.willschenk.com= so the command is:
+
+#+begin_src bash
+deno run --allow-net client.ts wss://deno.willschenk.com
+#+end_src
+
+* Beyond Echo: server
+
+Now that we have the infrastructure in place, we can add a little more
+smarts to the server.
+
+1. The server should keep track of the clients.
+2. The server will assign a client an id
+3. The server should should broadcast clients who are connected.
+4. The server will send join and leave events.
+5. Clients will be able to send messages to specific other clients.
+
+Let's code that up now.
+
+#+begin_src javascript :tangle routing_server.ts
+  import { listenAndServe } from "https://deno.land/std/http/server.ts";
+  import {
+      acceptWebSocket,
+      acceptable,
+      isWebSocketCloseEvent,
+      isWebSocketPingEvent,
+      WebSocket,
+  } from "https://deno.land/std/ws/mod.ts";
+  import { v4 } from 'https://deno.land/std/uuid/mod.ts'
+
+  const users = new Map<string, WebSocket>();
+
+  function broadcast(message: string): void {
+    if (!message) return;
+    for (const user of users.values()) {
+      user.send(message);
+    }
+  }
+
+  function broadcastPresence(): void {
+      const message = JSON.stringify( {online: Array.from( users.keys() ) });
+      broadcast( message );
+  }
+
+  async function sendMessage( from:string, to:string, message:string ) : Promise<boolean> {
+      const dest = users.get( to );
+      if( !dest ) return false;
+
+      await dest.send( JSON.stringify( {from:from, payload: message} ) );
+
+      return true;
+  }
+
+  async function messager(sock: WebSocket) {
+      console.log("socket connected");
+
+      const userId = v4.generate();
+
+      console.log( `Assigned ${userId}` );
+      await sock.send(JSON.stringify({id:userId}));
+      users.set( userId, sock );
+
+      broadcastPresence();
+
+      try {
+          for await (const ev of sock) {
+              if (typeof ev === "string") {
+                  try {
+                      const message = JSON.parse( ev );
+
+                      console.log( message );
+
+                      if( message.sendto ) {
+                          const sent = await sendMessage( userId, message.sendto, message.payload );
+                          await sock.send( JSON.stringify( { to: message.sendto, sent: sent } ) );
+                      } else {
+                          await sock.send( JSON.stringify( { to: message.sendto, sent: false } ) );
+                      }
+                  } catch( e ) {
+                      await sock.send( JSON.stringify( {badmessage: ev}));
+                      console.log( e, ev );
+                  }
+
+                  //console.log("ws:Text", ev);
+                  //await sock.send(ev);
+              } else if (ev instanceof Uint8Array) {
+                  // binary message
+                  console.log("ws:Binary", ev);
+              } else if (isWebSocketPingEvent(ev)) {
+                  const [, body] = ev;
+                  // ping
+                  console.log("ws:Ping", body);
+              } else if (isWebSocketCloseEvent(ev)) {
+                  // close
+                  const { code, reason } = ev;
+                  console.log("ws:Close", code, reason);
+              }
+          }
+      } catch (err) {
+          console.error(`failed to receive frame: ${err}`);
+
+          if (!sock.isClosed) {
+              await sock.close(1000).catch(console.error);
+          }
+      }
+
+      users.delete( userId );
+
+      broadcast( JSON.stringify( { left: userId } ) );
+      broadcastPresence();
+  }
+
+  const port = Deno.env.get('PORT') || "3000";
+
+  listenAndServe( `0.0.0.0:${port}`, async (req) => {
+      if (acceptable(req)) {
+          acceptWebSocket({
+              conn: req.conn,
+              bufReader: req.r,
+              bufWriter: req.w,
+              headers: req.headers,
+          }).then(messager);
+      } else {
+          const decoder = new TextDecoder("utf-8");
+          const bytes = Deno.readFileSync("router.html");
+          const body = decoder.decode(bytes);  
+          req.respond({ body });
+      }
+  });
+
+  console.log(`Server started on port ${port}`);
+
+
+#+end_src
+* Beyond Echo: Web Client
+For this, we are going to expand on =echo.html= to be able to send
+messages to specific ids.
+
+#+begin_src html :tangle router.html
+  <html>
+    <head>
+      <title>HTML Chat Interface</title>
+      <link href="https://unpkg.com/tailwindcss@^1.0/dist/tailwind.min.css" rel="stylesheet">
+    </head>
+
+    <body>
+      <div class="flex flex-wrap m-2" id="mainwindow">
+        <div class="w-1/2 h-64 overflow-scroll">
+          <p class="text-xl">Console</p>
+          <pre class="text-sm" id="console"></pre>
+        </div>
+        <div class="w-1/2 flex-none h-64 overflow-scroll">
+          <p class="text-xl">Presence List</p>
+          <ul id="presence"></ul>
+          <p class="text-sm text-light">Click on an ID to start a chat</p>
+        </div>
+        <template id="chatwindow" class="w-1/2 flex-none">
+          <div class="h-64 overflow-scroll">
+            <p class="text-xl" class="chatmessage">Click on an id to chat</p>
+            <pre class="text-sm" class="chatwindow"></pre>
+            <input class="border" type="text" class="input">
+          </div>
+        </template>
+      </div>
+
+        <script>
+          // Wire up the user interface
+          const l = document.querySelector("#console");
+
+          const chatPane = (id,ignore) => {
+            console.log( `Looking for ${id}` );
+            let pane = document.querySelector( `[data-id="${id}"]` );
+            if( !pane && ignore != true) {
+              pane = document.querySelector( "#chatwindow" ).content.cloneNode(true);
+              document.querySelector("#mainwindow").appendChild(pane);
+              pane = document.querySelector("#mainwindow div:last-child")
+              pane.dataset.id = id;
+              pane.querySelector( "p" ).innerText = `Chat with ${id}`;
+              pane.querySelector( "input" ).onkeypress = sendMessage(id);
+            }
+            if( !pane && ignore != true ) return false;
+            pane.querySelector( "input" ).focus();
+
+            return pane;
+          }
+
+          const messageFrom = (id,message) => {
+            console.log( "messageFrom", id, message );
+            if( message ) {
+              chatPane(id).querySelector( "pre" ).innerText += `${message}\n`;
+            } else {
+              chatPane(id).querySelector( "pre" ).innerText = `Starting chat\n`;
+            }
+          }
+
+          const p = document.querySelector("#presence");
+          p.onclick = (e) => messageFrom( e.target.innerText );
+
+          const sendMessage = (id) => (key) => {
+            if( key.key == "Enter" ) {
+              messageFrom( id, `>${key.target.value}` );
+              say( JSON.stringify( {sendto: id, payload: key.target.value}) );
+              key.target.value = "";
+            }
+          }
+
+          const log = (message, data) => {
+            console.log( message, data );
+            l.innerText += `${message}`;
+            if( data ) {
+              l.innertext += ' ';
+              l.innerText += JSON.stringify( data );
+            }
+            l.innerText += "\n";
+          }
+
+          // Connect to the server over the websocket
+          log( "Connecting to the websocket..." );
+          const server = new WebSocket(window.location.href.replace( "http", "ws" ));
+
+          server.onopen = (event) => {
+            log( "Connection established", event );
+            console.log( "use the say() method to send something to the server" )
+          }
+
+          server.onmessage = (event) => {
+            const message = JSON.parse( event.data );
+            console.log(message);
+            if( message.id ) {
+              log( `Our id is ${message.id}`);
+            } else if( message.online ) {
+              console.log( message.online );
+              p.innerHTML = message.online.map( (x) => `<li>${x}</li>` ).join( "" )
+            } else if( message.left ) {
+              log( `${message.left} disconnected` );
+              if( chatPane( message.left, true ) )
+                messageFrom( message.left, "<disconnected>" );
+            } else if( message.badmessage ) {
+              log( `${ev} is a bad message` );
+            } else if( message.to ) {
+              log( `Message to ${message.to} deliver status ${message.sent}` );
+              if( !message.sent )
+                messageFrom( message.to, "<notdelivered>" );
+            } else if( message.from ) {
+              messageFrom( message.from, message.payload );
+            } else {
+              log( "Unknown message from server ", event.data );
+            }
+          }
+
+          server.onerror = (error) => {
+            log( "WebSocket Error", error )
+          }
+
+          server.onclose = (event) => {
+            log( "WebSocket close", event )
+          }
+
+          window.say = (message) => {
+            log( `sending ${message}` );
+            server.send( message );
+          }
+      </script>
+    </body>
+  </html>
+
+#+end_src
+
+* Beyond echo: Cli Client
+
+
+
+
+* References
+1. [[https://deno.land/std/ws/README.md][deno ws README]]
+2. [[https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API/Writing_WebSocket_client_applications][MDN: Writing WebSocket client applications]]
+
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

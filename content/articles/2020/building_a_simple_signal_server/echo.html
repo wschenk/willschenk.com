@@ -1,0 +1,56 @@
+<html>
+  <head>
+    <title>HTML "Interface"</title>
+  </head>
+
+  <body>
+      <pre id="console"></pre>
+      <input type="text" id="input">
+      <script>
+        // Wire up the user interface
+        const l = document.querySelector("#console");
+
+        const i = document.querySelector("#input");
+        i.onkeypress = (key) => {
+          if( key.key == "Enter" ) {
+            log( `sending ${i.value}` );
+            say( i.value );
+            i.value = "";
+          }
+        }
+
+        const log = (message, data) => {
+          console.log( message, data );
+          l.innerText += `${message}`;
+          if( data ) {
+            l.innertext += ' ';
+            l.innerText += JSON.stringify( data );
+          }
+          l.innerText += "\n";
+        }
+
+        // Connect to the server over the websocket
+        log( "Connecting to the websocket..." );
+        const server = new WebSocket(window.location.href.replace( "http", "ws" ));
+
+        server.onopen = (event) => {
+          log( "Connection established", event );
+          console.log( "use the say() method to send something to the server" )
+        }
+
+        server.onmessage = (event) => {
+          log( "Message from server ", event.data );
+        }
+
+        server.onerror = (error) => {
+          log( "WebSocket Error", error )
+        }
+
+        server.onclose = (event) => {
+          log( "WebSocket close", event )
+        }
+
+        window.say = (message) => server.send( message )
+    </script>
+  </body>
+</html>

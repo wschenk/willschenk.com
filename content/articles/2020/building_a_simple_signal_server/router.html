@@ -1,0 +1,126 @@
+<html>
+  <head>
+    <title>HTML Chat Interface</title>
+    <link href="https://unpkg.com/tailwindcss@^1.0/dist/tailwind.min.css" rel="stylesheet">
+  </head>
+
+  <body>
+    <div class="flex flex-wrap m-2" id="mainwindow">
+      <div class="w-1/2 h-64 overflow-scroll">
+        <p class="text-xl">Console</p>
+        <pre class="text-sm" id="console"></pre>
+      </div>
+      <div class="w-1/2 flex-none h-64 overflow-scroll">
+        <p class="text-xl">Presence List</p>
+        <ul id="presence"></ul>
+        <p class="text-sm text-light">Click on an ID to start a chat</p>
+      </div>
+      <template id="chatwindow" class="w-1/2 flex-none">
+        <div class="h-64 overflow-scroll">
+          <p class="text-xl" class="chatmessage">Click on an id to chat</p>
+          <pre class="text-sm" class="chatwindow"></pre>
+          <input class="border" type="text" class="input">
+        </div>
+      </template>
+    </div>
+
+      <script>
+        // Wire up the user interface
+        const l = document.querySelector("#console");
+
+        const chatPane = (id,ignore) => {
+          console.log( `Looking for ${id}` );
+          let pane = document.querySelector( `[data-id="${id}"]` );
+          if( !pane && ignore != true) {
+            pane = document.querySelector( "#chatwindow" ).content.cloneNode(true);
+            document.querySelector("#mainwindow").appendChild(pane);
+            pane = document.querySelector("#mainwindow div:last-child")
+            pane.dataset.id = id;
+            pane.querySelector( "p" ).innerText = `Chat with ${id}`;
+            pane.querySelector( "input" ).onkeypress = sendMessage(id);
+          }
+          if( !pane && ignore != true ) return false;
+          pane.querySelector( "input" ).focus();
+
+          return pane;
+        }
+
+        const messageFrom = (id,message) => {
+          console.log( "messageFrom", id, message );
+          if( message ) {
+            chatPane(id).querySelector( "pre" ).innerText += `${message}\n`;
+          } else {
+            chatPane(id).querySelector( "pre" ).innerText = `Starting chat\n`;
+          }
+        }
+
+        const p = document.querySelector("#presence");
+        p.onclick = (e) => messageFrom( e.target.innerText );
+
+        const sendMessage = (id) => (key) => {
+          if( key.key == "Enter" ) {
+            messageFrom( id, `>${key.target.value}` );
+            say( JSON.stringify( {sendto: id, payload: key.target.value}) );
+            key.target.value = "";
+          }
+        }
+
+        const log = (message, data) => {
+          console.log( message, data );
+          l.innerText += `${message}`;
+          if( data ) {
+            l.innertext += ' ';
+            l.innerText += JSON.stringify( data );
+          }
+          l.innerText += "\n";
+        }
+
+        // Connect to the server over the websocket
+        log( "Connecting to the websocket..." );
+        const server = new WebSocket(window.location.href.replace( "http", "ws" ));
+
+        server.onopen = (event) => {
+          log( "Connection established", event );
+          console.log( "use the say() method to send something to the server" )
+        }
+
+        server.onmessage = (event) => {
+          const message = JSON.parse( event.data );
+          console.log(message);
+          if( message.id ) {
+            log( `Our id is ${message.id}`);
+          } else if( message.online ) {
+            console.log( message.online );
+            p.innerHTML = message.online.map( (x) => `<li>${x}</li>` ).join( "" )
+          } else if( message.left ) {
+            log( `${message.left} disconnected` );
+            if( chatPane( message.left, true ) )
+              messageFrom( message.left, "<disconnected>" );
+          } else if( message.badmessage ) {
+            log( `${ev} is a bad message` );
+          } else if( message.to ) {
+            log( `Message to ${message.to} deliver status ${message.sent}` );
+            if( !message.sent )
+              messageFrom( message.to, "<notdelivered>" );
+          } else if( message.from ) {
+            messageFrom( message.from, message.payload );
+          } else {
+            log( "Unknown message from server ", event.data );
+          }
+        }
+
+        server.onerror = (error) => {
+          log( "WebSocket Error", error )
+        }
+
+        server.onclose = (event) => {
+          log( "WebSocket close", event )
+        }
+
+        window.say = (message) => {
+          log( `sending ${message}` );
+          server.send( message );
+        }
+    </script>
+  </body>
+</html>
