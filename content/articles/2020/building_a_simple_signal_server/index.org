@@ -1,24 +1,61 @@
 #+title: Building a Simple Signal Server
 #+subtitle: bounce bounce
-#+tags: deno, howto, websockets
+#+tags: deno, howto, websockets, webrtc
 #+date: 2020-06-29
 #+draft: true
 
-Lets look at how to build a simple signalling server with deno.
+Communicating between devices is what the internet is all about.  Lets
+look at how to coordinate real time messaging between machines, first
+building a simple chat interface and then extending it to audio,
+video, and file transfer.
 
-* Setup
+This was actually inspired by an instagram story where someone had a
+screenshot of [[https://squadcast.com][squadcast]] in the background, and I thought it was such
+an awesome name I looked it up, and then I started thinking how they
+built it, and now I'm writing down my prototype of what I think they
+did.  Also I wanted to learn typescript a bit, so here we are.
+
+We'll build a few things in order:
+
+1. A WebSocket echo server, with a command line client, and very
+   simple web client.
+2. Deploy this to a machine using Docker so we can serve it over =https=
+   which we'll eventually need for the video conferencing.
+2. A message routing server that lets clients route messages to each
+   other.
+3. An additional browser client that uses that to setup P2P data
+   exchange.
+4. Adding audio recording and file transfer of the uncompressed feed
+   to the other client.
+
+In WebRTC parlance we are going to build the out of band messaging
+layer and a very simple =STUN= server to negotiate the connections
+between the browsers.  What we aren't building is a =TURN= server, so we
+only support connecting two devices that are reachable over the
+internet and won't proxy data between then.
+
+* Development Setup
 
 Make sure you have deno installed.  I use [[https://asdf-vm.com/#/][asdf]] but the official you
 could also follow [[https://deno.land/manual/getting_started/installation][the official installation instructions]].
+
+From here on our we are using simple text files, no build process.
 
 * Echo Server
 
 For the server itself (call this =echo_server.ts=) we are going to
 =listenAndServe= on port 3000, and if the request is eligible to upgrade
-we'll turn it into a websocket and pass it over to the handler in
-=echo.ts= (which will we define next.)  If not, we are going to serve
-the file =web.html= which we'll define below.
+we'll turn it into a WebSocket and pass it over to a simple handler
+called =echo= that simply sends what it gets to the same place it got it
+from.
 
+If the request isn't upgradable we simple sent back =echo.html= which we
+are going to define below.
+
+
+[[echo_server.ts]]:
+
+#+ATTR_HTML: :class half-height-scroll
 #+begin_src javascript :tangle echo_server.ts
   import { listenAndServe } from "https://deno.land/std/http/server.ts";
   import {
@@ -84,7 +121,13 @@ the file =web.html= which we'll define below.
 
 #+end_src
 
-Now run with
+Now we need to get =deno= to run this.  We need a few permissions here:
+
+#+ATTR_HTML: :class table table-striped
+| =--allow-net=  | To Access the Internet                 |
+| =--allow-read= | To read =echo.html= from the file system |
+| =--allow-env=  | To get the port definition             |
+
 
 #+begin_src bash
 deno run --allow-net --allow-read --allow-env echo_server.ts
@@ -100,6 +143,18 @@ you press enter, it sends the message to the server.  When it gets a
 messge, it adds to a text box.  Remember when JavaScript was this
 simple?
 
+We also define a =log= function that both prints things to the console
+as well as appending it to a =pre= block in the HTML so you can use this
+outside of the =console=.  Simple but it works for testing.
+
+Since we are using the same endpoint to serve the HTML and the
+WebSocket we open a =WebSocket= to the =window.location.href=. We replace
+=http= with =ws=, which will also replace =https= with =wss= which is nice.  I
+wonder if someone did that on purpose, since it sure is handy!
+
+[[echo.html]]:
+
+#+ATTR_HTML: :class half-height-scroll
 #+begin_src html :tangle echo.html
   <html>
     <head>
@@ -158,10 +213,14 @@ simple?
     </body>
   </html>
 #+end_src
+
 * Cli Client
 
-This is straight copied from the [[https://deno.land/std/ws/README.md][deno ws README]]
+This is literally copy-and-pasted from [[https://deno.land/std/ws/README.md][deno ws module README]].
 
+[[client.ts]]:
+
+#+ATTR_HTML: :class half-height-scroll
 #+begin_src javascript :tangle client.ts
 import {
   connectWebSocket,
@@ -230,7 +289,15 @@ deno run --allow-net client.ts
 
 * Deploy
 
-Lets create a =Dockerfile=
+Next on our list of proving to ourselves we can do this is to deploy
+this to a server.  I use =dokku= for this, but really it doesn't matter.
+There are free tiers on =heroku= that would work just as well.  The only
+catch is that you do need an security certificate to get the video
+hand shaking to work, so enable =letsencrypt= where you deploy it.
+
+File lets create a =Dockerfile=.  This copies everything over, runs =deno
+cache= to pull the dependancies into the image at build time, and
+exposes the =5000= port.
 
 #+begin_src docker :tangle Dockerfile
 FROM hayd/alpine-deno:1.1.1
@@ -239,6 +306,7 @@ COPY . ./
 
 RUN deno cache echo_server.ts
 
+ENV PORT=5000
 EXPOSE 5000
 
 CMD ["run", "--allow-net", "--allow-read", "--allow-env", "echo_server.ts" ]
@@ -248,8 +316,12 @@ CMD ["run", "--allow-net", "--allow-read", "--allow-env", "echo_server.ts" ]
 And then build the image and test with:
 
 #+begin_src bash
-docker build . -t deno && docker run --rm -it -p5000:3000 deno
+docker build . -t deno && docker run --rm -it -p5000:5000 deno
 #+end_src
+
+Note I'm setting the =PORT= variable here to =5000= and testing to see if
+it actually works since when you deploy it often needs it to listen on
+a specific address.
 
 * Pushing to a server
 
@@ -262,11 +334,14 @@ replaces =http= with =ws=, so if the location is =https= it will
 automatically convert to using =wss=.
 
 Lets also try out the cli client to see how it works.  I'm deploying
-on =deno.willschenk.com= so the command is:
+on =deno.willschenk.com= so the command would be:
 
 #+begin_src bash
 deno run --allow-net client.ts wss://deno.willschenk.com
 #+end_src
+
+But of course you should be able to hit it with a browser to verify as
+well.
 
 * Beyond Echo: server
 
@@ -281,6 +356,32 @@ smarts to the server.
 
 Let's code that up now.
 
+1. =users= is a has map of =id= and =WebSocket=.
+2. =broadcast= sends a message to each client.
+3. =broadcastPresence= will send an array of each =id= to every client.
+4. =sendMessage= sends a message to a specific client, returning =true= if
+   it found the =id= and =false= if it didn't.
+5. =messager= is the actual function that ties to together.
+
+The messages themselves are =json= with specific attributes.  When a
+client is first connected it's assigned an ID which is returned, and
+then a =presence= message is broadcast to everyone with the latest list
+of online people. =sendto= is then used from the =client= to route a
+message, and then get a =to= success or fail back. The other client
+received this as a =from= message.  If a client disconnects a =left=
+message is broadcast as is a new =presence= message to everyone so they
+can update what they need to.
+
+#+ATTR_HTML: :class table table-striped
+| ={id: id}=                       | Sets the client id                  |
+| ={presence: [id]}=               | List of ids currently connected     |
+| ={sendto: id, payload: payload}= | Sends a message to a specific id    |
+| ={to: id, sent: boolean }=       | Message sent or not                 |
+| ={from: id, payload: payload}=   | Incoming message from a specific id |
+| ={left: id}=                     | Client disconnected                 |
+| ={badmessage: message}=          | Server couldn't handle the request  |
+
+#+ATTR_HTML: :class half-height-scroll
 #+begin_src javascript :tangle routing_server.ts
   import { listenAndServe } from "https://deno.land/std/http/server.ts";
   import {
@@ -400,6 +501,17 @@ Let's code that up now.
 For this, we are going to expand on =echo.html= to be able to send
 messages to specific ids.
 
+Here we are using =tailwind= for some simple styling.  We have the
+console on the top left, and the presense list on the top right.
+
+When a presence message comes in we replace the list, and there's a
+click handler to open a chat window with a specific client. From here
+you can send a message to that cient.  This is done by cloning the
+=template=, adding some addtributes in the dom, and creating click
+handler functions that know what id they are assigned to.
+
+
+#+ATTR_HTML: :class half-height-scroll
 #+begin_src html :tangle router.html
   <html>
     <head>
@@ -418,8 +530,8 @@ messages to specific ids.
           <ul id="presence"></ul>
           <p class="text-sm text-light">Click on an ID to start a chat</p>
         </div>
-        <template id="chatwindow" class="w-1/2 flex-none">
-          <div class="h-64 overflow-scroll">
+        <template id="chatwindow">
+          <div class="w-1/2 flex-none h-64 overflow-scroll">
             <p class="text-xl" class="chatmessage">Click on an id to chat</p>
             <pre class="text-sm" class="chatwindow"></pre>
             <input class="border" type="text" class="input">

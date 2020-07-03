@@ -1,0 +1,592 @@
+#+title: Effigy, a distributed social data layer
+#+subtitle: scuttlebutt is awesome, lets run with it
+#+date: 2020-07-03
+#+tags: p2p, design, overview, serverless, websockets, webrtc
+#+startup:inlineimages
+
+I grew up in the world of BBSes, Usenet and to some extent UUCP before
+that. This was fun, a world wide network all built up by volunteers
+sharing.  Since we are all carrying supercomputers around now with
+massive idle storage and bandwidth, let's think about how we can
+recreate some of that fun, independent data sharing with modern web
+technologies, specifically Websockets and WebRTC. All you need is
+the computers that you already have with you.
+
+* Abstract
+
+We're going to take a lot of concepts from what's been done before and
+remix them all.  Here are some of the specific projects and ideas that
+I was inspired by -- I have no idea which came first in the history of
+things, but this reflects my journey.
+
+- From [[https://en.wikipedia.org/wiki/UUCP][UUCP]] we will take the idea that you store data on your
+  "neighbors", can request functionality from other connections, and
+  need no centralizing authority.
+- From [[https://www.youtube.com/watch?v=Ng0NE4lDP2U][Fidonet]] we try and vibe off of the energy of [[https://en.wikipedia.org/wiki/Tom_Jennings][Tom Jennings]], but
+  actually keep that anarcist spirit alive by avoiding all centralized
+  authority.
+- From [[https://scuttlebutt.nz/][scuttlebutt]] we will take the identity centric sharing, that
+  network block and sharing is reflective of real human networks, feed
+  posting, group encryption, "every client is a pub", and that its
+  offline first ideas.
+- From [[https://en.wikipedia.org/wiki/BitTorrent][BitTorrent]] we take the concepts of stateless tracker servers
+  and in general distributed file sharing.
+- From [[https://en.wikipedia.org/wiki/Blockchain][Blockchain]] we take the idea that the system has rules for
+  accepting in feeds, and that you could memorize your private key
+  with a word sentence mnenomic.
+- From [[https://ipfs.io/][ipfs]] we will take the idea that content is self signing,
+  content blobs can be merkle trees of directories, and that it needs
+  to run as javascript user process in the browser.
+- From [[https://dat.foundation/][dat]] we take some of the ideas of being able to update on a key
+  that is shared around.
+- From [[https://syncthing.net/][syncthing]] the idea of mutually signing your devices to setup
+  file mirroring, also passing keys around with QR scodes.
+- From [[https://docsend.com/view/gu3ywqi][textile threads]] we take the ideas of feed read keys vs content
+  read keys.
+- From [[https://web.dev/progressive-web-apps/][Progressive Web Apps]] we take the idea it's easy to deploy and
+  install on your device without going through gatekeepers, that we
+  expect storage to be ephemeral, and multiple devices go to the same
+  account.
+
+In terms of intellectual heritage this follows primarily from
+[[https://scuttlebutt.nz/docs/principles/][scuttlebutt's principles]] and [[https://handbook.scuttlebutt.nz/stories/design-challenge-avoid-centralization-and-singletons][scuttlebutt's no centralization and no
+singletons]] -- so a huge shoutout to [[https://dominictarr.com/][Dominic Tarr]] -- and then trying to
+apply the concepts so that it can work on regular browsers.  
+
+Much of the follow document is to try and work around the strengths
+and weaknesses of browsers -- specifically they are the best
+application platform since everyone has access to them, and that they
+don't accept incoming connections and that they don't provide very
+good presistent storage guardentees.  The ideas of ssb and dat are
+great, but they don't work in browsers. No [[https://www.electronjs.org/][electron]] or JavaScript
+unsupported by browsers here.
+
+Also, lets recognize that all of this doesn't need to be so
+complicated. If we can relax some restrictions getting things close is
+good enough.  If you assume that people have multiple devices, they
+ensure that they data is both on their phone and their laptop and
+their friends phone and friends laptop and then you don't need to go
+through all of these crazy incetive systems that you get with textile
+or file coin.  There's no highlevel incentive for BitTorrent and that
+seems to be doing just fine.  We are /sharing things with friends/ here,
+that's the mindset.
+
+In a situation where all your devices explode at the same time you can
+just check in with your actual social network to recover from a
+disaster, just like real life.
+
+* Design
+** Content addressable
+Every bit of content is named by its signature, so therefor the data
+doesn't live anywhere.  The private key is the only special
+information, and perhaps this could be a mnenomic like "memorize your
+bitcoin wallet address with this weird sentence thing".
+
+Machines connect, cache and share the data that they have. Like NNTP,
+it starts out with a IWANT and IHAVE negotiation to get the heads, and
+then pulls stuff down as needed.
+
+Larger blobs are stored the same way, so there's an underlying object
+cloud there.  Blob size is shared as part of the protocol, so when
+available blobs are announced you know how big it is.
+
+** Identity
+Identity is the public key, which is generated on startup.  There is a
+private key that signs everything bit of data you put in the system
+and you "are" your public key.
+
+When communicating with other devices, you will general annouce an
+=[identity,head]= pair. The head is the "latest" entry in a chain based
+on it's ID.  This ID could be the time signature, but since only one
+device can create an entry (since entries are signed by the private
+key they can't be forged) there's no need for syncronizaiton.
+
+** Entries
+
+Entries are a JSON string followed by a signature, or they are an
+encrypted object.
+
+The payload of an entry is either a JSON string, or an encrytped
+string.
+
+The key of the entry is the hash of the full entry, including the
+signature.
+
+Each entry JSON object contains:
+
+#+ATTR_HTML: :class table table-striped
+| identity     | of the signer of the blob                         |
+| parent       | pointer to parent entity                          |
+| comparable   | like an id or timestamp, must be positive integer |
+| synod        | [identity,head] of synod                          |
+| payload      | see below                                         |
+
+/(Synod [[Synods][described below]] but in short is the account concept that groups
+devices together and lists current signalling servers and dropboxes.)/
+
+When you get an entity, you first figure out if it's a valid -- first
+by checking to see if the blob hashs to the blob name, and secondarily
+to see if the identity is the signer of the message.  If an entry is
+announced as part of a =[identity,head]= pair then the inner and outer
+identities are compared to see if they are identical, and the
+operation is aborted if not.
+
+Once the entity is valid, it goes on the /identity entry/ list. This
+list is sorted by =comparable=, and the highest number is considered to
+be this nodes version of /head/ for that entity. This =identity= can
+optionally go on the /identity watch list/ which will be used to follow
+information for this identity in the future.
+
+*** Payload Types
+
+*DRAFT*
+
+Payloads have different types, and ultimately reference larger
+blobs in the network.
+
+#+ATTR_HTML: :class table table-striped
+| synod          | synod data object                                                      |
+| identification | json with name, about, whatever                                        |
+| public_note    | note to the world                                                      |
+| private_note   | note to people with readkeys                                           |
+| image          | pointer to image blob                                                  |
+| collection     | pointer to archive of blobs                                            |
+| tag            | marking an entry in some way                                           |
+| comment        | Make a comment to on an entry                                          |
+| follow         | you announce that you are following a feed                             |
+| block          | you tell the system you no longer are tracking and sharing an identity |
+| mute           | encrypted block that pretends not to know anything                     |
+
+*** References
+
+Referencing other entries are to its hash, which contains a pointer to
+the identity and the synod. Both the identity and the synod can be
+referenced with the blob request mechanism.  Once these are loaded,
+the system then uses the =[identity,head]= from the signalling server or
+connected clients to reconstruct the feed, whose entries are validated
+using the signatures.
+
+References are not to the feed itself, but to an entry on the feed.
+So its possible to find references to an entity, locate the last
+version of it's feed but not find the original entity on it. This
+would be in the scenario where a user deleted an entry for their feed,
+and all the subsequent items needed to be rewritten and
+republished. This will break references to that =entity= and /all
+following entity/ so change the past with care.
+
+** Synods
+Synods are a special type of =identity= that is used to 
+
+1. collect identities together
+2. publish frequented singalling servers
+3. publish dropboxes monitored
+4. summarize profile information.
+
+An =identity= is part of a =synod=
+
+- =identity= has signed the =synod public key= in an entry signed by the
+  =synod='s private keys
+- there is not a /identity revoked entry/ in the =synod='s feed
+
+From a User Interface perspective then a =synod= should be considered as
+the /profile/ of the user, and the latest information here should be the
+avatar and display name. =follow= messages can be posted in device
+identity streams or =synod= streams which implies that you can choose
+what to replicate depending on which device you are using.
+
+All =identities= of a =synod= are expected to mutually replicate, so in
+the case that you do lose your device/key you'll be able to recover
+all of your information.
+
+A group of /signalling servers/ are published with the =synod=, so if you
+want to send a message to that user or be able to sync up their latest
+=head= you have a place to start.
+
+Some /signalling servers/ can optionally accept incoming drop
+messages. This is an =[target_identity,identity,entry]= tuple that is
+marked as targetting a specific =target_dentity= (or =synod=) so you can
+contact other people on the network if they aren't already following
+you. 
+
+The User Interface is expected to highlight incoming messages for
+non-followed identites that you can choose to read, acknowledge, reply
+or ignore.  There is no confirmation mechanism for the sender to know
+that the message has been received without user action.
+
+Synods are basically another type of feed that contains pointers to
+shared identities, a list of used signal servers, and profile
+information.  Its designed to work around "losing your private key is
+losing your identity" and it provides a way to publish changes for
+super old entiries whose =identities= aren't being shared anymore.
+
+** Feeds
+
+Every entry is a json =blob= which points to its previous =blob=. The key
+of the =blob= is its hashkey, so that you can ask for a key and verify
+that the data is correct. It doesn't matter who or where you get the
+data from.
+
+All entries are signed by the public key of the identity, so you know
+that it's from the same private key.
+
+*** Valid feeds
+
+Invalid feeds don't propogate
+
+1. Feed that are too large for the network to propogate. (e.g. you can
+   post a link to a movie but not the movie itself)
+2. Feeds that contain invalidly signed entries.
+3. Feeds that contain unencryted images with exif data
+4. Feeds that have a revoked public key (i.e. last valid id was x
+   everything after that is wrong)
+
+*** Heads
+
+Each node keeps track of identities and heads, which is the latest
+entry. When a node connects, it announces all of the identities that
+are tracked, and what the latest head it has.  Nodes can then share
+and request heads, and if they have the feed read keys they can trace
+things backwards to get to the root.
+
+** Multiencryption
+
+How does SSB have messages that multiple people can decrypt?  [[https://ssbc.github.io/scuttlebutt-protocol-guide/#encrypting][It's
+documented here]], but I don't understand it yet. 
+
+** Feed
+
+Everyone has a head, which is the latest that the feed has.  Each
+entry is a type and a pointer to a previous feed.
+
+Deletion is done with rebasing, which means that you are able to
+rewrite your feed.  So content that you address for commenting or
+whatever needs to be seperate from the feed itself, and in theory you
+could comment upon a feed entry that is missing from the head. These
+orphaned contents will always point to an identity, and the datablobs
+are the same, but may not be discoverable.
+
+** Drop Box
+
+Some singalling servers provide a /dropbox/ service, which allows blobs
+to be stored and shared on a server for a finite period of time and
+offered up to every client that connects to the server. These are
+expected to be multiencrypted with the =synod='s public key and perhaps
+with the sub-=identities= key so the recipient is obscured.
+
+The =synod= should announce endpoints that is uses for signallingy and
+where it potentially receives messages.
+
+The system should pull down messages from the inboxes -- which
+can be public places that automatically delete everything after 14
+days or whenever -- and then you can choose to pull something down or
+not.  Entries are meant to be small but can point to larger blobs.
+
+* Protocol
+The protocol exchanges JSON messages over a reliable transport that
+delivers complete discrete messages. Initial implementation targets
+websockets and WebRTC data transport.
+
+When a node to node connection is established -- using WebSockets to a
+well known address for example -- a session is created between the two
+nodes.  This is done by /node a/ generating a random string and /node b/
+signing it, and /node b/ generating a random string and /node a/ signing
+it.  Once done, both nodes know that the other is in possession of the
+private key that matches their public key.
+
+Nodes then announce which services they are willing to provide to each
+other, which could be a subset of all the full set of services
+provided for trusted =identities=.
+
+** Services
+
+Each client is able to provide services for other ones outside of blob
+propogation, which all clients are required to provide, though they
+have no requirement for any data persistency. (In otherwords, you need
+to be able to serve up at least blob referencing your identity and
+things you choose, but don't need to serve anything you don't have or
+want to share.)  
+
+#+ATTR_HTML: :class table table-striped
+| Service      | Description                                            |
+| blobs        | Blob sharing                                           |
+| headtracking | remembers the latest head for identities               |
+| signalling   | Network presence                                       |
+| relaying     | passing data to a mutually connection not directly     |
+| dropbox      | Receives and forwards requests from unknown identities |
+| data lease   | Storing of blobs with some guarentees                  |
+| voice        | Voice calling                                          |
+| video        | Video calling                                          |
+
+*** Blob sharing
+Every bit of data in the system is stored as a key pair, with the key
+being the cryptographic hash of the data. This blob could be an
+=entities= which contains metadata to describe itself; a signature and a
+link to a blob containing the public key signing it, and a link to a
+=synod= which is the account that is associated with the =identity=.
+
+When a client connects it notifies the other side which blobs its
+interested in, and other otherside says which blobs it has.
+*** Signalling
+Signalling is a way to broadcast to other nodes the your latest
+=[identity,head]= pair and as a way to coordinate =WebRTC= connections.
+If two clients are connected over =Websockets= to the same singalling
+server they can exchange messages directly, which allows for =offer= and
+=answer= =SDP= messages to make initial contact with a node that doesn't
+allow incoming connections (i.e. web browsers) and then will be able
+to coordinate the connection through a =STUN= server.
+
+Providing this service requires a DNS name and an externally
+accessable IP address, though probably not a huge amount of data
+(unless it's also caching and storing a lot of blobs.)  Additional
+directory and other services could be worth paying for.
+
+*** Relaying
+Relaying moving data through this system if the two nodes can't
+connect directly. I'm invisioning having a =coturn= instance acting as a
+=TURN= server that understands the =identity= as authentication.
+
+Providing this service requires bandwidth and an externally accessable
+IP, so its logical to charge money for.
+
+*** Dropbox
+
+This node receives messages for another user for situations where the
+recipient has no knowledge of the sender and therefor no reason to be
+tracking their identity.  The next time the recipient connects to this
+signalling server, it will see the message.
+
+Signalling services that the recipient has requested as a dropbox are
+published as part of their synod, so you'll need that in order to
+direct a message to them.
+
+*** Data Leasing
+Data leasing is a quest for the node to store an identities data for
+at least a certain period of time, to make it accessable to the
+network when the original device is offline.  Similar to a pinning
+service in [[IPFS]].
+
+One scenario is that all of the =identities= in a =synod= provide mutual
+data leasing, which means that your data is backed up on all of your
+devices. You could lose everything less 1 and still be able to
+recreate the graph.
+
+Another scenario is that you provide leasing to trusted friends, the
+sort of people you give spare house keys to, so that if either of you
+have a catastrophic failure you can reconstruct everything.  (Some
+provision for recovering lost =synod= private keys would need to be
+thought out.)
+
+A third example is providing data leasing as a service, which would be
+something that you could charge for.
+
+#+begin_src plantuml :file services.png
+scale 800 width
+clienta->clientb: wantservice(sessiontoken)
+clientb->clienta: providesservice(sessiontoken)
+clienta->clientb: call(service,datalease,head)
+#+end_src
+
+#+RESULTS:
+[[file:services.png]]
+
+*** Voice and Video
+
+If both =identities= are mutually trusted and on a /permitted contact
+list/ then they can use the WebRTC mechanisms to have real time
+communication. I'm not sure how well push notifications really work
+over progressive web apps, but seems worth exploring since we already
+are connecting over WebRTC.
+
+** Request Sequences
+*** Startup
+
+When a client starts up, it connects to the clients it knows about and
+is able to reach. It first annouces the service that it provides to
+the network, in the case it has a list of identity heads and can store
+blobs.
+
+#+begin_src plantuml :file startup.png
+scale 800 width
+
+client1 -> client2 : sessionrequest[identity1,head1,challenge1]
+client2 -> client1 : sessionrequest[identity2,head2,challenge2]
+client1 -> client2 : sessionauth[signed(identity1,challenge2)]
+client2 -> client1 : sessionauth[signed(identity2,challenge1)]
+#+end_src
+
+#+RESULTS:
+[[file:startup.png]]
+
+If either of the signatures don't match than the session is considered
+unauthenticated.
+
+If the signature matches, then the head announced is considered to be
+the head of the respective identity. /Note that it not a requirement
+that a head tracking service downloads and verifies the head/
+
+*** Service Discovery
+After authentication the clients exchange the list of services they
+are willing to provide to the other.
+
+#+begin_src plantuml :file service.png
+scale 800 width
+
+client1 -> client2 : provides[service_list]
+client2 -> client1 : provides[service_list]
+#+end_src
+
+#+RESULTS:
+[[file:service.png]]
+
+*TODO* There needs to be a way for the client to request access to an
+additional service.
+
+*** Head Tracking
+
+Here one side sends a =get_heads= request for it's /identity watch list/.
+The other returns with a list of =[identity,head]= pairs for =identities=
+that it knows about.
+
+#+begin_src plantuml :file head_tracking.png
+scale 800 width
+
+client1 -> client2 : getHeads([identities])
+client2 -> client1 : lastKnownHeads([identities,heads])
+#+end_src
+
+#+RESULTS:
+[[file:head_tracking.png]]
+
+*** Signalling
+Signally is tracking presence and helping to coordinate connections
+between devices (i.e. start of the WebRTC handshake.)
+
+**** Presence
+
+#+begin_src plantuml :file signalling.png
+scale 800 width
+
+client -> signalserver : online
+signalserver -> otherclients : online(identity,head)
+signalserver -> client : presence_list(identities)
+client -> signalserver : <disconnect>
+signalserver -> otherclients : offline(identity)
+#+end_src
+
+#+RESULTS:
+[[file:signalling.png]]
+
+**** Messaging
+
+#+begin_src plantuml :file messaging.png
+scale 800 width
+
+client1 -> signalserver : message_to(identity2,payload)
+signalserver -> client2 : message_from(identity1,payload)
+#+end_src
+
+#+RESULTS:
+[[file:messaging.png]]
+
+The signal server returns that it tracks presence, can forward
+messages between clients, and also tracks identity heads. It is not
+required to store blobs.
+
+
+The client requests a list of heads for things on the /identity watch
+list/, and the signalling server returns the union of what it knows
+about and what the client is tracking.
+
+The client then requests the presence list of clients connected to the
+signally server, and the signalling server returns a list of connected
+clients with their heads.  The server also annouces to everyone else
+that the client is connected.
+
+At this point the client is ready to start connecting to other clients
+through the signalling server.
+
+*** Blobs
+
+Clients periodically send /iwant lists/ to each other, returning the
+blobs that it has or is willing to share (based on perhaps bandwidth,
+if the client is operating on a battery, or over a metered celluar
+connection.)
+
+*TODO* Clients should track incoming blob requests and outgoing blog
+bandwidth to create a leach ratio that takes into account sharing
+reciprocity. Credit is created by sharing more or perhaps by
+purchasing bandwidth from the remote server. The request is signed by
+the identity so the clients can tell who is asking for what.
+
+#+begin_src plantuml :file blobpropgation.png
+scale 800 width
+
+clienta->clientb: iwant(blobs)
+clientb->clienta: ihave(blobs)
+clienta->clientb: getblob(blob,maxsize)
+clientb->clienta: blob
+
+#+end_src
+
+#+RESULTS:
+[[file:blobpropgation.png]]
+
+Once the client is connected to a system, signal or client, it sends a
+list of the blobs that it wants.  Since these are content addressable
+and signed by the identity, it doesn't matter where they come from.
+
+A signal server may or may not have blobs -- its a regular client that
+presumably is free of filewall and NAT messiness, and had the
+additional feature of being able to relay requests.
+
+*** Identity tracking
+
+The client looks through its list of identities, and all of the head
+announcements that it's received.  For each of these it tries to get
+the blob associate with the head.  Note that =synod= are also identities
+so fall into this logic as well.
+
+#+begin_src plantuml :file flowchart.png
+scale 800 width
+
+(*) --> "Receive identity,head message"
+
+If "tracking identity" then
+  -->[Yes] "get blob"
+else
+  -->[No] "ignore"
+Endif
+
+"get blob" If "has blob" then
+  -->[Yes] If "decrypt blob" then
+    -->[get parent] "get blob"
+  else
+    -->[No] "ignore"
+  Endif
+
+else
+  ->[No] "add to iwantlist"
+Endif
+
+--> (*)
+
+#+end_src
+
+#+RESULTS:
+[[file:flowchart.png]]
+
+
+** Chain validity
+1. All entries need to be less than 15K. TODO
+2. All unencrypted entries to photos must not have location data.
+3. All head requests with an synod identity with a final head must be
+   marked invalid.
+
+* State
+
+1. First pass at technical design - Done
+2. Prototyping started - 2020-07-03
+
+* Comments
+
+I can be reached at [[https://twitter.com/wschenk][@wschenk]], @wschenk@floss.social, and wschenk@gmail.com
