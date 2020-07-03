@@ -5,10 +5,904 @@
     <description>Recent content on Will Schenk</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
-    <lastBuildDate>Sun, 28 Jun 2020 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Fri, 03 Jul 2020 00:00:00 +0000</lastBuildDate>
     
         <atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml" />
     
+    
+    <item>
+      <title>Effigy, a distributed social data layer</title>
+      <link>https://willschenk.com/articles/2020/effigy_social_data_layer/</link>
+      <pubDate>Fri, 03 Jul 2020 00:00:00 +0000</pubDate>
+      
+      <guid>https://willschenk.com/articles/2020/effigy_social_data_layer/</guid>
+      <description>
+&lt;p&gt;
+I grew up in the world of BBSes, Usenet and to some extent UUCP before
+that. This was fun, a world wide network all built up by volunteers
+sharing.  Since we are all carrying supercomputers around now with
+massive idle storage and bandwidth, let&amp;#39;s think about how we can
+recreate some of that fun, independent data sharing with modern web
+technologies, specifically Websockets and WebRTC. All you need is
+the computers that you already have with you.
+&lt;/p&gt;
+&lt;h2 id=&#34;headline-1&#34;&gt;
+Abstract
+&lt;/h2&gt;
+&lt;p&gt;
+We&amp;#39;re going to take a lot of concepts from what&amp;#39;s been done before and
+remix them all.  Here are some of the specific projects and ideas that
+I was inspired by – I have no idea which came first in the history of
+things, but this reflects my journey.
+&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;
+From &lt;a href=&#34;https://en.wikipedia.org/wiki/UUCP&#34;&gt;UUCP&lt;/a&gt; we will take the idea that you store data on your
+&amp;#34;neighbors&amp;#34;, can request functionality from other connections, and
+need no centralizing authority.
+&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;
+From &lt;a href=&#34;https://www.youtube.com/watch?v=Ng0NE4lDP2U&#34;&gt;Fidonet&lt;/a&gt; we try and vibe off of the energy of &lt;a href=&#34;https://en.wikipedia.org/wiki/Tom_Jennings&#34;&gt;Tom Jennings&lt;/a&gt;, but
+actually keep that anarcist spirit alive by avoiding all centralized
+authority.
+&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;
+From &lt;a href=&#34;https://scuttlebutt.nz/&#34;&gt;scuttlebutt&lt;/a&gt; we will take the identity centric sharing, that
+network block and sharing is reflective of real human networks, feed
+posting, group encryption, &amp;#34;every client is a pub&amp;#34;, and that its
+offline first ideas.
+&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;
+From &lt;a href=&#34;https://en.wikipedia.org/wiki/BitTorrent&#34;&gt;BitTorrent&lt;/a&gt; we take the concepts of stateless tracker servers
+and in general distributed file sharing.
+&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;
+From &lt;a href=&#34;https://en.wikipedia.org/wiki/Blockchain&#34;&gt;Blockchain&lt;/a&gt; we take the idea that the system has rules for
+accepting in feeds, and that you could memorize your private key
+with a word sentence mnenomic.
+&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;
+From &lt;a href=&#34;https://ipfs.io/&#34;&gt;ipfs&lt;/a&gt; we will take the idea that content is self signing,
+content blobs can be merkle trees of directories, and that it needs
+to run as javascript user process in the browser.
+&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;
+From &lt;a href=&#34;https://dat.foundation/&#34;&gt;dat&lt;/a&gt; we take some of the ideas of being able to update on a key
+that is shared around.
+&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;
+From &lt;a href=&#34;https://syncthing.net/&#34;&gt;syncthing&lt;/a&gt; the idea of mutually signing your devices to setup
+file mirroring, also passing keys around with QR scodes.
+&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;
+From &lt;a href=&#34;https://docsend.com/view/gu3ywqi&#34;&gt;textile threads&lt;/a&gt; we take the ideas of feed read keys vs content
+read keys.
+&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;
+From &lt;a href=&#34;https://web.dev/progressive-web-apps/&#34;&gt;Progressive Web Apps&lt;/a&gt; we take the idea it&amp;#39;s easy to deploy and
+install on your device without going through gatekeepers, that we
+expect storage to be ephemeral, and multiple devices go to the same
+account.
+&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;
+In terms of intellectual heritage this follows primarily from
+&lt;a href=&#34;https://scuttlebutt.nz/docs/principles/&#34;&gt;scuttlebutt&amp;#39;s principles&lt;/a&gt; and &lt;a href=&#34;https://handbook.scuttlebutt.nz/stories/design-challenge-avoid-centralization-and-singletons&#34;&gt;scuttlebutt&amp;#39;s no centralization and no
+singletons&lt;/a&gt; – so a huge shoutout to &lt;a href=&#34;https://dominictarr.com/&#34;&gt;Dominic Tarr&lt;/a&gt; – and then trying to
+apply the concepts so that it can work on regular browsers.  
+&lt;/p&gt;
+&lt;p&gt;
+Much of the follow document is to try and work around the strengths
+and weaknesses of browsers – specifically they are the best
+application platform since everyone has access to them, and that they
+don&amp;#39;t accept incoming connections and that they don&amp;#39;t provide very
+good presistent storage guardentees.  The ideas of ssb and dat are
+great, but they don&amp;#39;t work in browsers. No &lt;a href=&#34;https://www.electronjs.org/&#34;&gt;electron&lt;/a&gt; or JavaScript
+unsupported by browsers here.
+&lt;/p&gt;
+&lt;p&gt;
+Also, lets recognize that all of this doesn&amp;#39;t need to be so
+complicated. If we can relax some restrictions getting things close is
+good enough.  If you assume that people have multiple devices, they
+ensure that they data is both on their phone and their laptop and
+their friends phone and friends laptop and then you don&amp;#39;t need to go
+through all of these crazy incetive systems that you get with textile
+or file coin.  There&amp;#39;s no highlevel incentive for BitTorrent and that
+seems to be doing just fine.  We are &lt;em&gt;sharing things with friends&lt;/em&gt; here,
+that&amp;#39;s the mindset.
+&lt;/p&gt;
+&lt;p&gt;
+In a situation where all your devices explode at the same time you can
+just check in with your actual social network to recover from a
+disaster, just like real life.
+&lt;/p&gt;
+&lt;h2 id=&#34;headline-2&#34;&gt;
+Design
+&lt;/h2&gt;
+&lt;h3 id=&#34;headline-3&#34;&gt;
+Content addressable
+&lt;/h3&gt;
+&lt;p&gt;
+Every bit of content is named by its signature, so therefor the data
+doesn&amp;#39;t live anywhere.  The private key is the only special
+information, and perhaps this could be a mnenomic like &amp;#34;memorize your
+bitcoin wallet address with this weird sentence thing&amp;#34;.
+&lt;/p&gt;
+&lt;p&gt;
+Machines connect, cache and share the data that they have. Like NNTP,
+it starts out with a IWANT and IHAVE negotiation to get the heads, and
+then pulls stuff down as needed.
+&lt;/p&gt;
+&lt;p&gt;
+Larger blobs are stored the same way, so there&amp;#39;s an underlying object
+cloud there.  Blob size is shared as part of the protocol, so when
+available blobs are announced you know how big it is.
+&lt;/p&gt;
+&lt;h3 id=&#34;headline-4&#34;&gt;
+Identity
+&lt;/h3&gt;
+&lt;p&gt;
+Identity is the public key, which is generated on startup.  There is a
+private key that signs everything bit of data you put in the system
+and you &amp;#34;are&amp;#34; your public key.
+&lt;/p&gt;
+&lt;p&gt;
+When communicating with other devices, you will general annouce an
+&lt;code class=&#34;verbatim&#34;&gt;[identity,head]&lt;/code&gt; pair. The head is the &amp;#34;latest&amp;#34; entry in a chain based
+on it&amp;#39;s ID.  This ID could be the time signature, but since only one
+device can create an entry (since entries are signed by the private
+key they can&amp;#39;t be forged) there&amp;#39;s no need for syncronizaiton.
+&lt;/p&gt;
+&lt;h3 id=&#34;headline-5&#34;&gt;
+Entries
+&lt;/h3&gt;
+&lt;p&gt;
+Entries are a JSON string followed by a signature, or they are an
+encrypted object.
+&lt;/p&gt;
+&lt;p&gt;
+The payload of an entry is either a JSON string, or an encrytped
+string.
+&lt;/p&gt;
+&lt;p&gt;
+The key of the entry is the hash of the full entry, including the
+signature.
+&lt;/p&gt;
+&lt;p&gt;
+Each entry JSON object contains:
+&lt;/p&gt;
+&lt;table class=&#34;table table-striped&#34;&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;identity&lt;/td&gt;
+&lt;td&gt;of the signer of the blob&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;parent&lt;/td&gt;
+&lt;td&gt;pointer to parent entity&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;comparable&lt;/td&gt;
+&lt;td&gt;like an id or timestamp, must be positive integer&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;synod&lt;/td&gt;
+&lt;td&gt;[identity,head] of synod&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;payload&lt;/td&gt;
+&lt;td&gt;see below&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;
+&lt;em&gt;(Synod &lt;a href=&#34;Synods&#34;&gt;described below&lt;/a&gt; but in short is the account concept that groups
+devices together and lists current signalling servers and dropboxes.)&lt;/em&gt;
+&lt;/p&gt;
+&lt;p&gt;
+When you get an entity, you first figure out if it&amp;#39;s a valid – first
+by checking to see if the blob hashs to the blob name, and secondarily
+to see if the identity is the signer of the message.  If an entry is
+announced as part of a &lt;code class=&#34;verbatim&#34;&gt;[identity,head]&lt;/code&gt; pair then the inner and outer
+identities are compared to see if they are identical, and the
+operation is aborted if not.
+&lt;/p&gt;
+&lt;p&gt;
+Once the entity is valid, it goes on the &lt;em&gt;identity entry&lt;/em&gt; list. This
+list is sorted by &lt;code class=&#34;verbatim&#34;&gt;comparable&lt;/code&gt;, and the highest number is considered to
+be this nodes version of &lt;em&gt;head&lt;/em&gt; for that entity. This &lt;code class=&#34;verbatim&#34;&gt;identity&lt;/code&gt; can
+optionally go on the &lt;em&gt;identity watch list&lt;/em&gt; which will be used to follow
+information for this identity in the future.
+&lt;/p&gt;
+&lt;h4 id=&#34;headline-6&#34;&gt;
+Payload Types
+&lt;/h4&gt;
+&lt;p&gt;
+&lt;strong&gt;DRAFT&lt;/strong&gt;
+&lt;/p&gt;
+&lt;p&gt;
+Payloads have different types, and ultimately reference larger
+blobs in the network.
+&lt;/p&gt;
+&lt;table class=&#34;table table-striped&#34;&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;synod&lt;/td&gt;
+&lt;td&gt;synod data object&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;identification&lt;/td&gt;
+&lt;td&gt;json with name, about, whatever&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;public_note&lt;/td&gt;
+&lt;td&gt;note to the world&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;private_note&lt;/td&gt;
+&lt;td&gt;note to people with readkeys&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;image&lt;/td&gt;
+&lt;td&gt;pointer to image blob&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;collection&lt;/td&gt;
+&lt;td&gt;pointer to archive of blobs&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;tag&lt;/td&gt;
+&lt;td&gt;marking an entry in some way&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;comment&lt;/td&gt;
+&lt;td&gt;Make a comment to on an entry&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;follow&lt;/td&gt;
+&lt;td&gt;you announce that you are following a feed&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;block&lt;/td&gt;
+&lt;td&gt;you tell the system you no longer are tracking and sharing an identity&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;mute&lt;/td&gt;
+&lt;td&gt;encrypted block that pretends not to know anything&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h4 id=&#34;headline-7&#34;&gt;
+References
+&lt;/h4&gt;
+&lt;p&gt;
+Referencing other entries are to its hash, which contains a pointer to
+the identity and the synod. Both the identity and the synod can be
+referenced with the blob request mechanism.  Once these are loaded,
+the system then uses the &lt;code class=&#34;verbatim&#34;&gt;[identity,head]&lt;/code&gt; from the signalling server or
+connected clients to reconstruct the feed, whose entries are validated
+using the signatures.
+&lt;/p&gt;
+&lt;p&gt;
+References are not to the feed itself, but to an entry on the feed.
+So its possible to find references to an entity, locate the last
+version of it&amp;#39;s feed but not find the original entity on it. This
+would be in the scenario where a user deleted an entry for their feed,
+and all the subsequent items needed to be rewritten and
+republished. This will break references to that &lt;code class=&#34;verbatim&#34;&gt;entity&lt;/code&gt; and &lt;em&gt;all
+following entity&lt;/em&gt; so change the past with care.
+&lt;/p&gt;
+&lt;h3 id=&#34;headline-8&#34;&gt;
+Synods
+&lt;/h3&gt;
+&lt;p&gt;
+Synods are a special type of &lt;code class=&#34;verbatim&#34;&gt;identity&lt;/code&gt; that is used to 
+&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;
+collect identities together
+&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;
+publish frequented singalling servers
+&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;
+publish dropboxes monitored
+&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;
+summarize profile information.
+&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;
+An &lt;code class=&#34;verbatim&#34;&gt;identity&lt;/code&gt; is part of a &lt;code class=&#34;verbatim&#34;&gt;synod&lt;/code&gt;
+&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;
+&lt;code class=&#34;verbatim&#34;&gt;identity&lt;/code&gt; has signed the &lt;code class=&#34;verbatim&#34;&gt;synod public key&lt;/code&gt; in an entry signed by the
+&lt;code class=&#34;verbatim&#34;&gt;synod&lt;/code&gt;&amp;#39;s private keys
+&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;
+there is not a &lt;em&gt;identity revoked entry&lt;/em&gt; in the &lt;code class=&#34;verbatim&#34;&gt;synod&lt;/code&gt;&amp;#39;s feed
+&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;
+From a User Interface perspective then a &lt;code class=&#34;verbatim&#34;&gt;synod&lt;/code&gt; should be considered as
+the &lt;em&gt;profile&lt;/em&gt; of the user, and the latest information here should be the
+avatar and display name. &lt;code class=&#34;verbatim&#34;&gt;follow&lt;/code&gt; messages can be posted in device
+identity streams or &lt;code class=&#34;verbatim&#34;&gt;synod&lt;/code&gt; streams which implies that you can choose
+what to replicate depending on which device you are using.
+&lt;/p&gt;
+&lt;p&gt;
+All &lt;code class=&#34;verbatim&#34;&gt;identities&lt;/code&gt; of a &lt;code class=&#34;verbatim&#34;&gt;synod&lt;/code&gt; are expected to mutually replicate, so in
+the case that you do lose your device/key you&amp;#39;ll be able to recover
+all of your information.
+&lt;/p&gt;
+&lt;p&gt;
+A group of &lt;em&gt;signalling servers&lt;/em&gt; are published with the &lt;code class=&#34;verbatim&#34;&gt;synod&lt;/code&gt;, so if you
+want to send a message to that user or be able to sync up their latest
+&lt;code class=&#34;verbatim&#34;&gt;head&lt;/code&gt; you have a place to start.
+&lt;/p&gt;
+&lt;p&gt;
+Some &lt;em&gt;signalling servers&lt;/em&gt; can optionally accept incoming drop
+messages. This is an &lt;code class=&#34;verbatim&#34;&gt;[target_identity,identity,entry]&lt;/code&gt; tuple that is
+marked as targetting a specific &lt;code class=&#34;verbatim&#34;&gt;target_dentity&lt;/code&gt; (or &lt;code class=&#34;verbatim&#34;&gt;synod&lt;/code&gt;) so you can
+contact other people on the network if they aren&amp;#39;t already following
+you. 
+&lt;/p&gt;
+&lt;p&gt;
+The User Interface is expected to highlight incoming messages for
+non-followed identites that you can choose to read, acknowledge, reply
+or ignore.  There is no confirmation mechanism for the sender to know
+that the message has been received without user action.
+&lt;/p&gt;
+&lt;p&gt;
+Synods are basically another type of feed that contains pointers to
+shared identities, a list of used signal servers, and profile
+information.  Its designed to work around &amp;#34;losing your private key is
+losing your identity&amp;#34; and it provides a way to publish changes for
+super old entiries whose &lt;code class=&#34;verbatim&#34;&gt;identities&lt;/code&gt; aren&amp;#39;t being shared anymore.
+&lt;/p&gt;
+&lt;h3 id=&#34;headline-9&#34;&gt;
+Feeds
+&lt;/h3&gt;
+&lt;p&gt;
+Every entry is a json &lt;code class=&#34;verbatim&#34;&gt;blob&lt;/code&gt; which points to its previous &lt;code class=&#34;verbatim&#34;&gt;blob&lt;/code&gt;. The key
+of the &lt;code class=&#34;verbatim&#34;&gt;blob&lt;/code&gt; is its hashkey, so that you can ask for a key and verify
+that the data is correct. It doesn&amp;#39;t matter who or where you get the
+data from.
+&lt;/p&gt;
+&lt;p&gt;
+All entries are signed by the public key of the identity, so you know
+that it&amp;#39;s from the same private key.
+&lt;/p&gt;
+&lt;h4 id=&#34;headline-10&#34;&gt;
+Valid feeds
+&lt;/h4&gt;
+&lt;p&gt;
+Invalid feeds don&amp;#39;t propogate
+&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;
+Feed that are too large for the network to propogate. (e.g. you can
+post a link to a movie but not the movie itself)
+&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;
+Feeds that contain invalidly signed entries.
+&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;
+Feeds that contain unencryted images with exif data
+&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;
+Feeds that have a revoked public key (i.e. last valid id was x
+everything after that is wrong)
+&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h4 id=&#34;headline-11&#34;&gt;
+Heads
+&lt;/h4&gt;
+&lt;p&gt;
+Each node keeps track of identities and heads, which is the latest
+entry. When a node connects, it announces all of the identities that
+are tracked, and what the latest head it has.  Nodes can then share
+and request heads, and if they have the feed read keys they can trace
+things backwards to get to the root.
+&lt;/p&gt;
+&lt;h3 id=&#34;headline-12&#34;&gt;
+Multiencryption
+&lt;/h3&gt;
+&lt;p&gt;
+How does SSB have messages that multiple people can decrypt?  &lt;a href=&#34;https://ssbc.github.io/scuttlebutt-protocol-guide/#encrypting&#34;&gt;It&amp;#39;s
+documented here&lt;/a&gt;, but I don&amp;#39;t understand it yet. 
+&lt;/p&gt;
+&lt;h3 id=&#34;headline-13&#34;&gt;
+Feed
+&lt;/h3&gt;
+&lt;p&gt;
+Everyone has a head, which is the latest that the feed has.  Each
+entry is a type and a pointer to a previous feed.
+&lt;/p&gt;
+&lt;p&gt;
+Deletion is done with rebasing, which means that you are able to
+rewrite your feed.  So content that you address for commenting or
+whatever needs to be seperate from the feed itself, and in theory you
+could comment upon a feed entry that is missing from the head. These
+orphaned contents will always point to an identity, and the datablobs
+are the same, but may not be discoverable.
+&lt;/p&gt;
+&lt;h3 id=&#34;headline-14&#34;&gt;
+Drop Box
+&lt;/h3&gt;
+&lt;p&gt;
+Some singalling servers provide a &lt;em&gt;dropbox&lt;/em&gt; service, which allows blobs
+to be stored and shared on a server for a finite period of time and
+offered up to every client that connects to the server. These are
+expected to be multiencrypted with the &lt;code class=&#34;verbatim&#34;&gt;synod&lt;/code&gt;&amp;#39;s public key and perhaps
+with the sub-&lt;code class=&#34;verbatim&#34;&gt;identities&lt;/code&gt; key so the recipient is obscured.
+&lt;/p&gt;
+&lt;p&gt;
+The &lt;code class=&#34;verbatim&#34;&gt;synod&lt;/code&gt; should announce endpoints that is uses for signallingy and
+where it potentially receives messages.
+&lt;/p&gt;
+&lt;p&gt;
+The system should pull down messages from the inboxes – which
+can be public places that automatically delete everything after 14
+days or whenever – and then you can choose to pull something down or
+not.  Entries are meant to be small but can point to larger blobs.
+&lt;/p&gt;
+&lt;h2 id=&#34;headline-15&#34;&gt;
+Protocol
+&lt;/h2&gt;
+&lt;p&gt;
+The protocol exchanges JSON messages over a reliable transport that
+delivers complete discrete messages. Initial implementation targets
+websockets and WebRTC data transport.
+&lt;/p&gt;
+&lt;p&gt;
+When a node to node connection is established – using WebSockets to a
+well known address for example – a session is created between the two
+nodes.  This is done by &lt;em&gt;node a&lt;/em&gt; generating a random string and &lt;em&gt;node b&lt;/em&gt;
+signing it, and &lt;em&gt;node b&lt;/em&gt; generating a random string and &lt;em&gt;node a&lt;/em&gt; signing
+it.  Once done, both nodes know that the other is in possession of the
+private key that matches their public key.
+&lt;/p&gt;
+&lt;p&gt;
+Nodes then announce which services they are willing to provide to each
+other, which could be a subset of all the full set of services
+provided for trusted &lt;code class=&#34;verbatim&#34;&gt;identities&lt;/code&gt;.
+&lt;/p&gt;
+&lt;h3 id=&#34;headline-16&#34;&gt;
+Services
+&lt;/h3&gt;
+&lt;p&gt;
+Each client is able to provide services for other ones outside of blob
+propogation, which all clients are required to provide, though they
+have no requirement for any data persistency. (In otherwords, you need
+to be able to serve up at least blob referencing your identity and
+things you choose, but don&amp;#39;t need to serve anything you don&amp;#39;t have or
+want to share.)  
+&lt;/p&gt;
+&lt;table class=&#34;table table-striped&#34;&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;Service&lt;/td&gt;
+&lt;td&gt;Description&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;blobs&lt;/td&gt;
+&lt;td&gt;Blob sharing&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;headtracking&lt;/td&gt;
+&lt;td&gt;remembers the latest head for identities&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;signalling&lt;/td&gt;
+&lt;td&gt;Network presence&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;relaying&lt;/td&gt;
+&lt;td&gt;passing data to a mutually connection not directly&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;dropbox&lt;/td&gt;
+&lt;td&gt;Receives and forwards requests from unknown identities&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;data lease&lt;/td&gt;
+&lt;td&gt;Storing of blobs with some guarentees&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;voice&lt;/td&gt;
+&lt;td&gt;Voice calling&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;video&lt;/td&gt;
+&lt;td&gt;Video calling&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h4 id=&#34;headline-17&#34;&gt;
+Blob sharing
+&lt;/h4&gt;
+&lt;p&gt;
+Every bit of data in the system is stored as a key pair, with the key
+being the cryptographic hash of the data. This blob could be an
+&lt;code class=&#34;verbatim&#34;&gt;entities&lt;/code&gt; which contains metadata to describe itself; a signature and a
+link to a blob containing the public key signing it, and a link to a
+&lt;code class=&#34;verbatim&#34;&gt;synod&lt;/code&gt; which is the account that is associated with the &lt;code class=&#34;verbatim&#34;&gt;identity&lt;/code&gt;.
+&lt;/p&gt;
+&lt;p&gt;
+When a client connects it notifies the other side which blobs its
+interested in, and other otherside says which blobs it has.
+&lt;/p&gt;
+&lt;h4 id=&#34;headline-18&#34;&gt;
+Signalling
+&lt;/h4&gt;
+&lt;p&gt;
+Signalling is a way to broadcast to other nodes the your latest
+&lt;code class=&#34;verbatim&#34;&gt;[identity,head]&lt;/code&gt; pair and as a way to coordinate &lt;code class=&#34;verbatim&#34;&gt;WebRTC&lt;/code&gt; connections.
+If two clients are connected over &lt;code class=&#34;verbatim&#34;&gt;Websockets&lt;/code&gt; to the same singalling
+server they can exchange messages directly, which allows for &lt;code class=&#34;verbatim&#34;&gt;offer&lt;/code&gt; and
+&lt;code class=&#34;verbatim&#34;&gt;answer&lt;/code&gt; &lt;code class=&#34;verbatim&#34;&gt;SDP&lt;/code&gt; messages to make initial contact with a node that doesn&amp;#39;t
+allow incoming connections (i.e. web browsers) and then will be able
+to coordinate the connection through a &lt;code class=&#34;verbatim&#34;&gt;STUN&lt;/code&gt; server.
+&lt;/p&gt;
+&lt;p&gt;
+Providing this service requires a DNS name and an externally
+accessable IP address, though probably not a huge amount of data
+(unless it&amp;#39;s also caching and storing a lot of blobs.)  Additional
+directory and other services could be worth paying for.
+&lt;/p&gt;
+&lt;h4 id=&#34;headline-19&#34;&gt;
+Relaying
+&lt;/h4&gt;
+&lt;p&gt;
+Relaying moving data through this system if the two nodes can&amp;#39;t
+connect directly. I&amp;#39;m invisioning having a &lt;code class=&#34;verbatim&#34;&gt;coturn&lt;/code&gt; instance acting as a
+&lt;code class=&#34;verbatim&#34;&gt;TURN&lt;/code&gt; server that understands the &lt;code class=&#34;verbatim&#34;&gt;identity&lt;/code&gt; as authentication.
+&lt;/p&gt;
+&lt;p&gt;
+Providing this service requires bandwidth and an externally accessable
+IP, so its logical to charge money for.
+&lt;/p&gt;
+&lt;h4 id=&#34;headline-20&#34;&gt;
+Dropbox
+&lt;/h4&gt;
+&lt;p&gt;
+This node receives messages for another user for situations where the
+recipient has no knowledge of the sender and therefor no reason to be
+tracking their identity.  The next time the recipient connects to this
+signalling server, it will see the message.
+&lt;/p&gt;
+&lt;p&gt;
+Signalling services that the recipient has requested as a dropbox are
+published as part of their synod, so you&amp;#39;ll need that in order to
+direct a message to them.
+&lt;/p&gt;
+&lt;h4 id=&#34;headline-21&#34;&gt;
+Data Leasing
+&lt;/h4&gt;
+&lt;p&gt;
+Data leasing is a quest for the node to store an identities data for
+at least a certain period of time, to make it accessable to the
+network when the original device is offline.  Similar to a pinning
+service in &lt;a href=&#34;IPFS&#34;&gt;IPFS&lt;/a&gt;.
+&lt;/p&gt;
+&lt;p&gt;
+One scenario is that all of the &lt;code class=&#34;verbatim&#34;&gt;identities&lt;/code&gt; in a &lt;code class=&#34;verbatim&#34;&gt;synod&lt;/code&gt; provide mutual
+data leasing, which means that your data is backed up on all of your
+devices. You could lose everything less 1 and still be able to
+recreate the graph.
+&lt;/p&gt;
+&lt;p&gt;
+Another scenario is that you provide leasing to trusted friends, the
+sort of people you give spare house keys to, so that if either of you
+have a catastrophic failure you can reconstruct everything.  (Some
+provision for recovering lost &lt;code class=&#34;verbatim&#34;&gt;synod&lt;/code&gt; private keys would need to be
+thought out.)
+&lt;/p&gt;
+&lt;p&gt;
+A third example is providing data leasing as a service, which would be
+something that you could charge for.
+&lt;/p&gt;
+&lt;div class=&#34;src src-plantuml&#34;&gt;
+&lt;pre&gt;&lt;code class=&#34;language-plantuml&#34; data-lang=&#34;plantuml&#34;&gt;scale 800 width
+clienta-&amp;gt;clientb: wantservice(sessiontoken)
+clientb-&amp;gt;clienta: providesservice(sessiontoken)
+clienta-&amp;gt;clientb: call(service,datalease,head)&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;
+&lt;img src=&#34;services.png&#34; alt=&#34;services.png&#34; title=&#34;services.png&#34; /&gt;
+&lt;/p&gt;
+&lt;h4 id=&#34;headline-22&#34;&gt;
+Voice and Video
+&lt;/h4&gt;
+&lt;p&gt;
+If both &lt;code class=&#34;verbatim&#34;&gt;identities&lt;/code&gt; are mutually trusted and on a &lt;em&gt;permitted contact
+list&lt;/em&gt; then they can use the WebRTC mechanisms to have real time
+communication. I&amp;#39;m not sure how well push notifications really work
+over progressive web apps, but seems worth exploring since we already
+are connecting over WebRTC.
+&lt;/p&gt;
+&lt;h3 id=&#34;headline-23&#34;&gt;
+Request Sequences
+&lt;/h3&gt;
+&lt;h4 id=&#34;headline-24&#34;&gt;
+Startup
+&lt;/h4&gt;
+&lt;p&gt;
+When a client starts up, it connects to the clients it knows about and
+is able to reach. It first annouces the service that it provides to
+the network, in the case it has a list of identity heads and can store
+blobs.
+&lt;/p&gt;
+&lt;div class=&#34;src src-plantuml&#34;&gt;
+&lt;pre&gt;&lt;code class=&#34;language-plantuml&#34; data-lang=&#34;plantuml&#34;&gt;scale 800 width
+
+client1 -&amp;gt; client2 : sessionrequest[identity1,head1,challenge1]
+client2 -&amp;gt; client1 : sessionrequest[identity2,head2,challenge2]
+client1 -&amp;gt; client2 : sessionauth[signed(identity1,challenge2)]
+client2 -&amp;gt; client1 : sessionauth[signed(identity2,challenge1)]&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;
+&lt;img src=&#34;startup.png&#34; alt=&#34;startup.png&#34; title=&#34;startup.png&#34; /&gt;
+&lt;/p&gt;
+&lt;p&gt;
+If either of the signatures don&amp;#39;t match than the session is considered
+unauthenticated.
+&lt;/p&gt;
+&lt;p&gt;
+If the signature matches, then the head announced is considered to be
+the head of the respective identity. &lt;em&gt;Note that it not a requirement
+that a head tracking service downloads and verifies the head&lt;/em&gt;
+&lt;/p&gt;
+&lt;h4 id=&#34;headline-25&#34;&gt;
+Service Discovery
+&lt;/h4&gt;
+&lt;p&gt;
+After authentication the clients exchange the list of services they
+are willing to provide to the other.
+&lt;/p&gt;
+&lt;div class=&#34;src src-plantuml&#34;&gt;
+&lt;pre&gt;&lt;code class=&#34;language-plantuml&#34; data-lang=&#34;plantuml&#34;&gt;scale 800 width
+
+client1 -&amp;gt; client2 : provides[service_list]
+client2 -&amp;gt; client1 : provides[service_list]&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;
+&lt;img src=&#34;service.png&#34; alt=&#34;service.png&#34; title=&#34;service.png&#34; /&gt;
+&lt;/p&gt;
+&lt;p&gt;
+&lt;strong&gt;TODO&lt;/strong&gt; There needs to be a way for the client to request access to an
+additional service.
+&lt;/p&gt;
+&lt;h4 id=&#34;headline-26&#34;&gt;
+Head Tracking
+&lt;/h4&gt;
+&lt;p&gt;
+Here one side sends a &lt;code class=&#34;verbatim&#34;&gt;get_heads&lt;/code&gt; request for it&amp;#39;s &lt;em&gt;identity watch list&lt;/em&gt;.
+The other returns with a list of &lt;code class=&#34;verbatim&#34;&gt;[identity,head]&lt;/code&gt; pairs for &lt;code class=&#34;verbatim&#34;&gt;identities&lt;/code&gt;
+that it knows about.
+&lt;/p&gt;
+&lt;div class=&#34;src src-plantuml&#34;&gt;
+&lt;pre&gt;&lt;code class=&#34;language-plantuml&#34; data-lang=&#34;plantuml&#34;&gt;scale 800 width
+
+client1 -&amp;gt; client2 : getHeads([identities])
+client2 -&amp;gt; client1 : lastKnownHeads([identities,heads])&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;
+&lt;img src=&#34;head_tracking.png&#34; alt=&#34;head_tracking.png&#34; title=&#34;head_tracking.png&#34; /&gt;
+&lt;/p&gt;
+&lt;h4 id=&#34;headline-27&#34;&gt;
+Signalling
+&lt;/h4&gt;
+&lt;p&gt;
+Signally is tracking presence and helping to coordinate connections
+between devices (i.e. start of the WebRTC handshake.)
+&lt;/p&gt;
+&lt;h5 id=&#34;headline-28&#34;&gt;
+Presence
+&lt;/h5&gt;
+&lt;div class=&#34;src src-plantuml&#34;&gt;
+&lt;pre&gt;&lt;code class=&#34;language-plantuml&#34; data-lang=&#34;plantuml&#34;&gt;scale 800 width
+
+client -&amp;gt; signalserver : online
+signalserver -&amp;gt; otherclients : online(identity,head)
+signalserver -&amp;gt; client : presence_list(identities)
+client -&amp;gt; signalserver : &amp;lt;disconnect&amp;gt;
+signalserver -&amp;gt; otherclients : offline(identity)&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;
+&lt;img src=&#34;signalling.png&#34; alt=&#34;signalling.png&#34; title=&#34;signalling.png&#34; /&gt;
+&lt;/p&gt;
+&lt;h5 id=&#34;headline-29&#34;&gt;
+Messaging
+&lt;/h5&gt;
+&lt;div class=&#34;src src-plantuml&#34;&gt;
+&lt;pre&gt;&lt;code class=&#34;language-plantuml&#34; data-lang=&#34;plantuml&#34;&gt;scale 800 width
+
+client1 -&amp;gt; signalserver : message_to(identity2,payload)
+signalserver -&amp;gt; client2 : message_from(identity1,payload)&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;
+&lt;img src=&#34;messaging.png&#34; alt=&#34;messaging.png&#34; title=&#34;messaging.png&#34; /&gt;
+&lt;/p&gt;
+&lt;p&gt;
+The signal server returns that it tracks presence, can forward
+messages between clients, and also tracks identity heads. It is not
+required to store blobs.
+&lt;/p&gt;
+&lt;p&gt;
+The client requests a list of heads for things on the &lt;em&gt;identity watch
+list&lt;/em&gt;, and the signalling server returns the union of what it knows
+about and what the client is tracking.
+&lt;/p&gt;
+&lt;p&gt;
+The client then requests the presence list of clients connected to the
+signally server, and the signalling server returns a list of connected
+clients with their heads.  The server also annouces to everyone else
+that the client is connected.
+&lt;/p&gt;
+&lt;p&gt;
+At this point the client is ready to start connecting to other clients
+through the signalling server.
+&lt;/p&gt;
+&lt;h4 id=&#34;headline-30&#34;&gt;
+Blobs
+&lt;/h4&gt;
+&lt;p&gt;
+Clients periodically send &lt;em&gt;iwant lists&lt;/em&gt; to each other, returning the
+blobs that it has or is willing to share (based on perhaps bandwidth,
+if the client is operating on a battery, or over a metered celluar
+connection.)
+&lt;/p&gt;
+&lt;p&gt;
+&lt;strong&gt;TODO&lt;/strong&gt; Clients should track incoming blob requests and outgoing blog
+bandwidth to create a leach ratio that takes into account sharing
+reciprocity. Credit is created by sharing more or perhaps by
+purchasing bandwidth from the remote server. The request is signed by
+the identity so the clients can tell who is asking for what.
+&lt;/p&gt;
+&lt;div class=&#34;src src-plantuml&#34;&gt;
+&lt;pre&gt;&lt;code class=&#34;language-plantuml&#34; data-lang=&#34;plantuml&#34;&gt;scale 800 width
+
+clienta-&amp;gt;clientb: iwant(blobs)
+clientb-&amp;gt;clienta: ihave(blobs)
+clienta-&amp;gt;clientb: getblob(blob,maxsize)
+clientb-&amp;gt;clienta: blob&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;
+&lt;img src=&#34;blobpropgation.png&#34; alt=&#34;blobpropgation.png&#34; title=&#34;blobpropgation.png&#34; /&gt;
+&lt;/p&gt;
+&lt;p&gt;
+Once the client is connected to a system, signal or client, it sends a
+list of the blobs that it wants.  Since these are content addressable
+and signed by the identity, it doesn&amp;#39;t matter where they come from.
+&lt;/p&gt;
+&lt;p&gt;
+A signal server may or may not have blobs – its a regular client that
+presumably is free of filewall and NAT messiness, and had the
+additional feature of being able to relay requests.
+&lt;/p&gt;
+&lt;h4 id=&#34;headline-31&#34;&gt;
+Identity tracking
+&lt;/h4&gt;
+&lt;p&gt;
+The client looks through its list of identities, and all of the head
+announcements that it&amp;#39;s received.  For each of these it tries to get
+the blob associate with the head.  Note that &lt;code class=&#34;verbatim&#34;&gt;synod&lt;/code&gt; are also identities
+so fall into this logic as well.
+&lt;/p&gt;
+&lt;div class=&#34;src src-plantuml&#34;&gt;
+&lt;pre&gt;&lt;code class=&#34;language-plantuml&#34; data-lang=&#34;plantuml&#34;&gt;scale 800 width
+
+(*) --&amp;gt; &amp;#34;Receive identity,head message&amp;#34;
+
+If &amp;#34;tracking identity&amp;#34; then
+  --&amp;gt;[Yes] &amp;#34;get blob&amp;#34;
+else
+  --&amp;gt;[No] &amp;#34;ignore&amp;#34;
+Endif
+
+&amp;#34;get blob&amp;#34; If &amp;#34;has blob&amp;#34; then
+  --&amp;gt;[Yes] If &amp;#34;decrypt blob&amp;#34; then
+    --&amp;gt;[get parent] &amp;#34;get blob&amp;#34;
+  else
+    --&amp;gt;[No] &amp;#34;ignore&amp;#34;
+  Endif
+
+else
+  -&amp;gt;[No] &amp;#34;add to iwantlist&amp;#34;
+Endif
+
+--&amp;gt; (*)&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;
+&lt;img src=&#34;flowchart.png&#34; alt=&#34;flowchart.png&#34; title=&#34;flowchart.png&#34; /&gt;
+&lt;/p&gt;
+&lt;h3 id=&#34;headline-32&#34;&gt;
+Chain validity
+&lt;/h3&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;
+All entries need to be less than 15K. TODO
+&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;
+All unencrypted entries to photos must not have location data.
+&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;
+All head requests with an synod identity with a final head must be
+marked invalid.
+&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2 id=&#34;headline-33&#34;&gt;
+State
+&lt;/h2&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;
+First pass at technical design - Done
+&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;
+Prototyping started - 2020-07-03
+&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2 id=&#34;headline-34&#34;&gt;
+Comments
+&lt;/h2&gt;
+&lt;p&gt;
+I can be reached at &lt;a href=&#34;https://twitter.com/wschenk&#34;&gt;@wschenk&lt;/a&gt;, @wschenk@floss.social, and wschenk@gmail.com
+&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>Upgrading emacs on debian</title>
