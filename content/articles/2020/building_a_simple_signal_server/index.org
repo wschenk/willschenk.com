@@ -323,7 +323,7 @@ Note I'm setting the =PORT= variable here to =5000= and testing to see if
 it actually works since when you deploy it often needs it to listen on
 a specific address.
 
-* Pushing to a server
+* Publishing to a server
 
 I'm using a [[http://dokku.viewdocs.io/dokku/][dokku]] instance, but you can also use something like
 [[https://www.heroku.com/][heroku]].  The goal here is to get something up on the internet to see
@@ -383,7 +383,8 @@ can update what they need to.
 
 #+ATTR_HTML: :class half-height-scroll
 #+begin_src javascript :tangle routing_server.ts
-  import { listenAndServe } from "https://deno.land/std/http/server.ts";
+  import { listenAndServe, ServerRequest, Response } from "https://deno.land/std/http/server.ts";
+  import { posix } from "https://deno.land/std/path/mod.ts";
   import {
       acceptWebSocket,
       acceptable,
@@ -476,6 +477,31 @@ can update what they need to.
   }
 
   const port = Deno.env.get('PORT') || "3000";
+  const base = Deno.args[0];
+
+  export async function serveFile(
+      req: ServerRequest,
+      filePath: string
+  ): Promise<Response> {
+      const [file, fileInfo] = await Promise.all([
+          Deno.open(filePath),
+          Deno.stat(filePath),
+      ]);
+      const headers = new Headers();
+      headers.set("content-length", fileInfo.size.toString());
+  //    const contentTypeValue = contentType(filePath);
+  //    if (contentTypeValue) {
+  //        headers.set("content-type", contentTypeValue);
+  //    }
+      req.done.then(() => {
+          file.close();
+      });
+      return {
+          status: 200,
+          body: file,
+          headers,
+      };
+  }
 
   listenAndServe( `0.0.0.0:${port}`, async (req) => {
       if (acceptable(req)) {
@@ -486,10 +512,29 @@ can update what they need to.
               headers: req.headers,
           }).then(messager);
       } else {
-          const decoder = new TextDecoder("utf-8");
-          const bytes = Deno.readFileSync("router.html");
-          const body = decoder.decode(bytes);  
-          req.respond({ body });
+          const path = req.url == '/' ? '/router.html' : req.url;
+          let normalizedUrl = posix.normalize(path);
+          try {
+              normalizedUrl = decodeURIComponent(normalizedUrl);
+          } catch (e) {
+              if (!(e instanceof URIError)) {
+                  throw e;
+              }
+          }
+
+          const fsPath = posix.join(Deno.cwd(), normalizedUrl);
+          try {
+              const fileInfo = await Deno.stat(fsPath);
+              if (fileInfo.isDirectory) {
+                  req.respond( {body: `Can't serve a directory ${req.url}`} );
+              } else {
+                  const response = await serveFile( req, fsPath );
+                  await req.respond(response);
+              }
+          } catch (e) {
+              console.error(e.message);
+              req.respond( {body: `Error: ${e.message}`, status: 500});
+          } 
       }
   });
 
@@ -594,6 +639,8 @@ handler functions that know what id they are assigned to.
           log( "Connecting to the websocket..." );
           const server = new WebSocket(window.location.href.replace( "http", "ws" ));
 
+          let myId = "";
+        
           server.onopen = (event) => {
             log( "Connection established", event );
             console.log( "use the say() method to send something to the server" )
@@ -604,9 +651,10 @@ handler functions that know what id they are assigned to.
             console.log(message);
             if( message.id ) {
               log( `Our id is ${message.id}`);
+              myId = message.id;
             } else if( message.online ) {
               console.log( message.online );
-              p.innerHTML = message.online.map( (x) => `<li>${x}</li>` ).join( "" )
+              p.innerHTML = message.online.filter( (x) => x != myId ).map( (x) => `<li>${x}</li>` ).join( "" )
             } else if( message.left ) {
               log( `${message.left} disconnected` );
               if( chatPane( message.left, true ) )
@@ -642,14 +690,17 @@ handler functions that know what id they are assigned to.
 
 #+end_src
 
-* Beyond echo: Cli Client
+* Adding video calling
 
-
+Now that we are able to send messages from one browser instance to
+another, lets add video calling.  First lets mock up a simple page to
+get video and audio working.
 
 
 * References
 1. [[https://deno.land/std/ws/README.md][deno ws README]]
 2. [[https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API/Writing_WebSocket_client_applications][MDN: Writing WebSocket client applications]]
+3. https://webrtc.github.io/samples/
 
 # Local Variables:
 # eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)

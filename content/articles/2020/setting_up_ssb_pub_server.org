@@ -1,0 +1,231 @@
+#+title: Setting up SSB-Pub Server 
+#+subtitle: and migrate your profile
+#+tags: howto, scuttlebutt
+#+date: 2020-07-10
+
+I wanted to move my ssb installation over to a new computer, and the
+easiest way was to setup a pub server, invite the old and the new
+computer to the pub, and then swap out the keys.  Here's how to do it.
+
+* Overview
+
+1. Create a server & name
+2. Install =docker=
+3. Create the docker image
+4. Setup directories, config, and easy shell commands
+5. Start up a container
+6. Publish yourself as a =pub=
+7. Connect your client
+
+* Create a server
+
+I'm using debian 10 on digital ocean, but I'll let you get the system
+on the internet.  The only key thing is that it needs to have port
+=8008= accessible from the outside world.
+
+* Install =docker=
+
+I prefer to have things contained in a Docker container compared to
+polluting my environment.  This just keeps things cleaner in the
+future so you don't have node or whatever floating around on your
+system.  This may be overly complicated if you aren't already a docker
+user, or if you already have node installed on your system.
+
+If you already have node, you can follow [[https://handbook.scuttlebutt.nz/guides/pubs/setup-a-pub][the setting up a pub
+directions]] straight from the mothership.
+
+#+begin_src bash
+apt update
+apt-get install -y \
+	 apt-transport-https \
+	 ca-certificates \
+	 curl \
+	 gnupg2 \
+	 software-properties-common
+curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -
+
+add-apt-repository \
+	 "deb [arch=amd64] https://download.docker.com/linux/debian \
+     $(lsb_release -cs) \
+     stable"
+apt-get update
+apt-get install -y docker-ce
+#+end_src
+
+* Write your =Dockerfile=
+
+On the server, create a directory to work in, like =~/ssb=
+
+#+begin_src bash
+mkdir -p ~/ssb
+cd ~/ssb
+#+end_src
+
+And then create a Dockerfile:
+
+#+begin_src Dockerfile
+FROM node:10
+
+RUN npm install -g ssb-server
+
+EXPOSE 8008
+
+HEALTHCHECK --interval=30s --timeout=30s --start-period=10s --retries=10 \
+  CMD ssb-server whoami || exit 1
+ENV HEALING_ACTION RESTART
+
+ENTRYPOINT [ "/usr/local/bin/ssb-server" ]
+CMD [ "start" ]
+#+end_src
+
+And then build this with
+
+#+begin_src bash
+docker build . -t ssb-server
+#+end_src
+
+The reason that we are doing this in a seperate directory is to make
+sure that we don't send the whole pub data instance to docker build if
+we want to do this in the future.
+
+You could also do this on your local machine and the publish the image
+to dockerhub, but this is really just to isolate the npm install not
+to make something publically available.
+
+* Setup directories and config files
+
+#+begin_src bash
+mkdir ~/pubdata
+#+end_src
+
+Create basic =~/pubdata/config=, make sure to add your DNS name or ip
+address in the external field.
+
+#+begin_src json
+{
+  "connections": {
+    "incoming": {
+      "net": [
+        { "scope": "public", 
+          "host": "0.0.0.0", 
+          "external": ["Your Host Name or Public IP"], 
+          "transform": "shs", 
+          "port": 8008 
+        }
+      ]
+    },
+    "outgoing": {
+      "net": [{ "transform": "shs" }]
+    }
+  }
+}
+#+end_src
+
+And create a =~/ssb-server= script that will let you interact with the
+=container= that we will create in the next section:
+
+#+begin_src bash
+#!/bin/sh
+
+docker exec -it ssb-server ssb-server "$@"
+#+end_src
+
+Also be sure to =chmod +x ssb-server= to make it runnable.
+
+* Create the container
+
+#+begin_src bash
+docker run -d --init --name ssb-server \
+   -v ~/pubdata/:/root/.ssb/ \
+   -p 8008:8008 \
+   --restart unless-stopped \
+   ssb-server
+#+end_src
+
+#+ATTR_HTML: :class table table-striped
+| -d        | Detach and run as a daemon                               |
+| --init    | Use =tini= to handle signals                               |
+| --name    | Name of the container, which is the same as the instance |
+| -v        | Map =~/pubdata= to the =~/.ssb= dir inside the container     |
+| -p        | Expose =8008= to the internet                              |
+| --restart | For reboots, etc                                         |
+
+
+Now check the logs to make sure that everything started up correctly.
+
+#+begin_src bash
+docker logs ssb-server
+#+end_src
+
+If that looks good We can now test this by running command
+=./ssb-server whoami= command to see if it's responding correctly.
+
+If it's working, then publish an about entry for your pub.  This is
+what I did:
+
+#+begin_src bash
+./ssb-server publish --type about \
+   --about  "@stufffromthewhoamicommand" \
+   --name "pub.willschenk.com" \
+   --description "Call me"
+#+end_src
+
+* Create an invite
+
+Once this is working, it's time to create some invites so you can
+connect your local instance to this pub.
+
+#+begin_src bash
+./ssb-server invite.create 3
+#+end_src
+
+That will spit out an awesome looking string.  We'll use that in our
+clients to connect.
+
+* Migrate your stuff over
+
+On the new machine [[https://ahdinosaur.github.io/patchwork-downloader/][download patchwork]] which I found to be more stable
+than [[https://github.com/ssbc/patchbay/releases][patchbay]].  I had better luck building from =npm= than using =AppImage=, so
+
+#+begin_src bash
+npm install --global electron electron-builder ssb-patchwork
+#+end_src
+
+You could also try oasis, which doesn't run in electron and so
+therefor is better, even if it is a but more minimalist.
+
+#+begin_src 
+npm -g install fraction/oasis
+#+end_src
+
+Note that while they both share the same =.ssb= data folder, if you want
+to use both you'll need to start up patchwork first.
+
+1. On the old machine, invite yourself to the pub.
+2. Sync your stuff to the new pub.
+3. On the new machine, invite yourself to the pub.
+4. Follow your old user.
+4. Wait for things to sync
+5. On the new machine, close everything.
+6. Copy the old =.ssb/secret= from the old to the new machine.
+7. On the new machine, delete everthing in =./ssb/flume= *except
+   =.ssb/flume/log.offset=*
+8. Open up [[https://github.com/ssbc/ssb-first-aid-kit][ssb-first-aid-kit]] and delete the index
+9. Restart patchwork and watch that sucker index everything in the
+   whole world.
+
+This really started to heat my machine up!
+
+I found that the initial index worked in patchwork, and then it
+started pulling in more data and eventually exploded.  I was able to
+run oasis instead, which seemed to be better at rebuilding the index.
+
+Now I have my old profile on my new machine.
+
+* References
+- https://scuttlebutt.nz/get-started/
+- https://handbook.scuttlebutt.nz/guides/pubs/setup-a-pub
+- https://github.com/ahdinosaur/ssb-pub/tree/v3
+- https://github.com/ssbc/ssb-first-aid-kit
+- https://github.com/ssbc/patchwork/issues/957
+- https://github.com/fraction/oasis

@@ -1,4 +1,5 @@
-import { listenAndServe } from "https://deno.land/std/http/server.ts";
+import { listenAndServe, ServerRequest, Response } from "https://deno.land/std/http/server.ts";
+import { posix } from "https://deno.land/std/path/mod.ts";
 import {
     acceptWebSocket,
     acceptable,
@@ -91,6 +92,31 @@ async function messager(sock: WebSocket) {
 }
 
 const port = Deno.env.get('PORT') || "3000";
+const base = Deno.args[0];
+
+export async function serveFile(
+    req: ServerRequest,
+    filePath: string
+): Promise<Response> {
+    const [file, fileInfo] = await Promise.all([
+        Deno.open(filePath),
+        Deno.stat(filePath),
+    ]);
+    const headers = new Headers();
+    headers.set("content-length", fileInfo.size.toString());
+//    const contentTypeValue = contentType(filePath);
+//    if (contentTypeValue) {
+//        headers.set("content-type", contentTypeValue);
+//    }
+    req.done.then(() => {
+        file.close();
+    });
+    return {
+        status: 200,
+        body: file,
+        headers,
+    };
+}
 
 listenAndServe( `0.0.0.0:${port}`, async (req) => {
     if (acceptable(req)) {
@@ -101,10 +127,29 @@ listenAndServe( `0.0.0.0:${port}`, async (req) => {
             headers: req.headers,
         }).then(messager);
     } else {
-        const decoder = new TextDecoder("utf-8");
-        const bytes = Deno.readFileSync("router.html");
-        const body = decoder.decode(bytes);  
-        req.respond({ body });
+        const path = req.url == '/' ? '/router.html' : req.url;
+        let normalizedUrl = posix.normalize(path);
+        try {
+            normalizedUrl = decodeURIComponent(normalizedUrl);
+        } catch (e) {
+            if (!(e instanceof URIError)) {
+                throw e;
+            }
+        }
+
+        const fsPath = posix.join(Deno.cwd(), normalizedUrl);
+        try {
+            const fileInfo = await Deno.stat(fsPath);
+            if (fileInfo.isDirectory) {
+                req.respond( {body: `Can't serve a directory ${req.url}`} );
+            } else {
+                const response = await serveFile( req, fsPath );
+                await req.respond(response);
+            }
+        } catch (e) {
+            console.error(e.message);
+            req.respond( {body: `Error: ${e.message}`, status: 500});
+        } 
     }
 });
 

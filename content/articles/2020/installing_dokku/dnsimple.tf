@@ -39,6 +39,15 @@ resource "dnsimple_record" "deno" {
   ttl    = 3600
 }
 
+
+resource "dnsimple_record" "pub" {
+  domain = var.dnsimple_domain
+  name   = "pub"
+  value  = digitalocean_droplet.pub.ipv4_address
+  type   = "A"
+  ttl    = 3600
+}
+
 output "hostname" {
   value = dnsimple_record.dokku.hostname
 }

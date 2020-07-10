@@ -28,6 +28,17 @@ resource "digitalocean_droplet" "dokku" {
   ]
 }
 
+resource "digitalocean_droplet" "pub" {
+  name     = "pub"
+  image    = "debian-10-x64"
+  size     = "s-2vcpu-4gb"
+#  monitoring = true
+  region   = var.do_region
+  ssh_keys = [
+      var.ssh_fingerprint
+  ]
+}
+
 output "ip" {
   value = "${digitalocean_droplet.dokku.ipv4_address}"
 }
