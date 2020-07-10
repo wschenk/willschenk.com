@@ -1,418 +1,153 @@
-<!DOCTYPE html>
-<html><head>
-    <title>Using rake for dataflow programming and data science</title>
-    
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<!doctype html><html><head><title>Using rake for dataflow programming and data science</title><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><link rel=stylesheet href=../../../css/theme.css><link rel=stylesheet href=../../../css/syntax.css><script type=application/javascript>var doNotTrack=false;if(!doNotTrack){window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;ga('create','UA-56296045-1','auto');ga('send','pageview');}</script><script async src=https://www.google-analytics.com/analytics.js></script><script async defer data-domain=willschenk.com src=https://plausible.io/js/plausible.js></script><meta property="og:title" content="Using rake for dataflow programming and data science"><meta property="og:description" content="I&rsquo;ve been using Rake more and more for data collection and processing tasks. Rake is pretty pretty powerful. Most people know it as way to add external tasks to a Rails app, but it&rsquo;s actually very powerful build system. We&rsquo;re going to take advantage of that to build out a framework that will make it easy to collect, process, and interpret data while keeping it all in sync.
+In fact, if you just want to start playing with stuff now, head over to the rake-data site to go through some walk throughs."><meta property="og:type" content="article"><meta property="og:url" content="https://willschenk.com/articles/2014/using-rake-for-dataflow-programming-and-data-science/"><meta property="article:published_time" content="2014-12-19T00:00:00+00:00"><meta property="article:modified_time" content="2014-12-19T00:00:00+00:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Using rake for dataflow programming and data science"><meta name=twitter:description content="I&rsquo;ve been using Rake more and more for data collection and processing tasks. Rake is pretty pretty powerful. Most people know it as way to add external tasks to a Rails app, but it&rsquo;s actually very powerful build system. We&rsquo;re going to take advantage of that to build out a framework that will make it easy to collect, process, and interpret data while keeping it all in sync.
+In fact, if you just want to start playing with stuff now, head over to the rake-data site to go through some walk throughs."><meta name=twitter:site content="@wschenk"><style>.article p,.article ul,.article ol,.article table{max-width:45em}.article pre p{max-width:none;margin-top:-1.5rem}article.article p:first-child,.article blockquote{font-size:1.25em;font-weight:300;max-width:36em}.half-height-scroll{max-height:32em;overflow:scroll}</style></head><body><nav class="container my-5"><h1 class="pt-md-5 display-3"><a class=text-dark href=../../../>Will Schenk</a></h1><p><a class="text-dark h4 mr-3 font-weight-light" href=../../../articles/>Articles</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../contact>Contact</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../tags/>Tags</a>
+<a href=../../../feed.xml class="mr-3 h4 text-light"><img src=../../../img/rss.svg alt=rss height=20 width=20></a>
+<a href=https://twitter.com/@wschenk class="mr-3 h4 text-light"><img src=../../../img/twitter.svg alt=twitter height=20 width=20></a>
+<a href=https://instagram.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/instagram.svg alt=instagram height=20 width=20></a>
+<a href=https://github.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/github.svg alt=github height=20 width=20></a>
+<a href=https://linkedin.com/in/will-schenk-420266 class="mr-3 h4 text-light"><img src=../../../img/linkedin.svg alt=linkedin height=20 width=20></a></p></nav><div class=container><h1 class=mt-5>Using rake for dataflow programming and data science</h1><h2 class="font-weight-light font-italic mb-3">Rake it like&rsquo;s hot</h2><p class="text-muted mt-3"><a class=text-muted href=https://willschenk.com/articles/2014/using-rake-for-dataflow-programming-and-data-science/>Published December 19, 2014</a>
+<a class=text-muted href=../../../tags/ruby>#ruby</a>
+<a class=text-muted href=../../../tags/tools>#tools</a>
+<a class=text-muted href=../../../tags/howto>#howto</a>
+<a class=text-muted href=../../../tags/rake>#rake</a>
+<a class=text-muted href=../../../tags/data>#data</a></p><article class="article mt-5"><p>I&rsquo;ve been using Rake more and more for data collection and processing tasks. Rake is pretty pretty powerful. Most people know it as way to add external tasks to a Rails app, but it&rsquo;s actually very powerful build system. We&rsquo;re going to take advantage of that to build out a <a href=https://github.com/HappyFunCorp/rake-data>framework</a> that will make it easy to collect, process, and interpret data while keeping it all in sync.</p><p>In fact, if you just want to start playing with stuff now, head over to the <a href=https://github.com/HappyFunCorp/rake-data>rake-data</a> site to go through some walk throughs. Read on to setup a fun world of your own!</p><h2 id=rejected-titles-of-this-post>Rejected titles of this post</h2><ul><li>rake and bake</li><li>rake me up before you go-go</li><li>let them eat rake</li><li>rake it until you make it</li></ul><h2 id=tasks-and-dependancies>Tasks and Dependancies</h2><p>Rake is a a Make-like Ruby program that people know mostly in terms of rails apps. We can define a few tasks and define their interdependancies:</p><img src=1.dot.svg class=img-fluid><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=n>task</span> <span class=ss>:mail_daily_leader_boards</span> <span class=o>=&gt;</span> <span class=ss>:update_leader_boards</span> <span class=k>do</span>
+  <span class=no>User</span><span class=o>.</span><span class=n>mail_leader_boards!</span>
+<span class=k>end</span>
 
-    <link rel="stylesheet" href="../../../css/theme.css"/>
-    <link rel="stylesheet" href="../../../css/syntax.css"/>
+<span class=n>task</span> <span class=ss>:flush_data</span> <span class=o>=&gt;</span> <span class=ss>:environment</span> <span class=k>do</span>
+  <span class=no>Leaderboard</span><span class=o>.</span><span class=n>flush!</span>
+<span class=k>end</span>
 
-    
-      
-<script type="application/javascript">
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
-	ga('create', 'UA-56296045-1', 'auto');
-	
-	ga('send', 'pageview');
-}
-</script>
-<script async src='https://www.google-analytics.com/analytics.js'></script>
+<span class=n>task</span> <span class=ss>:update_leader_boards</span> <span class=o>=&gt;</span> <span class=ss>:environment</span> <span class=k>do</span>
+  <span class=no>Leaderboard</span><span class=o>.</span><span class=n>update!</span>
+<span class=k>end</span>
 
-      <script async defer data-domain="willschenk.com" src="https://plausible.io/js/plausible.js"></script>
-    
-    <meta property="og:title" content="Using rake for dataflow programming and data science" />
-<meta property="og:description" content="I&rsquo;ve been using Rake more and more for data collection and processing tasks. Rake is pretty pretty powerful. Most people know it as way to add external tasks to a Rails app, but it&rsquo;s actually very powerful build system. We&rsquo;re going to take advantage of that to build out a framework that will make it easy to collect, process, and interpret data while keeping it all in sync.
-In fact, if you just want to start playing with stuff now, head over to the rake-data site to go through some walk throughs." />
-<meta property="og:type" content="article" />
-<meta property="og:url" content="https://willschenk.com/articles/2014/using-rake-for-dataflow-programming-and-data-science/" />
-<meta property="article:published_time" content="2014-12-19T00:00:00+00:00" />
-<meta property="article:modified_time" content="2014-12-19T00:00:00+00:00" />
-
-    <meta name="twitter:card" content="summary"/>
-<meta name="twitter:title" content="Using rake for dataflow programming and data science"/>
-<meta name="twitter:description" content="I&rsquo;ve been using Rake more and more for data collection and processing tasks. Rake is pretty pretty powerful. Most people know it as way to add external tasks to a Rails app, but it&rsquo;s actually very powerful build system. We&rsquo;re going to take advantage of that to build out a framework that will make it easy to collect, process, and interpret data while keeping it all in sync.
-In fact, if you just want to start playing with stuff now, head over to the rake-data site to go through some walk throughs."/>
-<meta name="twitter:site" content="@wschenk"/>
-
-
-    <style>
-     .article p, .article ul, .article ol, .article table {
-         max-width: 45em;
-     }
-
-     .article pre p {
-         max-width: none;
-         margin-top: -1.5rem;
-     }
-
-     article.article p:first-child, .article blockquote {
-         font-size: 1.25em;
-         font-weight: 300;
-         max-width: 36em;  
-     }
-
-     .half-height-scroll {
-         max-height: 32em;
-         overflow: scroll;
-     }
-    </style>
-</head>
-<body><nav class="container my-5">
-  <h1 class="pt-md-5 display-3"><a class="text-dark" href="../../../">Will Schenk</a></h1>
-  <p>
-    
-      <a class="text-dark h4 mr-3 font-weight-light" href="../../../articles/" title="">Articles</a>
-    
-      <a class="text-dark h4 mr-3 font-weight-light" href="../../../contact" title="">Contact</a>
-    
-      <a class="text-dark h4 mr-3 font-weight-light" href="../../../tags/" title="">Tags</a>
-    
-    <a href="../../../feed.xml" class="mr-3 h4 text-light"><img src="../../../img/rss.svg" alt="rss" height="20" width="20"/></a>
-    
-      <a href="https://twitter.com/@wschenk" class="mr-3 h4 text-light"><img src="../../../img/twitter.svg" alt="twitter" height="20" width="20"/></a>
-    
-    
-      <a href="https://instagram.com/wschenk" class="mr-3 h4 text-light"><img src="../../../img/instagram.svg" alt="instagram" height="20" width="20"/></a>
-    
-    
-      <a href="https://github.com/wschenk" class="mr-3 h4 text-light"><img src="../../../img/github.svg" alt="github" height="20" width="20"/></a>
-    
-    
-      <a href="https://linkedin.com/in/will-schenk-420266" class="mr-3 h4 text-light"><img src="../../../img/linkedin.svg" alt="linkedin" height="20" width="20"/></a>
-    
-  </p>
-</nav>
-
-<div class="container">
-  <h1 class="mt-5">Using rake for dataflow programming and data science</h1>
-
-  
-    <h2 class="font-weight-light font-italic mb-3">Rake it like&rsquo;s hot</h2>
-  
-
-  <p class="text-muted mt-3">
-    <a class="text-muted" href="https://willschenk.com/articles/2014/using-rake-for-dataflow-programming-and-data-science/">Published December 19, 2014</a>
-
-    
-      <a class="text-muted" href="../../../tags/ruby">#ruby</a>
-    
-      <a class="text-muted" href="../../../tags/tools">#tools</a>
-    
-      <a class="text-muted" href="../../../tags/howto">#howto</a>
-    
-      <a class="text-muted" href="../../../tags/rake">#rake</a>
-    
-      <a class="text-muted" href="../../../tags/data">#data</a>
-    
-  </p>
-
-  
-
-  
-
-  <article class="article mt-5">
-    <p>I&rsquo;ve been using Rake more and more for data collection and processing tasks.  Rake is pretty pretty powerful.  Most people know it as way to add external tasks to a Rails app, but it&rsquo;s actually very powerful build system.  We&rsquo;re going to take advantage of that to build out a <a href="https://github.com/HappyFunCorp/rake-data">framework</a> that will make it easy to collect, process, and interpret data while keeping it all in sync.</p>
-<p>In fact, if you just want to start playing with stuff now, head over to the <a href="https://github.com/HappyFunCorp/rake-data">rake-data</a> site to go through some walk throughs.  Read on to setup a fun world of your own!</p>
-<h2 id="rejected-titles-of-this-post">Rejected titles of this post</h2>
-<ul>
-<li>rake and bake</li>
-<li>rake me up before you go-go</li>
-<li>let them eat rake</li>
-<li>rake it until you make it</li>
-</ul>
-<h2 id="tasks-and-dependancies">Tasks and Dependancies</h2>
-<p>Rake is a a Make-like Ruby program that people know mostly in terms of rails apps.  We can define a few tasks and define their interdependancies:</p>
-<img src="1.dot.svg" class="img-fluid">
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="n">task</span> <span class="ss">:mail_daily_leader_boards</span> <span class="o">=&gt;</span> <span class="ss">:update_leader_boards</span> <span class="k">do</span>
-  <span class="no">User</span><span class="o">.</span><span class="n">mail_leader_boards!</span>
-<span class="k">end</span>
-
-<span class="n">task</span> <span class="ss">:flush_data</span> <span class="o">=&gt;</span> <span class="ss">:environment</span> <span class="k">do</span>
-  <span class="no">Leaderboard</span><span class="o">.</span><span class="n">flush!</span>
-<span class="k">end</span>
-
-<span class="n">task</span> <span class="ss">:update_leader_boards</span> <span class="o">=&gt;</span> <span class="ss">:environment</span> <span class="k">do</span>
-  <span class="no">Leaderboard</span><span class="o">.</span><span class="n">update!</span>
-<span class="k">end</span>
-
-<span class="n">task</span> <span class="ss">:environment</span>
-</code></pre></div><p>When we run <code>mail_daily_leaderboards</code> it makes sure that <code>update_leader_boards</code> is run first.  This in turn depends upon <code>environment</code>, and Rake makes sure that all dependancies are met before executing the task.</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ rake mail_daily_leaderboards --dry-run
-** Invoke mail_daily_leader_boards <span class="o">(</span>first_time<span class="o">)</span>
-** Invoke update_leader_boards <span class="o">(</span>first_time<span class="o">)</span>
-** Invoke environment <span class="o">(</span>first_time<span class="o">)</span>
-** Execute <span class="o">(</span>dry run<span class="o">)</span> environment
-** Execute <span class="o">(</span>dry run<span class="o">)</span> update_leader_boards
-** Execute <span class="o">(</span>dry run<span class="o">)</span> mail_daily_leader_boards
-</code></pre></div><p>Rake is also smart enough to only run a task once.  Lets look at what happens when we try to run two tasks:</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ rake flush_data mail_daily_leader_boards --dry-run
-** Invoke flush_data <span class="o">(</span>first_time<span class="o">)</span>
-** Invoke environment <span class="o">(</span>first_time<span class="o">)</span>
-** Execute <span class="o">(</span>dry run<span class="o">)</span> environment
-** Execute <span class="o">(</span>dry run<span class="o">)</span> flush_data
-** Invoke mail_daily_leader_boards <span class="o">(</span>first_time<span class="o">)</span>
-** Invoke update_leader_boards <span class="o">(</span>first_time<span class="o">)</span>
+<span class=n>task</span> <span class=ss>:environment</span>
+</code></pre></div><p>When we run <code>mail_daily_leaderboards</code> it makes sure that <code>update_leader_boards</code> is run first. This in turn depends upon <code>environment</code>, and Rake makes sure that all dependancies are met before executing the task.</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>$ rake mail_daily_leaderboards --dry-run
+** Invoke mail_daily_leader_boards <span class=o>(</span>first_time<span class=o>)</span>
+** Invoke update_leader_boards <span class=o>(</span>first_time<span class=o>)</span>
+** Invoke environment <span class=o>(</span>first_time<span class=o>)</span>
+** Execute <span class=o>(</span>dry run<span class=o>)</span> environment
+** Execute <span class=o>(</span>dry run<span class=o>)</span> update_leader_boards
+** Execute <span class=o>(</span>dry run<span class=o>)</span> mail_daily_leader_boards
+</code></pre></div><p>Rake is also smart enough to only run a task once. Lets look at what happens when we try to run two tasks:</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>$ rake flush_data mail_daily_leader_boards --dry-run
+** Invoke flush_data <span class=o>(</span>first_time<span class=o>)</span>
+** Invoke environment <span class=o>(</span>first_time<span class=o>)</span>
+** Execute <span class=o>(</span>dry run<span class=o>)</span> environment
+** Execute <span class=o>(</span>dry run<span class=o>)</span> flush_data
+** Invoke mail_daily_leader_boards <span class=o>(</span>first_time<span class=o>)</span>
+** Invoke update_leader_boards <span class=o>(</span>first_time<span class=o>)</span>
 ** Invoke environment
-** Execute <span class="o">(</span>dry run<span class="o">)</span> update_leader_boards
-** Execute <span class="o">(</span>dry run<span class="o">)</span> mail_daily_leader_boards
-</code></pre></div><p>Notice here that even though <code>update_leader_boards</code> and <code>flush_data</code> both depend on <code>environment</code>, so it needs to be run for either of the dependant tasks to run, and it is only invoked once.</p>
-<p>So far so good.</p>
-<h2 id="dataflow-programming">Dataflow programming</h2>
-<p>So Rake gives us a dependancy specification and resolution process.  We can visualize this in two ways.  One way is where the arrows are pointing to sub tasks, top down, where the arrow direction represents the control flow control of the process.  When you want A, it makes sure that B and C are there, which in turn have their own dependancies.</p>
-<p>What does it mean if we were to reverse the arrows on the graph?</p>
-<table class="table table-bordered">
-  <tr>
-    <th style="text-align: center">Top Down</th>
-    <th style="text-align: center">Bottom Up</th>
-  </tr>
-  <tr>
-    <td style="text-align: center">
-    <img src="top.dot.svg">
-    </td>
-<pre><code>&lt;td style=&quot;text-align: center&quot;&gt;
+** Execute <span class=o>(</span>dry run<span class=o>)</span> update_leader_boards
+** Execute <span class=o>(</span>dry run<span class=o>)</span> mail_daily_leader_boards
+</code></pre></div><p>Notice here that even though <code>update_leader_boards</code> and <code>flush_data</code> both depend on <code>environment</code>, so it needs to be run for either of the dependant tasks to run, and it is only invoked once.</p><p>So far so good.</p><h2 id=dataflow-programming>Dataflow programming</h2><p>So Rake gives us a dependancy specification and resolution process. We can visualize this in two ways. One way is where the arrows are pointing to sub tasks, top down, where the arrow direction represents the control flow control of the process. When you want A, it makes sure that B and C are there, which in turn have their own dependancies.</p><p>What does it mean if we were to reverse the arrows on the graph?</p><table class="table table-bordered"><tr><th style=text-align:center>Top Down</th><th style=text-align:center>Bottom Up</th></tr><tr><td style=text-align:center><img src=top.dot.svg></td><pre><code>&lt;td style=&quot;text-align: center&quot;&gt;
 &lt;img src=&quot;bottom.dot.svg&quot;&gt;
 &lt;/td&gt;
-</code></pre>
-  </tr>
-</table>
-<p>If we think about rake in terms of managing a build process, what we called <em>dependancies</em> are actually the source of the data.  If we want an object file, we start with the source file.  If we want to generate C, we need to have generated the data for D and E.</p>
-<h2 id="file-tasks">File Tasks</h2>
-<p>Rake also knows about building files.  <code>Rake::FileTask</code> is a subtask of <code>Rake::Task</code> which will only run the target if the <em>file is out of date</em> : if the source file is newer than the destination file.</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="n">file</span> <span class="s2">&#34;Rakefile.gz&#34;</span> <span class="o">=&gt;</span> <span class="s2">&#34;Rakefile&#34;</span> <span class="k">do</span> <span class="o">|</span><span class="n">task</span><span class="o">|</span>
-  <span class="n">sh</span> <span class="s2">&#34;gzip -fkv </span><span class="si">#{</span><span class="n">task</span><span class="o">.</span><span class="n">source</span><span class="si">}</span><span class="s2">&#34;</span>
-<span class="k">end</span>
-</code></pre></div><p>This defined as task called <code>Rakefile.gz</code> that when invoked will look to see if either the file doesn&rsquo;t exist, or if it&rsquo;s older than the source file <code>Rakefile</code>, and gzips it up.</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ rake Rakefile.gz
+</code></pre></tr></table><p>If we think about rake in terms of managing a build process, what we called <em>dependancies</em> are actually the source of the data. If we want an object file, we start with the source file. If we want to generate C, we need to have generated the data for D and E.</p><h2 id=file-tasks>File Tasks</h2><p>Rake also knows about building files. <code>Rake::FileTask</code> is a subtask of <code>Rake::Task</code> which will only run the target if the <em>file is out of date</em> : if the source file is newer than the destination file.</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=n>file</span> <span class=s2>&#34;Rakefile.gz&#34;</span> <span class=o>=&gt;</span> <span class=s2>&#34;Rakefile&#34;</span> <span class=k>do</span> <span class=o>|</span><span class=n>task</span><span class=o>|</span>
+  <span class=n>sh</span> <span class=s2>&#34;gzip -fkv </span><span class=si>#{</span><span class=n>task</span><span class=o>.</span><span class=n>source</span><span class=si>}</span><span class=s2>&#34;</span>
+<span class=k>end</span>
+</code></pre></div><p>This defined as task called <code>Rakefile.gz</code> that when invoked will look to see if either the file doesn&rsquo;t exist, or if it&rsquo;s older than the source file <code>Rakefile</code>, and gzips it up.</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>$ rake Rakefile.gz
 gzip -fkv Rakefile
 Rakefile:   -20.6% -- replaced with Rakefile.gz
-</code></pre></div><p>Run it again and nothing happens!</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ rake Rakefile.gz
+</code></pre></div><p>Run it again and nothing happens!</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>$ rake Rakefile.gz
 $
-</code></pre></div><p>Touch the source file and it gets rebuilt:</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ touch Rakefile
+</code></pre></div><p>Touch the source file and it gets rebuilt:</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>$ touch Rakefile
 $ rake Rakefile.gz
 gzip -fkv Rakefile
 Rakefile:   -20.6% -- replaced with Rakefile.gz
-</code></pre></div><h2 id="rake-as-a-build-system">Rake as a build system</h2>
-<p>Files and rules come from Rake&rsquo;s <code>make</code> heritage.  We can think of regular <code>Task</code>s as being a general sort of <em>action</em>, meaning you are packaging up certain set of imperitives in a particular context to achieve some goal.  <code>FileTask</code>s are a more specific type of action, where we want to generate a specific file from a specific source file.  For a full build system we want to be able to translate whole classes of files into other files, like source files into object files, or XML files into HTML files.  We use <code>Rules</code> to set these up.</p>
-<h2 id="tasks-defined-as-rules">Tasks defined as Rules</h2>
-<p>The third main bit of magic that Rake gives us is rules.  The file task can magically bring a file into being when invoked, but in a build process its more common to translate files with a certain extention to other files in a different extension.  The canonical example is probably compiling <code>.c</code> source files into <code>.o</code> objects, but since it&rsquo;s the 21 first century lets look at how to run the Graphviz dot file to process into svg or.dot.svg files.</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="n">rule</span> <span class="s2">&#34;.svg&#34;</span> <span class="o">=&gt;</span> <span class="s2">&#34;.dot&#34;</span> <span class="k">do</span> <span class="o">|</span><span class="n">task</span><span class="o">|</span>
-  <span class="n">sh</span> <span class="s2">&#34;dot -Tsvg &lt; </span><span class="si">#{</span><span class="n">task</span><span class="o">.</span><span class="n">source</span><span class="si">}</span><span class="s2"> &gt; </span><span class="si">#{</span><span class="n">task</span><span class="si">}</span><span class="s2">&#34;</span>
-<span class="k">end</span>
+</code></pre></div><h2 id=rake-as-a-build-system>Rake as a build system</h2><p>Files and rules come from Rake&rsquo;s <code>make</code> heritage. We can think of regular <code>Task</code>s as being a general sort of <em>action</em>, meaning you are packaging up certain set of imperitives in a particular context to achieve some goal. <code>FileTask</code>s are a more specific type of action, where we want to generate a specific file from a specific source file. For a full build system we want to be able to translate whole classes of files into other files, like source files into object files, or XML files into HTML files. We use <code>Rules</code> to set these up.</p><h2 id=tasks-defined-as-rules>Tasks defined as Rules</h2><p>The third main bit of magic that Rake gives us is rules. The file task can magically bring a file into being when invoked, but in a build process its more common to translate files with a certain extention to other files in a different extension. The canonical example is probably compiling <code>.c</code> source files into <code>.o</code> objects, but since it&rsquo;s the 21 first century lets look at how to run the Graphviz dot file to process into svg or.dot.svg files.</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=n>rule</span> <span class=s2>&#34;.svg&#34;</span> <span class=o>=&gt;</span> <span class=s2>&#34;.dot&#34;</span> <span class=k>do</span> <span class=o>|</span><span class=n>task</span><span class=o>|</span>
+  <span class=n>sh</span> <span class=s2>&#34;dot -Tsvg &lt; </span><span class=si>#{</span><span class=n>task</span><span class=o>.</span><span class=n>source</span><span class=si>}</span><span class=s2> &gt; </span><span class=si>#{</span><span class=n>task</span><span class=si>}</span><span class=s2>&#34;</span>
+<span class=k>end</span>
 
-<span class="n">rule</span> <span class="s2">&#34;.dot.svg&#34;</span> <span class="o">=&gt;</span> <span class="s2">&#34;.dot&#34;</span> <span class="k">do</span> <span class="o">|</span><span class="n">task</span><span class="o">|</span>
-  <span class="n">sh</span> <span class="s2">&#34;dot -.dot.svg &lt; </span><span class="si">#{</span><span class="n">task</span><span class="o">.</span><span class="n">source</span><span class="si">}</span><span class="s2"> &gt; </span><span class="si">#{</span><span class="n">task</span><span class="si">}</span><span class="s2">&#34;</span>
-<span class="k">end</span>
-</code></pre></div><p>Now we can ask Rake to build a <em>type</em> of file, and will look for a source file based upon the name that you request.  For example, if we were to run the command:</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ rake bottom.svg
+<span class=n>rule</span> <span class=s2>&#34;.dot.svg&#34;</span> <span class=o>=&gt;</span> <span class=s2>&#34;.dot&#34;</span> <span class=k>do</span> <span class=o>|</span><span class=n>task</span><span class=o>|</span>
+  <span class=n>sh</span> <span class=s2>&#34;dot -.dot.svg &lt; </span><span class=si>#{</span><span class=n>task</span><span class=o>.</span><span class=n>source</span><span class=si>}</span><span class=s2> &gt; </span><span class=si>#{</span><span class=n>task</span><span class=si>}</span><span class=s2>&#34;</span>
+<span class=k>end</span>
+</code></pre></div><p>Now we can ask Rake to build a <em>type</em> of file, and will look for a source file based upon the name that you request. For example, if we were to run the command:</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>$ rake bottom.svg
 dot -Tsvg &lt; bottom.dot &gt; bottom.svg
 $
-</code></pre></div><p>Rake would try to instantiate the file <code>bottom.svg</code> by first requesting file called <code>bottom.dot</code>.  Since this is part of the rake dependancy system, this could in turn be built by a seperate rake task!</p>
-<p>Note that Rake doesn&rsquo;t know anything specifically about these extension.  It just knows what you have defined.  We can define other formats and build rules around that.</p>
-<h2 id="using-rake-to-pull-data-from-a-url">Using Rake to pull data from a url</h2>
-<p>Let&rsquo;s extend the Rake DSL to be able to download files from the internet.  You can put this at the top of your <code>Rakefile</code> for now.</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="k">def</span> <span class="nf">url</span><span class="p">(</span> <span class="n">dest</span><span class="p">,</span> <span class="n">source</span> <span class="p">)</span>
-  <span class="n">file</span> <span class="n">dest</span> <span class="k">do</span>
-    <span class="nb">puts</span> <span class="s2">&#34;Loading </span><span class="si">#{</span><span class="n">source</span><span class="si">}</span><span class="s2">&#34;</span>
-    <span class="k">if</span> <span class="o">!</span><span class="no">File</span><span class="o">.</span><span class="n">exists?</span><span class="p">(</span> <span class="n">dest</span> <span class="p">)</span>
-      <span class="n">mkdir_p</span> <span class="n">dest</span><span class="o">.</span><span class="n">to_s</span><span class="o">.</span><span class="n">pathmap</span><span class="p">(</span> <span class="s2">&#34;%d&#34;</span> <span class="p">)</span>
-      <span class="n">sh</span> <span class="s2">&#34;curl -L &#39;</span><span class="si">#{</span><span class="n">source</span><span class="si">}</span><span class="s2">&#39; &gt; </span><span class="si">#{</span><span class="n">dest</span><span class="si">}</span><span class="s2">&#34;</span>
-    <span class="k">end</span>
-  <span class="k">end</span>
-<span class="k">end</span>
-</code></pre></div><p>Lets use this to download a file from the internet do we can parse it.</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="n">url</span> <span class="s2">&#34;source/weather.json&#34;</span><span class="p">,</span> <span class="s2">&#34;http://api.openweathermap.org/data/2.5/weather?id=5128581&#34;</span>
-</code></pre></div><p>When we run <code>rake source/weather.json</code> the first time, the file is downloaded.  The second time we run the rake command nothing happens since the <code>source/weather.json</code> file already exists.  Lets add a quick task to parse the JSON.</p>
-<h2 id="parse-json-using-simple-ruby-commands">Parse JSON using simple ruby commands</h2>
-<p>Lets parse the file:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="nb">require</span> <span class="s1">&#39;json&#39;</span>
-<span class="n">file</span> <span class="s2">&#34;report.txt&#34;</span> <span class="o">=&gt;</span> <span class="s2">&#34;source/weather.json&#34;</span> <span class="k">do</span> <span class="o">|</span><span class="n">task</span><span class="o">|</span>
-  <span class="nb">puts</span> <span class="s2">&#34;Parsing sun times&#34;</span>
-  <span class="n">data</span> <span class="o">=</span> <span class="no">JSON</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span> <span class="no">File</span><span class="o">.</span><span class="n">read</span><span class="p">(</span> <span class="n">task</span><span class="o">.</span><span class="n">source</span> <span class="p">))</span>
-  <span class="no">File</span><span class="o">.</span><span class="n">open</span><span class="p">(</span> <span class="n">task</span><span class="o">.</span><span class="n">to_s</span><span class="p">,</span> <span class="s2">&#34;wb&#34;</span> <span class="p">)</span> <span class="k">do</span> <span class="o">|</span><span class="n">out</span><span class="o">|</span>
-    <span class="n">out</span><span class="o">.</span><span class="n">printf</span> <span class="s2">&#34;%-15s %s</span><span class="se">\n</span><span class="s2">&#34;</span><span class="p">,</span> <span class="s1">&#39;sunrise&#39;</span><span class="p">,</span> <span class="no">Time</span><span class="o">.</span><span class="n">at</span><span class="p">(</span> <span class="n">data</span><span class="o">[</span><span class="s1">&#39;sys&#39;</span><span class="o">][</span><span class="s1">&#39;sunrise&#39;</span><span class="o">]</span> <span class="p">)</span>
-    <span class="n">out</span><span class="o">.</span><span class="n">printf</span> <span class="s2">&#34;%-15s %s</span><span class="se">\n</span><span class="s2">&#34;</span><span class="p">,</span> <span class="s1">&#39;sunset&#39;</span><span class="p">,</span>  <span class="no">Time</span><span class="o">.</span><span class="n">at</span><span class="p">(</span> <span class="n">data</span><span class="o">[</span><span class="s1">&#39;sys&#39;</span><span class="o">][</span><span class="s1">&#39;sunset&#39;</span><span class="o">]</span> <span class="p">)</span>
-  <span class="k">end</span>
-<span class="k">end</span>
-</code></pre></div><p>Run <code>rake report.txt</code>.  This should generate the file the first time, and on subsequent runs, do nothing.  If you remove <code>source/weather.json</code> file and run <code>rake report.txt</code> again, you&rsquo;ll see that Rake is smart enough to download a new version of the file.</p>
-<h2 id="parsing-html">Parsing HTML</h2>
-<p>Another common thing to do is to download a webpage and parse through the results.  <code>Nokogiri</code> makes this really easy since you can identify DOM elements using CSS selectors more or less the same a jQuery selectors.</p>
-<p>Lets make a function to help us parse html files into CSV files:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="c1"># Parse an HTML file into CSV</span>
-<span class="k">def</span> <span class="nf">parse_html</span><span class="p">(</span> <span class="n">dest</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">parser</span> <span class="p">)</span>
-  <span class="nb">require</span> <span class="s1">&#39;nokogiri&#39;</span>
-  <span class="nb">require</span> <span class="s1">&#39;csv&#39;</span>
+</code></pre></div><p>Rake would try to instantiate the file <code>bottom.svg</code> by first requesting file called <code>bottom.dot</code>. Since this is part of the rake dependancy system, this could in turn be built by a seperate rake task!</p><p>Note that Rake doesn&rsquo;t know anything specifically about these extension. It just knows what you have defined. We can define other formats and build rules around that.</p><h2 id=using-rake-to-pull-data-from-a-url>Using Rake to pull data from a url</h2><p>Let&rsquo;s extend the Rake DSL to be able to download files from the internet. You can put this at the top of your <code>Rakefile</code> for now.</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=k>def</span> <span class=nf>url</span><span class=p>(</span> <span class=n>dest</span><span class=p>,</span> <span class=n>source</span> <span class=p>)</span>
+  <span class=n>file</span> <span class=n>dest</span> <span class=k>do</span>
+    <span class=nb>puts</span> <span class=s2>&#34;Loading </span><span class=si>#{</span><span class=n>source</span><span class=si>}</span><span class=s2>&#34;</span>
+    <span class=k>if</span> <span class=o>!</span><span class=no>File</span><span class=o>.</span><span class=n>exists?</span><span class=p>(</span> <span class=n>dest</span> <span class=p>)</span>
+      <span class=n>mkdir_p</span> <span class=n>dest</span><span class=o>.</span><span class=n>to_s</span><span class=o>.</span><span class=n>pathmap</span><span class=p>(</span> <span class=s2>&#34;%d&#34;</span> <span class=p>)</span>
+      <span class=n>sh</span> <span class=s2>&#34;curl -L &#39;</span><span class=si>#{</span><span class=n>source</span><span class=si>}</span><span class=s2>&#39; &gt; </span><span class=si>#{</span><span class=n>dest</span><span class=si>}</span><span class=s2>&#34;</span>
+    <span class=k>end</span>
+  <span class=k>end</span>
+<span class=k>end</span>
+</code></pre></div><p>Lets use this to download a file from the internet do we can parse it.</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=n>url</span> <span class=s2>&#34;source/weather.json&#34;</span><span class=p>,</span> <span class=s2>&#34;http://api.openweathermap.org/data/2.5/weather?id=5128581&#34;</span>
+</code></pre></div><p>When we run <code>rake source/weather.json</code> the first time, the file is downloaded. The second time we run the rake command nothing happens since the <code>source/weather.json</code> file already exists. Lets add a quick task to parse the JSON.</p><h2 id=parse-json-using-simple-ruby-commands>Parse JSON using simple ruby commands</h2><p>Lets parse the file:</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=nb>require</span> <span class=s1>&#39;json&#39;</span>
+<span class=n>file</span> <span class=s2>&#34;report.txt&#34;</span> <span class=o>=&gt;</span> <span class=s2>&#34;source/weather.json&#34;</span> <span class=k>do</span> <span class=o>|</span><span class=n>task</span><span class=o>|</span>
+  <span class=nb>puts</span> <span class=s2>&#34;Parsing sun times&#34;</span>
+  <span class=n>data</span> <span class=o>=</span> <span class=no>JSON</span><span class=o>.</span><span class=n>parse</span><span class=p>(</span> <span class=no>File</span><span class=o>.</span><span class=n>read</span><span class=p>(</span> <span class=n>task</span><span class=o>.</span><span class=n>source</span> <span class=p>))</span>
+  <span class=no>File</span><span class=o>.</span><span class=n>open</span><span class=p>(</span> <span class=n>task</span><span class=o>.</span><span class=n>to_s</span><span class=p>,</span> <span class=s2>&#34;wb&#34;</span> <span class=p>)</span> <span class=k>do</span> <span class=o>|</span><span class=n>out</span><span class=o>|</span>
+    <span class=n>out</span><span class=o>.</span><span class=n>printf</span> <span class=s2>&#34;%-15s %s</span><span class=se>\n</span><span class=s2>&#34;</span><span class=p>,</span> <span class=s1>&#39;sunrise&#39;</span><span class=p>,</span> <span class=no>Time</span><span class=o>.</span><span class=n>at</span><span class=p>(</span> <span class=n>data</span><span class=o>[</span><span class=s1>&#39;sys&#39;</span><span class=o>][</span><span class=s1>&#39;sunrise&#39;</span><span class=o>]</span> <span class=p>)</span>
+    <span class=n>out</span><span class=o>.</span><span class=n>printf</span> <span class=s2>&#34;%-15s %s</span><span class=se>\n</span><span class=s2>&#34;</span><span class=p>,</span> <span class=s1>&#39;sunset&#39;</span><span class=p>,</span>  <span class=no>Time</span><span class=o>.</span><span class=n>at</span><span class=p>(</span> <span class=n>data</span><span class=o>[</span><span class=s1>&#39;sys&#39;</span><span class=o>][</span><span class=s1>&#39;sunset&#39;</span><span class=o>]</span> <span class=p>)</span>
+  <span class=k>end</span>
+<span class=k>end</span>
+</code></pre></div><p>Run <code>rake report.txt</code>. This should generate the file the first time, and on subsequent runs, do nothing. If you remove <code>source/weather.json</code> file and run <code>rake report.txt</code> again, you&rsquo;ll see that Rake is smart enough to download a new version of the file.</p><h2 id=parsing-html>Parsing HTML</h2><p>Another common thing to do is to download a webpage and parse through the results. <code>Nokogiri</code> makes this really easy since you can identify DOM elements using CSS selectors more or less the same a jQuery selectors.</p><p>Lets make a function to help us parse html files into CSV files:</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=c1># Parse an HTML file into CSV</span>
+<span class=k>def</span> <span class=nf>parse_html</span><span class=p>(</span> <span class=n>dest</span><span class=p>,</span> <span class=n>source</span><span class=p>,</span> <span class=o>&amp;</span><span class=n>parser</span> <span class=p>)</span>
+  <span class=nb>require</span> <span class=s1>&#39;nokogiri&#39;</span>
+  <span class=nb>require</span> <span class=s1>&#39;csv&#39;</span>
 
-  <span class="n">file</span> <span class="n">dest</span> <span class="o">=&gt;</span> <span class="n">source</span> <span class="k">do</span>
-    <span class="nb">puts</span> <span class="s2">&#34;Parsing </span><span class="si">#{</span><span class="n">source</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">#{</span><span class="n">dest</span><span class="si">}</span><span class="s2">&#34;</span>
-    <span class="n">mkdir_p</span> <span class="n">dest</span><span class="o">.</span><span class="n">to_s</span><span class="o">.</span><span class="n">pathmap</span><span class="p">(</span> <span class="s2">&#34;%d&#34;</span> <span class="p">)</span>
+  <span class=n>file</span> <span class=n>dest</span> <span class=o>=&gt;</span> <span class=n>source</span> <span class=k>do</span>
+    <span class=nb>puts</span> <span class=s2>&#34;Parsing </span><span class=si>#{</span><span class=n>source</span><span class=si>}</span><span class=s2> -&gt; </span><span class=si>#{</span><span class=n>dest</span><span class=si>}</span><span class=s2>&#34;</span>
+    <span class=n>mkdir_p</span> <span class=n>dest</span><span class=o>.</span><span class=n>to_s</span><span class=o>.</span><span class=n>pathmap</span><span class=p>(</span> <span class=s2>&#34;%d&#34;</span> <span class=p>)</span>
 
-    <span class="n">html</span> <span class="o">=</span> <span class="no">Nokogiri</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span> <span class="no">File</span><span class="o">.</span><span class="n">read</span><span class="p">(</span> <span class="n">source</span> <span class="p">)</span> <span class="p">)</span>
-    <span class="no">CSV</span><span class="o">.</span><span class="n">open</span><span class="p">(</span> <span class="n">dest</span><span class="o">.</span><span class="n">to_s</span><span class="p">,</span> <span class="s2">&#34;wb&#34;</span> <span class="p">)</span> <span class="k">do</span> <span class="o">|</span><span class="n">csv</span><span class="o">|</span>
-      <span class="n">parser</span><span class="o">.</span><span class="n">call</span><span class="p">(</span> <span class="n">html</span><span class="p">,</span> <span class="n">csv</span> <span class="p">)</span>
-    <span class="k">end</span>
-  <span class="k">end</span>
-<span class="k">end</span>
-</code></pre></div><p>This defines a file task to convert one file type into another.  When it needs to run &ndash; and this will only happen of the source file changes or the destination file doesnt exist &ndash; it loads up the file into Nokogiri, creates a CSV output file, and passes control to a passed in block for processing.</p>
-<p>Let&rsquo;s pull out a list of the top 10 popular books on project gutenberg for the last month:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="c1"># Load the html file with statistics</span>
-<span class="n">url</span> <span class="s2">&#34;source/top.html&#34;</span><span class="p">,</span> <span class="s2">&#34;http://www.gutenberg.org/browse/scores/top&#34;</span>
+    <span class=n>html</span> <span class=o>=</span> <span class=no>Nokogiri</span><span class=o>.</span><span class=n>parse</span><span class=p>(</span> <span class=no>File</span><span class=o>.</span><span class=n>read</span><span class=p>(</span> <span class=n>source</span> <span class=p>)</span> <span class=p>)</span>
+    <span class=no>CSV</span><span class=o>.</span><span class=n>open</span><span class=p>(</span> <span class=n>dest</span><span class=o>.</span><span class=n>to_s</span><span class=p>,</span> <span class=s2>&#34;wb&#34;</span> <span class=p>)</span> <span class=k>do</span> <span class=o>|</span><span class=n>csv</span><span class=o>|</span>
+      <span class=n>parser</span><span class=o>.</span><span class=n>call</span><span class=p>(</span> <span class=n>html</span><span class=p>,</span> <span class=n>csv</span> <span class=p>)</span>
+    <span class=k>end</span>
+  <span class=k>end</span>
+<span class=k>end</span>
+</code></pre></div><p>This defines a file task to convert one file type into another. When it needs to run &ndash; and this will only happen of the source file changes or the destination file doesnt exist &ndash; it loads up the file into Nokogiri, creates a CSV output file, and passes control to a passed in block for processing.</p><p>Let&rsquo;s pull out a list of the top 10 popular books on project gutenberg for the last month:</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=c1># Load the html file with statistics</span>
+<span class=n>url</span> <span class=s2>&#34;source/top.html&#34;</span><span class=p>,</span> <span class=s2>&#34;http://www.gutenberg.org/browse/scores/top&#34;</span>
 
-<span class="n">parse_html</span> <span class="s2">&#34;processed/month_top_100.csv&#34;</span><span class="p">,</span> <span class="s2">&#34;source/top.html&#34;</span> <span class="k">do</span> <span class="o">|</span><span class="n">html</span><span class="p">,</span><span class="n">out</span><span class="o">|</span>
-  <span class="n">html</span><span class="o">.</span><span class="n">css</span><span class="p">(</span> <span class="s2">&#34;h2#books-last30 + ol a&#34;</span> <span class="p">)</span><span class="o">.</span><span class="n">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">link</span><span class="o">|</span>
-    <span class="n">out</span> <span class="o">&lt;&lt;</span> <span class="o">[</span><span class="n">link</span><span class="o">[</span><span class="s1">&#39;href&#39;</span><span class="o">]</span><span class="p">,</span><span class="n">link</span><span class="o">.</span><span class="n">content</span><span class="o">]</span>
-  <span class="k">end</span>
-<span class="k">end</span>
+<span class=n>parse_html</span> <span class=s2>&#34;processed/month_top_100.csv&#34;</span><span class=p>,</span> <span class=s2>&#34;source/top.html&#34;</span> <span class=k>do</span> <span class=o>|</span><span class=n>html</span><span class=p>,</span><span class=n>out</span><span class=o>|</span>
+  <span class=n>html</span><span class=o>.</span><span class=n>css</span><span class=p>(</span> <span class=s2>&#34;h2#books-last30 + ol a&#34;</span> <span class=p>)</span><span class=o>.</span><span class=n>each</span> <span class=k>do</span> <span class=o>|</span><span class=n>link</span><span class=o>|</span>
+    <span class=n>out</span> <span class=o>&lt;&lt;</span> <span class=o>[</span><span class=n>link</span><span class=o>[</span><span class=s1>&#39;href&#39;</span><span class=o>]</span><span class=p>,</span><span class=n>link</span><span class=o>.</span><span class=n>content</span><span class=o>]</span>
+  <span class=k>end</span>
+<span class=k>end</span>
 
-<span class="n">file</span> <span class="s2">&#34;processed/month_top_10.csv&#34;</span> <span class="o">=&gt;</span> <span class="s2">&#34;processed/month_top_100.csv&#34;</span> <span class="k">do</span> <span class="o">|</span><span class="n">task</span><span class="o">|</span>
-  <span class="n">sh</span> <span class="s2">&#34;head -n 10 </span><span class="si">#{</span><span class="n">task</span><span class="o">.</span><span class="n">source</span><span class="si">}</span><span class="s2"> &gt; </span><span class="si">#{</span><span class="n">task</span><span class="si">}</span><span class="s2">&#34;</span>
-<span class="k">end</span>
-</code></pre></div><p>And now run <code>rake processed/month_top_10.csv</code> and watch what happens.  This only hits the server the first time it&rsquo;s run.  If we want to process things again, we simply delete the files in the <code>source</code> directory and everything in the <code>processed</code> directory will get regenerated.</p>
-<h2 id="tasks-over-multiple-files">Tasks over multiple files</h2>
-<p>We have a few CSV files that contain a list of books.  How would we do something with these books?  The natural thing would be to use Rake&rsquo;s <code>FileList</code>, but this doesn&rsquo;t work the way you&rsquo;d expect because <code>FileList</code> caches its results and it therefor doesn&rsquo;t know about files that are created during the build process.  We don&rsquo;t want to have to run rake twice to get our results, we want to be able to trust the process!</p>
-<p>Let&rsquo;s extend the DSL again to add a command that will loop over a file and call our block for each line:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="c1"># Loop over a file and yield the block for each line</span>
-<span class="c1"># If name ends with .csv, parse the csv and yield each line</span>
-<span class="k">def</span> <span class="nf">file_loop</span><span class="p">(</span> <span class="nb">name</span><span class="p">,</span> <span class="n">source</span> <span class="p">)</span>
-  <span class="n">task</span> <span class="nb">name</span> <span class="o">=&gt;</span> <span class="n">source</span> <span class="k">do</span>
-    <span class="k">if</span> <span class="n">source</span> <span class="o">=~</span> <span class="sr">/.csv$/</span>
-      <span class="no">CSV</span><span class="o">.</span><span class="n">open</span><span class="p">(</span> <span class="n">source</span> <span class="p">)</span><span class="o">.</span><span class="n">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">line</span><span class="o">|</span>
-        <span class="k">yield</span> <span class="n">line</span>
-      <span class="k">end</span>
-    <span class="k">else</span>
-      <span class="no">File</span><span class="o">.</span><span class="n">readlines</span><span class="p">(</span> <span class="n">source</span> <span class="p">)</span><span class="o">.</span><span class="n">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">line</span><span class="o">|</span>
-        <span class="k">yield</span> <span class="n">line</span>
-      <span class="k">end</span>
-    <span class="k">end</span>
-  <span class="k">end</span>
-<span class="k">end</span>
-</code></pre></div><p>Now we can use this to create a task that goes through each of the lines of the file.  We&rsquo;ll do this to define url tasks for the file and then immediately invoke them so make sure that the file was loaded.</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="c1"># Loop through the top ten books and make sure that they exist</span>
-<span class="n">file_loop</span> <span class="s2">&#34;processed/top_10_books_text&#34;</span><span class="p">,</span> <span class="s2">&#34;processed/month_top_10.csv&#34;</span> <span class="k">do</span> <span class="o">|</span><span class="n">line</span><span class="o">|</span>
-  <span class="n">path</span> <span class="o">=</span> <span class="s2">&#34;</span><span class="si">#{</span><span class="n">line</span><span class="o">[</span><span class="mi">0</span><span class="o">].</span><span class="n">gsub</span><span class="p">(</span> <span class="sr">/^\//</span><span class="p">,</span> <span class="s2">&#34;&#34;</span> <span class="p">)</span><span class="si">}</span><span class="s2">.txt&#34;</span>
-  <span class="nb">puts</span> <span class="n">path</span>
-  <span class="n">url</span><span class="p">(</span> <span class="n">path</span><span class="p">,</span> <span class="s2">&#34;http://www.gutenberg.org/</span><span class="si">#{</span><span class="n">path</span><span class="si">}</span><span class="s2">.utf-8&#34;</span><span class="p">)</span>
-  <span class="no">Rake</span><span class="o">::</span><span class="no">Task</span><span class="o">[</span><span class="n">path</span><span class="o">].</span><span class="n">invoke</span>
-<span class="k">end</span>
-</code></pre></div><p>Running <code>rake processed/top_10_books_text</code> will first make sure that <code>processed/month_top_10.csv</code> is up-to-date, doing whatever it needs too to make it happen, and then loop through each of the lines and download the ebook file.</p>
-<p><em>Note, we are going to be making a bunch of requests to the Project Gutenberg website, a total of 11 in all.  You might be flagged as a bot, so take a look at the generated <code>.txt</code> files to make sure that they actually contain the book content. <strong>But no matter how many times you run your commands, unless you delete the downloaded files there will be no more than 11 requests to the server!</strong></em></p>
-<h2 id="using-rules-to-parse-data">Using rules to parse data</h2>
-<p>Lets create a rule that will give us a count of all the words in a book:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="c1"># Count and sort the list of words</span>
-<span class="n">rule</span> <span class="s2">&#34;.word_count&#34;</span> <span class="o">=&gt;</span> <span class="s2">&#34;.words&#34;</span> <span class="k">do</span> <span class="o">|</span><span class="n">dest</span><span class="o">|</span>
-  <span class="n">sh</span> <span class="s2">&#34;cat </span><span class="si">#{</span><span class="n">dest</span><span class="o">.</span><span class="n">source</span><span class="si">}</span><span class="s2"> | sort | uniq -c | sort -nr&gt; </span><span class="si">#{</span><span class="n">dest</span><span class="si">}</span><span class="s2">&#34;</span>
-<span class="k">end</span>
-</code></pre></div><p>If we try to run this now, say <code>rake ebooks/1342.word_count</code> we&rsquo;ll get an error saying it doesn&rsquo;t know how to build that file.  Let&rsquo;s add a rule to go from <code>.txt</code> to <code>.words</code>:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="c1"># Covert txt to words</span>
-<span class="n">rule</span> <span class="s2">&#34;.words&#34;</span> <span class="o">=&gt;</span> <span class="s2">&#34;.txt&#34;</span> <span class="k">do</span> <span class="o">|</span><span class="n">dest</span><span class="o">|</span>
-  <span class="n">sh</span> <span class="s2">&#34;cat </span><span class="si">#{</span><span class="n">dest</span><span class="o">.</span><span class="n">source</span><span class="si">}</span><span class="s2"> | tr -cs &#39;[:alpha:]&#39; &#39;</span><span class="se">\n</span><span class="s2">&#39; | tr &#39;[:upper:]&#39; &#39;[:lower:]&#39; &gt; </span><span class="si">#{</span><span class="n">dest</span><span class="si">}</span><span class="s2">&#34;</span>
-<span class="k">end</span>
-</code></pre></div><p>Now when we run it, we first generate a list of words, and then from that we find the unique count of them.</p>
-<h2 id="get-your-own-rake-data">Get your own rake-data</h2>
-<p>It&rsquo;s simple enough to setup this on your own, but I&rsquo;ve put together a few useful things that I&rsquo;ve been using to process data into it&rsquo;s own gem.  You should head over to <a href="https://github.com/HappyFunCorp/rake-data">https://github.com/HappyFunCorp/rake-data</a> now to check it out!</p>
-<p>Other things to check out:</p>
-<ul>
-<li><a href="http://blog.kaggle.com/2012/10/15/make-for-data-scientists/">http://blog.kaggle.com/2012/10/15/make-for-data-scientists/</a></li>
-<li><a href="http://blog.factual.com/introducing-drake-a-kind-of-make-for-data">http://blog.factual.com/introducing-drake-a-kind-of-make-for-data</a></li>
-<li><a href="http://datascienceatthecommandline.com">http://datascienceatthecommandline.com</a></li>
-</ul>
-
-  </article>
-
-  
-</div>
-
-
-  <div class="bg-light py-5">
-    <div class="container">
-      <h2 class="text-center">Read next</h2>
-
-      <div class="row">
-        <div class="col-md-6 text-center">
-          
-            Next Post:
-            <a href="../../../articles/2015/setting-up-devise-with-twitter-and-facebook-and-other-omniauth-schemes-without-email-addresses/">Setting up Devise with Twitter and Facebook and other Omniauth schemes without email addresses</a>
-          
-        </div>
-        <div class="col-md-6 text-center">
-          
-            Previous Post:
-            <a href="../../../articles/2014/building-middleman-extensions/">Building Middleman Extensions</a>
-          
-        </div>
-      </div>
-    </div>
-  </div>
-
-
-
-
-<div class="container mt-5">
-  <h2 class="text-center">See also</h2>
-  <div class="row">
-  	
-      <div class="col-md mb-3">
-        <p class="lead mb-0"><a class="text-body" href="../../../articles/2014/middleman-tricks-and-hacks/">Middleman Tricks and Hacks</a></p>
-
-        
-          <p class="lead font-italic mb-0">specific tricks I used to build this site</p>
-        
-        <div class="font-weight-light mt-3">
-          
-          
-            <p>As part of the process of getting this site to work, I learned some more things about how to better build a site with middleman. Building off of our foundational article here are a few other things that I found very useful when using middleman to build a static site with a bunch of dynamically generated content.
-Partials The index.html.haml, articles.html.haml, tag.html.haml and calendar.html.haml pages all use the same partial to list out the post archives, which are mostly the same.</p>
-          
-        </div>
-        <a href="../../../articles/2014/middleman-tricks-and-hacks/" class="btn btn-primary">Read more</a>
-      </div>
-    
-      <div class="col-md mb-3">
-        <p class="lead mb-0"><a class="text-body" href="../../../articles/2014/building-sites-with-middleman/">Building Sites with Middleman</a></p>
-
-        
-          <p class="lead font-italic mb-0">lean publishing</p>
-        
-        <div class="font-weight-light mt-3">
-          
-          
-            <p>I make a lot of websites, and I have a certain toolkit that I use to build them. The most useful things I use are:
- layouts and partials so I only need to set things up once haml for writing html, since I don&rsquo;t like closing tags Bootstrap and sass for writing css Markdown for formatting large blogs of content coffeescript for JavaScript  Middleman is a static site generator, which means that it takes a bunch of source files, does some stuff with it, and produces static HTML, CSS, Images, and Javascript that can be hosted on a basic server somewhere, including hosting on S3 or Github Pages so you don&rsquo;t need to consider a server.</p>
-          
-        </div>
-        <a href="../../../articles/2014/building-sites-with-middleman/" class="btn btn-primary">Read more</a>
-      </div>
-    
-      <div class="col-md mb-3">
-        <p class="lead mb-0"><a class="text-body" href="../../../articles/2014/building-middleman-extensions/">Building Middleman Extensions</a></p>
-
-        
-          <p class="lead font-italic mb-0">make middleman more awesome</p>
-        
-        <div class="font-weight-light mt-3">
-          
-          
-            <p>Middleman extensions, like rails plugins, are packaged as gems. There are three main ways to extend middleman. You can add helpers, add middleman commands, or extend the sitemap generation in someway. Lets go through those in detail.
+<span class=n>file</span> <span class=s2>&#34;processed/month_top_10.csv&#34;</span> <span class=o>=&gt;</span> <span class=s2>&#34;processed/month_top_100.csv&#34;</span> <span class=k>do</span> <span class=o>|</span><span class=n>task</span><span class=o>|</span>
+  <span class=n>sh</span> <span class=s2>&#34;head -n 10 </span><span class=si>#{</span><span class=n>task</span><span class=o>.</span><span class=n>source</span><span class=si>}</span><span class=s2> &gt; </span><span class=si>#{</span><span class=n>task</span><span class=si>}</span><span class=s2>&#34;</span>
+<span class=k>end</span>
+</code></pre></div><p>And now run <code>rake processed/month_top_10.csv</code> and watch what happens. This only hits the server the first time it&rsquo;s run. If we want to process things again, we simply delete the files in the <code>source</code> directory and everything in the <code>processed</code> directory will get regenerated.</p><h2 id=tasks-over-multiple-files>Tasks over multiple files</h2><p>We have a few CSV files that contain a list of books. How would we do something with these books? The natural thing would be to use Rake&rsquo;s <code>FileList</code>, but this doesn&rsquo;t work the way you&rsquo;d expect because <code>FileList</code> caches its results and it therefor doesn&rsquo;t know about files that are created during the build process. We don&rsquo;t want to have to run rake twice to get our results, we want to be able to trust the process!</p><p>Let&rsquo;s extend the DSL again to add a command that will loop over a file and call our block for each line:</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=c1># Loop over a file and yield the block for each line</span>
+<span class=c1># If name ends with .csv, parse the csv and yield each line</span>
+<span class=k>def</span> <span class=nf>file_loop</span><span class=p>(</span> <span class=nb>name</span><span class=p>,</span> <span class=n>source</span> <span class=p>)</span>
+  <span class=n>task</span> <span class=nb>name</span> <span class=o>=&gt;</span> <span class=n>source</span> <span class=k>do</span>
+    <span class=k>if</span> <span class=n>source</span> <span class=o>=~</span> <span class=sr>/.csv$/</span>
+      <span class=no>CSV</span><span class=o>.</span><span class=n>open</span><span class=p>(</span> <span class=n>source</span> <span class=p>)</span><span class=o>.</span><span class=n>each</span> <span class=k>do</span> <span class=o>|</span><span class=n>line</span><span class=o>|</span>
+        <span class=k>yield</span> <span class=n>line</span>
+      <span class=k>end</span>
+    <span class=k>else</span>
+      <span class=no>File</span><span class=o>.</span><span class=n>readlines</span><span class=p>(</span> <span class=n>source</span> <span class=p>)</span><span class=o>.</span><span class=n>each</span> <span class=k>do</span> <span class=o>|</span><span class=n>line</span><span class=o>|</span>
+        <span class=k>yield</span> <span class=n>line</span>
+      <span class=k>end</span>
+    <span class=k>end</span>
+  <span class=k>end</span>
+<span class=k>end</span>
+</code></pre></div><p>Now we can use this to create a task that goes through each of the lines of the file. We&rsquo;ll do this to define url tasks for the file and then immediately invoke them so make sure that the file was loaded.</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=c1># Loop through the top ten books and make sure that they exist</span>
+<span class=n>file_loop</span> <span class=s2>&#34;processed/top_10_books_text&#34;</span><span class=p>,</span> <span class=s2>&#34;processed/month_top_10.csv&#34;</span> <span class=k>do</span> <span class=o>|</span><span class=n>line</span><span class=o>|</span>
+  <span class=n>path</span> <span class=o>=</span> <span class=s2>&#34;</span><span class=si>#{</span><span class=n>line</span><span class=o>[</span><span class=mi>0</span><span class=o>].</span><span class=n>gsub</span><span class=p>(</span> <span class=sr>/^\//</span><span class=p>,</span> <span class=s2>&#34;&#34;</span> <span class=p>)</span><span class=si>}</span><span class=s2>.txt&#34;</span>
+  <span class=nb>puts</span> <span class=n>path</span>
+  <span class=n>url</span><span class=p>(</span> <span class=n>path</span><span class=p>,</span> <span class=s2>&#34;http://www.gutenberg.org/</span><span class=si>#{</span><span class=n>path</span><span class=si>}</span><span class=s2>.utf-8&#34;</span><span class=p>)</span>
+  <span class=no>Rake</span><span class=o>::</span><span class=no>Task</span><span class=o>[</span><span class=n>path</span><span class=o>].</span><span class=n>invoke</span>
+<span class=k>end</span>
+</code></pre></div><p>Running <code>rake processed/top_10_books_text</code> will first make sure that <code>processed/month_top_10.csv</code> is up-to-date, doing whatever it needs too to make it happen, and then loop through each of the lines and download the ebook file.</p><p><em>Note, we are going to be making a bunch of requests to the Project Gutenberg website, a total of 11 in all. You might be flagged as a bot, so take a look at the generated <code>.txt</code> files to make sure that they actually contain the book content. <strong>But no matter how many times you run your commands, unless you delete the downloaded files there will be no more than 11 requests to the server!</strong></em></p><h2 id=using-rules-to-parse-data>Using rules to parse data</h2><p>Lets create a rule that will give us a count of all the words in a book:</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=c1># Count and sort the list of words</span>
+<span class=n>rule</span> <span class=s2>&#34;.word_count&#34;</span> <span class=o>=&gt;</span> <span class=s2>&#34;.words&#34;</span> <span class=k>do</span> <span class=o>|</span><span class=n>dest</span><span class=o>|</span>
+  <span class=n>sh</span> <span class=s2>&#34;cat </span><span class=si>#{</span><span class=n>dest</span><span class=o>.</span><span class=n>source</span><span class=si>}</span><span class=s2> | sort | uniq -c | sort -nr&gt; </span><span class=si>#{</span><span class=n>dest</span><span class=si>}</span><span class=s2>&#34;</span>
+<span class=k>end</span>
+</code></pre></div><p>If we try to run this now, say <code>rake ebooks/1342.word_count</code> we&rsquo;ll get an error saying it doesn&rsquo;t know how to build that file. Let&rsquo;s add a rule to go from <code>.txt</code> to <code>.words</code>:</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=c1># Covert txt to words</span>
+<span class=n>rule</span> <span class=s2>&#34;.words&#34;</span> <span class=o>=&gt;</span> <span class=s2>&#34;.txt&#34;</span> <span class=k>do</span> <span class=o>|</span><span class=n>dest</span><span class=o>|</span>
+  <span class=n>sh</span> <span class=s2>&#34;cat </span><span class=si>#{</span><span class=n>dest</span><span class=o>.</span><span class=n>source</span><span class=si>}</span><span class=s2> | tr -cs &#39;[:alpha:]&#39; &#39;</span><span class=se>\n</span><span class=s2>&#39; | tr &#39;[:upper:]&#39; &#39;[:lower:]&#39; &gt; </span><span class=si>#{</span><span class=n>dest</span><span class=si>}</span><span class=s2>&#34;</span>
+<span class=k>end</span>
+</code></pre></div><p>Now when we run it, we first generate a list of words, and then from that we find the unique count of them.</p><h2 id=get-your-own-rake-data>Get your own rake-data</h2><p>It&rsquo;s simple enough to setup this on your own, but I&rsquo;ve put together a few useful things that I&rsquo;ve been using to process data into it&rsquo;s own gem. You should head over to <a href=https://github.com/HappyFunCorp/rake-data>https://github.com/HappyFunCorp/rake-data</a> now to check it out!</p><p>Other things to check out:</p><ul><li><a href=http://blog.kaggle.com/2012/10/15/make-for-data-scientists/>http://blog.kaggle.com/2012/10/15/make-for-data-scientists/</a></li><li><a href=http://blog.factual.com/introducing-drake-a-kind-of-make-for-data>http://blog.factual.com/introducing-drake-a-kind-of-make-for-data</a></li><li><a href=http://datascienceatthecommandline.com>http://datascienceatthecommandline.com</a></li></ul></article></div><div class="bg-light py-5"><div class=container><h2 class=text-center>Read next</h2><div class=row><div class="col-md-6 text-center">Next Post:
+<a href=../../../articles/2015/setting-up-devise-with-twitter-and-facebook-and-other-omniauth-schemes-without-email-addresses/>Setting up Devise with Twitter and Facebook and other Omniauth schemes without email addresses</a></div><div class="col-md-6 text-center">Previous Post:
+<a href=../../../articles/2014/building-middleman-extensions/>Building Middleman Extensions</a></div></div></div></div><div class="container mt-5"><h2 class=text-center>See also</h2><div class=row><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2014/middleman-tricks-and-hacks/>Middleman Tricks and Hacks</a></p><p class="lead font-italic mb-0">specific tricks I used to build this site</p><div class="font-weight-light mt-3"><p>As part of the process of getting this site to work, I learned some more things about how to better build a site with middleman. Building off of our foundational article here are a few other things that I found very useful when using middleman to build a static site with a bunch of dynamically generated content.
+Partials The index.html.haml, articles.html.haml, tag.html.haml and calendar.html.haml pages all use the same partial to list out the post archives, which are mostly the same.</p></div><a href=../../../articles/2014/middleman-tricks-and-hacks/ class="btn btn-primary">Read more</a></div><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2014/building-sites-with-middleman/>Building Sites with Middleman</a></p><p class="lead font-italic mb-0">lean publishing</p><div class="font-weight-light mt-3"><p>I make a lot of websites, and I have a certain toolkit that I use to build them. The most useful things I use are:
+layouts and partials so I only need to set things up once haml for writing html, since I don&rsquo;t like closing tags Bootstrap and sass for writing css Markdown for formatting large blogs of content coffeescript for JavaScript Middleman is a static site generator, which means that it takes a bunch of source files, does some stuff with it, and produces static HTML, CSS, Images, and Javascript that can be hosted on a basic server somewhere, including hosting on S3 or Github Pages so you don&rsquo;t need to consider a server.</p></div><a href=../../../articles/2014/building-sites-with-middleman/ class="btn btn-primary">Read more</a></div><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2014/building-middleman-extensions/>Building Middleman Extensions</a></p><p class="lead font-italic mb-0">make middleman more awesome</p><div class="font-weight-light mt-3"><p>Middleman extensions, like rails plugins, are packaged as gems. There are three main ways to extend middleman. You can add helpers, add middleman commands, or extend the sitemap generation in someway. Lets go through those in detail.
 Creating the extension Create a gem using bundle gem _name_
 $ bundle gem middleman-graphviz Add middleman-core to your gem dependancies in the .gemspec file:
-spec.add_runtime_dependency &#39;middleman-core&#39;, [&#39;&gt;= 3.0.0&#39;] Register your extension into middleman. Our gem will be activated in the sites config.</p>
-          
-        </div>
-        <a href="../../../articles/2014/building-middleman-extensions/" class="btn btn-primary">Read more</a>
-      </div>
-    
-  </div>
-</div>
-
-
-<footer class="footer bg-dark text-light mt-3">
-  <div class="container">
-    <h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2>
-  </div>
-</footer>
-</body>
-</html>
+spec.add_runtime_dependency 'middleman-core', ['>= 3.0.0'] Register your extension into middleman. Our gem will be activated in the sites config.</p></div><a href=../../../articles/2014/building-middleman-extensions/ class="btn btn-primary">Read more</a></div></div></div><footer class="footer bg-dark text-light mt-3"><div class=container><h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2></div></footer></body></html>

@@ -1,251 +1,50 @@
-<!DOCTYPE html>
-<html><head>
-    <title>Automating hugo builds using CircleCI</title>
-    
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-
-    <link rel="stylesheet" href="../../../css/theme.css"/>
-    <link rel="stylesheet" href="../../../css/syntax.css"/>
-
-    
-      
-<script type="application/javascript">
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
-	ga('create', 'UA-56296045-1', 'auto');
-	
-	ga('send', 'pageview');
-}
-</script>
-<script async src='https://www.google-analytics.com/analytics.js'></script>
-
-      <script async defer data-domain="willschenk.com" src="https://plausible.io/js/plausible.js"></script>
-    
-    <meta property="og:title" content="Automating hugo builds using CircleCI" />
-<meta property="og:description" content="Here&#39;s a simple CircleCI configuration to pull down the latest version of your hugo site on GitHub commits, build it, and then push it to github pages." />
-<meta property="og:type" content="article" />
-<meta property="og:url" content="https://willschenk.com/articles/2018/automating_hugo_with_circleci/" />
-<meta property="article:published_time" content="2018-10-29T00:00:00+00:00" />
-<meta property="article:modified_time" content="2018-10-29T00:00:00+00:00" />
-
-    <meta name="twitter:card" content="summary"/>
-<meta name="twitter:title" content="Automating hugo builds using CircleCI"/>
-<meta name="twitter:description" content="Here&#39;s a simple CircleCI configuration to pull down the latest version of your hugo site on GitHub commits, build it, and then push it to github pages."/>
-<meta name="twitter:site" content="@wschenk"/>
-
-
-    <style>
-     .article p, .article ul, .article ol, .article table {
-         max-width: 45em;
-     }
-
-     .article pre p {
-         max-width: none;
-         margin-top: -1.5rem;
-     }
-
-     article.article p:first-child, .article blockquote {
-         font-size: 1.25em;
-         font-weight: 300;
-         max-width: 36em;  
-     }
-
-     .half-height-scroll {
-         max-height: 32em;
-         overflow: scroll;
-     }
-    </style>
-</head>
-<body><nav class="container my-5">
-  <h1 class="pt-md-5 display-3"><a class="text-dark" href="../../../">Will Schenk</a></h1>
-  <p>
-    
-      <a class="text-dark h4 mr-3 font-weight-light" href="../../../articles/" title="">Articles</a>
-    
-      <a class="text-dark h4 mr-3 font-weight-light" href="../../../contact" title="">Contact</a>
-    
-      <a class="text-dark h4 mr-3 font-weight-light" href="../../../tags/" title="">Tags</a>
-    
-    <a href="../../../feed.xml" class="mr-3 h4 text-light"><img src="../../../img/rss.svg" alt="rss" height="20" width="20"/></a>
-    
-      <a href="https://twitter.com/@wschenk" class="mr-3 h4 text-light"><img src="../../../img/twitter.svg" alt="twitter" height="20" width="20"/></a>
-    
-    
-      <a href="https://instagram.com/wschenk" class="mr-3 h4 text-light"><img src="../../../img/instagram.svg" alt="instagram" height="20" width="20"/></a>
-    
-    
-      <a href="https://github.com/wschenk" class="mr-3 h4 text-light"><img src="../../../img/github.svg" alt="github" height="20" width="20"/></a>
-    
-    
-      <a href="https://linkedin.com/in/will-schenk-420266" class="mr-3 h4 text-light"><img src="../../../img/linkedin.svg" alt="linkedin" height="20" width="20"/></a>
-    
-  </p>
-</nav>
-
-<div class="container">
-  <h1 class="mt-5">Automating hugo builds using CircleCI</h1>
-
-  
-    <h2 class="font-weight-light font-italic mb-3">Let someone else run your build server</h2>
-  
-
-  <p class="text-muted mt-3">
-    <a class="text-muted" href="https://willschenk.com/articles/2018/automating_hugo_with_circleci/">Published October 29, 2018</a>
-
-    
-      <a class="text-muted" href="../../../tags/static_sites">#static_sites</a>
-    
-      <a class="text-muted" href="../../../tags/hugo">#hugo</a>
-    
-      <a class="text-muted" href="../../../tags/howto">#howto</a>
-    
-  </p>
-
-  
-
-  
-
-  <article class="article mt-5">
-    <p class="lead">Here's a simple CircleCI configuration to pull down the latest version of your hugo site on GitHub commits, build it, and then push it to github pages.</p>
-<p>Let&rsquo;s set that up, following <a href="https://circleci.com/blog/automate-your-static-site-deployment-with-circleci/">their documentation on how configure CircleCI to build static sites</a>.</p>
-<p>Create <code>.circleci/config.yml</code></p>
-<div class="highlight"><pre class="chroma"><code class="language-yml" data-lang="yml"><span class="k">version</span><span class="p">:</span><span class="w"> </span><span class="m">2</span><span class="w">
-</span><span class="w"></span><span class="k">jobs</span><span class="p">:</span><span class="w">
-</span><span class="w">  </span><span class="k">build</span><span class="p">:</span><span class="w">
-</span><span class="w">    </span><span class="k">branches</span><span class="p">:</span><span class="w">
-</span><span class="w">      </span><span class="k">ignore</span><span class="p">:</span><span class="w">
-</span><span class="w">        </span>- gh-pages<span class="w">
-</span><span class="w">    </span><span class="k">docker</span><span class="p">:</span><span class="w">
-</span><span class="w">      </span>- <span class="k">image</span><span class="p">:</span><span class="w"> </span>cibuilds/hugo<span class="p">:</span>latest<span class="w">
-</span><span class="w">    </span><span class="k">working_directory</span><span class="p">:</span><span class="w"> </span>~/hugo<span class="w">
-</span><span class="w">    </span><span class="k">environment</span><span class="p">:</span><span class="w">
-</span><span class="w">      </span><span class="k">HUGO_BUILD_DIR</span><span class="p">:</span><span class="w"> </span>~/hugo/public<span class="w">
-</span><span class="w">    </span><span class="k">steps</span><span class="p">:</span><span class="w">
-</span><span class="w">
-</span><span class="w">      </span><span class="c"># install git</span><span class="w">
-</span><span class="w">      </span>- <span class="k">run</span><span class="p">:</span><span class="w"> </span>apk<span class="w"> </span>update<span class="w"> </span><span class="cp">&amp;&amp;</span><span class="w"> </span>apk<span class="w"> </span>add<span class="w"> </span>git<span class="w">
-</span><span class="w">
-</span><span class="w">      </span><span class="c"># checkout the repository</span><span class="w">
-</span><span class="w">      </span>- checkout<span class="w">
-</span><span class="w">
-</span><span class="w">      </span><span class="c"># install git submodules for managing third-party dependencies</span><span class="w">
-</span><span class="w">      </span>- <span class="k">run</span><span class="p">:</span><span class="w"> </span>git<span class="w"> </span>submodule<span class="w"> </span>sync<span class="w"> </span><span class="cp">&amp;&amp;</span><span class="w"> </span>git<span class="w"> </span>submodule<span class="w"> </span>update<span class="w"> </span>--init<span class="w">
-</span><span class="w">
-</span><span class="w">      </span><span class="c"># Link the public dir to the gh-pages branch</span><span class="w">
-</span><span class="w">
-</span><span class="w">      </span>- <span class="k">run</span><span class="p">:</span><span class="w"> </span>rm<span class="w"> </span>-fr<span class="w"> </span>$HUGO_BUILD_DIR<span class="w"> </span><span class="cp">&amp;&amp;</span><span class="w"> </span>git<span class="w"> </span>worktree<span class="w"> </span>add<span class="w"> </span>-B<span class="w"> </span>gh-pages<span class="w"> </span>$HUGO_BUILD_DIR<span class="w"> </span>origin/gh-pages<span class="w">
-</span><span class="w">
-</span><span class="w">      </span><span class="c"># build with Hugo</span><span class="w">
-</span><span class="w">      </span>- <span class="k">run</span><span class="p">:</span><span class="w"> </span>HUGO_ENV=production<span class="w"> </span>hugo<span class="w"> </span>-v<span class="w"> </span>-d<span class="w"> </span>$HUGO_BUILD_DIR<span class="w">
-</span><span class="w">
-</span><span class="w">      </span><span class="c"># Set some variables to add to the commit message</span><span class="w">
-</span><span class="w">      </span>- <span class="k">run</span><span class="p">:</span><span class="w"> </span>git<span class="w"> </span>config<span class="w"> </span>--global<span class="w"> </span>user.email<span class="w"> </span><span class="s2">&#34;noreply@example.com&#34;</span><span class="w"> </span><span class="cp">&amp;&amp;</span><span class="w"> </span>git<span class="w"> </span>config<span class="w"> </span>--global<span class="w"> </span>user.name<span class="w"> </span><span class="s2">&#34;CircleCI Bot&#34;</span><span class="w">
-</span><span class="w">
-</span><span class="w">      </span><span class="c"># Push the generated files back to github</span><span class="w">
-</span><span class="w">      </span>- <span class="k">run</span><span class="p">:</span><span class="w"> </span>cd<span class="w"> </span>$HUGO_BUILD_DIR<span class="w"> </span><span class="cp">&amp;&amp;</span><span class="w"> </span>git<span class="w"> </span>add<span class="w"> </span>--all<span class="w"> </span><span class="cp">&amp;&amp;</span><span class="w"> </span>git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&#34;Automated publish to gh-pages [ci skip]&#34;</span><span class="w"> </span><span class="cp">&amp;&amp;</span><span class="w"> </span>git<span class="w"> </span>push<span class="w">
-</span></code></pre></div><p>Commit and add this file to your reposity on GitHub.  This runs the hugo build image.  It installs git, and then checkout the repo from GitHub.  We pull down any submodules if you are using that for themes.  We then configure the <code>$HUGO_BUILD_DIR</code> to be a <code>worktree</code> of the <code>gh-pages</code> branch &ndash; this is where we are going to host the files in GitHub pages.  Then it runs the build itself, adds and commits those files in the <code>gh-pages</code> branch back into the repository, and pushes back to <code>GitHub</code>.</p>
-<p>For this to work you need to grant <code>CircleCI</code> write access to your repo which is done by setting it up with your user&rsquo;s key.  Lets get CircleCI working now.</p>
-<ol>
-<li>Go to <a href="https://circleci.com/">CircleCI</a> and create an account.</li>
-<li>Select the single linux container plan.</li>
-<li>Add your repository from GitHub that you want to build.</li>
-<li>Go to project settings, and under Permissions go to <code>Checkout SSH Keys</code>.</li>
-<li><code>Add User Key</code> to grant permission.</li>
-<li>Remove the previous deploy key.</li>
-</ol>
-<p>Now when you push your commits to <code>GitHub</code>, you&rsquo;ll be able to watch CircleCI build them and hopefully see your new content go up shortly!</p>
-  </article>
-
-  
-</div>
-
-
-  <div class="bg-light py-5">
-    <div class="container">
-      <h2 class="text-center">Read next</h2>
-
-      <div class="row">
-        <div class="col-md-6 text-center">
-          
-            Next Post:
-            <a href="../../../articles/2018/adding_facebook_login_with_react/">Adding Facebook Login with react</a>
-          
-        </div>
-        <div class="col-md-6 text-center">
-          
-            Previous Post:
-            <a href="../../../articles/2018/adding_a_cms_to_hugo/">Adding a CMS to hugo</a>
-          
-        </div>
-      </div>
-    </div>
-  </div>
-
-
-
-
-<div class="container mt-5">
-  <h2 class="text-center">See also</h2>
-  <div class="row">
-  	
-      <div class="col-md mb-3">
-        <p class="lead mb-0"><a class="text-body" href="../../../articles/2018/adding_a_cms_to_hugo/">Adding a CMS to hugo</a></p>
-
-        
-          <p class="lead font-italic mb-0">Static doesn&rsquo;t mean dead</p>
-        
-        <div class="font-weight-light mt-3">
-          
-          
-            <p>Just because we have a static site doesn&rsquo;t mean that we can&rsquo;t have an admin tool to write and edit posts! Lets go through how we can add the NetlifyCMS to the site and host it wherever we want.
-In my case I&rsquo;m storing the code on GitHub and also serving the pages from GitHub Pages. Netlify also seems like a really promising company with a number of other services that they offer, so I&rsquo;d encourage you to check it out.</p>
-          
-        </div>
-        <a href="../../../articles/2018/adding_a_cms_to_hugo/" class="btn btn-primary">Read more</a>
-      </div>
-    
-      <div class="col-md mb-3">
-        <p class="lead mb-0"><a class="text-body" href="../../../articles/2018/building-a-hugo-site/">Building a hugo site and theme with Bootstrap</a></p>
-
-        
-          <p class="lead font-italic mb-0">hugo is blazing fast</p>
-        
-        <div class="font-weight-light mt-3">
-          
-          
-            <p>Now that&rsquo;s its 2018 its time to retool the blog using hugo. Why not? Hugo is built in golang and is blazing fast and everything is cleaner than it was in the middleman years.
-One of the reasons that I liked middleman &ndash; it&rsquo;s usage of the rails&rsquo; Sprockets library &ndash; is no longer a strength. The javascript and front-end world has moved over to WebPack and I&rsquo;ve personally moved over to create-react-app.</p>
-          
-        </div>
-        <a href="../../../articles/2018/building-a-hugo-site/" class="btn btn-primary">Read more</a>
-      </div>
-    
-      <div class="col-md mb-3">
-        <p class="lead mb-0"><a class="text-body" href="../../../articles/2015/slow-data-and-fast-sites/">Slow data and Fast Sites</a></p>
-
-        
-          <p class="lead font-italic mb-0">building fast, searchable, functional sites that fail gracefully</p>
-        
-        <div class="font-weight-light mt-3">
-          
-          
-            <p>This article walks through the motivations driving and benefits of using a the Seed Architecture for building performant websites using Middleman, React, and a seperate API server such as Parse. The benefits are:
- You get full SEO with a heavy client JavaScript site without having to do crazy things with PhantomJS or meta fragments. Hosting and operations become both cheap and doesn&rsquo;t require a support team. Scaling out the system is mainly a bandwidth problem, and secondarily a API scaling problem for a subset of behavior.</p>
-          
-        </div>
-        <a href="../../../articles/2015/slow-data-and-fast-sites/" class="btn btn-primary">Read more</a>
-      </div>
-    
-  </div>
-</div>
-
-
-<footer class="footer bg-dark text-light mt-3">
-  <div class="container">
-    <h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2>
-  </div>
-</footer>
-</body>
-</html>
+<!doctype html><html><head><title>Automating hugo builds using CircleCI</title><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><link rel=stylesheet href=../../../css/theme.css><link rel=stylesheet href=../../../css/syntax.css><script type=application/javascript>var doNotTrack=false;if(!doNotTrack){window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;ga('create','UA-56296045-1','auto');ga('send','pageview');}</script><script async src=https://www.google-analytics.com/analytics.js></script><script async defer data-domain=willschenk.com src=https://plausible.io/js/plausible.js></script><meta property="og:title" content="Automating hugo builds using CircleCI"><meta property="og:description" content="Here's a simple CircleCI configuration to pull down the latest version of your hugo site on GitHub commits, build it, and then push it to github pages."><meta property="og:type" content="article"><meta property="og:url" content="https://willschenk.com/articles/2018/automating_hugo_with_circleci/"><meta property="article:published_time" content="2018-10-29T00:00:00+00:00"><meta property="article:modified_time" content="2018-10-29T00:00:00+00:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Automating hugo builds using CircleCI"><meta name=twitter:description content="Here's a simple CircleCI configuration to pull down the latest version of your hugo site on GitHub commits, build it, and then push it to github pages."><meta name=twitter:site content="@wschenk"><style>.article p,.article ul,.article ol,.article table{max-width:45em}.article pre p{max-width:none;margin-top:-1.5rem}article.article p:first-child,.article blockquote{font-size:1.25em;font-weight:300;max-width:36em}.half-height-scroll{max-height:32em;overflow:scroll}</style></head><body><nav class="container my-5"><h1 class="pt-md-5 display-3"><a class=text-dark href=../../../>Will Schenk</a></h1><p><a class="text-dark h4 mr-3 font-weight-light" href=../../../articles/>Articles</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../contact>Contact</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../tags/>Tags</a>
+<a href=../../../feed.xml class="mr-3 h4 text-light"><img src=../../../img/rss.svg alt=rss height=20 width=20></a>
+<a href=https://twitter.com/@wschenk class="mr-3 h4 text-light"><img src=../../../img/twitter.svg alt=twitter height=20 width=20></a>
+<a href=https://instagram.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/instagram.svg alt=instagram height=20 width=20></a>
+<a href=https://github.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/github.svg alt=github height=20 width=20></a>
+<a href=https://linkedin.com/in/will-schenk-420266 class="mr-3 h4 text-light"><img src=../../../img/linkedin.svg alt=linkedin height=20 width=20></a></p></nav><div class=container><h1 class=mt-5>Automating hugo builds using CircleCI</h1><h2 class="font-weight-light font-italic mb-3">Let someone else run your build server</h2><p class="text-muted mt-3"><a class=text-muted href=https://willschenk.com/articles/2018/automating_hugo_with_circleci/>Published October 29, 2018</a>
+<a class=text-muted href=../../../tags/static_sites>#static_sites</a>
+<a class=text-muted href=../../../tags/hugo>#hugo</a>
+<a class=text-muted href=../../../tags/howto>#howto</a></p><article class="article mt-5"><p class=lead>Here's a simple CircleCI configuration to pull down the latest version of your hugo site on GitHub commits, build it, and then push it to github pages.</p><p>Let&rsquo;s set that up, following <a href=https://circleci.com/blog/automate-your-static-site-deployment-with-circleci/>their documentation on how configure CircleCI to build static sites</a>.</p><p>Create <code>.circleci/config.yml</code></p><div class=highlight><pre class=chroma><code class=language-yml data-lang=yml><span class=k>version</span><span class=p>:</span><span class=w> </span><span class=m>2</span><span class=w>
+</span><span class=w></span><span class=k>jobs</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=k>build</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=k>branches</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=k>ignore</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span>- gh-pages<span class=w>
+</span><span class=w>    </span><span class=k>docker</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- <span class=k>image</span><span class=p>:</span><span class=w> </span>cibuilds/hugo<span class=p>:</span>latest<span class=w>
+</span><span class=w>    </span><span class=k>working_directory</span><span class=p>:</span><span class=w> </span>~/hugo<span class=w>
+</span><span class=w>    </span><span class=k>environment</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=k>HUGO_BUILD_DIR</span><span class=p>:</span><span class=w> </span>~/hugo/public<span class=w>
+</span><span class=w>    </span><span class=k>steps</span><span class=p>:</span><span class=w>
+</span><span class=w>
+</span><span class=w>      </span><span class=c># install git</span><span class=w>
+</span><span class=w>      </span>- <span class=k>run</span><span class=p>:</span><span class=w> </span>apk<span class=w> </span>update<span class=w> </span><span class=cp>&amp;&amp;</span><span class=w> </span>apk<span class=w> </span>add<span class=w> </span>git<span class=w>
+</span><span class=w>
+</span><span class=w>      </span><span class=c># checkout the repository</span><span class=w>
+</span><span class=w>      </span>- checkout<span class=w>
+</span><span class=w>
+</span><span class=w>      </span><span class=c># install git submodules for managing third-party dependencies</span><span class=w>
+</span><span class=w>      </span>- <span class=k>run</span><span class=p>:</span><span class=w> </span>git<span class=w> </span>submodule<span class=w> </span>sync<span class=w> </span><span class=cp>&amp;&amp;</span><span class=w> </span>git<span class=w> </span>submodule<span class=w> </span>update<span class=w> </span>--init<span class=w>
+</span><span class=w>
+</span><span class=w>      </span><span class=c># Link the public dir to the gh-pages branch</span><span class=w>
+</span><span class=w>
+</span><span class=w>      </span>- <span class=k>run</span><span class=p>:</span><span class=w> </span>rm<span class=w> </span>-fr<span class=w> </span>$HUGO_BUILD_DIR<span class=w> </span><span class=cp>&amp;&amp;</span><span class=w> </span>git<span class=w> </span>worktree<span class=w> </span>add<span class=w> </span>-B<span class=w> </span>gh-pages<span class=w> </span>$HUGO_BUILD_DIR<span class=w> </span>origin/gh-pages<span class=w>
+</span><span class=w>
+</span><span class=w>      </span><span class=c># build with Hugo</span><span class=w>
+</span><span class=w>      </span>- <span class=k>run</span><span class=p>:</span><span class=w> </span>HUGO_ENV=production<span class=w> </span>hugo<span class=w> </span>-v<span class=w> </span>-d<span class=w> </span>$HUGO_BUILD_DIR<span class=w>
+</span><span class=w>
+</span><span class=w>      </span><span class=c># Set some variables to add to the commit message</span><span class=w>
+</span><span class=w>      </span>- <span class=k>run</span><span class=p>:</span><span class=w> </span>git<span class=w> </span>config<span class=w> </span>--global<span class=w> </span>user.email<span class=w> </span><span class=s2>&#34;noreply@example.com&#34;</span><span class=w> </span><span class=cp>&amp;&amp;</span><span class=w> </span>git<span class=w> </span>config<span class=w> </span>--global<span class=w> </span>user.name<span class=w> </span><span class=s2>&#34;CircleCI Bot&#34;</span><span class=w>
+</span><span class=w>
+</span><span class=w>      </span><span class=c># Push the generated files back to github</span><span class=w>
+</span><span class=w>      </span>- <span class=k>run</span><span class=p>:</span><span class=w> </span>cd<span class=w> </span>$HUGO_BUILD_DIR<span class=w> </span><span class=cp>&amp;&amp;</span><span class=w> </span>git<span class=w> </span>add<span class=w> </span>--all<span class=w> </span><span class=cp>&amp;&amp;</span><span class=w> </span>git<span class=w> </span>commit<span class=w> </span>-m<span class=w> </span><span class=s2>&#34;Automated publish to gh-pages [ci skip]&#34;</span><span class=w> </span><span class=cp>&amp;&amp;</span><span class=w> </span>git<span class=w> </span>push<span class=w>
+</span></code></pre></div><p>Commit and add this file to your reposity on GitHub. This runs the hugo build image. It installs git, and then checkout the repo from GitHub. We pull down any submodules if you are using that for themes. We then configure the <code>$HUGO_BUILD_DIR</code> to be a <code>worktree</code> of the <code>gh-pages</code> branch &ndash; this is where we are going to host the files in GitHub pages. Then it runs the build itself, adds and commits those files in the <code>gh-pages</code> branch back into the repository, and pushes back to <code>GitHub</code>.</p><p>For this to work you need to grant <code>CircleCI</code> write access to your repo which is done by setting it up with your user&rsquo;s key. Lets get CircleCI working now.</p><ol><li>Go to <a href=https://circleci.com/>CircleCI</a> and create an account.</li><li>Select the single linux container plan.</li><li>Add your repository from GitHub that you want to build.</li><li>Go to project settings, and under Permissions go to <code>Checkout SSH Keys</code>.</li><li><code>Add User Key</code> to grant permission.</li><li>Remove the previous deploy key.</li></ol><p>Now when you push your commits to <code>GitHub</code>, you&rsquo;ll be able to watch CircleCI build them and hopefully see your new content go up shortly!</p></article></div><div class="bg-light py-5"><div class=container><h2 class=text-center>Read next</h2><div class=row><div class="col-md-6 text-center">Next Post:
+<a href=../../../articles/2018/adding_facebook_login_with_react/>Adding Facebook Login with react</a></div><div class="col-md-6 text-center">Previous Post:
+<a href=../../../articles/2018/adding_a_cms_to_hugo/>Adding a CMS to hugo</a></div></div></div></div><div class="container mt-5"><h2 class=text-center>See also</h2><div class=row><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2018/adding_a_cms_to_hugo/>Adding a CMS to hugo</a></p><p class="lead font-italic mb-0">Static doesn&rsquo;t mean dead</p><div class="font-weight-light mt-3"><p>Just because we have a static site doesn&rsquo;t mean that we can&rsquo;t have an admin tool to write and edit posts! Lets go through how we can add the NetlifyCMS to the site and host it wherever we want.
+In my case I&rsquo;m storing the code on GitHub and also serving the pages from GitHub Pages. Netlify also seems like a really promising company with a number of other services that they offer, so I&rsquo;d encourage you to check it out.</p></div><a href=../../../articles/2018/adding_a_cms_to_hugo/ class="btn btn-primary">Read more</a></div><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2018/building-a-hugo-site/>Building a hugo site and theme with Bootstrap</a></p><p class="lead font-italic mb-0">hugo is blazing fast</p><div class="font-weight-light mt-3"><p>Now that&rsquo;s its 2018 its time to retool the blog using hugo. Why not? Hugo is built in golang and is blazing fast and everything is cleaner than it was in the middleman years.
+One of the reasons that I liked middleman &ndash; it&rsquo;s usage of the rails&rsquo; Sprockets library &ndash; is no longer a strength. The javascript and front-end world has moved over to WebPack and I&rsquo;ve personally moved over to create-react-app.</p></div><a href=../../../articles/2018/building-a-hugo-site/ class="btn btn-primary">Read more</a></div><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2015/slow-data-and-fast-sites/>Slow data and Fast Sites</a></p><p class="lead font-italic mb-0">building fast, searchable, functional sites that fail gracefully</p><div class="font-weight-light mt-3"><p>This article walks through the motivations driving and benefits of using a the Seed Architecture for building performant websites using Middleman, React, and a seperate API server such as Parse. The benefits are:
+You get full SEO with a heavy client JavaScript site without having to do crazy things with PhantomJS or meta fragments. Hosting and operations become both cheap and doesn&rsquo;t require a support team. Scaling out the system is mainly a bandwidth problem, and secondarily a API scaling problem for a subset of behavior.</p></div><a href=../../../articles/2015/slow-data-and-fast-sites/ class="btn btn-primary">Read more</a></div></div></div><footer class="footer bg-dark text-light mt-3"><div class=container><h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2></div></footer></body></html>

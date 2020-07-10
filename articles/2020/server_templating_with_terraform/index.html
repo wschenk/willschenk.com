@@ -1,361 +1,111 @@
-<!DOCTYPE html>
-<html><head>
-    <title>Template to setup a linode server with DNS and HTTPS</title>
-    
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<!doctype html><html><head><title>Template to setup a linode server with DNS and HTTPS</title><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><link rel=stylesheet href=../../../css/theme.css><link rel=stylesheet href=../../../css/syntax.css><script type=application/javascript>var doNotTrack=false;if(!doNotTrack){window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;ga('create','UA-56296045-1','auto');ga('send','pageview');}</script><script async src=https://www.google-analytics.com/analytics.js></script><script async defer data-domain=willschenk.com src=https://plausible.io/js/plausible.js></script><meta property="og:title" content="Template to setup a linode server with DNS and HTTPS"><meta property="og:description" content="I use DNSimple for domain management, and I&rsquo;ve been playing around with a bunch of different cloud providers and deployment setups. So I wanted to make it easier to give these machines names rather than clicking through the control panel all the time. Lets walk through how to use terraform, DNSimple, and linode to provision and new machine and give it a name on the internet, and then create a webserver on it to which encrypts traffic."><meta property="og:type" content="article"><meta property="og:url" content="https://willschenk.com/articles/2020/server_templating_with_terraform/"><meta property="article:published_time" content="2020-01-23T00:00:00+00:00"><meta property="article:modified_time" content="2020-01-23T00:00:00+00:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Template to setup a linode server with DNS and HTTPS"><meta name=twitter:description content="I use DNSimple for domain management, and I&rsquo;ve been playing around with a bunch of different cloud providers and deployment setups. So I wanted to make it easier to give these machines names rather than clicking through the control panel all the time. Lets walk through how to use terraform, DNSimple, and linode to provision and new machine and give it a name on the internet, and then create a webserver on it to which encrypts traffic."><meta name=twitter:site content="@wschenk"><style>.article p,.article ul,.article ol,.article table{max-width:45em}.article pre p{max-width:none;margin-top:-1.5rem}article.article p:first-child,.article blockquote{font-size:1.25em;font-weight:300;max-width:36em}.half-height-scroll{max-height:32em;overflow:scroll}</style></head><body><nav class="container my-5"><h1 class="pt-md-5 display-3"><a class=text-dark href=../../../>Will Schenk</a></h1><p><a class="text-dark h4 mr-3 font-weight-light" href=../../../articles/>Articles</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../contact>Contact</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../tags/>Tags</a>
+<a href=../../../feed.xml class="mr-3 h4 text-light"><img src=../../../img/rss.svg alt=rss height=20 width=20></a>
+<a href=https://twitter.com/@wschenk class="mr-3 h4 text-light"><img src=../../../img/twitter.svg alt=twitter height=20 width=20></a>
+<a href=https://instagram.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/instagram.svg alt=instagram height=20 width=20></a>
+<a href=https://github.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/github.svg alt=github height=20 width=20></a>
+<a href=https://linkedin.com/in/will-schenk-420266 class="mr-3 h4 text-light"><img src=../../../img/linkedin.svg alt=linkedin height=20 width=20></a></p></nav><div class=container><h1 class=mt-5>Template to setup a linode server with DNS and HTTPS</h1><h2 class="font-weight-light font-italic mb-3">use terraform to coordinate stuff</h2><p class="text-muted mt-3"><a class=text-muted href=https://willschenk.com/articles/2020/server_templating_with_terraform/>Published January 23, 2020</a>
+<a class=text-muted href=../../../tags/howto>#howto</a>
+<a class=text-muted href=../../../tags/scripting>#scripting</a>
+<a class=text-muted href=../../../tags/terraform>#terraform</a>
+<a class=text-muted href=../../../tags/linode>#linode</a>
+<a class=text-muted href=../../../tags/dns>#dns</a></p><div class="alert alert-secondary">The code from this article can be found at <a href=https://github.com/wschenk/terraform_ssl_server_template>https://github.com/wschenk/terraform_ssl_server_template</a></div><article class="article mt-5"><p>I use <a href=https://dnsimple.com/>DNSimple</a> for domain management, and I&rsquo;ve been playing around with a bunch of different cloud providers and deployment setups. So I wanted to make it easier to give these machines names rather than clicking through the control panel all the time. Lets walk through how to use terraform, DNSimple, and linode to provision and new machine and give it a name on the internet, and then create a webserver on it to which encrypts traffic.</p><p>This is really a base template for easily spinning up simple sites.</p><ol><li>Get a domain and host it on DNSimple</li><li>Sign up for ISP, in this case Linode</li><li>Get API token for linode</li><li>Terraform up your server and get it&rsquo;s ip address</li><li>Get api tokens from DNSimple</li><li>Terraform up DNSimple to point to your ip address</li><li>Setup nginx with letsencrypt to have secure hosting</li></ol><h2 id=setting-up-linode>Setting up linode</h2><p>Create a new linode account if you don&rsquo;t have one. Then go to your <a href=https://cloud.linode.com/profile/tokens>Linode Profile Token Page</a> and create a personal access token. Again copy it some where secure and then set it in the current environment. After this everything will be scripted and automated.</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash><span class=nb>export</span> <span class=nv>LINODE_TOKEN</span><span class=o>=</span>asdfasdf
+</code></pre></div><p>In order to pass variables into terraform, you need to prefix them with <code>TF_VAR_</code>. Lets do that now.</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash><span class=nb>export</span> <span class=nv>TF_VAR_linode_token</span><span class=o>=</span><span class=nv>$LINODE_TOKEN</span>
+</code></pre></div><p>In this script, we are setting up a Debian linode server with our local ssh keys installed. (It installs the public key found in <code>~/.ssh/id_rsa.pub</code>.)</p><p><a href=%60linode.tf%60><code>linode.tf</code></a><div class=highlight><pre class=chroma><code class=language-tf data-lang=tf><span class=kr>variable</span> <span class=s>&#34;linode_token&#34;</span> {}
 
-    <link rel="stylesheet" href="../../../css/theme.css"/>
-    <link rel="stylesheet" href="../../../css/syntax.css"/>
+<span class=kr>provider</span> <span class=s>&#34;linode&#34;</span> {
+<span class=na>  token</span> <span class=o>=</span> <span class=err>var</span><span class=p>.</span><span class=err>linode_token</span>
+}<span class=c1>
+</span><span class=c1>
+</span><span class=c1># Setup the ssh key from the local machine
+</span><span class=c1></span><span class=kr>resource</span> <span class=s>&#34;linode_sshkey&#34; &#34;key&#34;</span> {
+<span class=na>  label</span> <span class=o>=</span> <span class=s2>&#34;sshkey&#34;</span>
+<span class=na>  ssh_key</span> <span class=o>=</span> <span class=err>chomp</span><span class=p>(</span><span class=err>file</span><span class=p>(</span><span class=s2>&#34;~/.ssh/id_rsa.pub&#34;</span><span class=p>))</span>
+}<span class=c1>
+</span><span class=c1>
+</span><span class=c1># Create a server
+</span><span class=c1></span><span class=kr>resource</span> <span class=s>&#34;linode_instance&#34; &#34;web&#34;</span> {
+<span class=na>  image</span> <span class=o>=</span> <span class=s2>&#34;linode/debian10&#34;</span>
+<span class=na>  label</span> <span class=o>=</span> <span class=s2>&#34;Web&#34;</span>
+<span class=na>  group</span> <span class=o>=</span> <span class=s2>&#34;Terraform&#34;</span>
+<span class=na>  region</span> <span class=o>=</span> <span class=s2>&#34;us-east&#34;</span>
+<span class=na>  type</span> <span class=o>=</span> <span class=s2>&#34;g6-standard-1&#34;</span>
+<span class=na>  authorized_keys</span>    <span class=o>=</span> <span class=p>[</span><span class=s2>&#34;${linode_sshkey.key.ssh_key}&#34;</span><span class=p>]</span><span class=c1>
+</span><span class=c1>  # Leave the root password unset to keep it random
+</span><span class=c1>#  root_pass = &#34;YOUR_ROOT_PASSWORD&#34;
+</span><span class=c1></span>}
 
-    
-      
-<script type="application/javascript">
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
-	ga('create', 'UA-56296045-1', 'auto');
-	
-	ga('send', 'pageview');
-}
-</script>
-<script async src='https://www.google-analytics.com/analytics.js'></script>
+<span class=err>output</span> <span class=s2>&#34;server_ip&#34;</span> {
+<span class=na>  value</span> <span class=o>=</span> <span class=s2>&#34;${linode_instance.web.ip_address}&#34;</span>
+}</code></pre></div></p><p>Running <code>terraform init</code> will validate this file and make sure that the right plugins are installed. You can then set up the server but running <code>terraform apply</code>.</p><p>Once it&rsquo;s up, you can test connecting to it using</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>ssh root@<span class=k>$(</span>terraform output server_ip<span class=k>)</span>
+</code></pre></div><h2 id=get-a-dnsimple-token>Get a DNSimple token</h2><p>I already use DNSimple to host my domains, so that&rsquo;s what I&rsquo;m going to use here. DNSimple is cool but many places offer domains and I have no special insight as to why one is better than the other. Hosting the domain at your cloud provider is probably preferable if you are committed to one, but I host things all over the place.</p><p>Log in to your <a href=https://dnsimple.com/>DNSimple Account Page</a> and create a new account access token. Go to the <code>Account</code> tab, then on the left select <code>Automation</code></p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash><span class=nb>export</span> <span class=nv>DNS_TOKEN</span><span class=o>=</span>asdfasdfasdf
+</code></pre></div><p>Now we can test out the token and look for our account id, which is displayed on the page but why not just verify that things are looking good.</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>curl https://api.dnsimple.com/v2/whoami -H <span class=s2>&#34;Authorization: Bearer </span><span class=si>${</span><span class=nv>DNS_TOKEN</span><span class=si>}</span><span class=s2>&#34;</span> <span class=p>|</span> jq .
+</code></pre></div><p>Which should make something like:</p><div class=highlight><pre class=chroma><code class=language-json data-lang=json><span class=p>{</span>
+  <span class=nt>&#34;data&#34;</span><span class=p>:</span> <span class=p>{</span>
+    <span class=nt>&#34;user&#34;</span><span class=p>:</span> <span class=kc>null</span><span class=p>,</span>
+    <span class=nt>&#34;account&#34;</span><span class=p>:</span> <span class=p>{</span>
+      <span class=nt>&#34;id&#34;</span><span class=p>:</span> <span class=mi>7008</span><span class=p>,</span>
+      <span class=nt>&#34;email&#34;</span><span class=p>:</span> <span class=s2>&#34;wschenk@gmail.com&#34;</span><span class=p>,</span>
+      <span class=nt>&#34;plan_identifier&#34;</span><span class=p>:</span> <span class=s2>&#34;gold-v1-yearly&#34;</span><span class=p>,</span>
+      <span class=nt>&#34;created_at&#34;</span><span class=p>:</span> <span class=s2>&#34;2012-06-07T11:47:25Z&#34;</span><span class=p>,</span>
+      <span class=nt>&#34;updated_at&#34;</span><span class=p>:</span> <span class=s2>&#34;2020-01-04T18:11:05Z&#34;</span>
+    <span class=p>}</span>
+  <span class=p>}</span>
+<span class=p>}</span>
+</code></pre></div><p>You can set and environment variable automatically with</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash><span class=nb>export</span> <span class=nv>DNS_ACCOUNT_ID</span><span class=o>=</span><span class=k>$(</span>curl https://api.dnsimple.com/v2/whoami -H <span class=s2>&#34;Authorization: Bearer </span><span class=si>${</span><span class=nv>DNS_TOKEN</span><span class=si>}</span><span class=s2>&#34;</span><span class=p>|</span>jq .data.account.id<span class=k>)</span>
+</code></pre></div><p>To get a list of domains</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>curl https://api.dnsimple.com/v2/<span class=si>${</span><span class=nv>DNS_ACCOUNT_ID</span><span class=si>}</span>/domains -H <span class=s2>&#34;Authorization: Bearer </span><span class=si>${</span><span class=nv>DNS_TOKEN</span><span class=si>}</span><span class=s2>&#34;</span><span class=p>|</span>jq .
+</code></pre></div><p>Now that we have a working token and account id, we can use terraform to setup a name that points to our new server.</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash><span class=nb>export</span> <span class=nv>TF_VAR_dns_token</span><span class=o>=</span><span class=nv>$DNS_TOKEN</span>
+<span class=nb>export</span> <span class=nv>TF_VAR_dns_account_id</span><span class=o>=</span><span class=nv>$DNS_ACCOUNT_ID</span> 
+<span class=nb>export</span> <span class=nv>TF_VAR_dns_domain</span><span class=o>=</span>willschenk.com
+</code></pre></div><p><a href=%60dnsimple.tf%60><code>dnsimple.tf</code></a><div class=highlight><pre class=chroma><code class=language-tf data-lang=tf><span class=kr>variable</span> <span class=s>&#34;dns_token&#34;</span> {}
+<span class=kr>variable</span> <span class=s>&#34;dns_account_id&#34;</span> {}
+<span class=kr>variable</span> <span class=s>&#34;dns_domain&#34;</span> {}
 
-      <script async defer data-domain="willschenk.com" src="https://plausible.io/js/plausible.js"></script>
-    
-    <meta property="og:title" content="Template to setup a linode server with DNS and HTTPS" />
-<meta property="og:description" content="I use DNSimple for domain management, and I&rsquo;ve been playing around with a bunch of different cloud providers and deployment setups. So I wanted to make it easier to give these machines names rather than clicking through the control panel all the time. Lets walk through how to use terraform, DNSimple, and linode to provision and new machine and give it a name on the internet, and then create a webserver on it to which encrypts traffic." />
-<meta property="og:type" content="article" />
-<meta property="og:url" content="https://willschenk.com/articles/2020/server_templating_with_terraform/" />
-<meta property="article:published_time" content="2020-01-23T00:00:00+00:00" />
-<meta property="article:modified_time" content="2020-01-23T00:00:00+00:00" />
-
-    <meta name="twitter:card" content="summary"/>
-<meta name="twitter:title" content="Template to setup a linode server with DNS and HTTPS"/>
-<meta name="twitter:description" content="I use DNSimple for domain management, and I&rsquo;ve been playing around with a bunch of different cloud providers and deployment setups. So I wanted to make it easier to give these machines names rather than clicking through the control panel all the time. Lets walk through how to use terraform, DNSimple, and linode to provision and new machine and give it a name on the internet, and then create a webserver on it to which encrypts traffic."/>
-<meta name="twitter:site" content="@wschenk"/>
-
-
-    <style>
-     .article p, .article ul, .article ol, .article table {
-         max-width: 45em;
-     }
-
-     .article pre p {
-         max-width: none;
-         margin-top: -1.5rem;
-     }
-
-     article.article p:first-child, .article blockquote {
-         font-size: 1.25em;
-         font-weight: 300;
-         max-width: 36em;  
-     }
-
-     .half-height-scroll {
-         max-height: 32em;
-         overflow: scroll;
-     }
-    </style>
-</head>
-<body><nav class="container my-5">
-  <h1 class="pt-md-5 display-3"><a class="text-dark" href="../../../">Will Schenk</a></h1>
-  <p>
-    
-      <a class="text-dark h4 mr-3 font-weight-light" href="../../../articles/" title="">Articles</a>
-    
-      <a class="text-dark h4 mr-3 font-weight-light" href="../../../contact" title="">Contact</a>
-    
-      <a class="text-dark h4 mr-3 font-weight-light" href="../../../tags/" title="">Tags</a>
-    
-    <a href="../../../feed.xml" class="mr-3 h4 text-light"><img src="../../../img/rss.svg" alt="rss" height="20" width="20"/></a>
-    
-      <a href="https://twitter.com/@wschenk" class="mr-3 h4 text-light"><img src="../../../img/twitter.svg" alt="twitter" height="20" width="20"/></a>
-    
-    
-      <a href="https://instagram.com/wschenk" class="mr-3 h4 text-light"><img src="../../../img/instagram.svg" alt="instagram" height="20" width="20"/></a>
-    
-    
-      <a href="https://github.com/wschenk" class="mr-3 h4 text-light"><img src="../../../img/github.svg" alt="github" height="20" width="20"/></a>
-    
-    
-      <a href="https://linkedin.com/in/will-schenk-420266" class="mr-3 h4 text-light"><img src="../../../img/linkedin.svg" alt="linkedin" height="20" width="20"/></a>
-    
-  </p>
-</nav>
-
-<div class="container">
-  <h1 class="mt-5">Template to setup a linode server with DNS and HTTPS</h1>
-
-  
-    <h2 class="font-weight-light font-italic mb-3">use terraform to coordinate stuff</h2>
-  
-
-  <p class="text-muted mt-3">
-    <a class="text-muted" href="https://willschenk.com/articles/2020/server_templating_with_terraform/">Published January 23, 2020</a>
-
-    
-      <a class="text-muted" href="../../../tags/howto">#howto</a>
-    
-      <a class="text-muted" href="../../../tags/scripting">#scripting</a>
-    
-      <a class="text-muted" href="../../../tags/terraform">#terraform</a>
-    
-      <a class="text-muted" href="../../../tags/linode">#linode</a>
-    
-      <a class="text-muted" href="../../../tags/dns">#dns</a>
-    
-  </p>
-
-  
-
-  
-  <div class="alert alert-secondary">The code from this article can be found at <a href="https://github.com/wschenk/terraform_ssl_server_template">https://github.com/wschenk/terraform_ssl_server_template</a></div>
-  
-
-  <article class="article mt-5">
-    <p>I use <a href="https://dnsimple.com/">DNSimple</a> for domain management, and I&rsquo;ve been playing around with a bunch of different cloud providers and deployment setups. So I wanted to make it easier to give these machines names rather than clicking through the control panel all the time.  Lets walk through how to use terraform, DNSimple, and linode to provision and new machine and give it a name on the internet, and then create a webserver on it to which encrypts traffic.</p>
-<p>This is really a base template for easily spinning up simple sites.</p>
-<ol>
-<li>Get a domain and host it on DNSimple</li>
-<li>Sign up for ISP, in this case Linode</li>
-<li>Get API token for linode</li>
-<li>Terraform up your server and get it&rsquo;s ip address</li>
-<li>Get api tokens from DNSimple</li>
-<li>Terraform up DNSimple to point to your ip address</li>
-<li>Setup nginx with letsencrypt to have secure hosting</li>
-</ol>
-<h2 id="setting-up-linode">Setting up linode</h2>
-<p>Create a new linode account if you don&rsquo;t have one.  Then go to your <a href="https://cloud.linode.com/profile/tokens">Linode Profile Token Page</a> and create a personal access token. Again copy it some where secure and then set it in the current environment. After this everything will be scripted and automated.</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="nb">export</span> <span class="nv">LINODE_TOKEN</span><span class="o">=</span>asdfasdf
-</code></pre></div><p>In order to pass variables into terraform, you need to prefix them with <code>TF_VAR_</code>. Lets do that now.</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="nb">export</span> <span class="nv">TF_VAR_linode_token</span><span class="o">=</span><span class="nv">$LINODE_TOKEN</span>
-</code></pre></div><p>In this script, we are setting up a Debian linode server with our local ssh keys installed. (It installs the public key found in <code>~/.ssh/id_rsa.pub</code>.)</p>
-<p><a href="%60linode.tf%60"><code>linode.tf</code></a>
-<div class="highlight"><pre class="chroma"><code class="language-tf" data-lang="tf"><span class="kr">variable</span> <span class="s">&#34;linode_token&#34;</span> {}
-
-<span class="kr">provider</span> <span class="s">&#34;linode&#34;</span> {
-<span class="na">  token</span> <span class="o">=</span> <span class="err">var</span><span class="p">.</span><span class="err">linode_token</span>
-}<span class="c1">
-</span><span class="c1">
-</span><span class="c1"># Setup the ssh key from the local machine
-</span><span class="c1"></span><span class="kr">resource</span> <span class="s">&#34;linode_sshkey&#34; &#34;key&#34;</span> {
-<span class="na">  label</span> <span class="o">=</span> <span class="s2">&#34;sshkey&#34;</span>
-<span class="na">  ssh_key</span> <span class="o">=</span> <span class="err">chomp</span><span class="p">(</span><span class="err">file</span><span class="p">(</span><span class="s2">&#34;~/.ssh/id_rsa.pub&#34;</span><span class="p">))</span>
-}<span class="c1">
-</span><span class="c1">
-</span><span class="c1"># Create a server
-</span><span class="c1"></span><span class="kr">resource</span> <span class="s">&#34;linode_instance&#34; &#34;web&#34;</span> {
-<span class="na">  image</span> <span class="o">=</span> <span class="s2">&#34;linode/debian10&#34;</span>
-<span class="na">  label</span> <span class="o">=</span> <span class="s2">&#34;Web&#34;</span>
-<span class="na">  group</span> <span class="o">=</span> <span class="s2">&#34;Terraform&#34;</span>
-<span class="na">  region</span> <span class="o">=</span> <span class="s2">&#34;us-east&#34;</span>
-<span class="na">  type</span> <span class="o">=</span> <span class="s2">&#34;g6-standard-1&#34;</span>
-<span class="na">  authorized_keys</span>    <span class="o">=</span> <span class="p">[</span><span class="s2">&#34;${linode_sshkey.key.ssh_key}&#34;</span><span class="p">]</span><span class="c1">
-</span><span class="c1">  # Leave the root password unset to keep it random
-</span><span class="c1">#  root_pass = &#34;YOUR_ROOT_PASSWORD&#34;
-</span><span class="c1"></span>}
-
-<span class="err">output</span> <span class="s2">&#34;server_ip&#34;</span> {
-<span class="na">  value</span> <span class="o">=</span> <span class="s2">&#34;${linode_instance.web.ip_address}&#34;</span>
-}</code></pre></div></p>
-<p>Running <code>terraform init</code> will validate this file and make sure that the right plugins are installed. You can then set up the server but running <code>terraform apply</code>.</p>
-<p>Once it&rsquo;s up, you can test connecting to it using</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">ssh root@<span class="k">$(</span>terraform output server_ip<span class="k">)</span>
-</code></pre></div><h2 id="get-a-dnsimple-token">Get a DNSimple token</h2>
-<p>I already use DNSimple to host my domains, so that&rsquo;s what I&rsquo;m going to use here. DNSimple is cool but many places offer domains and I have no special insight as to why one is better than the other.  Hosting the domain at your cloud provider is probably preferable if you are committed to one, but I host things all over the place.</p>
-<p>Log in to your <a href="https://dnsimple.com/">DNSimple Account Page</a> and create a new account access token. Go to the <code>Account</code> tab, then on the left select <code>Automation</code></p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="nb">export</span> <span class="nv">DNS_TOKEN</span><span class="o">=</span>asdfasdfasdf
-</code></pre></div><p>Now we can test out the token and look for our account id, which is displayed on the page but why not just verify that things are looking good.</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">curl https://api.dnsimple.com/v2/whoami -H <span class="s2">&#34;Authorization: Bearer </span><span class="si">${</span><span class="nv">DNS_TOKEN</span><span class="si">}</span><span class="s2">&#34;</span> <span class="p">|</span> jq .
-</code></pre></div><p>Which should make something like:</p>
-<div class="highlight"><pre class="chroma"><code class="language-json" data-lang="json"><span class="p">{</span>
-  <span class="nt">&#34;data&#34;</span><span class="p">:</span> <span class="p">{</span>
-    <span class="nt">&#34;user&#34;</span><span class="p">:</span> <span class="kc">null</span><span class="p">,</span>
-    <span class="nt">&#34;account&#34;</span><span class="p">:</span> <span class="p">{</span>
-      <span class="nt">&#34;id&#34;</span><span class="p">:</span> <span class="mi">7008</span><span class="p">,</span>
-      <span class="nt">&#34;email&#34;</span><span class="p">:</span> <span class="s2">&#34;wschenk@gmail.com&#34;</span><span class="p">,</span>
-      <span class="nt">&#34;plan_identifier&#34;</span><span class="p">:</span> <span class="s2">&#34;gold-v1-yearly&#34;</span><span class="p">,</span>
-      <span class="nt">&#34;created_at&#34;</span><span class="p">:</span> <span class="s2">&#34;2012-06-07T11:47:25Z&#34;</span><span class="p">,</span>
-      <span class="nt">&#34;updated_at&#34;</span><span class="p">:</span> <span class="s2">&#34;2020-01-04T18:11:05Z&#34;</span>
-    <span class="p">}</span>
-  <span class="p">}</span>
-<span class="p">}</span>
-</code></pre></div><p>You can set and environment variable automatically with</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="nb">export</span> <span class="nv">DNS_ACCOUNT_ID</span><span class="o">=</span><span class="k">$(</span>curl https://api.dnsimple.com/v2/whoami -H <span class="s2">&#34;Authorization: Bearer </span><span class="si">${</span><span class="nv">DNS_TOKEN</span><span class="si">}</span><span class="s2">&#34;</span><span class="p">|</span>jq .data.account.id<span class="k">)</span>
-</code></pre></div><p>To get a list of domains</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">curl https://api.dnsimple.com/v2/<span class="si">${</span><span class="nv">DNS_ACCOUNT_ID</span><span class="si">}</span>/domains -H <span class="s2">&#34;Authorization: Bearer </span><span class="si">${</span><span class="nv">DNS_TOKEN</span><span class="si">}</span><span class="s2">&#34;</span><span class="p">|</span>jq .
-</code></pre></div><p>Now that we have a working token and account id, we can use terraform to setup a name that points to our new server.</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="nb">export</span> <span class="nv">TF_VAR_dns_token</span><span class="o">=</span><span class="nv">$DNS_TOKEN</span>
-<span class="nb">export</span> <span class="nv">TF_VAR_dns_account_id</span><span class="o">=</span><span class="nv">$DNS_ACCOUNT_ID</span> 
-<span class="nb">export</span> <span class="nv">TF_VAR_dns_domain</span><span class="o">=</span>willschenk.com
-</code></pre></div><p><a href="%60dnsimple.tf%60"><code>dnsimple.tf</code></a>
-<div class="highlight"><pre class="chroma"><code class="language-tf" data-lang="tf"><span class="kr">variable</span> <span class="s">&#34;dns_token&#34;</span> {}
-<span class="kr">variable</span> <span class="s">&#34;dns_account_id&#34;</span> {}
-<span class="kr">variable</span> <span class="s">&#34;dns_domain&#34;</span> {}
-
-<span class="kr">provider</span> <span class="s">&#34;dnsimple&#34;</span> {
-<span class="na">  token</span> <span class="o">=</span> <span class="err">var</span><span class="p">.</span><span class="err">dns_token</span>
-<span class="na">  account</span> <span class="o">=</span> <span class="err">var</span><span class="p">.</span><span class="err">dns_account_id</span>
+<span class=kr>provider</span> <span class=s>&#34;dnsimple&#34;</span> {
+<span class=na>  token</span> <span class=o>=</span> <span class=err>var</span><span class=p>.</span><span class=err>dns_token</span>
+<span class=na>  account</span> <span class=o>=</span> <span class=err>var</span><span class=p>.</span><span class=err>dns_account_id</span>
 }
 
-<span class="kr">resource</span> <span class="s">&#34;dnsimple_record&#34; &#34;web&#34;</span> {
-<span class="na">  domain</span> <span class="o">=</span> <span class="err">var</span><span class="p">.</span><span class="err">dns_domain</span>
-<span class="na">  name</span>   <span class="o">=</span> <span class="s2">&#34;web&#34;</span>
-<span class="na">  value</span>  <span class="o">=</span> <span class="err">linode_instance</span><span class="p">.</span><span class="err">web</span><span class="p">.</span><span class="err">ip_address</span>
-<span class="na">  type</span>   <span class="o">=</span> <span class="s2">&#34;A&#34;</span>
-<span class="na">  ttl</span>    <span class="o">=</span> <span class="m">3600</span>
-}</code></pre></div></p>
-<p>Then run <code>terraform init</code> to download the DNSimple provisioner, and <code>terraform apply</code> to set the <code>web</code> address of the <code>TF_VAR_dns_domain</code> domain to the public IP that linode gave you.</p>
-<p>Terraform is also smart enough to order the dependacies, so if you setup everything from scratch it will setup the server first in order to get the IP address that it needs to setup the domain record. Nifty.</p>
-<h2 id="setting-up-the-server">Setting up the server</h2>
-<p>Next we are going to run a script over SSH to do the provisioning of the <code>Debian</code> instance.  I think that this is easier that using packer or some other tool, since we only have a few commands that need to run.  We should setup the script so that it can run multiple times without any ill effect.  The trick here is that if we really change things, we should backup the data on the server and completely redeploy everything from scratch.  You don&rsquo;t want to manually login to the server to make changes really at any point.</p>
-<p>This is what we&rsquo;re going to do:</p>
-<ol>
-<li>Set the Fully Qualified Domain Name</li>
-<li>Update all system packages (this can take a while the first run)</li>
-<li>Install <code>nginx</code></li>
-<li>Install <code>certbot</code> from it&rsquo;s repository</li>
-<li>Run the <code>certbot</code> command, which will prompt you to fill out information.</li>
-</ol>
-<p><a href="%60setup.bash%60"><code>setup.bash</code></a></p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="cp">#!/bin/bash
-</span><span class="cp"></span>
-<span class="nv">FQDN</span><span class="o">=</span>web.<span class="si">${</span><span class="nv">TF_VAR_dns_domain</span><span class="si">}</span>
+<span class=kr>resource</span> <span class=s>&#34;dnsimple_record&#34; &#34;web&#34;</span> {
+<span class=na>  domain</span> <span class=o>=</span> <span class=err>var</span><span class=p>.</span><span class=err>dns_domain</span>
+<span class=na>  name</span>   <span class=o>=</span> <span class=s2>&#34;web&#34;</span>
+<span class=na>  value</span>  <span class=o>=</span> <span class=err>linode_instance</span><span class=p>.</span><span class=err>web</span><span class=p>.</span><span class=err>ip_address</span>
+<span class=na>  type</span>   <span class=o>=</span> <span class=s2>&#34;A&#34;</span>
+<span class=na>  ttl</span>    <span class=o>=</span> <span class=m>3600</span>
+}</code></pre></div></p><p>Then run <code>terraform init</code> to download the DNSimple provisioner, and <code>terraform apply</code> to set the <code>web</code> address of the <code>TF_VAR_dns_domain</code> domain to the public IP that linode gave you.</p><p>Terraform is also smart enough to order the dependacies, so if you setup everything from scratch it will setup the server first in order to get the IP address that it needs to setup the domain record. Nifty.</p><h2 id=setting-up-the-server>Setting up the server</h2><p>Next we are going to run a script over SSH to do the provisioning of the <code>Debian</code> instance. I think that this is easier that using packer or some other tool, since we only have a few commands that need to run. We should setup the script so that it can run multiple times without any ill effect. The trick here is that if we really change things, we should backup the data on the server and completely redeploy everything from scratch. You don&rsquo;t want to manually login to the server to make changes really at any point.</p><p>This is what we&rsquo;re going to do:</p><ol><li>Set the Fully Qualified Domain Name</li><li>Update all system packages (this can take a while the first run)</li><li>Install <code>nginx</code></li><li>Install <code>certbot</code> from it&rsquo;s repository</li><li>Run the <code>certbot</code> command, which will prompt you to fill out information.</li></ol><p><a href=%60setup.bash%60><code>setup.bash</code></a></p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash><span class=cp>#!/bin/bash
+</span><span class=cp></span>
+<span class=nv>FQDN</span><span class=o>=</span>web.<span class=si>${</span><span class=nv>TF_VAR_dns_domain</span><span class=si>}</span>
 
-<span class="c1"># We copy this script over and the run it so that you are able to</span>
-<span class="c1"># interact with the script using your local machine</span>
+<span class=c1># We copy this script over and the run it so that you are able to</span>
+<span class=c1># interact with the script using your local machine</span>
 
-<span class="nb">echo</span> Copying setup script over
-ssh root@<span class="k">$(</span>terraform output server_ip<span class="k">)</span> -T <span class="s2">&#34;cat &gt; /tmp/setup.bash;chmod +x /tmp/setup.bash&#34;</span> <span class="s">&lt;&lt;EOF
-</span><span class="s">echo Setting hostname to ${FQDN}
-</span><span class="s">hostnamectl set-hostname ${FQDN}
-</span><span class="s">
-</span><span class="s">echo \n Running apt-get update and upgrade
-</span><span class="s">apt-get update &amp;&amp; apt-get upgrade -y
-</span><span class="s">
-</span><span class="s">echo \n Installing nginx
-</span><span class="s">apt-get install -y nginx
-</span><span class="s">
-</span><span class="s">echo \n Adding certbot app repository
-</span><span class="s">add-apt-repository ppa:certbot/certbot
-</span><span class="s">
-</span><span class="s">echo \n Install certbot
-</span><span class="s">apt install -y python-certbot-nginx
-</span><span class="s">
-</span><span class="s">echo \n Setup certbot for nginx for the domain ${FQDN}
-</span><span class="s">certbot --nginx -d ${FQDN}
-</span><span class="s">EOF</span>
+<span class=nb>echo</span> Copying setup script over
+ssh root@<span class=k>$(</span>terraform output server_ip<span class=k>)</span> -T <span class=s2>&#34;cat &gt; /tmp/setup.bash;chmod +x /tmp/setup.bash&#34;</span> <span class=s>&lt;&lt;EOF
+</span><span class=s>echo Setting hostname to ${FQDN}
+</span><span class=s>hostnamectl set-hostname ${FQDN}
+</span><span class=s>
+</span><span class=s>echo \n Running apt-get update and upgrade
+</span><span class=s>apt-get update &amp;&amp; apt-get upgrade -y
+</span><span class=s>
+</span><span class=s>echo \n Installing nginx
+</span><span class=s>apt-get install -y nginx
+</span><span class=s>
+</span><span class=s>echo \n Adding certbot app repository
+</span><span class=s>add-apt-repository ppa:certbot/certbot
+</span><span class=s>
+</span><span class=s>echo \n Install certbot
+</span><span class=s>apt install -y python-certbot-nginx
+</span><span class=s>
+</span><span class=s>echo \n Setup certbot for nginx for the domain ${FQDN}
+</span><span class=s>certbot --nginx -d ${FQDN}
+</span><span class=s>EOF</span>
 
-<span class="nb">echo</span> Running script
-ssh root@<span class="k">$(</span>terraform output server_ip<span class="k">)</span> <span class="s2">&#34;bash /tmp/setup.bash&#34;</span></code></pre></div>
-<p>Run this with <code>bash setup.bash</code> and it will copy itself over to the remote server and run the setup scripts. It may take a minute or two for the remote server to be up and accepting ssh connections.</p>
-<p>I set the server to redirect everything to HTTPS. With this baseline you can dump in your static files, add subdomains, or do whatever you want.</p>
-<h2 id="now-you-have-a-server">Now you have a server</h2>
-<p>You need a domain name to get HTTPS, and there are a lot of services that require that.  This is a simple template to get you up and running.  From here you can expirement and shut it down, or you can use this as a base to build something else up. (This post started because I wanted to play around with <a href="http://dokku.viewdocs.io/dokku/">dokku</a> and I got distracted setting up a server and domain.  Now I can spin something up quicky and play, and if I don&rsquo;t want to keep anything I can do <code>terraform destroy</code> and it all goes away.</p>
-<p>I find that it&rsquo;s actually nice to use scripts to set things up and tear things down. A lot of these blog posts are actually me going through the steps of setting things up over and over, and recreating the process a number of times to make sure that I understand how it works.</p>
-<h2 id="references">References</h2>
-<ol>
-<li><a href="https://www.linode.com/docs/applications/configuration-management/how-to-build-your-infrastructure-using-terraform-and-linode/">https://www.linode.com/docs/applications/configuration-management/how-to-build-your-infrastructure-using-terraform-and-linode/</a></li>
-<li><a href="https://www.terraform.io/docs/providers/linode/r/sshkey.html">https://www.terraform.io/docs/providers/linode/r/sshkey.html</a></li>
-<li><a href="https://www.terraform.io/docs/providers/dnsimple/r/record.html">https://www.terraform.io/docs/providers/dnsimple/r/record.html</a></li>
-<li><a href="https://www.digitalocean.com/community/tutorials/how-to-secure-nginx-with-let-s-encrypt-on-ubuntu-18-04">https://www.digitalocean.com/community/tutorials/how-to-secure-nginx-with-let-s-encrypt-on-ubuntu-18-04</a></li>
-<li><a href="https://certbot.eff.org/lets-encrypt/ubuntubionic-nginx">https://certbot.eff.org/lets-encrypt/ubuntubionic-nginx</a></li>
-</ol>
-
-  </article>
-
-  
-  <div class="alert alert-secondary">The code from this article can be found at <a href="https://github.com/wschenk/terraform_ssl_server_template">https://github.com/wschenk/terraform_ssl_server_template</a></div>
-  
-</div>
-
-
-  <div class="bg-light py-5">
-    <div class="container">
-      <h2 class="text-center">Read next</h2>
-
-      <div class="row">
-        <div class="col-md-6 text-center">
-          
-            Next Post:
-            <a href="../../../articles/2020/styling_hugo_diffs/">Styling Hugo Diffs</a>
-          
-        </div>
-        <div class="col-md-6 text-center">
-          
-            Previous Post:
-            <a href="../../../articles/2019/terraform_with_digitalocean/">Terraform and Packer with Digital Ocean</a>
-          
-        </div>
-      </div>
-    </div>
-  </div>
-
-
-
-
-<div class="container mt-5">
-  <h2 class="text-center">See also</h2>
-  <div class="row">
-  	
-      <div class="col-md mb-3">
-        <p class="lead mb-0"><a class="text-body" href="../../../articles/2019/terraform_with_digitalocean/">Terraform and Packer with Digital Ocean</a></p>
-
-        
-          <p class="lead font-italic mb-0">Automate all the things</p>
-        
-        <div class="font-weight-light mt-3">
-          
-          
-            <p>Terraform orchastrates the setting up of your infrastructure, and packer helps you build images. We are going to setup terraform to work with Digital Ocean, and then use package to create and image and deploy it.
+<span class=nb>echo</span> Running script
+ssh root@<span class=k>$(</span>terraform output server_ip<span class=k>)</span> <span class=s2>&#34;bash /tmp/setup.bash&#34;</span></code></pre></div><p>Run this with <code>bash setup.bash</code> and it will copy itself over to the remote server and run the setup scripts. It may take a minute or two for the remote server to be up and accepting ssh connections.</p><p>I set the server to redirect everything to HTTPS. With this baseline you can dump in your static files, add subdomains, or do whatever you want.</p><h2 id=now-you-have-a-server>Now you have a server</h2><p>You need a domain name to get HTTPS, and there are a lot of services that require that. This is a simple template to get you up and running. From here you can expirement and shut it down, or you can use this as a base to build something else up. (This post started because I wanted to play around with <a href=http://dokku.viewdocs.io/dokku/>dokku</a> and I got distracted setting up a server and domain. Now I can spin something up quicky and play, and if I don&rsquo;t want to keep anything I can do <code>terraform destroy</code> and it all goes away.</p><p>I find that it&rsquo;s actually nice to use scripts to set things up and tear things down. A lot of these blog posts are actually me going through the steps of setting things up over and over, and recreating the process a number of times to make sure that I understand how it works.</p><h2 id=references>References</h2><ol><li><a href=https://www.linode.com/docs/applications/configuration-management/how-to-build-your-infrastructure-using-terraform-and-linode/>https://www.linode.com/docs/applications/configuration-management/how-to-build-your-infrastructure-using-terraform-and-linode/</a></li><li><a href=https://www.terraform.io/docs/providers/linode/r/sshkey.html>https://www.terraform.io/docs/providers/linode/r/sshkey.html</a></li><li><a href=https://www.terraform.io/docs/providers/dnsimple/r/record.html>https://www.terraform.io/docs/providers/dnsimple/r/record.html</a></li><li><a href=https://www.digitalocean.com/community/tutorials/how-to-secure-nginx-with-let-s-encrypt-on-ubuntu-18-04>https://www.digitalocean.com/community/tutorials/how-to-secure-nginx-with-let-s-encrypt-on-ubuntu-18-04</a></li><li><a href=https://certbot.eff.org/lets-encrypt/ubuntubionic-nginx>https://certbot.eff.org/lets-encrypt/ubuntubionic-nginx</a></li></ol></article><div class="alert alert-secondary">The code from this article can be found at <a href=https://github.com/wschenk/terraform_ssl_server_template>https://github.com/wschenk/terraform_ssl_server_template</a></div></div><div class="bg-light py-5"><div class=container><h2 class=text-center>Read next</h2><div class=row><div class="col-md-6 text-center">Next Post:
+<a href=../../../articles/2020/styling_hugo_diffs/>Styling Hugo Diffs</a></div><div class="col-md-6 text-center">Previous Post:
+<a href=../../../articles/2019/terraform_with_digitalocean/>Terraform and Packer with Digital Ocean</a></div></div></div></div><div class="container mt-5"><h2 class=text-center>See also</h2><div class=row><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2019/terraform_with_digitalocean/>Terraform and Packer with Digital Ocean</a></p><p class="lead font-italic mb-0">Automate all the things</p><div class="font-weight-light mt-3"><p>Terraform orchastrates the setting up of your infrastructure, and packer helps you build images. We are going to setup terraform to work with Digital Ocean, and then use package to create and image and deploy it.
 Install terraform Install terraform from the download page. I&rsquo;m on Linux, so we&rsquo;ll download the latest version and put it in /usr/local/bin.
-cd /tmp wget https://releases.hashicorp.com/terraform/0.12.18/terraform_0.12.18_linux_amd64.zip unzip terraform_0.12.18_linux_amd64.zip sudo mv terraform /usr/local/bin Setup Digital Ocean API We need two tokens.</p>
-          
-        </div>
-        <a href="../../../articles/2019/terraform_with_digitalocean/" class="btn btn-primary">Read more</a>
-      </div>
-    
-      <div class="col-md mb-3">
-        <p class="lead mb-0"><a class="text-body" href="../../../articles/2019/computer_setup_script/">Computer Setup Script</a></p>
-
-        
-          <p class="lead font-italic mb-0">Setup Linux or Chromebook quickly</p>
-        
-        <div class="font-weight-light mt-3">
-          
-          
-            <p>Putting things in scripts makes it easy to get up and running quickly. Devops isn&rsquo;t just for servers or Dockerfiles, you can also use it for your own environment. This is the script that I use to get my Chromebooks up and running after a wipe and how I get a new Linux machine up an running. Lets use the bash boilerplate to write our script.
-I&rsquo;ll update this later to include OSX.</p>
-          
-        </div>
-        <a href="../../../articles/2019/computer_setup_script/" class="btn btn-primary">Read more</a>
-      </div>
-    
-      <div class="col-md mb-3">
-        <p class="lead mb-0"><a class="text-body" href="../../../articles/2019/reverse_engineering_apis_using_chrome/">Reverse engineering APIs using Chrome Developer Tools</a></p>
-
-        
-          <p class="lead font-italic mb-0">its your data after all</p>
-        
-        <div class="font-weight-light mt-3">
-          
-          
-            <p>I want to get a list of all of the podcast episodes that I&rsquo;ve starred on PocketCasts. There&rsquo;s no obvious way to export this from the application, and they don&rsquo;t have a published interface. Lets look at hope to use chrome developer tools to figure out what the API is.
-We know that PocketCasts must have an API since it also has a mobile app &ndash; the code in the mobile app must talk to the code in the server using a format that computers understand, which is basically the definition of an API.</p>
-          
-        </div>
-        <a href="../../../articles/2019/reverse_engineering_apis_using_chrome/" class="btn btn-primary">Read more</a>
-      </div>
-    
-  </div>
-</div>
-
-
-<footer class="footer bg-dark text-light mt-3">
-  <div class="container">
-    <h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2>
-  </div>
-</footer>
-</body>
-</html>
+cd /tmp wget https://releases.hashicorp.com/terraform/0.12.18/terraform_0.12.18_linux_amd64.zip unzip terraform_0.12.18_linux_amd64.zip sudo mv terraform /usr/local/bin Setup Digital Ocean API We need two tokens.</p></div><a href=../../../articles/2019/terraform_with_digitalocean/ class="btn btn-primary">Read more</a></div><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2019/computer_setup_script/>Computer Setup Script</a></p><p class="lead font-italic mb-0">Setup Linux or Chromebook quickly</p><div class="font-weight-light mt-3"><p>Putting things in scripts makes it easy to get up and running quickly. Devops isn&rsquo;t just for servers or Dockerfiles, you can also use it for your own environment. This is the script that I use to get my Chromebooks up and running after a wipe and how I get a new Linux machine up an running. Lets use the bash boilerplate to write our script.
+I&rsquo;ll update this later to include OSX.</p></div><a href=../../../articles/2019/computer_setup_script/ class="btn btn-primary">Read more</a></div><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2019/reverse_engineering_apis_using_chrome/>Reverse engineering APIs using Chrome Developer Tools</a></p><p class="lead font-italic mb-0">its your data after all</p><div class="font-weight-light mt-3"><p>I want to get a list of all of the podcast episodes that I&rsquo;ve starred on PocketCasts. There&rsquo;s no obvious way to export this from the application, and they don&rsquo;t have a published interface. Lets look at hope to use chrome developer tools to figure out what the API is.
+We know that PocketCasts must have an API since it also has a mobile app &ndash; the code in the mobile app must talk to the code in the server using a format that computers understand, which is basically the definition of an API.</p></div><a href=../../../articles/2019/reverse_engineering_apis_using_chrome/ class="btn btn-primary">Read more</a></div></div></div><footer class="footer bg-dark text-light mt-3"><div class=container><h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2></div></footer></body></html>

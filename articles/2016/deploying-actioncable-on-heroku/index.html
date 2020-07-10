@@ -1,222 +1,68 @@
-<!DOCTYPE html>
-<html><head>
-    <title>Deploying ActionCable on Heroku with Sidekiq</title>
-    
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-
-    <link rel="stylesheet" href="../../../css/theme.css"/>
-    <link rel="stylesheet" href="../../../css/syntax.css"/>
-
-    
-      
-<script type="application/javascript">
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
-	ga('create', 'UA-56296045-1', 'auto');
-	
-	ga('send', 'pageview');
-}
-</script>
-<script async src='https://www.google-analytics.com/analytics.js'></script>
-
-      <script async defer data-domain="willschenk.com" src="https://plausible.io/js/plausible.js"></script>
-    
-    <meta property="og:title" content="Deploying ActionCable on Heroku with Sidekiq" />
-<meta property="og:description" content="ActionCable is WebSockets on rails. This lets you create realtime, interactive systems, where you can push data from one client to another client without reloading or polling. But how do we deploy it on heroku?
-ActionCable is composed to two main parts: a javascript client library, and a backend pub/sub system built upon Redis. We&rsquo;re also going to use ActiveJob to offload the publishing tasks from the main user thread, so we&rsquo;ll also be setting up sidekiq." />
-<meta property="og:type" content="article" />
-<meta property="og:url" content="https://willschenk.com/articles/2016/deploying-actioncable-on-heroku/" />
-<meta property="article:published_time" content="2016-07-11T00:00:00+00:00" />
-<meta property="article:modified_time" content="2016-07-11T00:00:00+00:00" />
-
-    <meta name="twitter:card" content="summary"/>
-<meta name="twitter:title" content="Deploying ActionCable on Heroku with Sidekiq"/>
-<meta name="twitter:description" content="ActionCable is WebSockets on rails. This lets you create realtime, interactive systems, where you can push data from one client to another client without reloading or polling. But how do we deploy it on heroku?
-ActionCable is composed to two main parts: a javascript client library, and a backend pub/sub system built upon Redis. We&rsquo;re also going to use ActiveJob to offload the publishing tasks from the main user thread, so we&rsquo;ll also be setting up sidekiq."/>
-<meta name="twitter:site" content="@wschenk"/>
-
-
-    <style>
-     .article p, .article ul, .article ol, .article table {
-         max-width: 45em;
-     }
-
-     .article pre p {
-         max-width: none;
-         margin-top: -1.5rem;
-     }
-
-     article.article p:first-child, .article blockquote {
-         font-size: 1.25em;
-         font-weight: 300;
-         max-width: 36em;  
-     }
-
-     .half-height-scroll {
-         max-height: 32em;
-         overflow: scroll;
-     }
-    </style>
-</head>
-<body><nav class="container my-5">
-  <h1 class="pt-md-5 display-3"><a class="text-dark" href="../../../">Will Schenk</a></h1>
-  <p>
-    
-      <a class="text-dark h4 mr-3 font-weight-light" href="../../../articles/" title="">Articles</a>
-    
-      <a class="text-dark h4 mr-3 font-weight-light" href="../../../contact" title="">Contact</a>
-    
-      <a class="text-dark h4 mr-3 font-weight-light" href="../../../tags/" title="">Tags</a>
-    
-    <a href="../../../feed.xml" class="mr-3 h4 text-light"><img src="../../../img/rss.svg" alt="rss" height="20" width="20"/></a>
-    
-      <a href="https://twitter.com/@wschenk" class="mr-3 h4 text-light"><img src="../../../img/twitter.svg" alt="twitter" height="20" width="20"/></a>
-    
-    
-      <a href="https://instagram.com/wschenk" class="mr-3 h4 text-light"><img src="../../../img/instagram.svg" alt="instagram" height="20" width="20"/></a>
-    
-    
-      <a href="https://github.com/wschenk" class="mr-3 h4 text-light"><img src="../../../img/github.svg" alt="github" height="20" width="20"/></a>
-    
-    
-      <a href="https://linkedin.com/in/will-schenk-420266" class="mr-3 h4 text-light"><img src="../../../img/linkedin.svg" alt="linkedin" height="20" width="20"/></a>
-    
-  </p>
-</nav>
-
-<div class="container">
-  <h1 class="mt-5">Deploying ActionCable on Heroku with Sidekiq</h1>
-
-  
-    <h2 class="font-weight-light font-italic mb-3">you&rsquo;re gonna need a bigger redis</h2>
-  
-
-  <p class="text-muted mt-3">
-    <a class="text-muted" href="https://willschenk.com/articles/2016/deploying-actioncable-on-heroku/">Published July 11, 2016</a>
-
-    
-      <a class="text-muted" href="../../../tags/howto">#howto</a>
-    
-      <a class="text-muted" href="../../../tags/rails">#rails</a>
-    
-      <a class="text-muted" href="../../../tags/heroku">#heroku</a>
-    
-      <a class="text-muted" href="../../../tags/sidekiq">#sidekiq</a>
-    
-  </p>
-
-  
-
-  
-
-  <article class="article mt-5">
-    <p>ActionCable is WebSockets on rails.  This lets you create realtime, interactive systems, where you can push data from one client to another client without reloading or polling.  But how do we deploy it on heroku?</p>
-<p>ActionCable is composed to two main parts: a javascript client library, and a backend pub/sub system built upon Redis.  We&rsquo;re also going to use ActiveJob to offload the publishing tasks from the main user thread, so we&rsquo;ll also be setting up sidekiq.</p>
-<p>Let&rsquo;s go through the steps of how to deploy things on heroku.</p>
-<h2 id="first-the-app">First, the app</h2>
-<p>I&rsquo;m going to use an app that <a href="https://medium.com/@dhh/rails-5-action-cable-demo-8bba4ccfc55e#.q92qfr3c2">dhh made as a walk through.</a>  What it does is</p>
-<ul>
-<li>creates a message model</li>
-<li>creates a rooms controller with a show action</li>
-<li>opens a websocket with the server</li>
-<li>that receives rendered messages on the <code>rooms_channel</code></li>
-<li>and accepts messages to be broadcast to everyone else</li>
-<li>uses a background worker to render the message and broadcast it back to everyone</li>
-</ul>
-<p>I&rsquo;ve <a href="https://github.com/HappyFunCorp/actioncable_chatapp/blob/master/README.md">transcribed it here</a> to see what was added.  The code is available to <a href="https://github.com/HappyFunCorp/actioncable_chatapp">clone the code from github</a> if you don&rsquo;t have an app that you are working on already.</p>
-<h2 id="now-lets-talk-about-deployment">Now lets talk about deployment</h2>
-<p>The app we generated was done using basic rails 5 commands, and it&rsquo;s out of the box stuff.  (Unlike most of the walkthroughs on this site which were done with <a href="http://seed.happyfuncorp.com">seed</a>.  It&rsquo;s setup to use puma (good), which will handle the WebSockets.  It&rsquo;s also setup with ActiveJob and ActionCable, both on which are in async local mode and won&rsquo;t use redis in development.  ActionCable will also need to know where it&rsquo;s websocket is going to connect to. Lets walk through everything that needs to get done.</p>
-<h2 id="gemfile">Gemfile</h2>
-<p>First we need to add some things to the Gemfile, specifically redis, postgres, and the sidekiq gems.  Add the following to your <code>Gemfile</code></p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="n">gem</span> <span class="s1">&#39;redis&#39;</span><span class="p">,</span> <span class="s1">&#39;~&gt; 3.0&#39;</span>
-<span class="n">gem</span> <span class="s1">&#39;pg&#39;</span><span class="p">,</span> <span class="ss">group</span><span class="p">:</span> <span class="ss">:production</span>
-<span class="n">gem</span> <span class="s1">&#39;sqlite3&#39;</span><span class="p">,</span> <span class="ss">group</span><span class="p">:</span> <span class="ss">:development</span>
-<span class="n">gem</span> <span class="s1">&#39;sidekiq&#39;</span>
-<span class="n">gem</span> <span class="s1">&#39;sinatra&#39;</span><span class="p">,</span> <span class="ss">git</span><span class="p">:</span> <span class="s1">&#39;https://github.com/sinatra/sinatra&#39;</span><span class="p">,</span> <span class="ss">:require</span> <span class="o">=&gt;</span> <span class="kp">nil</span>
-</code></pre></div><p>Make sure you remove the <code>sqlite3</code> on the top of the file, we only want it in development.  We are installing <code>sinatra</code> out of the master branch since the current release doesn&rsquo;t play well with Rails 5.  (If it tries to install Sinatra 1.0 you&rsquo;ll get rake exception errors.)  If you don&rsquo;t want the web interface to sidekiq you can omit.</p>
-<h2 id="setup-sidekiq">Setup sidekiq</h2>
-<p>First we need to create a <code>Procfile</code> that defines our dynos</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="ss">web</span><span class="p">:</span> <span class="n">bundle</span> <span class="nb">exec</span> <span class="n">puma</span> <span class="o">-</span><span class="n">C</span> <span class="n">config</span><span class="o">/</span><span class="n">puma</span><span class="o">.</span><span class="n">rb</span>
-<span class="ss">worker</span><span class="p">:</span> <span class="n">bundle</span> <span class="nb">exec</span> <span class="n">sidekiq</span> <span class="o">-</span><span class="n">c</span> <span class="mi">2</span>
-</code></pre></div><p>I&rsquo;m running sidekiq with a concurrency of 2 to limit the number of redis connections.  You&rsquo;ll probably want that a lot higher in real life if you are using Sidekiq for other things..</p>
-<p>Now create <code>config/initializers/active_job.rb</code> and tell ActiveJob to use <code>sidekiq</code></p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="no">Rails</span><span class="o">.</span><span class="n">application</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">active_job</span><span class="o">.</span><span class="n">queue_adapter</span> <span class="o">=</span> <span class="ss">:sidekiq</span>
-</code></pre></div><p>And let&rsquo;s add the sidekiq web interace to your <code>config/routes.rb</code>:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="nb">require</span> <span class="s1">&#39;sidekiq/web&#39;</span>
-  <span class="n">mount</span> <span class="no">Sidekiq</span><span class="o">::</span><span class="no">Web</span> <span class="o">=&gt;</span> <span class="s1">&#39;/sidekiq&#39;</span>
-</code></pre></div><p>If this was a real app, you&rsquo;d limit who can get to that engine.  If you installed devise, the way to do that is:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="n">authenticate</span> <span class="ss">:admin_user</span> <span class="k">do</span>
-    <span class="n">mount</span> <span class="no">Sidekiq</span><span class="o">::</span><span class="no">Web</span> <span class="o">=&gt;</span> <span class="s1">&#39;/sidekiq&#39;</span>
-  <span class="k">end</span>
-</code></pre></div><h2 id="a-brief-digression-to-test-locally">A brief digression to test locally</h2>
-<p>It&rsquo;s always nice to change as little as we can, so when everything blows up in our face we can limit our investigations to a small change set.  So lets first migrate our development environment to communicate over redis, so the ActiveJobs are run in a seperate process, and that ActionCable will be able to communicate from that process, back to the main web server, back to the client.</p>
-<p>Edit <code>config/cable.yml</code> to set the development environment use to use redis.</p>
-<div class="highlight"><pre class="chroma"><code class="language-yaml" data-lang="yaml"><span class="k">development</span><span class="p">:</span><span class="w">
-</span><span class="w">  </span><span class="k">adapter</span><span class="p">:</span><span class="w"> </span>redis<span class="w">
-</span><span class="w">  </span><span class="k">url</span><span class="p">:</span><span class="w"> </span>redis<span class="p">:</span>//localhost<span class="p">:</span><span class="m">6379</span>/<span class="m">1</span><span class="w">
-</span></code></pre></div><p>If you don&rsquo;t have redis installed, use <a href="http://brew.sh">homebrew</a> to do that now:</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ brew install redis
+<!doctype html><html><head><title>Deploying ActionCable on Heroku with Sidekiq</title><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><link rel=stylesheet href=../../../css/theme.css><link rel=stylesheet href=../../../css/syntax.css><script type=application/javascript>var doNotTrack=false;if(!doNotTrack){window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;ga('create','UA-56296045-1','auto');ga('send','pageview');}</script><script async src=https://www.google-analytics.com/analytics.js></script><script async defer data-domain=willschenk.com src=https://plausible.io/js/plausible.js></script><meta property="og:title" content="Deploying ActionCable on Heroku with Sidekiq"><meta property="og:description" content="ActionCable is WebSockets on rails. This lets you create realtime, interactive systems, where you can push data from one client to another client without reloading or polling. But how do we deploy it on heroku?
+ActionCable is composed to two main parts: a javascript client library, and a backend pub/sub system built upon Redis. We&rsquo;re also going to use ActiveJob to offload the publishing tasks from the main user thread, so we&rsquo;ll also be setting up sidekiq."><meta property="og:type" content="article"><meta property="og:url" content="https://willschenk.com/articles/2016/deploying-actioncable-on-heroku/"><meta property="article:published_time" content="2016-07-11T00:00:00+00:00"><meta property="article:modified_time" content="2016-07-11T00:00:00+00:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Deploying ActionCable on Heroku with Sidekiq"><meta name=twitter:description content="ActionCable is WebSockets on rails. This lets you create realtime, interactive systems, where you can push data from one client to another client without reloading or polling. But how do we deploy it on heroku?
+ActionCable is composed to two main parts: a javascript client library, and a backend pub/sub system built upon Redis. We&rsquo;re also going to use ActiveJob to offload the publishing tasks from the main user thread, so we&rsquo;ll also be setting up sidekiq."><meta name=twitter:site content="@wschenk"><style>.article p,.article ul,.article ol,.article table{max-width:45em}.article pre p{max-width:none;margin-top:-1.5rem}article.article p:first-child,.article blockquote{font-size:1.25em;font-weight:300;max-width:36em}.half-height-scroll{max-height:32em;overflow:scroll}</style></head><body><nav class="container my-5"><h1 class="pt-md-5 display-3"><a class=text-dark href=../../../>Will Schenk</a></h1><p><a class="text-dark h4 mr-3 font-weight-light" href=../../../articles/>Articles</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../contact>Contact</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../tags/>Tags</a>
+<a href=../../../feed.xml class="mr-3 h4 text-light"><img src=../../../img/rss.svg alt=rss height=20 width=20></a>
+<a href=https://twitter.com/@wschenk class="mr-3 h4 text-light"><img src=../../../img/twitter.svg alt=twitter height=20 width=20></a>
+<a href=https://instagram.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/instagram.svg alt=instagram height=20 width=20></a>
+<a href=https://github.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/github.svg alt=github height=20 width=20></a>
+<a href=https://linkedin.com/in/will-schenk-420266 class="mr-3 h4 text-light"><img src=../../../img/linkedin.svg alt=linkedin height=20 width=20></a></p></nav><div class=container><h1 class=mt-5>Deploying ActionCable on Heroku with Sidekiq</h1><h2 class="font-weight-light font-italic mb-3">you&rsquo;re gonna need a bigger redis</h2><p class="text-muted mt-3"><a class=text-muted href=https://willschenk.com/articles/2016/deploying-actioncable-on-heroku/>Published July 11, 2016</a>
+<a class=text-muted href=../../../tags/howto>#howto</a>
+<a class=text-muted href=../../../tags/rails>#rails</a>
+<a class=text-muted href=../../../tags/heroku>#heroku</a>
+<a class=text-muted href=../../../tags/sidekiq>#sidekiq</a></p><article class="article mt-5"><p>ActionCable is WebSockets on rails. This lets you create realtime, interactive systems, where you can push data from one client to another client without reloading or polling. But how do we deploy it on heroku?</p><p>ActionCable is composed to two main parts: a javascript client library, and a backend pub/sub system built upon Redis. We&rsquo;re also going to use ActiveJob to offload the publishing tasks from the main user thread, so we&rsquo;ll also be setting up sidekiq.</p><p>Let&rsquo;s go through the steps of how to deploy things on heroku.</p><h2 id=first-the-app>First, the app</h2><p>I&rsquo;m going to use an app that <a href=https://medium.com/@dhh/rails-5-action-cable-demo-8bba4ccfc55e#.q92qfr3c2>dhh made as a walk through.</a> What it does is</p><ul><li>creates a message model</li><li>creates a rooms controller with a show action</li><li>opens a websocket with the server</li><li>that receives rendered messages on the <code>rooms_channel</code></li><li>and accepts messages to be broadcast to everyone else</li><li>uses a background worker to render the message and broadcast it back to everyone</li></ul><p>I&rsquo;ve <a href=https://github.com/HappyFunCorp/actioncable_chatapp/blob/master/README.md>transcribed it here</a> to see what was added. The code is available to <a href=https://github.com/HappyFunCorp/actioncable_chatapp>clone the code from github</a> if you don&rsquo;t have an app that you are working on already.</p><h2 id=now-lets-talk-about-deployment>Now lets talk about deployment</h2><p>The app we generated was done using basic rails 5 commands, and it&rsquo;s out of the box stuff. (Unlike most of the walkthroughs on this site which were done with <a href=http://seed.happyfuncorp.com>seed</a>. It&rsquo;s setup to use puma (good), which will handle the WebSockets. It&rsquo;s also setup with ActiveJob and ActionCable, both on which are in async local mode and won&rsquo;t use redis in development. ActionCable will also need to know where it&rsquo;s websocket is going to connect to. Lets walk through everything that needs to get done.</p><h2 id=gemfile>Gemfile</h2><p>First we need to add some things to the Gemfile, specifically redis, postgres, and the sidekiq gems. Add the following to your <code>Gemfile</code></p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=n>gem</span> <span class=s1>&#39;redis&#39;</span><span class=p>,</span> <span class=s1>&#39;~&gt; 3.0&#39;</span>
+<span class=n>gem</span> <span class=s1>&#39;pg&#39;</span><span class=p>,</span> <span class=ss>group</span><span class=p>:</span> <span class=ss>:production</span>
+<span class=n>gem</span> <span class=s1>&#39;sqlite3&#39;</span><span class=p>,</span> <span class=ss>group</span><span class=p>:</span> <span class=ss>:development</span>
+<span class=n>gem</span> <span class=s1>&#39;sidekiq&#39;</span>
+<span class=n>gem</span> <span class=s1>&#39;sinatra&#39;</span><span class=p>,</span> <span class=ss>git</span><span class=p>:</span> <span class=s1>&#39;https://github.com/sinatra/sinatra&#39;</span><span class=p>,</span> <span class=ss>:require</span> <span class=o>=&gt;</span> <span class=kp>nil</span>
+</code></pre></div><p>Make sure you remove the <code>sqlite3</code> on the top of the file, we only want it in development. We are installing <code>sinatra</code> out of the master branch since the current release doesn&rsquo;t play well with Rails 5. (If it tries to install Sinatra 1.0 you&rsquo;ll get rake exception errors.) If you don&rsquo;t want the web interface to sidekiq you can omit.</p><h2 id=setup-sidekiq>Setup sidekiq</h2><p>First we need to create a <code>Procfile</code> that defines our dynos</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=ss>web</span><span class=p>:</span> <span class=n>bundle</span> <span class=nb>exec</span> <span class=n>puma</span> <span class=o>-</span><span class=n>C</span> <span class=n>config</span><span class=o>/</span><span class=n>puma</span><span class=o>.</span><span class=n>rb</span>
+<span class=ss>worker</span><span class=p>:</span> <span class=n>bundle</span> <span class=nb>exec</span> <span class=n>sidekiq</span> <span class=o>-</span><span class=n>c</span> <span class=mi>2</span>
+</code></pre></div><p>I&rsquo;m running sidekiq with a concurrency of 2 to limit the number of redis connections. You&rsquo;ll probably want that a lot higher in real life if you are using Sidekiq for other things..</p><p>Now create <code>config/initializers/active_job.rb</code> and tell ActiveJob to use <code>sidekiq</code></p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=no>Rails</span><span class=o>.</span><span class=n>application</span><span class=o>.</span><span class=n>config</span><span class=o>.</span><span class=n>active_job</span><span class=o>.</span><span class=n>queue_adapter</span> <span class=o>=</span> <span class=ss>:sidekiq</span>
+</code></pre></div><p>And let&rsquo;s add the sidekiq web interace to your <code>config/routes.rb</code>:</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=nb>require</span> <span class=s1>&#39;sidekiq/web&#39;</span>
+  <span class=n>mount</span> <span class=no>Sidekiq</span><span class=o>::</span><span class=no>Web</span> <span class=o>=&gt;</span> <span class=s1>&#39;/sidekiq&#39;</span>
+</code></pre></div><p>If this was a real app, you&rsquo;d limit who can get to that engine. If you installed devise, the way to do that is:</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=n>authenticate</span> <span class=ss>:admin_user</span> <span class=k>do</span>
+    <span class=n>mount</span> <span class=no>Sidekiq</span><span class=o>::</span><span class=no>Web</span> <span class=o>=&gt;</span> <span class=s1>&#39;/sidekiq&#39;</span>
+  <span class=k>end</span>
+</code></pre></div><h2 id=a-brief-digression-to-test-locally>A brief digression to test locally</h2><p>It&rsquo;s always nice to change as little as we can, so when everything blows up in our face we can limit our investigations to a small change set. So lets first migrate our development environment to communicate over redis, so the ActiveJobs are run in a seperate process, and that ActionCable will be able to communicate from that process, back to the main web server, back to the client.</p><p>Edit <code>config/cable.yml</code> to set the development environment use to use redis.</p><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=k>development</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=k>adapter</span><span class=p>:</span><span class=w> </span>redis<span class=w>
+</span><span class=w>  </span><span class=k>url</span><span class=p>:</span><span class=w> </span>redis<span class=p>:</span>//localhost<span class=p>:</span><span class=m>6379</span>/<span class=m>1</span><span class=w>
+</span></code></pre></div><p>If you don&rsquo;t have redis installed, use <a href=http://brew.sh>homebrew</a> to do that now:</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>$ brew install redis
 $ redis-server
-</code></pre></div><p>If you don&rsquo;t have foreman installed, do that now:</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ gem install foreman
-</code></pre></div><p>Now lets run that app!</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ rails db:migrate
+</code></pre></div><p>If you don&rsquo;t have foreman installed, do that now:</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>$ gem install foreman
+</code></pre></div><p>Now lets run that app!</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>$ rails db:migrate
 $ foreman start
-</code></pre></div><p>Using foreman will start both the web interace as well as the sidekiq worker.</p>
-<p>Now you should be able to go to <code>http://localhost:3000</code> in multiple windows and talk with yourself.  I really like talking with myself, and I assume that you do as well.</p>
-<p>And <code>http://localhost:3000/admin</code> should load up the sidekiq admin console.  Validate that everything is working, since now we are going to spin up everything on heroku!</p>
-<h2 id="heroku-and-redis">Heroku and Redis</h2>
-<p>Create a new app:</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ heroku create
-</code></pre></div><p>Then we create a redis instance</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ heroku addons:create heroku-redis:hobby-dev
-</code></pre></div><p>We now need to tell ActionCable where it&rsquo;s redis server is.  Lets find out the answer and put in into the production section of <code>config/cable.yml</code>.</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$  heroku config <span class="p">|</span> grep REDIS
+</code></pre></div><p>Using foreman will start both the web interace as well as the sidekiq worker.</p><p>Now you should be able to go to <code>http://localhost:3000</code> in multiple windows and talk with yourself. I really like talking with myself, and I assume that you do as well.</p><p>And <code>http://localhost:3000/admin</code> should load up the sidekiq admin console. Validate that everything is working, since now we are going to spin up everything on heroku!</p><h2 id=heroku-and-redis>Heroku and Redis</h2><p>Create a new app:</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>$ heroku create
+</code></pre></div><p>Then we create a redis instance</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>$ heroku addons:create heroku-redis:hobby-dev
+</code></pre></div><p>We now need to tell ActionCable where it&rsquo;s redis server is. Lets find out the answer and put in into the production section of <code>config/cable.yml</code>.</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>$  heroku config <span class=p>|</span> grep REDIS
 REDIS_URL:                redis://h:p75fl9as.........
-</code></pre></div><p><code>config/cable.yml</code>:</p>
-<div class="highlight"><pre class="chroma"><code class="language-yml" data-lang="yml"><span class="k">production</span><span class="p">:</span><span class="w">
-</span><span class="w">  </span><span class="k">adapter</span><span class="p">:</span><span class="w"> </span>redis<span class="w">
-</span><span class="w">  </span><span class="k">url</span><span class="p">:</span><span class="w"> </span>redis<span class="p">:</span>//h<span class="p">:</span>p75fl9as.........<span class="w">
-</span></code></pre></div><h2 id="set-the-right-actioncable-websocket-address">Set the right ActionCable websocket address</h2>
-<p>We need to tell rails where it&rsquo;s expected to receive the websocket connection from. <code>heroku info</code> will show us our external application.  If you deploy on a custom url, you&rsquo;ll need to add that as well.</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ heroku <span class="nv">info</span>
-<span class="o">===</span> aqueous-thicket-49913
+</code></pre></div><p><code>config/cable.yml</code>:</p><div class=highlight><pre class=chroma><code class=language-yml data-lang=yml><span class=k>production</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=k>adapter</span><span class=p>:</span><span class=w> </span>redis<span class=w>
+</span><span class=w>  </span><span class=k>url</span><span class=p>:</span><span class=w> </span>redis<span class=p>:</span>//h<span class=p>:</span>p75fl9as.........<span class=w>
+</span></code></pre></div><h2 id=set-the-right-actioncable-websocket-address>Set the right ActionCable websocket address</h2><p>We need to tell rails where it&rsquo;s expected to receive the websocket connection from. <code>heroku info</code> will show us our external application. If you deploy on a custom url, you&rsquo;ll need to add that as well.</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>$ heroku <span class=nv>info</span>
+<span class=o>===</span> aqueous-thicket-49913
 Addons:        heroku-postgresql:hobby-dev
                heroku-redis:hobby-dev
-Dynos:         web: 1, worker: <span class="m">1</span>
+Dynos:         web: 1, worker: <span class=m>1</span>
 Git URL:       https://git.heroku.com/aqueous-thicket-49913.git
 Owner:         operations@happyfuncorp.com
 Region:        us
-Repo Size:     <span class="m">34</span> KB
-Slug Size:     <span class="m">29</span> MB
+Repo Size:     <span class=m>34</span> KB
+Slug Size:     <span class=m>29</span> MB
 Stack:         cedar-14
 Web URL:       https://aqueous-thicket-49913.herokuapp.com/
-</code></pre></div><p>Lets tell rails about it.  Edit <code>config/environments/production.rb</code>.  Obviously update the urls for your application.</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="n">config</span><span class="o">.</span><span class="n">action_cable</span><span class="o">.</span><span class="n">url</span> <span class="o">=</span> <span class="s1">&#39;wss://aqueous-thicket-49913.herokuapp.com/cable&#39;</span>
-  <span class="n">config</span><span class="o">.</span><span class="n">action_cable</span><span class="o">.</span><span class="n">allowed_request_origins</span> <span class="o">=</span> <span class="o">[</span> <span class="s1">&#39;https://aqueous-thicket-49913.herokuapp.com&#39;</span><span class="o">]</span>
-</code></pre></div><p>Note that <code>wss</code> is WebSockets over over SSL.  You should use that, for a number of reasons including but not limited to security.  However, if you don&rsquo;t use SSL, use <code>ws</code> instead.</p>
-<p>Now we need to tell the javascript where to connect.  Lets open up <code>app/views/layouts/application.html.erb</code> and add this into the <code>&lt;HEAD&gt;</code>:</p>
-<pre><code> &lt;%= action_cable_meta_tag %&gt;
-</code></pre><h2 id="commit-and-push">Commit and push</h2>
-<p>First we add the code to repo</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ git add .
-$ git commit -a -m <span class="s2">&#34;Added heroku configuration&#34;</span>
-</code></pre></div><p>Now we push to heroku itself:</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ git push heroku master
-</code></pre></div><p>If that goes well, lets create the database tables and spin up the worker process</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ heroku run rake db:migrate
-$ heroku ps:scale <span class="nv">worker</span><span class="o">=</span><span class="m">1</span>
-</code></pre></div><p>And now, lets run the app and look at the logs:</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ heroku open
+</code></pre></div><p>Lets tell rails about it. Edit <code>config/environments/production.rb</code>. Obviously update the urls for your application.</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=n>config</span><span class=o>.</span><span class=n>action_cable</span><span class=o>.</span><span class=n>url</span> <span class=o>=</span> <span class=s1>&#39;wss://aqueous-thicket-49913.herokuapp.com/cable&#39;</span>
+  <span class=n>config</span><span class=o>.</span><span class=n>action_cable</span><span class=o>.</span><span class=n>allowed_request_origins</span> <span class=o>=</span> <span class=o>[</span> <span class=s1>&#39;https://aqueous-thicket-49913.herokuapp.com&#39;</span><span class=o>]</span>
+</code></pre></div><p>Note that <code>wss</code> is WebSockets over over SSL. You should use that, for a number of reasons including but not limited to security. However, if you don&rsquo;t use SSL, use <code>ws</code> instead.</p><p>Now we need to tell the javascript where to connect. Lets open up <code>app/views/layouts/application.html.erb</code> and add this into the <code>&lt;HEAD></code>:</p><pre><code> &lt;%= action_cable_meta_tag %&gt;
+</code></pre><h2 id=commit-and-push>Commit and push</h2><p>First we add the code to repo</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>$ git add .
+$ git commit -a -m <span class=s2>&#34;Added heroku configuration&#34;</span>
+</code></pre></div><p>Now we push to heroku itself:</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>$ git push heroku master
+</code></pre></div><p>If that goes well, lets create the database tables and spin up the worker process</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>$ heroku run rake db:migrate
+$ heroku ps:scale <span class=nv>worker</span><span class=o>=</span><span class=m>1</span>
+</code></pre></div><p>And now, lets run the app and look at the logs:</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>$ heroku open
 $ heroku open
 $ heroku log --tail
-</code></pre></div><p>We ran open twice, so you could see what was there in two windows.  Does it work?  Do 3 windows work?</p>
-<p>Do you like talking to yourself as much as I do?</p>
-<h2 id="but-does-it-scale">But does it scale</h2>
-<p>Right now you have 1 web dyno, running puma with 5 threads, and 1 worker dyno running sidekiq with 2 concurrent worker.  This should be at least 5 redis connections, up to 2 more depending upon how many jobs have gone through sidekiq.  Lets look at the redis info:</p>
-<pre><code class="language-basg" data-lang="basg">$ heroku redis:cli
+</code></pre></div><p>We ran open twice, so you could see what was there in two windows. Does it work? Do 3 windows work?</p><p>Do you like talking to yourself as much as I do?</p><h2 id=but-does-it-scale>But does it scale</h2><p>Right now you have 1 web dyno, running puma with 5 threads, and 1 worker dyno running sidekiq with 2 concurrent worker. This should be at least 5 redis connections, up to 2 more depending upon how many jobs have gone through sidekiq. Lets look at the redis info:</p><pre><code class=language-basg data-lang=basg>$ heroku redis:cli
 ec2-54-243-230-243.compute-1.amazonaws.com:24949&gt; info
 
 ....
@@ -226,97 +72,7 @@ client_longest_output_list:0
 client_biggest_input_buf:0
 blocked_clients:2
 ....
-</code></pre><p>So we see that we have 7 active connections now.  As you get more people listening to redis, those will go up.  Adding more dynos will push the number of active connections up, so you need to be careful in sizing both your postgres install as well as your redis install.</p>
-<p><em>Image credit <a href="https://www.flickr.com/photos/flintman45/15521201146/in/photolist-pDydmj-4EmYXp-5iGRcG-4KrLFJ-rjnz22-9Cpo2C-azDiP-adi58f-aSgSYP-7Uc2y7-bmGghk-a4pD4T-5wDbbf-a3zri3-7rDRMh-9Z3c6a-471ZjP-8qQ2fX-kYdZ28-9Z6fc9-9ap1TR-2nhNUA-93VFQa-76jVr-4Q3WXY-bbVhbt-9Z3ij2-kx5BP4-59LXDM-nnav37-eTfHYC-p3JqVp-k6dTdF-qxURpr-ay5db9-5vk21b-oC9hPd-n4bS2m-476583-pMvQCn-CffNFE-rbndpL-6QP35H-d1mxVf-9Wrx53-a1LCGS-d1mxZJ-9ugrWA-9XFZPm-46WZVf">Lee Roberts</a></em></p>
-
-  </article>
-
-  
-</div>
-
-
-  <div class="bg-light py-5">
-    <div class="container">
-      <h2 class="text-center">Read next</h2>
-
-      <div class="row">
-        <div class="col-md-6 text-center">
-          
-            Next Post:
-            <a href="../../../articles/2016/yes-no-maybe/">Yes, No, Maybe, Don&rsquo;t Know, WTF</a>
-          
-        </div>
-        <div class="col-md-6 text-center">
-          
-            Previous Post:
-            <a href="../../../articles/2016/owning-a-tesla-in-brooklyn/">Owning a Tesla in Brooklyn</a>
-          
-        </div>
-      </div>
-    </div>
-  </div>
-
-
-
-
-<div class="container mt-5">
-  <h2 class="text-center">See also</h2>
-  <div class="row">
-  	
-      <div class="col-md mb-3">
-        <p class="lead mb-0"><a class="text-body" href="../../../articles/2015/using-seed-to-explore/">Using seed to explore APIs</a></p>
-
-        
-          <p class="lead font-italic mb-0">overview of what we&rsquo;re working on and how to explore apis</p>
-        
-        <div class="font-weight-light mt-3">
-          
-          
-            <p>I&rsquo;ve been working to update seed, which is HappyFunCorp&rsquo;s app generator to make it easy to kick off MVPs. Check out the website for more information. One of the things that I&rsquo;ve started to do is to seperate out the dependancies more, and being tutorials on how to use each of the different features. After I link to that stuff, let&rsquo;s walk through a way to combine different techniques we&rsquo;ve discussed together.</p>
-          
-        </div>
-        <a href="../../../articles/2015/using-seed-to-explore/" class="btn btn-primary">Read more</a>
-      </div>
-    
-      <div class="col-md mb-3">
-        <p class="lead mb-0"><a class="text-body" href="../../../articles/2015/setting-up-devise-with-twitter-and-facebook-and-other-omniauth-schemes-without-email-addresses/">Setting up Devise with Twitter and Facebook and other Omniauth schemes without email addresses</a></p>
-
-        
-          <p class="lead font-italic mb-0">Connect connect connect</p>
-        
-        <div class="font-weight-light mt-3">
-          
-          
-            <p>Adding social login to your sites really makes it easier to get users onboard. Devise is great to help get an authentication system up and running, but there are a few tricky things to get right. The first challenge is that you don&rsquo;t always get the user&rsquo;s email address when the first connect. The second challenge is that we want to request the minimum permissions first so that the user is more likely to sign up, and gradually ask more as the time arises.</p>
-          
-        </div>
-        <a href="../../../articles/2015/setting-up-devise-with-twitter-and-facebook-and-other-omniauth-schemes-without-email-addresses/" class="btn btn-primary">Read more</a>
-      </div>
-    
-      <div class="col-md mb-3">
-        <p class="lead mb-0"><a class="text-body" href="../../../articles/2014/dateslice-writing-rails-extensions/">Dateslice: Writing rails extensions</a></p>
-
-        
-          <p class="lead font-italic mb-0">adding date group_by to ActiveRecord</p>
-        
-        <div class="font-weight-light mt-3">
-          
-          
-            <p>Ruby on Rails is a very modular framework since the merging with Merb in 2008. The opinionated conventions are implemented under using techniques that let you jump in and build your own components, picking and choosing different parts that let you build Rails apps in the same straightforward way you would if using the official modules.
-Let&rsquo;s go through the dateslices gem which I wrote to extend active record so that we could better interact with the group by sql command when dealing with dates.</p>
-          
-        </div>
-        <a href="../../../articles/2014/dateslice-writing-rails-extensions/" class="btn btn-primary">Read more</a>
-      </div>
-    
-  </div>
-</div>
-
-
-<footer class="footer bg-dark text-light mt-3">
-  <div class="container">
-    <h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2>
-  </div>
-</footer>
-</body>
-</html>
+</code></pre><p>So we see that we have 7 active connections now. As you get more people listening to redis, those will go up. Adding more dynos will push the number of active connections up, so you need to be careful in sizing both your postgres install as well as your redis install.</p><p><em>Image credit <a href=https://www.flickr.com/photos/flintman45/15521201146/in/photolist-pDydmj-4EmYXp-5iGRcG-4KrLFJ-rjnz22-9Cpo2C-azDiP-adi58f-aSgSYP-7Uc2y7-bmGghk-a4pD4T-5wDbbf-a3zri3-7rDRMh-9Z3c6a-471ZjP-8qQ2fX-kYdZ28-9Z6fc9-9ap1TR-2nhNUA-93VFQa-76jVr-4Q3WXY-bbVhbt-9Z3ij2-kx5BP4-59LXDM-nnav37-eTfHYC-p3JqVp-k6dTdF-qxURpr-ay5db9-5vk21b-oC9hPd-n4bS2m-476583-pMvQCn-CffNFE-rbndpL-6QP35H-d1mxVf-9Wrx53-a1LCGS-d1mxZJ-9ugrWA-9XFZPm-46WZVf>Lee Roberts</a></em></p></article></div><div class="bg-light py-5"><div class=container><h2 class=text-center>Read next</h2><div class=row><div class="col-md-6 text-center">Next Post:
+<a href=../../../articles/2016/yes-no-maybe/>Yes, No, Maybe, Don&rsquo;t Know, WTF</a></div><div class="col-md-6 text-center">Previous Post:
+<a href=../../../articles/2016/owning-a-tesla-in-brooklyn/>Owning a Tesla in Brooklyn</a></div></div></div></div><div class="container mt-5"><h2 class=text-center>See also</h2><div class=row><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2015/using-seed-to-explore/>Using seed to explore APIs</a></p><p class="lead font-italic mb-0">overview of what we&rsquo;re working on and how to explore apis</p><div class="font-weight-light mt-3"><p>I&rsquo;ve been working to update seed, which is HappyFunCorp&rsquo;s app generator to make it easy to kick off MVPs. Check out the website for more information. One of the things that I&rsquo;ve started to do is to seperate out the dependancies more, and being tutorials on how to use each of the different features. After I link to that stuff, let&rsquo;s walk through a way to combine different techniques we&rsquo;ve discussed together.</p></div><a href=../../../articles/2015/using-seed-to-explore/ class="btn btn-primary">Read more</a></div><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2015/setting-up-devise-with-twitter-and-facebook-and-other-omniauth-schemes-without-email-addresses/>Setting up Devise with Twitter and Facebook and other Omniauth schemes without email addresses</a></p><p class="lead font-italic mb-0">Connect connect connect</p><div class="font-weight-light mt-3"><p>Adding social login to your sites really makes it easier to get users onboard. Devise is great to help get an authentication system up and running, but there are a few tricky things to get right. The first challenge is that you don&rsquo;t always get the user&rsquo;s email address when the first connect. The second challenge is that we want to request the minimum permissions first so that the user is more likely to sign up, and gradually ask more as the time arises.</p></div><a href=../../../articles/2015/setting-up-devise-with-twitter-and-facebook-and-other-omniauth-schemes-without-email-addresses/ class="btn btn-primary">Read more</a></div><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2014/dateslice-writing-rails-extensions/>Dateslice: Writing rails extensions</a></p><p class="lead font-italic mb-0">adding date group_by to ActiveRecord</p><div class="font-weight-light mt-3"><p>Ruby on Rails is a very modular framework since the merging with Merb in 2008. The opinionated conventions are implemented under using techniques that let you jump in and build your own components, picking and choosing different parts that let you build Rails apps in the same straightforward way you would if using the official modules.
+Let&rsquo;s go through the dateslices gem which I wrote to extend active record so that we could better interact with the group by sql command when dealing with dates.</p></div><a href=../../../articles/2014/dateslice-writing-rails-extensions/ class="btn btn-primary">Read more</a></div></div></div><footer class="footer bg-dark text-light mt-3"><div class=container><h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2></div></footer></body></html>

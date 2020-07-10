@@ -1,556 +1,305 @@
-<!DOCTYPE html>
-<html><head>
-    <title>Pulling data out of Google Analytics</title>
-    
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<!doctype html><html><head><title>Pulling data out of Google Analytics</title><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><link rel=stylesheet href=../../../css/theme.css><link rel=stylesheet href=../../../css/syntax.css><script type=application/javascript>var doNotTrack=false;if(!doNotTrack){window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;ga('create','UA-56296045-1','auto');ga('send','pageview');}</script><script async src=https://www.google-analytics.com/analytics.js></script><script async defer data-domain=willschenk.com src=https://plausible.io/js/plausible.js></script><meta property="og:title" content="Pulling data out of Google Analytics"><meta property="og:description" content="I like staring at the real time stats of Google Analytics. As a dashboard, it&rsquo;s not really as amazing as Chartbeat is, and it doesn&rsquo;t let you drill down into the data as much as Mixpanel. But GA is super simple to setup and it&rsquo;s Google, so everyone uses it.
+Another obsessive/fun thing to do is to see where that spike in inbound traffic is coming from. On HappyFunCorp there are days where we get a sudden influx of Happy Thoughts which warms our hearts and floods our inboxes."><meta property="og:type" content="article"><meta property="og:url" content="https://willschenk.com/articles/2014/pulling-data-out-of-google-analytics/"><meta property="article:published_time" content="2014-12-04T00:00:00+00:00"><meta property="article:modified_time" content="2014-12-04T00:00:00+00:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Pulling data out of Google Analytics"><meta name=twitter:description content="I like staring at the real time stats of Google Analytics. As a dashboard, it&rsquo;s not really as amazing as Chartbeat is, and it doesn&rsquo;t let you drill down into the data as much as Mixpanel. But GA is super simple to setup and it&rsquo;s Google, so everyone uses it.
+Another obsessive/fun thing to do is to see where that spike in inbound traffic is coming from. On HappyFunCorp there are days where we get a sudden influx of Happy Thoughts which warms our hearts and floods our inboxes."><meta name=twitter:site content="@wschenk"><style>.article p,.article ul,.article ol,.article table{max-width:45em}.article pre p{max-width:none;margin-top:-1.5rem}article.article p:first-child,.article blockquote{font-size:1.25em;font-weight:300;max-width:36em}.half-height-scroll{max-height:32em;overflow:scroll}</style></head><body><nav class="container my-5"><h1 class="pt-md-5 display-3"><a class=text-dark href=../../../>Will Schenk</a></h1><p><a class="text-dark h4 mr-3 font-weight-light" href=../../../articles/>Articles</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../contact>Contact</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../tags/>Tags</a>
+<a href=../../../feed.xml class="mr-3 h4 text-light"><img src=../../../img/rss.svg alt=rss height=20 width=20></a>
+<a href=https://twitter.com/@wschenk class="mr-3 h4 text-light"><img src=../../../img/twitter.svg alt=twitter height=20 width=20></a>
+<a href=https://instagram.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/instagram.svg alt=instagram height=20 width=20></a>
+<a href=https://github.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/github.svg alt=github height=20 width=20></a>
+<a href=https://linkedin.com/in/will-schenk-420266 class="mr-3 h4 text-light"><img src=../../../img/linkedin.svg alt=linkedin height=20 width=20></a></p></nav><div class=container><h1 class=mt-5>Pulling data out of Google Analytics</h1><h2 class="font-weight-light font-italic mb-3">see who&rsquo;s talking about your stuff</h2><p class="text-muted mt-3"><a class=text-muted href=https://willschenk.com/articles/2014/pulling-data-out-of-google-analytics/>Published December 4, 2014</a>
+<a class=text-muted href=../../../tags/socialinvestigator>#socialinvestigator</a>
+<a class=text-muted href=../../../tags/howto>#howto</a>
+<a class=text-muted href=../../../tags/ruby>#ruby</a>
+<a class=text-muted href=../../../tags/googleanalytics>#googleanalytics</a></p><div class="alert alert-danger">This article was published a while ago and may contain obsolete information!</div><article class="article mt-5"><p>I like staring at the real time stats of <a href=http://www.google.com/analytics/>Google Analytics</a>. As a dashboard, it&rsquo;s not really as amazing as <a href=https://chartbeat.com>Chartbeat</a> is, and it doesn&rsquo;t let you drill down into the data as much as <a href=https://mixpanel.com>Mixpanel</a>. But GA is super simple to setup and it&rsquo;s Google, so everyone uses it.</p><p>Another obsessive/fun thing to do is to see where that spike in inbound traffic is coming from. On <a href=http://happyfuncorp.com>HappyFunCorp</a> there are days where we get a sudden influx of <a href=http://happyfuncorp.com/#happy-thoughts>Happy Thoughts</a> which warms our hearts and floods our inboxes. Where did they come from? How do we figure it out?</p><p>Lets look at how we can interact with Google Analytics using <a href=https://github.com/google/google-api-ruby-client>google-api-ruby-client</a>. At the end of this, we are going to be able to see the current traffic stats, top referrals, see a timeline of when the referals first came in, and do what we can from that information to track down who is talking about us. GA will show us that we are getting a lot of <code>SOCIAL</code> traffic, but what else can we figure out?</p><h2 id=step-1-setting-it-up-to-access-google-on-behalf-of-the-user>Step 1 Setting it up to access Google on behalf of the user</h2><p>We&rsquo;re going to be using OAuth2 to authorize our script. So head over to the <a href=https://console.developers.google.com/project>Google Developers Console</a>.</p><ol><li><p><em>Create a Project</em>. You should name this something that makes sense to you. I called my <em>Social Investigator</em></p></li><li><p>Enable the <em>Analytics API</em>. This can be done on the side bar, under <strong>APIs and auth > Apis</strong>. Scroll down to find it.</p></li><li><p><strong>APIs and auth > Consent Screen</strong>. Create something here, you&rsquo;ll need to flesh this out later.</p></li><li><p><strong>APIs and auth > Create Client ID</strong>. Select <strong>Installed Application</strong> with type <em>Other</em>. This will create the keys for you, and then you <strong>Download JSON</strong> and save it in a file.</p></li></ol><h2 id=step-2-getting-an-access-token-and-an-api-file-using-installedappflow>Step 2 Getting an access token and an API file using InstalledAppFlow</h2><p>Working with the Google API is pretty confusing at first, since there&rsquo;s multiple steps that need to happen before you can even figure out how to make a call. Twitter&rsquo;s API, which in every other way is a joke compared to Google&rsquo;s way of doing things, has a <a href=../../../scripting-twitter>handy way to get a single use access token</a>. With Google you need to do this yourself. And once that&rsquo;s done, you need to load the API meta data from the API API to be able to access it!</p><p>We&rsquo;re going to be using a few gems to put in your <code>Gemfile</code> specifically:</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=n>source</span> <span class=s1>&#39;https://rubygems.org&#39;</span>
 
-    <link rel="stylesheet" href="../../../css/theme.css"/>
-    <link rel="stylesheet" href="../../../css/syntax.css"/>
+<span class=n>gem</span> <span class=s1>&#39;google-api-client&#39;</span>
+<span class=n>gem</span> <span class=s1>&#39;thor&#39;</span>
+<span class=n>gem</span> <span class=s1>&#39;hirb&#39;</span>
+</code></pre></div><p>Now we can use the <code>Google::APIClient::InstalledAppFlow</code> class to open up a web browser, have the user log in as needed to their Google Accounts, and grant access to the API. The code below shows the basics of this. We assume that the file you downloaded in step 1 is called <code>client_secrets.json</code> and in the same directory, and we are writing out the granted credentials into the <code>analytics-oauth2.json</code> file.</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=ch>#!/usr/bin/env ruby -KU</span>
+<span class=c1>#</span>
+<span class=c1># This code has been adapted from</span>
+<span class=c1># https://github.com/google/google-api-ruby-client-samples/tree/master/drive</span>
+<span class=c1>#</span>
 
-    
-      
-<script type="application/javascript">
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
-	ga('create', 'UA-56296045-1', 'auto');
-	
-	ga('send', 'pageview');
-}
-</script>
-<script async src='https://www.google-analytics.com/analytics.js'></script>
+<span class=nb>require</span> <span class=s1>&#39;thor&#39;</span>
+<span class=nb>require</span> <span class=s1>&#39;hirb&#39;</span>
+<span class=nb>require</span> <span class=s1>&#39;google/api_client&#39;</span>
+<span class=nb>require</span> <span class=s1>&#39;google/api_client/client_secrets&#39;</span>
+<span class=nb>require</span> <span class=s1>&#39;google/api_client/auth/file_storage&#39;</span>
+<span class=nb>require</span> <span class=s1>&#39;google/api_client/auth/installed_app&#39;</span>
+<span class=nb>require</span> <span class=s1>&#39;logger&#39;</span>
+<span class=nb>require</span> <span class=s1>&#39;csv&#39;</span>
 
-      <script async defer data-domain="willschenk.com" src="https://plausible.io/js/plausible.js"></script>
-    
-    <meta property="og:title" content="Pulling data out of Google Analytics" />
-<meta property="og:description" content="I like staring at the real time stats of Google Analytics. As a dashboard, it&rsquo;s not really as amazing as Chartbeat is, and it doesn&rsquo;t let you drill down into the data as much as Mixpanel. But GA is super simple to setup and it&rsquo;s Google, so everyone uses it.
-Another obsessive/fun thing to do is to see where that spike in inbound traffic is coming from. On HappyFunCorp there are days where we get a sudden influx of Happy Thoughts which warms our hearts and floods our inboxes." />
-<meta property="og:type" content="article" />
-<meta property="og:url" content="https://willschenk.com/articles/2014/pulling-data-out-of-google-analytics/" />
-<meta property="article:published_time" content="2014-12-04T00:00:00+00:00" />
-<meta property="article:modified_time" content="2014-12-04T00:00:00+00:00" />
+<span class=no>API_VERSION</span> <span class=o>=</span> <span class=s1>&#39;v3&#39;</span>
+<span class=no>CACHED_API_FILE</span> <span class=o>=</span> <span class=s2>&#34;analytics-</span><span class=si>#{</span><span class=no>API_VERSION</span><span class=si>}</span><span class=s2>.cache&#34;</span>
+<span class=no>CREDENTIAL_STORE_FILE</span> <span class=o>=</span> <span class=s2>&#34;analytics-oauth2.json&#34;</span>
+<span class=no>CLIENT_SECRETS_FILE</span> <span class=o>=</span> <span class=s2>&#34;client_secrets.json&#34;</span>
 
-    <meta name="twitter:card" content="summary"/>
-<meta name="twitter:title" content="Pulling data out of Google Analytics"/>
-<meta name="twitter:description" content="I like staring at the real time stats of Google Analytics. As a dashboard, it&rsquo;s not really as amazing as Chartbeat is, and it doesn&rsquo;t let you drill down into the data as much as Mixpanel. But GA is super simple to setup and it&rsquo;s Google, so everyone uses it.
-Another obsessive/fun thing to do is to see where that spike in inbound traffic is coming from. On HappyFunCorp there are days where we get a sudden influx of Happy Thoughts which warms our hearts and floods our inboxes."/>
-<meta name="twitter:site" content="@wschenk"/>
+<span class=k>class</span> <span class=nc>AnalyticsClient</span>
+  <span class=k>def</span> <span class=nf>initialize</span><span class=p>(</span> <span class=n>file_caches</span> <span class=o>=</span> <span class=kp>nil</span> <span class=p>)</span>
+    <span class=n>client</span>
+  <span class=k>end</span>
 
+  <span class=k>def</span> <span class=nf>client</span>
+    <span class=k>return</span> <span class=vi>@client</span> <span class=k>if</span> <span class=vi>@client</span>
 
-    <style>
-     .article p, .article ul, .article ol, .article table {
-         max-width: 45em;
-     }
+    <span class=vi>@client</span> <span class=o>=</span> <span class=no>Google</span><span class=o>::</span><span class=no>APIClient</span><span class=o>.</span><span class=n>new</span><span class=p>(</span><span class=ss>:application_name</span> <span class=o>=&gt;</span> <span class=s1>&#39;Analyics-CLI&#39;</span><span class=p>,</span>
+        <span class=ss>:application_version</span> <span class=o>=&gt;</span> <span class=s1>&#39;1.0.0&#39;</span><span class=p>)</span>
 
-     .article pre p {
-         max-width: none;
-         margin-top: -1.5rem;
-     }
+    <span class=c1># FileStorage stores auth credentials in a file, so they survive multiple runs</span>
+    <span class=c1># of the application. This avoids prompting the user for authorization every</span>
+    <span class=c1># time the access token expires, by remembering the refresh token.</span>
+    <span class=c1># Note: FileStorage is not suitable for multi-user applications.</span>
+    <span class=n>file_storage</span> <span class=o>=</span> <span class=no>Google</span><span class=o>::</span><span class=no>APIClient</span><span class=o>::</span><span class=no>FileStorage</span><span class=o>.</span><span class=n>new</span><span class=p>(</span><span class=no>CREDENTIAL_STORE_FILE</span><span class=p>)</span>
+    <span class=k>if</span> <span class=n>file_storage</span><span class=o>.</span><span class=n>authorization</span><span class=o>.</span><span class=n>nil?</span>
+      <span class=n>client_secrets</span> <span class=o>=</span> <span class=no>Google</span><span class=o>::</span><span class=no>APIClient</span><span class=o>::</span><span class=no>ClientSecrets</span><span class=o>.</span><span class=n>load</span><span class=p>(</span><span class=no>CLIENT_SECRETS_FILE</span><span class=p>)</span>
+      <span class=c1># The InstalledAppFlow is a helper class to handle the OAuth 2.0 installed</span>
+      <span class=c1># application flow, which ties in with FileStorage to store credentials</span>
+      <span class=c1># between runs.</span>
+      <span class=n>flow</span> <span class=o>=</span> <span class=no>Google</span><span class=o>::</span><span class=no>APIClient</span><span class=o>::</span><span class=no>InstalledAppFlow</span><span class=o>.</span><span class=n>new</span><span class=p>(</span>
+        <span class=ss>:client_id</span> <span class=o>=&gt;</span> <span class=n>client_secrets</span><span class=o>.</span><span class=n>client_id</span><span class=p>,</span>
+        <span class=ss>:client_secret</span> <span class=o>=&gt;</span> <span class=n>client_secrets</span><span class=o>.</span><span class=n>client_secret</span><span class=p>,</span>
+        <span class=ss>:scope</span> <span class=o>=&gt;</span> <span class=o>[</span><span class=s1>&#39;https://www.googleapis.com/auth/analytics&#39;</span><span class=o>]</span>
+      <span class=p>)</span>
+      <span class=vi>@client</span><span class=o>.</span><span class=n>authorization</span> <span class=o>=</span> <span class=n>flow</span><span class=o>.</span><span class=n>authorize</span><span class=p>(</span><span class=n>file_storage</span><span class=p>)</span>
+    <span class=k>else</span>
+      <span class=vi>@client</span><span class=o>.</span><span class=n>authorization</span> <span class=o>=</span> <span class=n>file_storage</span><span class=o>.</span><span class=n>authorization</span>
+    <span class=k>end</span>
 
-     article.article p:first-child, .article blockquote {
-         font-size: 1.25em;
-         font-weight: 300;
-         max-width: 36em;  
-     }
+    <span class=vi>@client</span>
+  <span class=k>end</span>
+<span class=k>end</span>
 
-     .half-height-scroll {
-         max-height: 32em;
-         overflow: scroll;
-     }
-    </style>
-</head>
-<body><nav class="container my-5">
-  <h1 class="pt-md-5 display-3"><a class="text-dark" href="../../../">Will Schenk</a></h1>
-  <p>
-    
-      <a class="text-dark h4 mr-3 font-weight-light" href="../../../articles/" title="">Articles</a>
-    
-      <a class="text-dark h4 mr-3 font-weight-light" href="../../../contact" title="">Contact</a>
-    
-      <a class="text-dark h4 mr-3 font-weight-light" href="../../../tags/" title="">Tags</a>
-    
-    <a href="../../../feed.xml" class="mr-3 h4 text-light"><img src="../../../img/rss.svg" alt="rss" height="20" width="20"/></a>
-    
-      <a href="https://twitter.com/@wschenk" class="mr-3 h4 text-light"><img src="../../../img/twitter.svg" alt="twitter" height="20" width="20"/></a>
-    
-    
-      <a href="https://instagram.com/wschenk" class="mr-3 h4 text-light"><img src="../../../img/instagram.svg" alt="instagram" height="20" width="20"/></a>
-    
-    
-      <a href="https://github.com/wschenk" class="mr-3 h4 text-light"><img src="../../../img/github.svg" alt="github" height="20" width="20"/></a>
-    
-    
-      <a href="https://linkedin.com/in/will-schenk-420266" class="mr-3 h4 text-light"><img src="../../../img/linkedin.svg" alt="linkedin" height="20" width="20"/></a>
-    
-  </p>
-</nav>
+<span class=k>if</span> <span class=bp>__FILE__</span> <span class=o>==</span> <span class=vg>$0</span>
+  <span class=no>AnalyticsClient</span><span class=o>.</span><span class=n>new</span><span class=o>.</span><span class=n>client</span>
+<span class=k>end</span>
+</code></pre></div><p>When we run this the first time, you should be prompted to grant access to your application. The second time it should run and exit cleanly &ndash; it has access, but we haven&rsquo;t asked to do anything yet.</p><h2 id=step-3-discover-the-api>Step 3 Discover the API</h2><p>Google takes their software development seriously, and it shows. Not only are there many different APIs available to use, but they all have different versions. These endpoints are all different, and rather than have them all hard coded into the client access library, you use the <em>discover api</em> to pull in metadata associated with it. The following code will load up this data and cache it to the filesystem so the next access will be faster.</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=k>def</span> <span class=nf>api</span>
+    <span class=k>return</span> <span class=vi>@api</span> <span class=k>if</span> <span class=vi>@api</span>
 
-<div class="container">
-  <h1 class="mt-5">Pulling data out of Google Analytics</h1>
+    <span class=c1># Load cached discovered API, if it exists. This prevents retrieving the</span>
+    <span class=c1># discovery document on every run, saving a round-trip to API servers.</span>
+    <span class=k>if</span> <span class=no>File</span><span class=o>.</span><span class=n>exists?</span> <span class=no>CACHED_API_FILE</span>
+      <span class=no>File</span><span class=o>.</span><span class=n>open</span><span class=p>(</span><span class=no>CACHED_API_FILE</span><span class=p>)</span> <span class=k>do</span> <span class=o>|</span><span class=n>file</span><span class=o>|</span>
+        <span class=vi>@api</span> <span class=o>=</span> <span class=no>Marshal</span><span class=o>.</span><span class=n>load</span><span class=p>(</span><span class=n>file</span><span class=p>)</span>
+      <span class=k>end</span>
+    <span class=k>else</span>
+      <span class=vi>@api</span> <span class=o>=</span> <span class=n>client</span><span class=o>.</span><span class=n>discovered_api</span><span class=p>(</span><span class=s1>&#39;analytics&#39;</span><span class=p>,</span> <span class=no>API_VERSION</span><span class=p>)</span>
+      <span class=no>File</span><span class=o>.</span><span class=n>open</span><span class=p>(</span><span class=no>CACHED_API_FILE</span><span class=p>,</span> <span class=s1>&#39;w&#39;</span><span class=p>)</span> <span class=k>do</span> <span class=o>|</span><span class=n>file</span><span class=o>|</span>
+        <span class=no>Marshal</span><span class=o>.</span><span class=n>dump</span><span class=p>(</span><span class=vi>@api</span><span class=p>,</span> <span class=n>file</span><span class=p>)</span>
+      <span class=k>end</span>
+    <span class=k>end</span>
 
-  
-    <h2 class="font-weight-light font-italic mb-3">see who&rsquo;s talking about your stuff</h2>
-  
+    <span class=vi>@api</span>
+  <span class=k>end</span>
+</code></pre></div><h2 id=step-4-finding-a-web-profile>Step 4 Finding a web profile</h2><p>In order to pull data from an analytics account, you need to query the management API to get a list of profiles that you user has access to. We&rsquo;re going to collapse the differences between accounts and properties, and print them all out in a list directly. The key variable we are looking for is going to be the profile <em>id</em>. This is different from the <em>web property id</em>, which is what you use in Javascript to add the tracking code (.e.g <code>UA-56296045-1</code>). We&rsquo;ll also show the <em>websiteUrl</em> associated with the account since that&rsquo;s what people really know.</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=k>def</span> <span class=nf>profiles</span>
+    <span class=n>client</span><span class=o>.</span><span class=n>execute</span><span class=p>(</span>
+      <span class=ss>api_method</span><span class=p>:</span> <span class=n>api</span><span class=o>.</span><span class=n>management</span><span class=o>.</span><span class=n>profiles</span><span class=o>.</span><span class=n>list</span><span class=p>,</span>
+      <span class=ss>parameters</span><span class=p>:</span> <span class=p>{</span> <span class=ss>accountId</span><span class=p>:</span> <span class=s2>&#34;~all&#34;</span><span class=p>,</span> <span class=ss>webPropertyId</span><span class=p>:</span> <span class=s2>&#34;~all&#34;</span> <span class=p>}</span> <span class=p>)</span>
+  <span class=k>end</span>
 
-  <p class="text-muted mt-3">
-    <a class="text-muted" href="https://willschenk.com/articles/2014/pulling-data-out-of-google-analytics/">Published December 4, 2014</a>
+  <span class=k>def</span> <span class=nf>print_profiles</span>
+    <span class=n>profiles</span><span class=o>.</span><span class=n>data</span><span class=o>.</span><span class=n>items</span><span class=o>.</span><span class=n>each</span> <span class=k>do</span> <span class=o>|</span><span class=n>profile</span><span class=o>|</span>
+      <span class=nb>printf</span> <span class=s2>&#34;%-15d %-15s %s</span><span class=se>\n</span><span class=s2>&#34;</span><span class=p>,</span> <span class=n>profile</span><span class=o>.</span><span class=n>id</span><span class=p>,</span> <span class=n>profile</span><span class=o>.</span><span class=n>webPropertyId</span><span class=p>,</span> <span class=n>profile</span><span class=o>.</span><span class=n>websiteUrl</span>
+    <span class=k>end</span>
+  <span class=k>end</span>
+<span class=k>end</span>
 
-    
-      <a class="text-muted" href="../../../tags/socialinvestigator">#socialinvestigator</a>
-    
-      <a class="text-muted" href="../../../tags/howto">#howto</a>
-    
-      <a class="text-muted" href="../../../tags/ruby">#ruby</a>
-    
-      <a class="text-muted" href="../../../tags/googleanalytics">#googleanalytics</a>
-    
-  </p>
-
-  
-  <div class="alert alert-danger">This article was published a while ago and may contain obsolete information!</div>
-  
-
-  
-
-  <article class="article mt-5">
-    <p>I like staring at the real time stats of <a href="http://www.google.com/analytics/">Google Analytics</a>.  As a dashboard, it&rsquo;s not really as amazing as <a href="https://chartbeat.com">Chartbeat</a> is, and it doesn&rsquo;t let you drill down into the data as much as <a href="https://mixpanel.com">Mixpanel</a>.  But GA is super simple to setup and it&rsquo;s Google, so everyone uses it.</p>
-<p>Another obsessive/fun thing to do is to see where that spike in inbound traffic is coming from.  On <a href="http://happyfuncorp.com">HappyFunCorp</a> there are days where we get a sudden influx of <a href="http://happyfuncorp.com/#happy-thoughts">Happy Thoughts</a> which warms our hearts and floods our inboxes.  Where did they come from?  How do we figure it out?</p>
-<p>Lets look at how we can interact with Google Analytics using <a href="https://github.com/google/google-api-ruby-client">google-api-ruby-client</a>.  At the end of this, we are going to be able to see the current traffic stats, top referrals, see a timeline of when the referals first came in, and do what we can from that information to track down who is talking about us.  GA will show us that we are getting a lot of <code>SOCIAL</code> traffic, but what else can we figure out?</p>
-<h2 id="step-1-setting-it-up-to-access-google-on-behalf-of-the-user">Step 1 Setting it up to access Google on behalf of the user</h2>
-<p>We&rsquo;re going to be using OAuth2 to authorize our script.  So head over to the <a href="https://console.developers.google.com/project">Google Developers Console</a>.</p>
-<ol>
-<li>
-<p><em>Create a Project</em>.  You should name this something that makes sense to you.  I called my <em>Social Investigator</em></p>
-</li>
-<li>
-<p>Enable the <em>Analytics API</em>.  This can be done on the side bar, under <strong>APIs and auth &gt; Apis</strong>.  Scroll down to find it.</p>
-</li>
-<li>
-<p><strong>APIs and auth &gt; Consent Screen</strong>.  Create something here, you&rsquo;ll need to flesh this out later.</p>
-</li>
-<li>
-<p><strong>APIs and auth &gt; Create Client ID</strong>.  Select <strong>Installed Application</strong> with type <em>Other</em>.  This will create the keys for you, and then you <strong>Download JSON</strong> and save it in a file.</p>
-</li>
-</ol>
-<h2 id="step-2-getting-an-access-token-and-an-api-file-using-installedappflow">Step 2 Getting an access token and an API file using InstalledAppFlow</h2>
-<p>Working with the Google API is pretty confusing at first, since there&rsquo;s multiple steps that need to happen before you can even figure out how to make a call.  Twitter&rsquo;s API, which in every other way is a joke compared to Google&rsquo;s way of doing things, has a <a href="../../../scripting-twitter">handy way to get a single use access token</a>.  With Google you need to do this yourself.  And once that&rsquo;s done, you need to load the API meta data from the API API to be able to access it!</p>
-<p>We&rsquo;re going to be using a few gems to put in your <code>Gemfile</code> specifically:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="n">source</span> <span class="s1">&#39;https://rubygems.org&#39;</span>
-
-<span class="n">gem</span> <span class="s1">&#39;google-api-client&#39;</span>
-<span class="n">gem</span> <span class="s1">&#39;thor&#39;</span>
-<span class="n">gem</span> <span class="s1">&#39;hirb&#39;</span>
-</code></pre></div><p>Now we can use the <code>Google::APIClient::InstalledAppFlow</code> class to open up a web browser, have the user log in as needed to their Google Accounts, and grant access to the API.  The code below shows the basics of this.  We assume that the file you downloaded in step 1 is called <code>client_secrets.json</code> and in the same directory, and we are writing out the granted credentials into the <code>analytics-oauth2.json</code> file.</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="ch">#!/usr/bin/env ruby -KU</span>
-<span class="c1">#</span>
-<span class="c1"># This code has been adapted from</span>
-<span class="c1"># https://github.com/google/google-api-ruby-client-samples/tree/master/drive</span>
-<span class="c1">#</span>
-
-<span class="nb">require</span> <span class="s1">&#39;thor&#39;</span>
-<span class="nb">require</span> <span class="s1">&#39;hirb&#39;</span>
-<span class="nb">require</span> <span class="s1">&#39;google/api_client&#39;</span>
-<span class="nb">require</span> <span class="s1">&#39;google/api_client/client_secrets&#39;</span>
-<span class="nb">require</span> <span class="s1">&#39;google/api_client/auth/file_storage&#39;</span>
-<span class="nb">require</span> <span class="s1">&#39;google/api_client/auth/installed_app&#39;</span>
-<span class="nb">require</span> <span class="s1">&#39;logger&#39;</span>
-<span class="nb">require</span> <span class="s1">&#39;csv&#39;</span>
-
-<span class="no">API_VERSION</span> <span class="o">=</span> <span class="s1">&#39;v3&#39;</span>
-<span class="no">CACHED_API_FILE</span> <span class="o">=</span> <span class="s2">&#34;analytics-</span><span class="si">#{</span><span class="no">API_VERSION</span><span class="si">}</span><span class="s2">.cache&#34;</span>
-<span class="no">CREDENTIAL_STORE_FILE</span> <span class="o">=</span> <span class="s2">&#34;analytics-oauth2.json&#34;</span>
-<span class="no">CLIENT_SECRETS_FILE</span> <span class="o">=</span> <span class="s2">&#34;client_secrets.json&#34;</span>
-
-<span class="k">class</span> <span class="nc">AnalyticsClient</span>
-  <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span> <span class="n">file_caches</span> <span class="o">=</span> <span class="kp">nil</span> <span class="p">)</span>
-    <span class="n">client</span>
-  <span class="k">end</span>
-
-  <span class="k">def</span> <span class="nf">client</span>
-    <span class="k">return</span> <span class="vi">@client</span> <span class="k">if</span> <span class="vi">@client</span>
-
-    <span class="vi">@client</span> <span class="o">=</span> <span class="no">Google</span><span class="o">::</span><span class="no">APIClient</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="ss">:application_name</span> <span class="o">=&gt;</span> <span class="s1">&#39;Analyics-CLI&#39;</span><span class="p">,</span>
-        <span class="ss">:application_version</span> <span class="o">=&gt;</span> <span class="s1">&#39;1.0.0&#39;</span><span class="p">)</span>
-
-    <span class="c1"># FileStorage stores auth credentials in a file, so they survive multiple runs</span>
-    <span class="c1"># of the application. This avoids prompting the user for authorization every</span>
-    <span class="c1"># time the access token expires, by remembering the refresh token.</span>
-    <span class="c1"># Note: FileStorage is not suitable for multi-user applications.</span>
-    <span class="n">file_storage</span> <span class="o">=</span> <span class="no">Google</span><span class="o">::</span><span class="no">APIClient</span><span class="o">::</span><span class="no">FileStorage</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="no">CREDENTIAL_STORE_FILE</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">file_storage</span><span class="o">.</span><span class="n">authorization</span><span class="o">.</span><span class="n">nil?</span>
-      <span class="n">client_secrets</span> <span class="o">=</span> <span class="no">Google</span><span class="o">::</span><span class="no">APIClient</span><span class="o">::</span><span class="no">ClientSecrets</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="no">CLIENT_SECRETS_FILE</span><span class="p">)</span>
-      <span class="c1"># The InstalledAppFlow is a helper class to handle the OAuth 2.0 installed</span>
-      <span class="c1"># application flow, which ties in with FileStorage to store credentials</span>
-      <span class="c1"># between runs.</span>
-      <span class="n">flow</span> <span class="o">=</span> <span class="no">Google</span><span class="o">::</span><span class="no">APIClient</span><span class="o">::</span><span class="no">InstalledAppFlow</span><span class="o">.</span><span class="n">new</span><span class="p">(</span>
-        <span class="ss">:client_id</span> <span class="o">=&gt;</span> <span class="n">client_secrets</span><span class="o">.</span><span class="n">client_id</span><span class="p">,</span>
-        <span class="ss">:client_secret</span> <span class="o">=&gt;</span> <span class="n">client_secrets</span><span class="o">.</span><span class="n">client_secret</span><span class="p">,</span>
-        <span class="ss">:scope</span> <span class="o">=&gt;</span> <span class="o">[</span><span class="s1">&#39;https://www.googleapis.com/auth/analytics&#39;</span><span class="o">]</span>
-      <span class="p">)</span>
-      <span class="vi">@client</span><span class="o">.</span><span class="n">authorization</span> <span class="o">=</span> <span class="n">flow</span><span class="o">.</span><span class="n">authorize</span><span class="p">(</span><span class="n">file_storage</span><span class="p">)</span>
-    <span class="k">else</span>
-      <span class="vi">@client</span><span class="o">.</span><span class="n">authorization</span> <span class="o">=</span> <span class="n">file_storage</span><span class="o">.</span><span class="n">authorization</span>
-    <span class="k">end</span>
-
-    <span class="vi">@client</span>
-  <span class="k">end</span>
-<span class="k">end</span>
-
-<span class="k">if</span> <span class="bp">__FILE__</span> <span class="o">==</span> <span class="vg">$0</span>
-  <span class="no">AnalyticsClient</span><span class="o">.</span><span class="n">new</span><span class="o">.</span><span class="n">client</span>
-<span class="k">end</span>
-</code></pre></div><p>When we run this the first time, you should be prompted to grant access to your application.  The second time it should run and exit cleanly &ndash; it has access, but we haven&rsquo;t asked to do anything yet.</p>
-<h2 id="step-3-discover-the-api">Step 3 Discover the API</h2>
-<p>Google takes their software development seriously, and it shows.  Not only are there many different APIs available to use, but they all have different versions.  These endpoints are all different, and rather than have them all hard coded into the client access library, you use the <em>discover api</em> to pull in metadata associated with it.  The following code will load up this data and cache it to the filesystem so the next access will be faster.</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="k">def</span> <span class="nf">api</span>
-    <span class="k">return</span> <span class="vi">@api</span> <span class="k">if</span> <span class="vi">@api</span>
-
-    <span class="c1"># Load cached discovered API, if it exists. This prevents retrieving the</span>
-    <span class="c1"># discovery document on every run, saving a round-trip to API servers.</span>
-    <span class="k">if</span> <span class="no">File</span><span class="o">.</span><span class="n">exists?</span> <span class="no">CACHED_API_FILE</span>
-      <span class="no">File</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="no">CACHED_API_FILE</span><span class="p">)</span> <span class="k">do</span> <span class="o">|</span><span class="n">file</span><span class="o">|</span>
-        <span class="vi">@api</span> <span class="o">=</span> <span class="no">Marshal</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
-      <span class="k">end</span>
-    <span class="k">else</span>
-      <span class="vi">@api</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">discovered_api</span><span class="p">(</span><span class="s1">&#39;analytics&#39;</span><span class="p">,</span> <span class="no">API_VERSION</span><span class="p">)</span>
-      <span class="no">File</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="no">CACHED_API_FILE</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">do</span> <span class="o">|</span><span class="n">file</span><span class="o">|</span>
-        <span class="no">Marshal</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="vi">@api</span><span class="p">,</span> <span class="n">file</span><span class="p">)</span>
-      <span class="k">end</span>
-    <span class="k">end</span>
-
-    <span class="vi">@api</span>
-  <span class="k">end</span>
-</code></pre></div><h2 id="step-4-finding-a-web-profile">Step 4 Finding a web profile</h2>
-<p>In order to pull data from an analytics account, you need to query the management API to get a list of profiles that you user has access to.  We&rsquo;re going to collapse the differences between accounts and properties, and print them all out in a list directly.  The key variable we are looking for is going to be the profile <em>id</em>.  This is different from the <em>web property id</em>, which is what you use in Javascript to add the tracking code (.e.g <code>UA-56296045-1</code>).  We&rsquo;ll also show the <em>websiteUrl</em> associated with the account since that&rsquo;s what people really know.</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="k">def</span> <span class="nf">profiles</span>
-    <span class="n">client</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-      <span class="ss">api_method</span><span class="p">:</span> <span class="n">api</span><span class="o">.</span><span class="n">management</span><span class="o">.</span><span class="n">profiles</span><span class="o">.</span><span class="n">list</span><span class="p">,</span>
-      <span class="ss">parameters</span><span class="p">:</span> <span class="p">{</span> <span class="ss">accountId</span><span class="p">:</span> <span class="s2">&#34;~all&#34;</span><span class="p">,</span> <span class="ss">webPropertyId</span><span class="p">:</span> <span class="s2">&#34;~all&#34;</span> <span class="p">}</span> <span class="p">)</span>
-  <span class="k">end</span>
-
-  <span class="k">def</span> <span class="nf">print_profiles</span>
-    <span class="n">profiles</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">items</span><span class="o">.</span><span class="n">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">profile</span><span class="o">|</span>
-      <span class="nb">printf</span> <span class="s2">&#34;%-15d %-15s %s</span><span class="se">\n</span><span class="s2">&#34;</span><span class="p">,</span> <span class="n">profile</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="n">profile</span><span class="o">.</span><span class="n">webPropertyId</span><span class="p">,</span> <span class="n">profile</span><span class="o">.</span><span class="n">websiteUrl</span>
-    <span class="k">end</span>
-  <span class="k">end</span>
-<span class="k">end</span>
-
-<span class="k">if</span> <span class="bp">__FILE__</span> <span class="o">==</span> <span class="vg">$0</span>
-  <span class="no">AnalyticsClient</span><span class="o">.</span><span class="n">new</span><span class="o">.</span><span class="n">print_profiles</span>
-<span class="k">end</span>
-</code></pre></div><h2 id="step-5-querying-with-gaget">Step 5 Querying with ga.get</h2>
-<p>The main end point we are looking at is <code>ga.get</code>.  There&rsquo;s an <a href="https://ga-dev-tools.appspot.com/explorer/">interactive developer tool</a> that will let you experiment with what is available and how it works.   If you load up that tool now, you&rsquo;ll see what we&rsquo;ve written code that will let us find the property id for our query, so we are now ready to start querying.</p>
-<p>The <em>Query Explorer</em> is really useful because of the dropdowns around <em>dimensions</em> and <em>metrics</em>.  When you hover over any of the fields, documentation comes up which will explain what each of the fields mean.</p>
-<p><em>Dimensions</em> are different ways of slicing up the data.  These include things like <em>page title</em>, <em>referer</em>, <em>adwords</em>, and other ways of slicing up the people that came to your site.  <em>Metrics</em> are the actual data for these buckets of users, and include things like <em>sessions</em>, <em>user counts</em>, <em>page views</em> and <em>average session duration</em>.</p>
-<p>In order to make the query we first need to setup the query parameters.  We&rsquo;ve split that off into its own method called <code>query_template</code>.  The required fields are <em>profile id</em>, <em>start date</em>, and <em>end date</em>.  We&rsquo;re going to setup some defaults here which we will override in other methods when we use it.</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="k">def</span> <span class="nf">query_template</span><span class="p">(</span> <span class="n">profile_id</span><span class="p">,</span> <span class="n">start_date</span> <span class="o">=</span> <span class="kp">nil</span><span class="p">,</span> <span class="n">end_date</span> <span class="o">=</span> <span class="kp">nil</span> <span class="p">)</span>
-    <span class="n">today</span> <span class="o">=</span> <span class="no">Time</span><span class="o">.</span><span class="n">now</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span> <span class="s2">&#34;%Y-%m-%d&#34;</span> <span class="p">)</span>
-    <span class="p">{</span>
-      <span class="s2">&#34;ids&#34;</span> <span class="o">=&gt;</span> <span class="s2">&#34;ga:</span><span class="si">#{</span><span class="n">profile_id</span><span class="si">}</span><span class="s2">&#34;</span><span class="p">,</span>
-      <span class="s2">&#34;start-date&#34;</span> <span class="o">=&gt;</span> <span class="n">start_date</span> <span class="o">||</span> <span class="n">today</span><span class="p">,</span>
-      <span class="s2">&#34;end-date&#34;</span> <span class="o">=&gt;</span> <span class="n">end_date</span> <span class="o">||</span> <span class="n">today</span><span class="p">,</span>
-      <span class="s2">&#34;sort&#34;</span> <span class="o">=&gt;</span> <span class="s2">&#34;-ga:pageviews&#34;</span><span class="p">,</span>
-      <span class="s2">&#34;dimensions&#34;</span> <span class="o">=&gt;</span> <span class="s2">&#34;ga:pageTitle&#34;</span><span class="p">,</span>
-      <span class="s2">&#34;metrics&#34;</span> <span class="o">=&gt;</span> <span class="s2">&#34;ga:pageviews,ga:newUsers,ga:users&#34;</span>
-    <span class="p">}</span>
-  <span class="k">end</span>
-</code></pre></div><p>Our default here is that we&rsquo;re slicing on <code>pageTitle</code>, showing <code>pageviews</code>, <code>newUsers</code>, and <code>users</code> (which include returning users).</p>
-<p>Let&rsquo;s do an actual query with the parameters:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="k">def</span> <span class="nf">hotcontent</span><span class="p">(</span> <span class="n">profile_id</span><span class="p">,</span> <span class="n">start_date</span> <span class="o">=</span> <span class="kp">nil</span><span class="p">,</span> <span class="n">end_date</span> <span class="o">=</span> <span class="kp">nil</span> <span class="p">)</span>
-    <span class="n">query</span> <span class="o">=</span> <span class="n">query_template</span><span class="p">(</span> <span class="n">profile_id</span><span class="p">,</span> <span class="n">start_date</span><span class="p">,</span> <span class="n">end_date</span> <span class="p">)</span>
-    <span class="n">client</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-      <span class="ss">api_method</span><span class="p">:</span> <span class="n">api</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">ga</span><span class="o">.</span><span class="n">get</span><span class="p">,</span>
-      <span class="ss">parameters</span><span class="p">:</span> <span class="n">query</span>
-      <span class="p">)</span>
-  <span class="k">end</span>
-</code></pre></div><p>Now we need a way to print the result.  The result that we get back has two different things, <code>columnHeaders</code> which is a reflection of the <code>query</code> that we passed in, and the data itself is an array of arrays in <code>row</code>.  We&rsquo;re using <code> Hirb</code> helper method here to format the result.</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="k">def</span> <span class="nf">print_query_result</span><span class="p">(</span> <span class="n">r</span> <span class="p">)</span>
-    <span class="n">headers</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">columnHeaders</span><span class="o">.</span><span class="n">collect</span> <span class="p">{</span> <span class="o">|</span><span class="n">x</span><span class="o">|</span> <span class="n">x</span><span class="o">.</span><span class="n">name</span> <span class="p">}</span>
-    <span class="nb">puts</span> <span class="no">Hirb</span><span class="o">::</span><span class="no">Helpers</span><span class="o">::</span><span class="no">AutoTable</span><span class="o">.</span><span class="n">render</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">rows</span><span class="p">,</span> <span class="ss">headers</span><span class="p">:</span> <span class="n">headers</span> <span class="p">)</span>
-  <span class="k">end</span>
-</code></pre></div><p>Let&rsquo;s give it a try:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="k">if</span> <span class="bp">__FILE__</span> <span class="o">==</span> <span class="vg">$0</span>
-  <span class="n">client</span> <span class="o">=</span> <span class="no">AnalyticsClient</span><span class="o">.</span><span class="n">new</span>
-  <span class="n">results</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">hotcontent</span> <span class="no">ARGV</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span>
-  <span class="n">client</span><span class="o">.</span><span class="n">print_query_result</span> <span class="n">results</span>
-<span class="k">end</span>
-</code></pre></div><p>Make sure you&rsquo;ve made note of your profile id above, and we can see what it looks like now:</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ ruby ga.rb <span class="m">93249816</span>
+<span class=k>if</span> <span class=bp>__FILE__</span> <span class=o>==</span> <span class=vg>$0</span>
+  <span class=no>AnalyticsClient</span><span class=o>.</span><span class=n>new</span><span class=o>.</span><span class=n>print_profiles</span>
+<span class=k>end</span>
+</code></pre></div><h2 id=step-5-querying-with-gaget>Step 5 Querying with ga.get</h2><p>The main end point we are looking at is <code>ga.get</code>. There&rsquo;s an <a href=https://ga-dev-tools.appspot.com/explorer/>interactive developer tool</a> that will let you experiment with what is available and how it works. If you load up that tool now, you&rsquo;ll see what we&rsquo;ve written code that will let us find the property id for our query, so we are now ready to start querying.</p><p>The <em>Query Explorer</em> is really useful because of the dropdowns around <em>dimensions</em> and <em>metrics</em>. When you hover over any of the fields, documentation comes up which will explain what each of the fields mean.</p><p><em>Dimensions</em> are different ways of slicing up the data. These include things like <em>page title</em>, <em>referer</em>, <em>adwords</em>, and other ways of slicing up the people that came to your site. <em>Metrics</em> are the actual data for these buckets of users, and include things like <em>sessions</em>, <em>user counts</em>, <em>page views</em> and <em>average session duration</em>.</p><p>In order to make the query we first need to setup the query parameters. We&rsquo;ve split that off into its own method called <code>query_template</code>. The required fields are <em>profile id</em>, <em>start date</em>, and <em>end date</em>. We&rsquo;re going to setup some defaults here which we will override in other methods when we use it.</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=k>def</span> <span class=nf>query_template</span><span class=p>(</span> <span class=n>profile_id</span><span class=p>,</span> <span class=n>start_date</span> <span class=o>=</span> <span class=kp>nil</span><span class=p>,</span> <span class=n>end_date</span> <span class=o>=</span> <span class=kp>nil</span> <span class=p>)</span>
+    <span class=n>today</span> <span class=o>=</span> <span class=no>Time</span><span class=o>.</span><span class=n>now</span><span class=o>.</span><span class=n>strftime</span><span class=p>(</span> <span class=s2>&#34;%Y-%m-%d&#34;</span> <span class=p>)</span>
+    <span class=p>{</span>
+      <span class=s2>&#34;ids&#34;</span> <span class=o>=&gt;</span> <span class=s2>&#34;ga:</span><span class=si>#{</span><span class=n>profile_id</span><span class=si>}</span><span class=s2>&#34;</span><span class=p>,</span>
+      <span class=s2>&#34;start-date&#34;</span> <span class=o>=&gt;</span> <span class=n>start_date</span> <span class=o>||</span> <span class=n>today</span><span class=p>,</span>
+      <span class=s2>&#34;end-date&#34;</span> <span class=o>=&gt;</span> <span class=n>end_date</span> <span class=o>||</span> <span class=n>today</span><span class=p>,</span>
+      <span class=s2>&#34;sort&#34;</span> <span class=o>=&gt;</span> <span class=s2>&#34;-ga:pageviews&#34;</span><span class=p>,</span>
+      <span class=s2>&#34;dimensions&#34;</span> <span class=o>=&gt;</span> <span class=s2>&#34;ga:pageTitle&#34;</span><span class=p>,</span>
+      <span class=s2>&#34;metrics&#34;</span> <span class=o>=&gt;</span> <span class=s2>&#34;ga:pageviews,ga:newUsers,ga:users&#34;</span>
+    <span class=p>}</span>
+  <span class=k>end</span>
+</code></pre></div><p>Our default here is that we&rsquo;re slicing on <code>pageTitle</code>, showing <code>pageviews</code>, <code>newUsers</code>, and <code>users</code> (which include returning users).</p><p>Let&rsquo;s do an actual query with the parameters:</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=k>def</span> <span class=nf>hotcontent</span><span class=p>(</span> <span class=n>profile_id</span><span class=p>,</span> <span class=n>start_date</span> <span class=o>=</span> <span class=kp>nil</span><span class=p>,</span> <span class=n>end_date</span> <span class=o>=</span> <span class=kp>nil</span> <span class=p>)</span>
+    <span class=n>query</span> <span class=o>=</span> <span class=n>query_template</span><span class=p>(</span> <span class=n>profile_id</span><span class=p>,</span> <span class=n>start_date</span><span class=p>,</span> <span class=n>end_date</span> <span class=p>)</span>
+    <span class=n>client</span><span class=o>.</span><span class=n>execute</span><span class=p>(</span>
+      <span class=ss>api_method</span><span class=p>:</span> <span class=n>api</span><span class=o>.</span><span class=n>data</span><span class=o>.</span><span class=n>ga</span><span class=o>.</span><span class=n>get</span><span class=p>,</span>
+      <span class=ss>parameters</span><span class=p>:</span> <span class=n>query</span>
+      <span class=p>)</span>
+  <span class=k>end</span>
+</code></pre></div><p>Now we need a way to print the result. The result that we get back has two different things, <code>columnHeaders</code> which is a reflection of the <code>query</code> that we passed in, and the data itself is an array of arrays in <code>row</code>. We&rsquo;re using <code>Hirb</code> helper method here to format the result.</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=k>def</span> <span class=nf>print_query_result</span><span class=p>(</span> <span class=n>r</span> <span class=p>)</span>
+    <span class=n>headers</span> <span class=o>=</span> <span class=n>r</span><span class=o>.</span><span class=n>data</span><span class=o>.</span><span class=n>columnHeaders</span><span class=o>.</span><span class=n>collect</span> <span class=p>{</span> <span class=o>|</span><span class=n>x</span><span class=o>|</span> <span class=n>x</span><span class=o>.</span><span class=n>name</span> <span class=p>}</span>
+    <span class=nb>puts</span> <span class=no>Hirb</span><span class=o>::</span><span class=no>Helpers</span><span class=o>::</span><span class=no>AutoTable</span><span class=o>.</span><span class=n>render</span><span class=p>(</span><span class=n>r</span><span class=o>.</span><span class=n>data</span><span class=o>.</span><span class=n>rows</span><span class=p>,</span> <span class=ss>headers</span><span class=p>:</span> <span class=n>headers</span> <span class=p>)</span>
+  <span class=k>end</span>
+</code></pre></div><p>Let&rsquo;s give it a try:</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=k>if</span> <span class=bp>__FILE__</span> <span class=o>==</span> <span class=vg>$0</span>
+  <span class=n>client</span> <span class=o>=</span> <span class=no>AnalyticsClient</span><span class=o>.</span><span class=n>new</span>
+  <span class=n>results</span> <span class=o>=</span> <span class=n>client</span><span class=o>.</span><span class=n>hotcontent</span> <span class=no>ARGV</span><span class=o>[</span><span class=mi>0</span><span class=o>]</span>
+  <span class=n>client</span><span class=o>.</span><span class=n>print_query_result</span> <span class=n>results</span>
+<span class=k>end</span>
+</code></pre></div><p>Make sure you&rsquo;ve made note of your profile id above, and we can see what it looks like now:</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>$ ruby ga.rb <span class=m>93249816</span>
 +--------------------------------------------------+--------------+-------------+----------+
-<span class="p">|</span> ga:pageTitle                                     <span class="p">|</span> ga:pageviews <span class="p">|</span> ga:newUsers <span class="p">|</span> ga:users <span class="p">|</span>
+<span class=p>|</span> ga:pageTitle                                     <span class=p>|</span> ga:pageviews <span class=p>|</span> ga:newUsers <span class=p>|</span> ga:users <span class=p>|</span>
 +--------------------------------------------------+--------------+-------------+----------+
-<span class="p">|</span> Building Sites with Middleman <span class="p">|</span> Will Schenk      <span class="p">|</span> <span class="m">26</span>           <span class="p">|</span> <span class="m">11</span>          <span class="p">|</span> <span class="m">24</span>       <span class="p">|</span>
-<span class="p">|</span> Bootstrap: Advanced Grid Tricks <span class="p">|</span> Will Schenk    <span class="p">|</span> <span class="m">11</span>           <span class="p">|</span> <span class="m">7</span>           <span class="p">|</span> <span class="m">11</span>       <span class="p">|</span>
-<span class="p">|</span> Making a <span class="nb">command</span> line utility with gems and thor <span class="p">|</span> <span class="m">9</span>            <span class="p">|</span> <span class="m">2</span>           <span class="p">|</span> <span class="m">6</span>        <span class="p">|</span>
-<span class="p">|</span> Will Schenk <span class="p">|</span> Will Schenk                        <span class="p">|</span> <span class="m">9</span>            <span class="p">|</span> <span class="m">2</span>           <span class="p">|</span> <span class="m">5</span>        <span class="p">|</span>
-<span class="p">|</span> Making Yosemite Faster <span class="p">|</span> Will Schenk             <span class="p">|</span> <span class="m">8</span>            <span class="p">|</span> <span class="m">7</span>           <span class="p">|</span> <span class="m">8</span>        <span class="p">|</span>
-<span class="p">|</span> How to track your coworkers <span class="p">|</span> Will Schenk        <span class="p">|</span> <span class="m">6</span>            <span class="p">|</span> <span class="m">1</span>           <span class="p">|</span> <span class="m">6</span>        <span class="p">|</span>
-<span class="p">|</span> Will Schenk - How to track your coworkers        <span class="p">|</span> <span class="m">3</span>            <span class="p">|</span> <span class="m">0</span>           <span class="p">|</span> <span class="m">1</span>        <span class="p">|</span>
+<span class=p>|</span> Building Sites with Middleman <span class=p>|</span> Will Schenk      <span class=p>|</span> <span class=m>26</span>           <span class=p>|</span> <span class=m>11</span>          <span class=p>|</span> <span class=m>24</span>       <span class=p>|</span>
+<span class=p>|</span> Bootstrap: Advanced Grid Tricks <span class=p>|</span> Will Schenk    <span class=p>|</span> <span class=m>11</span>           <span class=p>|</span> <span class=m>7</span>           <span class=p>|</span> <span class=m>11</span>       <span class=p>|</span>
+<span class=p>|</span> Making a <span class=nb>command</span> line utility with gems and thor <span class=p>|</span> <span class=m>9</span>            <span class=p>|</span> <span class=m>2</span>           <span class=p>|</span> <span class=m>6</span>        <span class=p>|</span>
+<span class=p>|</span> Will Schenk <span class=p>|</span> Will Schenk                        <span class=p>|</span> <span class=m>9</span>            <span class=p>|</span> <span class=m>2</span>           <span class=p>|</span> <span class=m>5</span>        <span class=p>|</span>
+<span class=p>|</span> Making Yosemite Faster <span class=p>|</span> Will Schenk             <span class=p>|</span> <span class=m>8</span>            <span class=p>|</span> <span class=m>7</span>           <span class=p>|</span> <span class=m>8</span>        <span class=p>|</span>
+<span class=p>|</span> How to track your coworkers <span class=p>|</span> Will Schenk        <span class=p>|</span> <span class=m>6</span>            <span class=p>|</span> <span class=m>1</span>           <span class=p>|</span> <span class=m>6</span>        <span class=p>|</span>
+<span class=p>|</span> Will Schenk - How to track your coworkers        <span class=p>|</span> <span class=m>3</span>            <span class=p>|</span> <span class=m>0</span>           <span class=p>|</span> <span class=m>1</span>        <span class=p>|</span>
 +--------------------------------------------------+--------------+-------------+----------+
-<span class="m">7</span> rows in <span class="nb">set</span>
-</code></pre></div><h2 id="step-6-adding-more-commands">Step 6 Adding more commands</h2>
-<p>Lets create a <code>Thor</code> class here for the things that we want to query, and then go through a implement the calls in the <code>AnalyticsClient</code> class.</p>
-<p>We want to be able to specify the timeframe for when we want the results.  It defaults to the current date, but lets add some more options for <strong>today</strong>, <strong>yesterday</strong>, <strong>recently</strong> (last 7 days), and <strong>month</strong> (last 30 days, which isn&rsquo;t really a month but close enough.)</p>
-<p>We also want to have different output options, so we&rsquo;ll add a <strong>table</strong> switch, like the <code>Hirb</code> output above, and <strong>csv</strong> to make it easier to plug this into other tools.</p>
-<p>We&rsquo;re going to create 4 different ways to query the data.</p>
-<ul>
-<li>What content is getting traffic</li>
-<li>Who is linking to your site</li>
-<li>Who is linking to specific pages on your site</li>
-<li>A timeline of when content was published and people started linking to it</li>
-</ul>
-<pre><code>Commands:
+<span class=m>7</span> rows in <span class=nb>set</span>
+</code></pre></div><h2 id=step-6-adding-more-commands>Step 6 Adding more commands</h2><p>Lets create a <code>Thor</code> class here for the things that we want to query, and then go through a implement the calls in the <code>AnalyticsClient</code> class.</p><p>We want to be able to specify the timeframe for when we want the results. It defaults to the current date, but lets add some more options for <strong>today</strong>, <strong>yesterday</strong>, <strong>recently</strong> (last 7 days), and <strong>month</strong> (last 30 days, which isn&rsquo;t really a month but close enough.)</p><p>We also want to have different output options, so we&rsquo;ll add a <strong>table</strong> switch, like the <code>Hirb</code> output above, and <strong>csv</strong> to make it easier to plug this into other tools.</p><p>We&rsquo;re going to create 4 different ways to query the data.</p><ul><li>What content is getting traffic</li><li>Who is linking to your site</li><li>Who is linking to specific pages on your site</li><li>A timeline of when content was published and people started linking to it</li></ul><pre><code>Commands:
   ga.rb profiles                     # List Account Profiles
   ga.rb hotcontent PROFILE_ID        # Show hot content for profile id
   ga.rb referers PROFILE_ID          # Show hot content for profile id
   ga.rb content_referers PROFILE_ID  # Show hot content for profile id
   ga.rb timeline PROFILE_ID          # Show a timeline of referers
-</code></pre><p>Here&rsquo;s the CLI code:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="k">class</span> <span class="nc">HammerOfTheGods</span> <span class="o">&lt;</span> <span class="no">Thor</span>
-  <span class="n">desc</span> <span class="s2">&#34;profiles&#34;</span><span class="p">,</span> <span class="s2">&#34;List Account Profiles&#34;</span>
-  <span class="k">def</span> <span class="nf">profiles</span>
-    <span class="n">client</span><span class="o">.</span><span class="n">print_profiles</span>
-  <span class="k">end</span>
+</code></pre><p>Here&rsquo;s the CLI code:</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=k>class</span> <span class=nc>HammerOfTheGods</span> <span class=o>&lt;</span> <span class=no>Thor</span>
+  <span class=n>desc</span> <span class=s2>&#34;profiles&#34;</span><span class=p>,</span> <span class=s2>&#34;List Account Profiles&#34;</span>
+  <span class=k>def</span> <span class=nf>profiles</span>
+    <span class=n>client</span><span class=o>.</span><span class=n>print_profiles</span>
+  <span class=k>end</span>
 
-  <span class="n">desc</span> <span class="s2">&#34;hotcontent PROFILE_ID&#34;</span><span class="p">,</span> <span class="s2">&#34;Show hot content for profile id&#34;</span>
-  <span class="n">options</span> <span class="o">[</span><span class="ss">:today</span><span class="p">,</span> <span class="ss">:yesterday</span><span class="p">,</span> <span class="ss">:recently</span><span class="p">,</span> <span class="ss">:month</span><span class="p">,</span> <span class="ss">:table</span><span class="p">,</span> <span class="ss">:csv</span><span class="o">]</span>
-  <span class="k">def</span> <span class="nf">hotcontent</span><span class="p">(</span> <span class="n">profile_id</span> <span class="p">)</span>
-    <span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">hotcontent</span><span class="p">(</span> <span class="n">profile_id</span><span class="p">,</span> <span class="n">start_date</span><span class="p">,</span> <span class="n">end_date</span> <span class="p">)</span>
-    <span class="n">print_result</span> <span class="n">result</span>
-  <span class="k">end</span>
+  <span class=n>desc</span> <span class=s2>&#34;hotcontent PROFILE_ID&#34;</span><span class=p>,</span> <span class=s2>&#34;Show hot content for profile id&#34;</span>
+  <span class=n>options</span> <span class=o>[</span><span class=ss>:today</span><span class=p>,</span> <span class=ss>:yesterday</span><span class=p>,</span> <span class=ss>:recently</span><span class=p>,</span> <span class=ss>:month</span><span class=p>,</span> <span class=ss>:table</span><span class=p>,</span> <span class=ss>:csv</span><span class=o>]</span>
+  <span class=k>def</span> <span class=nf>hotcontent</span><span class=p>(</span> <span class=n>profile_id</span> <span class=p>)</span>
+    <span class=n>result</span> <span class=o>=</span> <span class=n>client</span><span class=o>.</span><span class=n>hotcontent</span><span class=p>(</span> <span class=n>profile_id</span><span class=p>,</span> <span class=n>start_date</span><span class=p>,</span> <span class=n>end_date</span> <span class=p>)</span>
+    <span class=n>print_result</span> <span class=n>result</span>
+  <span class=k>end</span>
 
-  <span class="n">desc</span> <span class="s2">&#34;referers PROFILE_ID&#34;</span><span class="p">,</span> <span class="s2">&#34;Show hot content for profile id&#34;</span>
-  <span class="n">options</span> <span class="o">[</span><span class="ss">:today</span><span class="p">,</span> <span class="ss">:yesterday</span><span class="p">,</span> <span class="ss">:recently</span><span class="p">,</span> <span class="ss">:month</span><span class="p">,</span> <span class="ss">:table</span><span class="p">,</span> <span class="ss">:csv</span><span class="o">]</span>
-  <span class="k">def</span> <span class="nf">referers</span><span class="p">(</span> <span class="n">profile_id</span> <span class="p">)</span>
-    <span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">referers</span><span class="p">(</span> <span class="n">profile_id</span><span class="p">,</span> <span class="n">start_date</span><span class="p">,</span> <span class="n">end_date</span> <span class="p">)</span>
-    <span class="n">print_result</span><span class="p">(</span> <span class="n">result</span> <span class="p">)</span>
-  <span class="k">end</span>
+  <span class=n>desc</span> <span class=s2>&#34;referers PROFILE_ID&#34;</span><span class=p>,</span> <span class=s2>&#34;Show hot content for profile id&#34;</span>
+  <span class=n>options</span> <span class=o>[</span><span class=ss>:today</span><span class=p>,</span> <span class=ss>:yesterday</span><span class=p>,</span> <span class=ss>:recently</span><span class=p>,</span> <span class=ss>:month</span><span class=p>,</span> <span class=ss>:table</span><span class=p>,</span> <span class=ss>:csv</span><span class=o>]</span>
+  <span class=k>def</span> <span class=nf>referers</span><span class=p>(</span> <span class=n>profile_id</span> <span class=p>)</span>
+    <span class=n>result</span> <span class=o>=</span> <span class=n>client</span><span class=o>.</span><span class=n>referers</span><span class=p>(</span> <span class=n>profile_id</span><span class=p>,</span> <span class=n>start_date</span><span class=p>,</span> <span class=n>end_date</span> <span class=p>)</span>
+    <span class=n>print_result</span><span class=p>(</span> <span class=n>result</span> <span class=p>)</span>
+  <span class=k>end</span>
 
-  <span class="n">desc</span> <span class="s2">&#34;content_referers PROFILE_ID&#34;</span><span class="p">,</span> <span class="s2">&#34;Show hot content for profile id&#34;</span>
-  <span class="n">options</span> <span class="o">[</span><span class="ss">:today</span><span class="p">,</span> <span class="ss">:yesterday</span><span class="p">,</span> <span class="ss">:recently</span><span class="p">,</span> <span class="ss">:month</span><span class="p">,</span> <span class="ss">:table</span><span class="p">,</span> <span class="ss">:csv</span><span class="o">]</span>
-  <span class="k">def</span> <span class="nf">content_referers</span><span class="p">(</span> <span class="n">profile_id</span> <span class="p">)</span>
-    <span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">content_referers</span><span class="p">(</span> <span class="n">profile_id</span><span class="p">,</span> <span class="n">start_date</span><span class="p">,</span> <span class="n">end_date</span> <span class="p">)</span>
-    <span class="n">print_result</span><span class="p">(</span> <span class="n">result</span> <span class="p">)</span>
-  <span class="k">end</span>
+  <span class=n>desc</span> <span class=s2>&#34;content_referers PROFILE_ID&#34;</span><span class=p>,</span> <span class=s2>&#34;Show hot content for profile id&#34;</span>
+  <span class=n>options</span> <span class=o>[</span><span class=ss>:today</span><span class=p>,</span> <span class=ss>:yesterday</span><span class=p>,</span> <span class=ss>:recently</span><span class=p>,</span> <span class=ss>:month</span><span class=p>,</span> <span class=ss>:table</span><span class=p>,</span> <span class=ss>:csv</span><span class=o>]</span>
+  <span class=k>def</span> <span class=nf>content_referers</span><span class=p>(</span> <span class=n>profile_id</span> <span class=p>)</span>
+    <span class=n>result</span> <span class=o>=</span> <span class=n>client</span><span class=o>.</span><span class=n>content_referers</span><span class=p>(</span> <span class=n>profile_id</span><span class=p>,</span> <span class=n>start_date</span><span class=p>,</span> <span class=n>end_date</span> <span class=p>)</span>
+    <span class=n>print_result</span><span class=p>(</span> <span class=n>result</span> <span class=p>)</span>
+  <span class=k>end</span>
 
-  <span class="n">desc</span> <span class="s2">&#34;timeline PROFILE_ID&#34;</span><span class="p">,</span> <span class="s2">&#34;Show a timeline of referers&#34;</span>
-  <span class="k">def</span> <span class="nf">timeline</span><span class="p">(</span> <span class="n">profile_id</span> <span class="p">)</span>
-    <span class="n">client</span><span class="o">.</span><span class="n">timeline</span><span class="p">(</span> <span class="n">profile_id</span> <span class="p">)</span>
-  <span class="k">end</span>
+  <span class=n>desc</span> <span class=s2>&#34;timeline PROFILE_ID&#34;</span><span class=p>,</span> <span class=s2>&#34;Show a timeline of referers&#34;</span>
+  <span class=k>def</span> <span class=nf>timeline</span><span class=p>(</span> <span class=n>profile_id</span> <span class=p>)</span>
+    <span class=n>client</span><span class=o>.</span><span class=n>timeline</span><span class=p>(</span> <span class=n>profile_id</span> <span class=p>)</span>
+  <span class=k>end</span>
 
-  <span class="kp">private</span>
-  <span class="k">def</span> <span class="nf">client</span>
-    <span class="vi">@client</span> <span class="o">||=</span> <span class="no">AnalyticsClient</span><span class="o">.</span><span class="n">new</span>
-  <span class="k">end</span>
+  <span class=kp>private</span>
+  <span class=k>def</span> <span class=nf>client</span>
+    <span class=vi>@client</span> <span class=o>||=</span> <span class=no>AnalyticsClient</span><span class=o>.</span><span class=n>new</span>
+  <span class=k>end</span>
 
-  <span class="k">def</span> <span class="nf">start_date</span>
-    <span class="k">return</span> <span class="p">(</span><span class="no">Time</span><span class="o">.</span><span class="n">now</span> <span class="o">-</span> <span class="p">(</span><span class="mi">24</span><span class="o">*</span><span class="mi">60</span><span class="o">*</span><span class="mi">60</span><span class="p">))</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span> <span class="s2">&#34;%Y-%m-%d&#34;</span> <span class="p">)</span> <span class="k">if</span> <span class="n">options</span><span class="o">[</span><span class="ss">:yesterday</span><span class="o">]</span>
-    <span class="k">return</span> <span class="p">(</span><span class="no">Time</span><span class="o">.</span><span class="n">now</span> <span class="o">-</span> <span class="p">(</span><span class="mi">7</span><span class="o">*</span><span class="mi">24</span><span class="o">*</span><span class="mi">60</span><span class="o">*</span><span class="mi">60</span><span class="p">))</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span> <span class="s2">&#34;%Y-%m-%d&#34;</span> <span class="p">)</span> <span class="k">if</span> <span class="n">options</span><span class="o">[</span><span class="ss">:recently</span><span class="o">]</span>
-    <span class="k">return</span> <span class="p">(</span><span class="no">Time</span><span class="o">.</span><span class="n">now</span> <span class="o">-</span> <span class="p">(</span><span class="mi">30</span><span class="o">*</span><span class="mi">24</span><span class="o">*</span><span class="mi">60</span><span class="o">*</span><span class="mi">60</span><span class="p">))</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span> <span class="s2">&#34;%Y-%m-%d&#34;</span> <span class="p">)</span> <span class="k">if</span> <span class="n">options</span><span class="o">[</span><span class="ss">:month</span><span class="o">]</span>
-    <span class="kp">nil</span>
-  <span class="k">end</span>
+  <span class=k>def</span> <span class=nf>start_date</span>
+    <span class=k>return</span> <span class=p>(</span><span class=no>Time</span><span class=o>.</span><span class=n>now</span> <span class=o>-</span> <span class=p>(</span><span class=mi>24</span><span class=o>*</span><span class=mi>60</span><span class=o>*</span><span class=mi>60</span><span class=p>))</span><span class=o>.</span><span class=n>strftime</span><span class=p>(</span> <span class=s2>&#34;%Y-%m-%d&#34;</span> <span class=p>)</span> <span class=k>if</span> <span class=n>options</span><span class=o>[</span><span class=ss>:yesterday</span><span class=o>]</span>
+    <span class=k>return</span> <span class=p>(</span><span class=no>Time</span><span class=o>.</span><span class=n>now</span> <span class=o>-</span> <span class=p>(</span><span class=mi>7</span><span class=o>*</span><span class=mi>24</span><span class=o>*</span><span class=mi>60</span><span class=o>*</span><span class=mi>60</span><span class=p>))</span><span class=o>.</span><span class=n>strftime</span><span class=p>(</span> <span class=s2>&#34;%Y-%m-%d&#34;</span> <span class=p>)</span> <span class=k>if</span> <span class=n>options</span><span class=o>[</span><span class=ss>:recently</span><span class=o>]</span>
+    <span class=k>return</span> <span class=p>(</span><span class=no>Time</span><span class=o>.</span><span class=n>now</span> <span class=o>-</span> <span class=p>(</span><span class=mi>30</span><span class=o>*</span><span class=mi>24</span><span class=o>*</span><span class=mi>60</span><span class=o>*</span><span class=mi>60</span><span class=p>))</span><span class=o>.</span><span class=n>strftime</span><span class=p>(</span> <span class=s2>&#34;%Y-%m-%d&#34;</span> <span class=p>)</span> <span class=k>if</span> <span class=n>options</span><span class=o>[</span><span class=ss>:month</span><span class=o>]</span>
+    <span class=kp>nil</span>
+  <span class=k>end</span>
 
-  <span class="k">def</span> <span class="nf">end_date</span>
-    <span class="k">return</span> <span class="p">(</span><span class="no">Time</span><span class="o">.</span><span class="n">now</span> <span class="o">-</span> <span class="p">(</span><span class="mi">24</span><span class="o">*</span><span class="mi">60</span><span class="o">*</span><span class="mi">60</span><span class="p">))</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span> <span class="s2">&#34;%Y-%m-%d&#34;</span> <span class="p">)</span> <span class="k">if</span> <span class="n">options</span><span class="o">[</span><span class="ss">:yesterday</span><span class="o">]</span>
-    <span class="kp">nil</span>
-  <span class="k">end</span>
+  <span class=k>def</span> <span class=nf>end_date</span>
+    <span class=k>return</span> <span class=p>(</span><span class=no>Time</span><span class=o>.</span><span class=n>now</span> <span class=o>-</span> <span class=p>(</span><span class=mi>24</span><span class=o>*</span><span class=mi>60</span><span class=o>*</span><span class=mi>60</span><span class=p>))</span><span class=o>.</span><span class=n>strftime</span><span class=p>(</span> <span class=s2>&#34;%Y-%m-%d&#34;</span> <span class=p>)</span> <span class=k>if</span> <span class=n>options</span><span class=o>[</span><span class=ss>:yesterday</span><span class=o>]</span>
+    <span class=kp>nil</span>
+  <span class=k>end</span>
 
-  <span class="k">def</span> <span class="nf">print_result</span><span class="p">(</span> <span class="n">result</span> <span class="p">)</span>
-    <span class="k">if</span> <span class="n">options</span><span class="o">[</span><span class="ss">:csv</span><span class="o">]</span>
-      <span class="n">client</span><span class="o">.</span><span class="n">print_csv_result</span><span class="p">(</span> <span class="n">result</span> <span class="p">)</span>
-    <span class="k">else</span>
-      <span class="n">client</span><span class="o">.</span><span class="n">print_query_result</span><span class="p">(</span> <span class="n">result</span> <span class="p">)</span>
-    <span class="k">end</span>
-  <span class="k">end</span>
-<span class="k">end</span>
+  <span class=k>def</span> <span class=nf>print_result</span><span class=p>(</span> <span class=n>result</span> <span class=p>)</span>
+    <span class=k>if</span> <span class=n>options</span><span class=o>[</span><span class=ss>:csv</span><span class=o>]</span>
+      <span class=n>client</span><span class=o>.</span><span class=n>print_csv_result</span><span class=p>(</span> <span class=n>result</span> <span class=p>)</span>
+    <span class=k>else</span>
+      <span class=n>client</span><span class=o>.</span><span class=n>print_query_result</span><span class=p>(</span> <span class=n>result</span> <span class=p>)</span>
+    <span class=k>end</span>
+  <span class=k>end</span>
+<span class=k>end</span>
 
-<span class="k">if</span> <span class="bp">__FILE__</span> <span class="o">==</span> <span class="vg">$0</span>
-  <span class="no">HammerOfTheGods</span><span class="o">.</span><span class="n">start</span><span class="p">(</span><span class="no">ARGV</span><span class="p">)</span>
-<span class="k">end</span>
-</code></pre></div><h2 id="step-7-lets-implement">Step 7 Lets implement</h2>
-<p>We have the <code>profiles</code> command and the <code>hotcontent</code> command, or <strong>what content is getting traffic</strong> working already.  Lets add some code to make the <code>--csv</code> option work, this goes into the <code>AnalyticsClient</code> class:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="k">def</span> <span class="nf">print_csv_result</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
-    <span class="n">csv_string</span> <span class="o">=</span> <span class="no">CSV</span><span class="o">.</span><span class="n">generate</span> <span class="k">do</span> <span class="o">|</span><span class="n">csv</span><span class="o">|</span>
-      <span class="n">csv</span> <span class="o">&lt;&lt;</span> <span class="n">r</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">columnHeaders</span><span class="o">.</span><span class="n">collect</span> <span class="p">{</span> <span class="o">|</span><span class="n">x</span><span class="o">|</span> <span class="n">x</span><span class="o">.</span><span class="n">name</span> <span class="p">}</span>
-      <span class="n">r</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">rows</span><span class="o">.</span><span class="n">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">row</span><span class="o">|</span>
-        <span class="n">csv</span> <span class="o">&lt;&lt;</span> <span class="n">row</span>
-      <span class="k">end</span>
-    <span class="k">end</span>
+<span class=k>if</span> <span class=bp>__FILE__</span> <span class=o>==</span> <span class=vg>$0</span>
+  <span class=no>HammerOfTheGods</span><span class=o>.</span><span class=n>start</span><span class=p>(</span><span class=no>ARGV</span><span class=p>)</span>
+<span class=k>end</span>
+</code></pre></div><h2 id=step-7-lets-implement>Step 7 Lets implement</h2><p>We have the <code>profiles</code> command and the <code>hotcontent</code> command, or <strong>what content is getting traffic</strong> working already. Lets add some code to make the <code>--csv</code> option work, this goes into the <code>AnalyticsClient</code> class:</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=k>def</span> <span class=nf>print_csv_result</span><span class=p>(</span><span class=n>r</span><span class=p>)</span>
+    <span class=n>csv_string</span> <span class=o>=</span> <span class=no>CSV</span><span class=o>.</span><span class=n>generate</span> <span class=k>do</span> <span class=o>|</span><span class=n>csv</span><span class=o>|</span>
+      <span class=n>csv</span> <span class=o>&lt;&lt;</span> <span class=n>r</span><span class=o>.</span><span class=n>data</span><span class=o>.</span><span class=n>columnHeaders</span><span class=o>.</span><span class=n>collect</span> <span class=p>{</span> <span class=o>|</span><span class=n>x</span><span class=o>|</span> <span class=n>x</span><span class=o>.</span><span class=n>name</span> <span class=p>}</span>
+      <span class=n>r</span><span class=o>.</span><span class=n>data</span><span class=o>.</span><span class=n>rows</span><span class=o>.</span><span class=n>each</span> <span class=k>do</span> <span class=o>|</span><span class=n>row</span><span class=o>|</span>
+        <span class=n>csv</span> <span class=o>&lt;&lt;</span> <span class=n>row</span>
+      <span class=k>end</span>
+    <span class=k>end</span>
 
-    <span class="nb">puts</span> <span class="n">csv_string</span>
-    <span class="n">csv_string</span>
-  <span class="k">end</span>
+    <span class=nb>puts</span> <span class=n>csv_string</span>
+    <span class=n>csv_string</span>
+  <span class=k>end</span>
 </code></pre></div><p><strong>Who is linking to your site</strong>?
-We can find out by looking at <code>ga:source</code> which is basically the domain, <code>ga:referralPath</code> which is the path part of the url if it&rsquo;s a link referral, and <code>ga:medium</code> which will tell you if it&rsquo;s linking from a direct url, social media link, email link, or ad traffic.</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="k">def</span> <span class="nf">referers</span><span class="p">(</span> <span class="n">profile_id</span><span class="p">,</span> <span class="n">start_date</span> <span class="o">=</span> <span class="kp">nil</span><span class="p">,</span> <span class="n">end_date</span> <span class="o">=</span> <span class="kp">nil</span> <span class="p">)</span>
-    <span class="n">query</span> <span class="o">=</span> <span class="n">query_template</span><span class="p">(</span> <span class="n">profile_id</span><span class="p">,</span> <span class="n">start_date</span><span class="p">,</span> <span class="n">end_date</span> <span class="p">)</span>
-    <span class="n">query</span><span class="o">[</span><span class="s2">&#34;dimensions&#34;</span><span class="o">]</span> <span class="o">=</span> <span class="s2">&#34;ga:source,ga:referralPath,ga:medium&#34;</span>
-    <span class="n">client</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-      <span class="ss">api_method</span><span class="p">:</span> <span class="n">api</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">ga</span><span class="o">.</span><span class="n">get</span><span class="p">,</span>
-      <span class="ss">parameters</span><span class="p">:</span> <span class="n">query</span>
-      <span class="p">)</span>
-  <span class="k">end</span>
-</code></pre></div><p><strong>Who is linking to specific pages on your site</strong> can be dertimined by adding the <code>ga:landingPagePath</code> dimension to the above query.  This now breakdown the source of traffic not to the site as a whole, but to a specific landing page.  We&rsquo;re also changing the <code>sort</code> query parameter to take this additional dimension into effect.</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="k">def</span> <span class="nf">content_referers</span><span class="p">(</span> <span class="n">profile_id</span><span class="p">,</span> <span class="n">start_date</span> <span class="o">=</span> <span class="kp">nil</span><span class="p">,</span> <span class="n">end_date</span> <span class="o">=</span> <span class="kp">nil</span> <span class="p">)</span>
-    <span class="n">query</span> <span class="o">=</span> <span class="n">query_template</span><span class="p">(</span> <span class="n">profile_id</span><span class="p">,</span> <span class="n">start_date</span><span class="p">,</span> <span class="n">end_date</span> <span class="p">)</span>
-    <span class="n">query</span><span class="o">[</span><span class="s2">&#34;dimensions&#34;</span><span class="o">]</span> <span class="o">=</span> <span class="s2">&#34;ga:landingPagePath,ga:source,ga:referralPath,ga:medium&#34;</span>
-    <span class="n">query</span><span class="o">[</span><span class="s2">&#34;sort&#34;</span><span class="o">]</span> <span class="o">=</span> <span class="s2">&#34;ga:landingPagePath,-ga:pageviews&#34;</span>
+We can find out by looking at <code>ga:source</code> which is basically the domain, <code>ga:referralPath</code> which is the path part of the url if it&rsquo;s a link referral, and <code>ga:medium</code> which will tell you if it&rsquo;s linking from a direct url, social media link, email link, or ad traffic.</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=k>def</span> <span class=nf>referers</span><span class=p>(</span> <span class=n>profile_id</span><span class=p>,</span> <span class=n>start_date</span> <span class=o>=</span> <span class=kp>nil</span><span class=p>,</span> <span class=n>end_date</span> <span class=o>=</span> <span class=kp>nil</span> <span class=p>)</span>
+    <span class=n>query</span> <span class=o>=</span> <span class=n>query_template</span><span class=p>(</span> <span class=n>profile_id</span><span class=p>,</span> <span class=n>start_date</span><span class=p>,</span> <span class=n>end_date</span> <span class=p>)</span>
+    <span class=n>query</span><span class=o>[</span><span class=s2>&#34;dimensions&#34;</span><span class=o>]</span> <span class=o>=</span> <span class=s2>&#34;ga:source,ga:referralPath,ga:medium&#34;</span>
+    <span class=n>client</span><span class=o>.</span><span class=n>execute</span><span class=p>(</span>
+      <span class=ss>api_method</span><span class=p>:</span> <span class=n>api</span><span class=o>.</span><span class=n>data</span><span class=o>.</span><span class=n>ga</span><span class=o>.</span><span class=n>get</span><span class=p>,</span>
+      <span class=ss>parameters</span><span class=p>:</span> <span class=n>query</span>
+      <span class=p>)</span>
+  <span class=k>end</span>
+</code></pre></div><p><strong>Who is linking to specific pages on your site</strong> can be dertimined by adding the <code>ga:landingPagePath</code> dimension to the above query. This now breakdown the source of traffic not to the site as a whole, but to a specific landing page. We&rsquo;re also changing the <code>sort</code> query parameter to take this additional dimension into effect.</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=k>def</span> <span class=nf>content_referers</span><span class=p>(</span> <span class=n>profile_id</span><span class=p>,</span> <span class=n>start_date</span> <span class=o>=</span> <span class=kp>nil</span><span class=p>,</span> <span class=n>end_date</span> <span class=o>=</span> <span class=kp>nil</span> <span class=p>)</span>
+    <span class=n>query</span> <span class=o>=</span> <span class=n>query_template</span><span class=p>(</span> <span class=n>profile_id</span><span class=p>,</span> <span class=n>start_date</span><span class=p>,</span> <span class=n>end_date</span> <span class=p>)</span>
+    <span class=n>query</span><span class=o>[</span><span class=s2>&#34;dimensions&#34;</span><span class=o>]</span> <span class=o>=</span> <span class=s2>&#34;ga:landingPagePath,ga:source,ga:referralPath,ga:medium&#34;</span>
+    <span class=n>query</span><span class=o>[</span><span class=s2>&#34;sort&#34;</span><span class=o>]</span> <span class=o>=</span> <span class=s2>&#34;ga:landingPagePath,-ga:pageviews&#34;</span>
 
-    <span class="n">client</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-      <span class="ss">api_method</span><span class="p">:</span> <span class="n">api</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">ga</span><span class="o">.</span><span class="n">get</span><span class="p">,</span>
-      <span class="ss">parameters</span><span class="p">:</span> <span class="n">query</span>
-      <span class="p">)</span>
-  <span class="k">end</span>
-</code></pre></div><p>This works, but we can change the way it&rsquo;s printed out to be visually more useful.  In the <code>HammerOfTheGods</code> we can flesh it out a bit, so it only prints out your local path once while listing the referals indented so you can scan and see what&rsquo;s going on grouped by page.</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="n">desc</span> <span class="s2">&#34;content_referers PROFILE_ID&#34;</span><span class="p">,</span> <span class="s2">&#34;Show hot content for profile id&#34;</span>
-  <span class="n">options</span> <span class="o">[</span><span class="ss">:today</span><span class="p">,</span> <span class="ss">:yesterday</span><span class="p">,</span> <span class="ss">:recently</span><span class="p">,</span> <span class="ss">:month</span><span class="p">,</span> <span class="ss">:table</span><span class="p">,</span> <span class="ss">:csv</span><span class="p">,</span> <span class="ss">:full</span><span class="o">]</span>
-  <span class="k">def</span> <span class="nf">content_referers</span><span class="p">(</span> <span class="n">profile_id</span> <span class="p">)</span>
-    <span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">content_referers</span><span class="p">(</span> <span class="n">profile_id</span><span class="p">,</span> <span class="n">start_date</span><span class="p">,</span> <span class="n">end_date</span> <span class="p">)</span>
+    <span class=n>client</span><span class=o>.</span><span class=n>execute</span><span class=p>(</span>
+      <span class=ss>api_method</span><span class=p>:</span> <span class=n>api</span><span class=o>.</span><span class=n>data</span><span class=o>.</span><span class=n>ga</span><span class=o>.</span><span class=n>get</span><span class=p>,</span>
+      <span class=ss>parameters</span><span class=p>:</span> <span class=n>query</span>
+      <span class=p>)</span>
+  <span class=k>end</span>
+</code></pre></div><p>This works, but we can change the way it&rsquo;s printed out to be visually more useful. In the <code>HammerOfTheGods</code> we can flesh it out a bit, so it only prints out your local path once while listing the referals indented so you can scan and see what&rsquo;s going on grouped by page.</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=n>desc</span> <span class=s2>&#34;content_referers PROFILE_ID&#34;</span><span class=p>,</span> <span class=s2>&#34;Show hot content for profile id&#34;</span>
+  <span class=n>options</span> <span class=o>[</span><span class=ss>:today</span><span class=p>,</span> <span class=ss>:yesterday</span><span class=p>,</span> <span class=ss>:recently</span><span class=p>,</span> <span class=ss>:month</span><span class=p>,</span> <span class=ss>:table</span><span class=p>,</span> <span class=ss>:csv</span><span class=p>,</span> <span class=ss>:full</span><span class=o>]</span>
+  <span class=k>def</span> <span class=nf>content_referers</span><span class=p>(</span> <span class=n>profile_id</span> <span class=p>)</span>
+    <span class=n>result</span> <span class=o>=</span> <span class=n>client</span><span class=o>.</span><span class=n>content_referers</span><span class=p>(</span> <span class=n>profile_id</span><span class=p>,</span> <span class=n>start_date</span><span class=p>,</span> <span class=n>end_date</span> <span class=p>)</span>
 
-    <span class="k">if</span> <span class="n">options</span><span class="o">[</span><span class="ss">:table</span><span class="o">]</span> <span class="o">||</span> <span class="n">options</span><span class="o">[</span><span class="ss">:csv</span><span class="o">]</span>
-      <span class="n">print_result</span><span class="p">(</span> <span class="n">result</span> <span class="p">)</span>
-    <span class="k">else</span>
-      <span class="n">last_title</span> <span class="o">=</span> <span class="kp">nil</span>
+    <span class=k>if</span> <span class=n>options</span><span class=o>[</span><span class=ss>:table</span><span class=o>]</span> <span class=o>||</span> <span class=n>options</span><span class=o>[</span><span class=ss>:csv</span><span class=o>]</span>
+      <span class=n>print_result</span><span class=p>(</span> <span class=n>result</span> <span class=p>)</span>
+    <span class=k>else</span>
+      <span class=n>last_title</span> <span class=o>=</span> <span class=kp>nil</span>
 
-      <span class="n">result</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">rows</span><span class="o">.</span><span class="n">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">row</span><span class="o">|</span>
-        <span class="nb">puts</span> <span class="s2">&#34;</span><span class="se">\n</span><span class="si">#{</span><span class="n">row</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="si">}</span><span class="s2">&#34;</span> <span class="k">if</span> <span class="n">last_title</span> <span class="o">!=</span> <span class="n">row</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span>
-        <span class="n">last_title</span> <span class="o">=</span> <span class="n">row</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span>
-        <span class="nb">printf</span><span class="p">(</span> <span class="s2">&#34;     %-5s %-8s %s%s</span><span class="se">\n</span><span class="s2">&#34;</span><span class="p">,</span> <span class="n">row</span><span class="o">[</span><span class="mi">4</span><span class="o">]</span><span class="p">,</span> <span class="n">row</span><span class="o">[</span><span class="mi">3</span><span class="o">]</span><span class="p">,</span> <span class="n">row</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="p">,</span> <span class="n">row</span><span class="o">[</span><span class="mi">2</span><span class="o">]</span><span class="p">)</span>
-      <span class="k">end</span>
-    <span class="k">end</span>
-  <span class="k">end</span>
-</code></pre></div><h2 id="step-8-the-timeline">Step 8 The timeline</h2>
-<p><strong>A timeline of when content was published and people started linking to it</strong> can be created by combinding 2 of the methods that we&rsquo;ve already written, <code>hotcontent</code> and <code>referers</code>, and looping through and querying them one day at a time.</p>
-<p>We start 30 days ago, and get a list of content for that day.  If we haven&rsquo;t seen it before, we say that it was posted that day.  We then get a list of referrals for that day.  If we haven&rsquo;t seen them before, we print it out.  I&rsquo;m also supressing links that have passed in less that 2 visitors, since they tend to be very noisey.</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="k">def</span> <span class="nf">timeline</span><span class="p">(</span> <span class="n">profile_id</span> <span class="p">)</span>
-    <span class="n">one_month_ago</span> <span class="o">=</span> <span class="no">Time</span><span class="o">.</span><span class="n">now</span> <span class="o">-</span> <span class="mi">30</span> <span class="o">*</span> <span class="mi">24</span> <span class="o">*</span> <span class="mi">60</span> <span class="o">*</span> <span class="mi">60</span>
+      <span class=n>result</span><span class=o>.</span><span class=n>data</span><span class=o>.</span><span class=n>rows</span><span class=o>.</span><span class=n>each</span> <span class=k>do</span> <span class=o>|</span><span class=n>row</span><span class=o>|</span>
+        <span class=nb>puts</span> <span class=s2>&#34;</span><span class=se>\n</span><span class=si>#{</span><span class=n>row</span><span class=o>[</span><span class=mi>0</span><span class=o>]</span><span class=si>}</span><span class=s2>&#34;</span> <span class=k>if</span> <span class=n>last_title</span> <span class=o>!=</span> <span class=n>row</span><span class=o>[</span><span class=mi>0</span><span class=o>]</span>
+        <span class=n>last_title</span> <span class=o>=</span> <span class=n>row</span><span class=o>[</span><span class=mi>0</span><span class=o>]</span>
+        <span class=nb>printf</span><span class=p>(</span> <span class=s2>&#34;     %-5s %-8s %s%s</span><span class=se>\n</span><span class=s2>&#34;</span><span class=p>,</span> <span class=n>row</span><span class=o>[</span><span class=mi>4</span><span class=o>]</span><span class=p>,</span> <span class=n>row</span><span class=o>[</span><span class=mi>3</span><span class=o>]</span><span class=p>,</span> <span class=n>row</span><span class=o>[</span><span class=mi>1</span><span class=o>]</span><span class=p>,</span> <span class=n>row</span><span class=o>[</span><span class=mi>2</span><span class=o>]</span><span class=p>)</span>
+      <span class=k>end</span>
+    <span class=k>end</span>
+  <span class=k>end</span>
+</code></pre></div><h2 id=step-8-the-timeline>Step 8 The timeline</h2><p><strong>A timeline of when content was published and people started linking to it</strong> can be created by combinding 2 of the methods that we&rsquo;ve already written, <code>hotcontent</code> and <code>referers</code>, and looping through and querying them one day at a time.</p><p>We start 30 days ago, and get a list of content for that day. If we haven&rsquo;t seen it before, we say that it was posted that day. We then get a list of referrals for that day. If we haven&rsquo;t seen them before, we print it out. I&rsquo;m also supressing links that have passed in less that 2 visitors, since they tend to be very noisey.</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=k>def</span> <span class=nf>timeline</span><span class=p>(</span> <span class=n>profile_id</span> <span class=p>)</span>
+    <span class=n>one_month_ago</span> <span class=o>=</span> <span class=no>Time</span><span class=o>.</span><span class=n>now</span> <span class=o>-</span> <span class=mi>30</span> <span class=o>*</span> <span class=mi>24</span> <span class=o>*</span> <span class=mi>60</span> <span class=o>*</span> <span class=mi>60</span>
 
-    <span class="n">start_date</span> <span class="o">=</span> <span class="n">one_month_ago</span>
+    <span class=n>start_date</span> <span class=o>=</span> <span class=n>one_month_ago</span>
 
-    <span class="n">today</span> <span class="o">=</span> <span class="no">Time</span><span class="o">.</span><span class="n">now</span>
+    <span class=n>today</span> <span class=o>=</span> <span class=no>Time</span><span class=o>.</span><span class=n>now</span>
 
-    <span class="n">seen</span> <span class="o">=</span> <span class="p">{}</span>
-    <span class="n">title</span> <span class="o">=</span> <span class="p">{}</span>
-    <span class="k">while</span> <span class="n">start_date</span><span class="o">.</span><span class="n">to_date</span> <span class="o">&lt;=</span> <span class="n">today</span><span class="o">.</span><span class="n">to_date</span>
-      <span class="nb">puts</span>
-      <span class="nb">puts</span> <span class="n">start_date</span><span class="o">.</span><span class="n">to_date</span>
+    <span class=n>seen</span> <span class=o>=</span> <span class=p>{}</span>
+    <span class=n>title</span> <span class=o>=</span> <span class=p>{}</span>
+    <span class=k>while</span> <span class=n>start_date</span><span class=o>.</span><span class=n>to_date</span> <span class=o>&lt;=</span> <span class=n>today</span><span class=o>.</span><span class=n>to_date</span>
+      <span class=nb>puts</span>
+      <span class=nb>puts</span> <span class=n>start_date</span><span class=o>.</span><span class=n>to_date</span>
 
-      <span class="n">contents</span> <span class="o">=</span> <span class="n">hotcontent</span><span class="p">(</span> <span class="n">profile_id</span><span class="p">,</span> <span class="n">start_date</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span> <span class="s2">&#34;%Y-%m-%d&#34;</span> <span class="p">),</span> <span class="n">start_date</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span> <span class="s2">&#34;%Y-%m-%d&#34;</span> <span class="p">)</span> <span class="p">)</span>
-      <span class="n">contents</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">rows</span><span class="o">.</span><span class="n">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">content</span><span class="o">|</span>
-        <span class="k">unless</span> <span class="n">title</span><span class="o">[</span><span class="n">content</span><span class="o">[</span><span class="mi">0</span><span class="o">]]</span>
-          <span class="nb">puts</span> <span class="s2">&#34;  Posted:  </span><span class="si">#{</span><span class="n">content</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="si">}</span><span class="s2">&#34;</span>
-        <span class="k">end</span>
+      <span class=n>contents</span> <span class=o>=</span> <span class=n>hotcontent</span><span class=p>(</span> <span class=n>profile_id</span><span class=p>,</span> <span class=n>start_date</span><span class=o>.</span><span class=n>strftime</span><span class=p>(</span> <span class=s2>&#34;%Y-%m-%d&#34;</span> <span class=p>),</span> <span class=n>start_date</span><span class=o>.</span><span class=n>strftime</span><span class=p>(</span> <span class=s2>&#34;%Y-%m-%d&#34;</span> <span class=p>)</span> <span class=p>)</span>
+      <span class=n>contents</span><span class=o>.</span><span class=n>data</span><span class=o>.</span><span class=n>rows</span><span class=o>.</span><span class=n>each</span> <span class=k>do</span> <span class=o>|</span><span class=n>content</span><span class=o>|</span>
+        <span class=k>unless</span> <span class=n>title</span><span class=o>[</span><span class=n>content</span><span class=o>[</span><span class=mi>0</span><span class=o>]]</span>
+          <span class=nb>puts</span> <span class=s2>&#34;  Posted:  </span><span class=si>#{</span><span class=n>content</span><span class=o>[</span><span class=mi>0</span><span class=o>]</span><span class=si>}</span><span class=s2>&#34;</span>
+        <span class=k>end</span>
 
-        <span class="n">title</span><span class="o">[</span><span class="n">content</span><span class="o">[</span><span class="mi">0</span><span class="o">]]</span> <span class="o">=</span> <span class="kp">true</span>
-      <span class="k">end</span>
-      <span class="nb">puts</span>
+        <span class=n>title</span><span class=o>[</span><span class=n>content</span><span class=o>[</span><span class=mi>0</span><span class=o>]]</span> <span class=o>=</span> <span class=kp>true</span>
+      <span class=k>end</span>
+      <span class=nb>puts</span>
 
-      <span class="n">result</span> <span class="o">=</span> <span class="n">referers</span><span class="p">(</span> <span class="n">profile_id</span><span class="p">,</span> <span class="n">start_date</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span> <span class="s2">&#34;%Y-%m-%d&#34;</span> <span class="p">),</span> <span class="n">start_date</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span> <span class="s2">&#34;%Y-%m-%d&#34;</span> <span class="p">)</span> <span class="p">)</span>
-      <span class="n">result</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">rows</span><span class="o">.</span><span class="n">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">data</span><span class="o">|</span>
-        <span class="n">url</span> <span class="o">=</span> <span class="n">data</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span>
-        <span class="n">url</span> <span class="o">=</span> <span class="s2">&#34;http://</span><span class="si">#{</span><span class="n">data</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="si">}#{</span><span class="n">data</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="si">}</span><span class="s2">&#34;</span> <span class="k">if</span> <span class="n">data</span><span class="o">[</span><span class="mi">2</span><span class="o">]</span> <span class="o">==</span> <span class="s1">&#39;referral&#39;</span>
-        <span class="nb">printf</span> <span class="s2">&#34;  %-10s %5s %s</span><span class="se">\n</span><span class="s2">&#34;</span><span class="p">,</span> <span class="n">data</span><span class="o">[</span><span class="mi">2</span><span class="o">]</span><span class="p">,</span> <span class="n">data</span><span class="o">[</span><span class="mi">3</span><span class="o">]</span><span class="p">,</span><span class="n">url</span> <span class="k">if</span> <span class="o">!</span><span class="n">seen</span><span class="o">[</span><span class="n">url</span><span class="o">]</span> <span class="o">&amp;&amp;</span> <span class="n">data</span><span class="o">[</span><span class="mi">3</span><span class="o">].</span><span class="n">to_i</span> <span class="o">&gt;</span> <span class="mi">2</span>
-        <span class="n">seen</span><span class="o">[</span><span class="n">url</span><span class="o">]</span> <span class="o">=</span> <span class="kp">true</span> <span class="k">if</span> <span class="n">data</span><span class="o">[</span><span class="mi">2</span><span class="o">]</span> <span class="o">==</span> <span class="s1">&#39;referral&#39;</span>
-      <span class="k">end</span>
-      <span class="n">start_date</span> <span class="o">=</span> <span class="n">start_date</span> <span class="o">+</span> <span class="mi">24</span> <span class="o">*</span> <span class="mi">60</span> <span class="o">*</span> <span class="mi">60</span>
-    <span class="k">end</span>
-  <span class="k">end</span>
-</code></pre></div><h2 id="code">Code</h2>
-<p>The <a href="https://gist.github.com/wschenk/d7f8650d619d8f68730a">full code is available to play with</a>.  The mechanism for talking to Google APIs from a script works everywhere, but if you are going to do this on your server you&rsquo;ll want to get the OAuth2 key using a different process than the <code>InstalledAppFlow</code>.</p>
-
-  </article>
-
-  
-</div>
-
-
-  <div class="bg-light py-5">
-    <div class="container">
-      <h2 class="text-center">Read next</h2>
-
-      <div class="row">
-        <div class="col-md-6 text-center">
-          
-            Next Post:
-            <a href="../../../articles/2014/dateslice-writing-rails-extensions/">Dateslice: Writing rails extensions</a>
-          
-        </div>
-        <div class="col-md-6 text-center">
-          
-            Previous Post:
-            <a href="../../../articles/2014/new-happyseed-released/">New HappySeed released</a>
-          
-        </div>
-      </div>
-    </div>
-  </div>
-
-
-
-
-<div class="container mt-5">
-  <h2 class="text-center">See also</h2>
-  <div class="row">
-  	
-      <div class="col-md mb-3">
-        <p class="lead mb-0"><a class="text-body" href="../../../articles/2014/scripting-twitter/">Scripting Twitter: Collecting Data and Writing Bots</a></p>
-
-        
-          <p class="lead font-italic mb-0">adding another client to socialinvestigator</p>
-        
-        <div class="font-weight-light mt-3">
-          
-          
-            <p>Lets build on our command line url exploring tool to look at how we can interact with Twitter. We are going to cover how to make a script that will pull information out of twitter, how to deal with its rate limiting, and how to interact with users on Twitter itself.
-Twitter uses OAuth 1.0A as a way to authenticate requests. As a script writer, this is super annoying, because you can&rsquo;t just stick a username and password in the environment and go from there.</p>
-          
-        </div>
-        <a href="../../../articles/2014/scripting-twitter/" class="btn btn-primary">Read more</a>
-      </div>
-    
-      <div class="col-md mb-3">
-        <p class="lead mb-0"><a class="text-body" href="../../../articles/2014/making-a-command-line-utility-with-gems-and-thor/">Making a command line utility with gems and thor</a></p>
-
-        
-          <p class="lead font-italic mb-0">Any excuse to the use the phrase &ldquo;Hammer of the Gods&rdquo;</p>
-        
-        <div class="font-weight-light mt-3">
-          
-          
-            <p>Some scripts work well because they are self contained and don&rsquo;t have a lot of dependancies, like the hosts on your network tracker.
+      <span class=n>result</span> <span class=o>=</span> <span class=n>referers</span><span class=p>(</span> <span class=n>profile_id</span><span class=p>,</span> <span class=n>start_date</span><span class=o>.</span><span class=n>strftime</span><span class=p>(</span> <span class=s2>&#34;%Y-%m-%d&#34;</span> <span class=p>),</span> <span class=n>start_date</span><span class=o>.</span><span class=n>strftime</span><span class=p>(</span> <span class=s2>&#34;%Y-%m-%d&#34;</span> <span class=p>)</span> <span class=p>)</span>
+      <span class=n>result</span><span class=o>.</span><span class=n>data</span><span class=o>.</span><span class=n>rows</span><span class=o>.</span><span class=n>each</span> <span class=k>do</span> <span class=o>|</span><span class=n>data</span><span class=o>|</span>
+        <span class=n>url</span> <span class=o>=</span> <span class=n>data</span><span class=o>[</span><span class=mi>0</span><span class=o>]</span>
+        <span class=n>url</span> <span class=o>=</span> <span class=s2>&#34;http://</span><span class=si>#{</span><span class=n>data</span><span class=o>[</span><span class=mi>0</span><span class=o>]</span><span class=si>}#{</span><span class=n>data</span><span class=o>[</span><span class=mi>1</span><span class=o>]</span><span class=si>}</span><span class=s2>&#34;</span> <span class=k>if</span> <span class=n>data</span><span class=o>[</span><span class=mi>2</span><span class=o>]</span> <span class=o>==</span> <span class=s1>&#39;referral&#39;</span>
+        <span class=nb>printf</span> <span class=s2>&#34;  %-10s %5s %s</span><span class=se>\n</span><span class=s2>&#34;</span><span class=p>,</span> <span class=n>data</span><span class=o>[</span><span class=mi>2</span><span class=o>]</span><span class=p>,</span> <span class=n>data</span><span class=o>[</span><span class=mi>3</span><span class=o>]</span><span class=p>,</span><span class=n>url</span> <span class=k>if</span> <span class=o>!</span><span class=n>seen</span><span class=o>[</span><span class=n>url</span><span class=o>]</span> <span class=o>&amp;&amp;</span> <span class=n>data</span><span class=o>[</span><span class=mi>3</span><span class=o>].</span><span class=n>to_i</span> <span class=o>&gt;</span> <span class=mi>2</span>
+        <span class=n>seen</span><span class=o>[</span><span class=n>url</span><span class=o>]</span> <span class=o>=</span> <span class=kp>true</span> <span class=k>if</span> <span class=n>data</span><span class=o>[</span><span class=mi>2</span><span class=o>]</span> <span class=o>==</span> <span class=s1>&#39;referral&#39;</span>
+      <span class=k>end</span>
+      <span class=n>start_date</span> <span class=o>=</span> <span class=n>start_date</span> <span class=o>+</span> <span class=mi>24</span> <span class=o>*</span> <span class=mi>60</span> <span class=o>*</span> <span class=mi>60</span>
+    <span class=k>end</span>
+  <span class=k>end</span>
+</code></pre></div><h2 id=code>Code</h2><p>The <a href=https://gist.github.com/wschenk/d7f8650d619d8f68730a>full code is available to play with</a>. The mechanism for talking to Google APIs from a script works everywhere, but if you are going to do this on your server you&rsquo;ll want to get the OAuth2 key using a different process than the <code>InstalledAppFlow</code>.</p></article></div><div class="bg-light py-5"><div class=container><h2 class=text-center>Read next</h2><div class=row><div class="col-md-6 text-center">Next Post:
+<a href=../../../articles/2014/dateslice-writing-rails-extensions/>Dateslice: Writing rails extensions</a></div><div class="col-md-6 text-center">Previous Post:
+<a href=../../../articles/2014/new-happyseed-released/>New HappySeed released</a></div></div></div></div><div class="container mt-5"><h2 class=text-center>See also</h2><div class=row><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2014/scripting-twitter/>Scripting Twitter: Collecting Data and Writing Bots</a></p><p class="lead font-italic mb-0">adding another client to socialinvestigator</p><div class="font-weight-light mt-3"><p>Lets build on our command line url exploring tool to look at how we can interact with Twitter. We are going to cover how to make a script that will pull information out of twitter, how to deal with its rate limiting, and how to interact with users on Twitter itself.
+Twitter uses OAuth 1.0A as a way to authenticate requests. As a script writer, this is super annoying, because you can&rsquo;t just stick a username and password in the environment and go from there.</p></div><a href=../../../articles/2014/scripting-twitter/ class="btn btn-primary">Read more</a></div><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2014/making-a-command-line-utility-with-gems-and-thor/>Making a command line utility with gems and thor</a></p><p class="lead font-italic mb-0">Any excuse to the use the phrase &ldquo;Hammer of the Gods&rdquo;</p><div class="font-weight-light mt-3"><p>Some scripts work well because they are self contained and don&rsquo;t have a lot of dependancies, like the hosts on your network tracker.
 Others scripts
- have more code than fits into a single file multiple options and switches have an extensive set of dependancies  And on those cases, its better to make a gem and use thor
-Hammer of the Gods Lets figure out how to make some command line tools and package them up so that they can be shared and used by other people.</p>
-          
-        </div>
-        <a href="../../../articles/2014/making-a-command-line-utility-with-gems-and-thor/" class="btn btn-primary">Read more</a>
-      </div>
-    
-      <div class="col-md mb-3">
-        <p class="lead mb-0"><a class="text-body" href="../../../articles/2014/building-sites-with-middleman/">Building Sites with Middleman</a></p>
-
-        
-          <p class="lead font-italic mb-0">lean publishing</p>
-        
-        <div class="font-weight-light mt-3">
-          
-          
-            <p>I make a lot of websites, and I have a certain toolkit that I use to build them. The most useful things I use are:
- layouts and partials so I only need to set things up once haml for writing html, since I don&rsquo;t like closing tags Bootstrap and sass for writing css Markdown for formatting large blogs of content coffeescript for JavaScript  Middleman is a static site generator, which means that it takes a bunch of source files, does some stuff with it, and produces static HTML, CSS, Images, and Javascript that can be hosted on a basic server somewhere, including hosting on S3 or Github Pages so you don&rsquo;t need to consider a server.</p>
-          
-        </div>
-        <a href="../../../articles/2014/building-sites-with-middleman/" class="btn btn-primary">Read more</a>
-      </div>
-    
-  </div>
-</div>
-
-
-<footer class="footer bg-dark text-light mt-3">
-  <div class="container">
-    <h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2>
-  </div>
-</footer>
-</body>
-</html>
+have more code than fits into a single file multiple options and switches have an extensive set of dependancies And on those cases, its better to make a gem and use thor
+Hammer of the Gods Lets figure out how to make some command line tools and package them up so that they can be shared and used by other people.</p></div><a href=../../../articles/2014/making-a-command-line-utility-with-gems-and-thor/ class="btn btn-primary">Read more</a></div><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2014/building-sites-with-middleman/>Building Sites with Middleman</a></p><p class="lead font-italic mb-0">lean publishing</p><div class="font-weight-light mt-3"><p>I make a lot of websites, and I have a certain toolkit that I use to build them. The most useful things I use are:
+layouts and partials so I only need to set things up once haml for writing html, since I don&rsquo;t like closing tags Bootstrap and sass for writing css Markdown for formatting large blogs of content coffeescript for JavaScript Middleman is a static site generator, which means that it takes a bunch of source files, does some stuff with it, and produces static HTML, CSS, Images, and Javascript that can be hosted on a basic server somewhere, including hosting on S3 or Github Pages so you don&rsquo;t need to consider a server.</p></div><a href=../../../articles/2014/building-sites-with-middleman/ class="btn btn-primary">Read more</a></div></div></div><footer class="footer bg-dark text-light mt-3"><div class=container><h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2></div></footer></body></html>

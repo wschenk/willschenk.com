@@ -1,385 +1,75 @@
-<!DOCTYPE html>
-<html><head>
-    <title>Reverse engineering APIs using Chrome Developer Tools</title>
-    
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<!doctype html><html><head><title>Reverse engineering APIs using Chrome Developer Tools</title><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><link rel=stylesheet href=../../../css/theme.css><link rel=stylesheet href=../../../css/syntax.css><script type=application/javascript>var doNotTrack=false;if(!doNotTrack){window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;ga('create','UA-56296045-1','auto');ga('send','pageview');}</script><script async src=https://www.google-analytics.com/analytics.js></script><script async defer data-domain=willschenk.com src=https://plausible.io/js/plausible.js></script><meta property="og:title" content="Reverse engineering APIs using Chrome Developer Tools"><meta property="og:description" content="I want to get a list of all of the podcast episodes that I&rsquo;ve starred on PocketCasts. There&rsquo;s no obvious way to export this from the application, and they don&rsquo;t have a published interface. Lets look at hope to use chrome developer tools to figure out what the API is.
+We know that PocketCasts must have an API since it also has a mobile app &ndash; the code in the mobile app must talk to the code in the server using a format that computers understand, which is basically the definition of an API."><meta property="og:type" content="article"><meta property="og:url" content="https://willschenk.com/articles/2019/reverse_engineering_apis_using_chrome/"><meta property="article:published_time" content="2019-05-01T00:00:00+00:00"><meta property="article:modified_time" content="2019-05-01T00:00:00+00:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Reverse engineering APIs using Chrome Developer Tools"><meta name=twitter:description content="I want to get a list of all of the podcast episodes that I&rsquo;ve starred on PocketCasts. There&rsquo;s no obvious way to export this from the application, and they don&rsquo;t have a published interface. Lets look at hope to use chrome developer tools to figure out what the API is.
+We know that PocketCasts must have an API since it also has a mobile app &ndash; the code in the mobile app must talk to the code in the server using a format that computers understand, which is basically the definition of an API."><meta name=twitter:site content="@wschenk"><style>.article p,.article ul,.article ol,.article table{max-width:45em}.article pre p{max-width:none;margin-top:-1.5rem}article.article p:first-child,.article blockquote{font-size:1.25em;font-weight:300;max-width:36em}.half-height-scroll{max-height:32em;overflow:scroll}</style></head><body><nav class="container my-5"><h1 class="pt-md-5 display-3"><a class=text-dark href=../../../>Will Schenk</a></h1><p><a class="text-dark h4 mr-3 font-weight-light" href=../../../articles/>Articles</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../contact>Contact</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../tags/>Tags</a>
+<a href=../../../feed.xml class="mr-3 h4 text-light"><img src=../../../img/rss.svg alt=rss height=20 width=20></a>
+<a href=https://twitter.com/@wschenk class="mr-3 h4 text-light"><img src=../../../img/twitter.svg alt=twitter height=20 width=20></a>
+<a href=https://instagram.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/instagram.svg alt=instagram height=20 width=20></a>
+<a href=https://github.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/github.svg alt=github height=20 width=20></a>
+<a href=https://linkedin.com/in/will-schenk-420266 class="mr-3 h4 text-light"><img src=../../../img/linkedin.svg alt=linkedin height=20 width=20></a></p></nav><div class=container><h1 class=mt-5>Reverse engineering APIs using Chrome Developer Tools</h1><h2 class="font-weight-light font-italic mb-3">its your data after all</h2><p class="text-muted mt-3"><a class=text-muted href=https://willschenk.com/articles/2019/reverse_engineering_apis_using_chrome/>Published May 1, 2019</a>
+<a class=text-muted href=../../../tags/howto>#howto</a>
+<a class=text-muted href=../../../tags/chrome>#chrome</a>
+<a class=text-muted href=../../../tags/api>#api</a>
+<a class=text-muted href=../../../tags/scraping>#scraping</a></p><article class="article mt-5"><p>I want to get a list of all of the podcast episodes that I&rsquo;ve starred on <a href=https://www.pocketcasts.com/>PocketCasts</a>. There&rsquo;s no obvious way to export this from the application, and they don&rsquo;t have a published interface. Lets look at hope to use chrome developer tools to figure out what the API is.</p><p>We know that PocketCasts must have an API since it also has a mobile app &ndash; the code in the mobile app must talk to the code in the server using a format that computers understand, which is basically the definition of an API. We are leveraging the fact that the web version of PocketCasts is a JavaScript client application which uses the same API. If all the HTML was generated on the server there wouldn&rsquo;t necessarily be an API and so you&rsquo;d need to resort to scraping and parsing the resulting HTML to regenerate the underlying database that the views were generated off of. We&rsquo;ll look at using Puppeteer in a later post for situations like that.</p><h2 id=reverse-engineering-a-simple-api>Reverse Engineering a Simple API</h2><p>The idea is that we are going to open up the chrome developer tools and monitor all of the network requests that the browser makes to the server. We will stare and ponder at these requests to see how to make them in the same way using our own code. In this article I&rsquo;m going to walk through using <code>bash</code>, <code>curl</code> and <code>jq</code>, which are tools available everywhere with very few dependencies.</p><p>These particular tools work great, but scripting <code>bash</code> is a little bit awkward. The tools themselves don&rsquo;t really matter, so use which ever coding platform you are most familiar with. Also, I&rsquo;m not personally a Firefox user but I&rsquo;m sure that the developer tools there are top notch and all these techniques apply equally.</p><h2 id=logging-in>Logging in</h2><p>The first thing we need to do is go to click the login button and go to the login page to see what&rsquo;s going on. Click around on the site until you find the login form. (If you are already logged in, log out first.) For PocketCasts this should leave you here: <a href=https://play.pocketcasts.com/web/user/sign_in>https://play.pocketcasts.com/web/user/sign_in</a> Now we want to <a href=https://developers.google.com/web/tools/chrome-devtools/open>open the developer tools</a>. You can do this by pressing <code>ctrl-shift-c</code>, or right clicking on the page and selecting <code>Inspect Element</code>.</p><p><img src=open_console.png class=img-fluid alt="Chrome Developer Console"></p><p>Looking at this we can see a few things:</p><ol><li>The <code>form</code> has no action, which means that JavaScript is going to be used to submit the form.</li><li>There&rsquo;s a ton of CSS classes that look like <code>sytled__</code>, which means that it&rsquo;s using styled components and react.</li><li>This means that the CSS classes aren&rsquo;t semantic, which is rude and makes it harder to scrape the data if it comes to that.</li></ol><p>Semantic CSS means that when you specify what something looks like on the page you use (hopefully) consistent terms that reflect not just want you want the words on the screen to look like, but that those words are &ldquo;title of the podcast&rdquo; or &ldquo;podcast show notes&rdquo;. This style is falling out of favor for technical reasons, but it makes it much hard to deal with archiving and dead sites.</p><p>This shouldn&rsquo;t matter in this case since the strategy is to emulate the JavaScript client, but it&rsquo;s something to keep in mind when we tackle different sites that are more hostile.</p><h2 id=select-the-network-tab>Select the network tab</h2><p>Lets key Chrome recording the API requests so we can pull them out. First select the network tab in the open console. Then make sure that it&rsquo;s recording (the red dot on the far left) and reload the page. Enter in your email and password in the form (the screen shot shows me entering <code>email@email.com</code> and <code>password</code> which is obviously not real) and press submit.</p><ol><li>The network tab needs to be select.</li><li>The red dot needs to be on.</li><li>I&rsquo;ve filtered by &ldquo;XHR&rdquo;, which filters on requests that the JavaScript makes to different servers. (This stands for XMLHttpRequest which is mostly called Ajax, or &ldquo;Asynchronous JavaScript and XML&rdquo;, even though we aren&rsquo;t using any XML).</li><li>I&rsquo;ve selected the <code>/login</code> request on the left. You&rsquo;ll probably have a bunch of requests here that you&rsquo;ll need to filter through to find what you are looking for.</li><li>On the bottom right, you can see the Request Headers (which we need to emulate), the Response Headers (which is what the server sends back) and the &ldquo;Request Payload&rdquo;, which we also need to send to the server.</li></ol><p><img src=network.png class=img-fluid alt="Network pane view"></p><p>So lets see what we can see:</p><ol><li>Under &ldquo;Headers General&rdquo; we see that this is a <code>POST</code> request to <code>https://api.pocketcasts.com/user/login</code> which is the end point.</li><li>Under &ldquo;Response Headers&rdquo; we see that it&rsquo;s sending back JSON, which is always a safe bet for JavaScript applications.</li><li>Under &ldquo;Request Headers&rdquo; &ndash; things that we should be sending to the server &ndash; there are a number of oddities, including headers keys that <em>start</em> with the colon character (<code>:</code>). <em>Once we connect this is where we will find the authorization mechanism, either as a cookie or a Authorization: Bearer token.</em></li></ol><p>What we see here is that login is done by POST json to <code>https://api.pocketcasts.com/user/login</code>. So lets code that up to test.</p><ol><li>First we put the USER and PASS in the environment.</li><li>Then we &ldquo;format&rdquo; our JSON.</li><li><code>-d</code> tells curl the data to post</li><li><code>-H</code> sets the request header telling it that we a posting JSON.</li><li><code>-X</code> sets the method to <code>POST</code></li></ol><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>$ <span class=nb>export</span> <span class=nv>POCKET_USER</span><span class=o>=</span>wschenk@gmail.com
+$ <span class=nb>export</span> <span class=nv>POCKET_PASS</span><span class=o>=</span>mysuperpassword
+$ <span class=nb>export</span> <span class=nv>LOGIN_JSON</span><span class=o>=</span><span class=s2>&#34;{&#39;email&#39;: &#39;</span><span class=si>${</span><span class=nv>POCKET_USER</span><span class=si>}</span><span class=s2>&#39;, &#39;password&#39;: &#39;</span><span class=si>${</span><span class=nv>POCKET_PASS</span><span class=si>}</span><span class=s2>&#39;, &#39;scope&#39;: &#39;webplayer&#39;}&#34;</span>
+$ curl -d <span class=s2>&#34;</span><span class=si>${</span><span class=nv>LOGIN_JSON</span><span class=si>}</span><span class=s2>&#34;</span> -H <span class=s2>&#34;Content-Type: application/json&#34;</span> -X POST https://api.pocketcasts.com/user/login <span class=p>|</span> tee token.json
+</code></pre></div><p>If all goes well, you should have a file called <code>token.json</code> that looks something like:</p><div class=highlight><pre class=chroma><code class=language-json data-lang=json><span class=p>{</span>
+  <span class=nt>&#34;token&#34;</span><span class=p>:</span> <span class=s2>&#34;eyJ0eXAiOiJKV1QiLCJhbGciOsomanymanyrandomcharacters&#34;</span><span class=p>,</span>
+  <span class=nt>&#34;uuid&#34;</span><span class=p>:</span> <span class=s2>&#34;e0472133-e54e-4176-also-random-gibberious&#34;</span>
+<span class=p>}</span>
+</code></pre></div><h2 id=parsing-json>Parsing JSON</h2><p>We need to store that token somewhere and then using it again for making requests. We can do this by using <code>jq</code> to parse this file to be able to use it again.</p><ol><li><code>-r</code> will print the raw output, without any quotes around it</li><li><code>.token</code> is the query, which means the token attribute on the top level object.</li><li><code>token.json</code> is the file that we created above.</li><li>Lets put it in a variable to use later.</li></ol><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>$ jq -r .token token.json
+$ <span class=nb>export</span> <span class=nv>POCKET_TOKEN</span><span class=o>=</span><span class=k>$(</span>jq -r .token token.json<span class=k>)</span>
+</code></pre></div><h2 id=getting-a-list-of-starred-podcasts>Getting a list of starred podcasts</h2><p>Now that we have logged in, lets see how to get the list of podcast episodes that we&rsquo;ve starred. If we click around on the user interface and have the network tab open in the dev tools, we can see all the requests that the client player is making to the API. If you turn off the filter and show &ldquo;All&rdquo; requests you can see that it&rsquo;s really quite a lot! And it goes to all different servers, not just <code>play.pocketcasts.com</code> or <code>api.pocketcasts.com</code>. If you flip over to the &ldquo;Sources&rdquo; tab you can see all of the HTML objects that are loaded in from the various servers out there in the world &ndash; fonts and user tracking tend to come from other places. <em>This is how they track you</em>. This site doesn&rsquo;t have ads but basically if it did then this is the mechanism where your user behavior on the internet is linked together and how the ad networks build a profile on you. You should install an ad blocker.</p><p>Anyway, back to the network tab. Filter again on &ldquo;XHR&rdquo; requests and (probably) reload the page. You should see something like:</p><p><img src=starred.png class=img-fluid alt="the starred podcast request"></p><ol><li>Again a <code>POST</code> request, this time to <code>https://api.pocketcasts.com/user/starred</code></li><li>There&rsquo;s an <code>Authorization: Bearer</code> in the request headers.</li><li>The request payload is <code>{}</code> which is sort of silly but ok. (This is not really REST, where it should be a <code>GET</code> request on the collection object, but when you are writing both the client and the server of a private API you are free to do whatever you want!)</li><li>If we click over to the &ldquo;Response&rdquo; subtab, we get a sense of the data that we are working with:</li></ol><p><img src=response_detail.png class=img-fluid alt="details of the response"></p><p>Interesting things to note here:</p><ol><li>This api uses <code>uuid</code> everywhere, in this case for episodes but it also links out to <code>podcastUuid</code>.</li><li>There&rsquo;s a field for <code>podcastTitle</code> but no data it in. You can imagine how when they were developing it they thought it would make sense to include that data, but when implementing the front end nothing that used this api needed it. So they forgot to either populate the attribute or remove it all together. No one was intending us to look at it.</li><li>Alternatively, this is because we are logging with the &ldquo;webplayer&rdquo; scope, and if we logged in with a different scope &ndash; like whatever the mobile apps use &ndash; the data will populate. A mystery that we will skip over.</li><li>Looks like the <code>duration</code> is in seconds.</li><li>It&rsquo;s weird that <code>size</code> is zero for this particular episodes. Others on my list have a non-zero size, but we know that this data can&rsquo;t be trusted.</li><li>Looks like it&rsquo;s figuring out that some podcasts have <code>seasons</code> and <code>episodes</code> &ndash; which I didn&rsquo;t know was an official thing, but doing some googles into RSS feeds shows that this is standard iTunes metadata which is a nifty thing to learn.</li><li>There&rsquo;s no starred date, or no listening date. It appears to return the data sorted by when I saved the episode, but I don&rsquo;t know what that date is, only the time that the episode was published on the internet.</li></ol><p>In general, data from APIs are messy and annoying. In many ways it&rsquo;s the same as just scraping the UI, in the sense that the data from the API is what&rsquo;s used to make the UI, the mess is higher upstream. If it shows up in the user interface you have good reason to believe that it&rsquo;s been tested, but we don&rsquo;t have access to any validation code that the JavaScript uses. (It&rsquo;s possible to start poking around the minimized JavaScript that you get from the server, but that&rsquo;s for another day.) What does <code>playingStatus</code> mean? No idea. Why are some listed as having a zero sized file length? No idea. But you need to first look through the data and get a sense of how dirty it is before moving on.</p><p>OK, lets look at the <code>curl</code> command to pull this data down so we can start playing with it:</p><ol><li><code>-d "{}"</code> posts the empty JSON.</li><li><code>"Authorization: Bearer ${POCKET_TOKEN}"</code> is how we pass back the access token.</li><li>Everything else should look familiar.</li></ol><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>$ curl -d <span class=s2>&#34;{}&#34;</span> -X POST <span class=se>\
+</span><span class=se></span>  -H <span class=s2>&#34;Authorization: Bearer </span><span class=si>${</span><span class=nv>POCKET_TOKEN</span><span class=si>}</span><span class=s2>&#34;</span> <span class=se>\
+</span><span class=se></span>  -H <span class=s2>&#34;Content-Type: application/json&#34;</span>  <span class=se>\
+</span><span class=se></span>  https://api.pocketcasts.com/user/starred &gt; starred.json
+</code></pre></div><p>So now we have a list of episodes that we&rsquo;ve starred, but we are missing relavent data &ndash; we don&rsquo;t have the podcast title, the url for it, or any of the show notes!</p><h2 id=finding-show-notes-of-the-episodes>Finding show notes of the episodes</h2><p>If we click on an episode itself on the website and look through what is being loaded, we can see that it&rsquo;s a <code>GET</code> request from a different server. It&rsquo;s still passing back the Bearer token (which is weird again but I&rsquo;m going with it.)</p><p><img src=show_notes.png class=img-fluid alt="Show notes"></p><ol><li>We create a work directory to store all the JSON that we&rsquo;ll get from the server.</li><li>We&rsquo;ll use <code>jq</code> to parse the <code>starred.json</code> and pull out the episide <code>uuid</code>.</li><li>We&rsquo;ll loop over those <code>uuids</code></li><li>We extract out the specific info for this episode into it&rsquo;s own <code>info.json</code> file.</li><li>We hit the API for each show note, putting it into it&rsquo;s own directory.</li></ol><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash><span class=k>for</span> uuid in <span class=k>$(</span>jq -r <span class=s1>&#39;.episodes[] | .uuid&#39;</span>  starred.json<span class=k>)</span><span class=p>;</span> <span class=k>do</span>
+  mkdir -p episodes/<span class=si>${</span><span class=nv>uuid</span><span class=si>}</span>
 
-    <link rel="stylesheet" href="../../../css/theme.css"/>
-    <link rel="stylesheet" href="../../../css/syntax.css"/>
+  jq -r <span class=s2>&#34;.episodes[] | select( .uuid == \&#34;</span><span class=si>${</span><span class=nv>uuid</span><span class=si>}</span><span class=s2>\&#34; ) | .&#34;</span> starred.json &gt; episodes/<span class=si>${</span><span class=nv>uuid</span><span class=si>}</span>/info.json
 
-    
-      
-<script type="application/javascript">
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
-	ga('create', 'UA-56296045-1', 'auto');
-	
-	ga('send', 'pageview');
-}
-</script>
-<script async src='https://www.google-analytics.com/analytics.js'></script>
+  curl <span class=se>\
+</span><span class=se></span>    -H <span class=s2>&#34;Authorization: Bearer </span><span class=si>${</span><span class=nv>POCKET_TOKEN</span><span class=si>}</span><span class=s2>&#34;</span> <span class=se>\
+</span><span class=se></span>    -H <span class=s2>&#34;Content-Type: application/json&#34;</span>  <span class=se>\
+</span><span class=se></span>    https://cache.pocketcasts.com/episode/show_notes/<span class=si>${</span><span class=nv>uuid</span><span class=si>}</span> <span class=se>\
+</span><span class=se></span>    &gt; episodes/<span class=si>${</span><span class=nv>uuid</span><span class=si>}</span>/notes.json
+<span class=k>done</span>
+</code></pre></div><h2 id=finding-podcast-info>Finding podcast info</h2><p>Lets look again to see where we can get information about the podcasts. Looking at the network inspector, we can see that it loads <code>https://api.pocketcasts.com/user/podcast/list</code> for the full list of podcast that I subscribe to. We&rsquo;ll need to pull down this list and then figure out how to combine the information together with the episodes to get the full information. This is another strange POST instead of GET request. In this case it&rsquo;s sending <code>{v:1}</code> so we will too:</p><p><img src=podcast_list.png class=img-fluid alt="podcast list info"></p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>curl -d <span class=s2>&#34;{v:1}&#34;</span> -X POST <span class=se>\
+</span><span class=se></span>    -H <span class=s2>&#34;Authorization: Bearer </span><span class=si>${</span><span class=nv>POCKET_TOKEN</span><span class=si>}</span><span class=s2>&#34;</span> <span class=se>\
+</span><span class=se></span>    -H <span class=s2>&#34;Content-Type: application/json&#34;</span>  <span class=se>\
+</span><span class=se></span>    https://api.pocketcasts.com/user/podcast/list <span class=se>\
+</span><span class=se></span>    &gt; podcasts.json
+</code></pre></div><p>And lets loop through everything to pull in the data. We are using to use a loop, one which uses <code>jq</code> to pull out the podcast uuid from the file. We will then call another <code>jq</code> query to pull out just the matching JSON block into a file. There are probably many better ways to do this.</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>mkdir podcasts
+<span class=k>for</span> podcastUuid in <span class=k>$(</span>jq -r <span class=s1>&#39;.podcasts[] | .uuid&#39;</span> podcasts.json<span class=k>)</span>
+<span class=k>do</span>
+  jq -r <span class=s2>&#34;.podcasts[] | select( .uuid == \&#34;</span><span class=si>${</span><span class=nv>podcastUuid</span><span class=si>}</span><span class=s2>\&#34; ) | .&#34;</span> podcasts.json &gt; podcasts/<span class=si>${</span><span class=nv>podcastUuid</span><span class=si>}</span>.json
+<span class=k>done</span>
+</code></pre></div><h2 id=combining-it-all-together>Combining it all together</h2><ol><li>Loop through the starred episodes JSON.</li><li>Pull out the podcastUuid</li><li>Wrap the <code>info.json</code> file in a <code>info</code> attribute and cat to <code>work.json</code></li><li>Wrap the <code>notes.json</code> file in a <code>notes</code> attribute and append to <code>work.json</code></li><li>Wrap the postcast from the previous command into a <code>podcast</code> attribute and append to <code>work.json</code></li><li>Filter <code>work.json</code> into <code>combined.json</code></li><li>Append <code>combined.json</code> to <code>combined_work.json</code> on the top level.</li><li>Reformat <code>combined_work.json</code> to <code>starred_combined.json</code> on the top level.</li></ol><p>Here we go!</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>&gt; combined_work.json
+<span class=k>for</span> episodeUuid in <span class=k>$(</span>jq -r <span class=s1>&#39;.episodes[] | .uuid&#39;</span>  starred.json<span class=k>)</span><span class=p>;</span> <span class=k>do</span>
+  <span class=nv>dir</span><span class=o>=</span>episodes/<span class=si>${</span><span class=nv>episodeUuid</span><span class=si>}</span>
+  <span class=nv>podcastUuid</span><span class=o>=</span><span class=k>$(</span>jq -r <span class=s1>&#39;.podcastUuid&#39;</span> <span class=si>${</span><span class=nv>dir</span><span class=si>}</span>/info.json<span class=k>)</span>
 
-      <script async defer data-domain="willschenk.com" src="https://plausible.io/js/plausible.js"></script>
-    
-    <meta property="og:title" content="Reverse engineering APIs using Chrome Developer Tools" />
-<meta property="og:description" content="I want to get a list of all of the podcast episodes that I&rsquo;ve starred on PocketCasts. There&rsquo;s no obvious way to export this from the application, and they don&rsquo;t have a published interface. Lets look at hope to use chrome developer tools to figure out what the API is.
-We know that PocketCasts must have an API since it also has a mobile app &ndash; the code in the mobile app must talk to the code in the server using a format that computers understand, which is basically the definition of an API." />
-<meta property="og:type" content="article" />
-<meta property="og:url" content="https://willschenk.com/articles/2019/reverse_engineering_apis_using_chrome/" />
-<meta property="article:published_time" content="2019-05-01T00:00:00+00:00" />
-<meta property="article:modified_time" content="2019-05-01T00:00:00+00:00" />
+  jq <span class=s1>&#39;{episode: .}&#39;</span> <span class=si>${</span><span class=nv>dir</span><span class=si>}</span>/info.json &gt; <span class=si>${</span><span class=nv>dir</span><span class=si>}</span>/work.json
+  jq <span class=s1>&#39;{note: .}&#39;</span> <span class=si>${</span><span class=nv>dir</span><span class=si>}</span>/notes.json &gt;&gt; <span class=si>${</span><span class=nv>dir</span><span class=si>}</span>/work.json
+  jq <span class=s1>&#39;{podcast: .}&#39;</span> podcasts/<span class=si>${</span><span class=nv>podcastUuid</span><span class=si>}</span>.json &gt;&gt; <span class=si>${</span><span class=nv>dir</span><span class=si>}</span>/work.json
 
-    <meta name="twitter:card" content="summary"/>
-<meta name="twitter:title" content="Reverse engineering APIs using Chrome Developer Tools"/>
-<meta name="twitter:description" content="I want to get a list of all of the podcast episodes that I&rsquo;ve starred on PocketCasts. There&rsquo;s no obvious way to export this from the application, and they don&rsquo;t have a published interface. Lets look at hope to use chrome developer tools to figure out what the API is.
-We know that PocketCasts must have an API since it also has a mobile app &ndash; the code in the mobile app must talk to the code in the server using a format that computers understand, which is basically the definition of an API."/>
-<meta name="twitter:site" content="@wschenk"/>
+  jq -s <span class=s1>&#39;add | {
+</span><span class=s1>    episodeTitle: .episode.title,
+</span><span class=s1>    audioUrl: .episode.url,
+</span><span class=s1>    published: .episode.published,
+</span><span class=s1>    duration: .episode.duration,
+</span><span class=s1>    size: .episode.size,
+</span><span class=s1>    podcastTitle: .podcast.title,
+</span><span class=s1>    author: .podcast.author,
+</span><span class=s1>    description: .podcast.description,
+</span><span class=s1>    podcastUrl: .podcast.url,
+</span><span class=s1>    notes: .note.show_notes }&#39;</span> <span class=si>${</span><span class=nv>dir</span><span class=si>}</span>/work.json &gt;&gt; combined_work.json
+<span class=k>done</span>
 
-
-    <style>
-     .article p, .article ul, .article ol, .article table {
-         max-width: 45em;
-     }
-
-     .article pre p {
-         max-width: none;
-         margin-top: -1.5rem;
-     }
-
-     article.article p:first-child, .article blockquote {
-         font-size: 1.25em;
-         font-weight: 300;
-         max-width: 36em;  
-     }
-
-     .half-height-scroll {
-         max-height: 32em;
-         overflow: scroll;
-     }
-    </style>
-</head>
-<body><nav class="container my-5">
-  <h1 class="pt-md-5 display-3"><a class="text-dark" href="../../../">Will Schenk</a></h1>
-  <p>
-    
-      <a class="text-dark h4 mr-3 font-weight-light" href="../../../articles/" title="">Articles</a>
-    
-      <a class="text-dark h4 mr-3 font-weight-light" href="../../../contact" title="">Contact</a>
-    
-      <a class="text-dark h4 mr-3 font-weight-light" href="../../../tags/" title="">Tags</a>
-    
-    <a href="../../../feed.xml" class="mr-3 h4 text-light"><img src="../../../img/rss.svg" alt="rss" height="20" width="20"/></a>
-    
-      <a href="https://twitter.com/@wschenk" class="mr-3 h4 text-light"><img src="../../../img/twitter.svg" alt="twitter" height="20" width="20"/></a>
-    
-    
-      <a href="https://instagram.com/wschenk" class="mr-3 h4 text-light"><img src="../../../img/instagram.svg" alt="instagram" height="20" width="20"/></a>
-    
-    
-      <a href="https://github.com/wschenk" class="mr-3 h4 text-light"><img src="../../../img/github.svg" alt="github" height="20" width="20"/></a>
-    
-    
-      <a href="https://linkedin.com/in/will-schenk-420266" class="mr-3 h4 text-light"><img src="../../../img/linkedin.svg" alt="linkedin" height="20" width="20"/></a>
-    
-  </p>
-</nav>
-
-<div class="container">
-  <h1 class="mt-5">Reverse engineering APIs using Chrome Developer Tools</h1>
-
-  
-    <h2 class="font-weight-light font-italic mb-3">its your data after all</h2>
-  
-
-  <p class="text-muted mt-3">
-    <a class="text-muted" href="https://willschenk.com/articles/2019/reverse_engineering_apis_using_chrome/">Published May 1, 2019</a>
-
-    
-      <a class="text-muted" href="../../../tags/howto">#howto</a>
-    
-      <a class="text-muted" href="../../../tags/chrome">#chrome</a>
-    
-      <a class="text-muted" href="../../../tags/api">#api</a>
-    
-      <a class="text-muted" href="../../../tags/scraping">#scraping</a>
-    
-  </p>
-
-  
-
-  
-
-  <article class="article mt-5">
-    <p>I want to get a list of all of the podcast episodes that I&rsquo;ve starred on <a href="https://www.pocketcasts.com/">PocketCasts</a>.  There&rsquo;s no obvious way to export this from the application, and they don&rsquo;t have a published interface.  Lets look at hope to use chrome developer tools to figure out what the API is.</p>
-<p>We know that PocketCasts must have an API since it also has a mobile app &ndash; the code in the mobile app must talk to the code in the server using a format that computers understand, which is basically the definition of an API.  We are leveraging the fact that the web version of PocketCasts is a JavaScript client application which uses the same API.  If all the HTML was generated on the server there wouldn&rsquo;t necessarily be an API and so you&rsquo;d need to resort to scraping and parsing the resulting HTML to regenerate the underlying database that the views were generated off of.  We&rsquo;ll look at using Puppeteer in a later post for situations like that.</p>
-<h2 id="reverse-engineering-a-simple-api">Reverse Engineering a Simple API</h2>
-<p>The idea is that we are going to open up the chrome developer tools and monitor all of the network requests that the browser makes to the server.  We will stare and ponder at these requests to see how to make them in the same way using our own code.  In this article I&rsquo;m going to walk through using <code>bash</code>, <code>curl</code> and <code>jq</code>, which are tools available everywhere with very few dependencies.</p>
-<p>These particular tools work great, but scripting <code>bash</code> is a little bit awkward.  The tools themselves don&rsquo;t really matter, so use which ever coding platform you are most familiar with.  Also, I&rsquo;m not personally a Firefox user but I&rsquo;m sure that the developer tools there are top notch and all these techniques apply equally.</p>
-<h2 id="logging-in">Logging in</h2>
-<p>The first thing we need to do is go to click the login button and go to the login page to see what&rsquo;s going on.  Click around on the site until you find the login form.  (If you are already logged in, log out first.)  For PocketCasts this should leave you here: <a href="https://play.pocketcasts.com/web/user/sign_in">https://play.pocketcasts.com/web/user/sign_in</a>  Now we want to <a href="https://developers.google.com/web/tools/chrome-devtools/open">open the developer tools</a>.  You can do this by pressing <code>ctrl-shift-c</code>, or right clicking on the page and selecting <code>Inspect Element</code>.</p>
-<p>
-<img src="open_console.png" class="img-fluid" alt="Chrome Developer Console"/>
-</p>
-<p>Looking at this we can see a few things:</p>
-<ol>
-<li>The <code>form</code> has no action, which means that JavaScript is going to be used to submit the form.</li>
-<li>There&rsquo;s a ton of CSS classes that look like <code>sytled__</code>, which means that it&rsquo;s using styled components and react.</li>
-<li>This means that the CSS classes aren&rsquo;t semantic, which is rude and makes it harder to scrape the data if it comes to that.</li>
-</ol>
-<p>Semantic CSS means that when you specify what something looks like on the page you use (hopefully) consistent terms that reflect not just want you want the words on the screen to look like, but that those words are &ldquo;title of the podcast&rdquo; or &ldquo;podcast show notes&rdquo;.  This style is falling out of favor for technical reasons, but it makes it much hard to deal with archiving and dead sites.</p>
-<p>This shouldn&rsquo;t matter in this case since the strategy is to emulate the JavaScript client, but it&rsquo;s something to keep in mind when we tackle different sites that are more hostile.</p>
-<h2 id="select-the-network-tab">Select the network tab</h2>
-<p>Lets key Chrome recording the API requests so we can pull them out.  First select the network tab in the open console.  Then make sure that it&rsquo;s recording (the red dot on the far left) and reload the page.  Enter in your email and password in the form (the screen shot shows me entering <code>email@email.com</code> and <code>password</code> which is obviously not real) and press submit.</p>
-<ol>
-<li>The network tab needs to be select.</li>
-<li>The red dot needs to be on.</li>
-<li>I&rsquo;ve filtered by &ldquo;XHR&rdquo;, which filters on requests that the JavaScript makes to different servers.  (This stands for XMLHttpRequest which is mostly called Ajax, or &ldquo;Asynchronous JavaScript and XML&rdquo;, even though we aren&rsquo;t using any XML).</li>
-<li>I&rsquo;ve selected the <code>/login</code> request on the left.  You&rsquo;ll probably have a bunch of requests here that you&rsquo;ll need to filter through to find what you are looking for.</li>
-<li>On the bottom right, you can see the Request Headers (which we need to emulate), the Response Headers (which is what the server sends back) and the &ldquo;Request Payload&rdquo;, which we also need to send to the server.</li>
-</ol>
-<p>
-<img src="network.png" class="img-fluid" alt="Network pane view"/>
-</p>
-<p>So lets see what we can see:</p>
-<ol>
-<li>Under &ldquo;Headers General&rdquo; we see that this is a <code>POST</code> request to <code>https://api.pocketcasts.com/user/login</code> which is the end point.</li>
-<li>Under &ldquo;Response Headers&rdquo; we see that it&rsquo;s sending back JSON, which is always a safe bet for JavaScript applications.</li>
-<li>Under &ldquo;Request Headers&rdquo; &ndash; things that we should be sending to the server &ndash; there are a number of oddities, including headers keys that <em>start</em> with the colon character (<code>:</code>).  <em>Once we connect this is where we will find the authorization mechanism, either as a cookie or a Authorization: Bearer token.</em></li>
-</ol>
-<p>What we see here is that login is done by POST json to <code>https://api.pocketcasts.com/user/login</code>. So lets code that up to test.</p>
-<ol>
-<li>First we put the USER and PASS in the environment.</li>
-<li>Then we &ldquo;format&rdquo; our JSON.</li>
-<li><code>-d</code> tells curl the data to post</li>
-<li><code>-H</code> sets the request header telling it that we a posting JSON.</li>
-<li><code>-X</code> sets the method to <code>POST</code></li>
-</ol>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ <span class="nb">export</span> <span class="nv">POCKET_USER</span><span class="o">=</span>wschenk@gmail.com
-$ <span class="nb">export</span> <span class="nv">POCKET_PASS</span><span class="o">=</span>mysuperpassword
-$ <span class="nb">export</span> <span class="nv">LOGIN_JSON</span><span class="o">=</span><span class="s2">&#34;{&#39;email&#39;: &#39;</span><span class="si">${</span><span class="nv">POCKET_USER</span><span class="si">}</span><span class="s2">&#39;, &#39;password&#39;: &#39;</span><span class="si">${</span><span class="nv">POCKET_PASS</span><span class="si">}</span><span class="s2">&#39;, &#39;scope&#39;: &#39;webplayer&#39;}&#34;</span>
-$ curl -d <span class="s2">&#34;</span><span class="si">${</span><span class="nv">LOGIN_JSON</span><span class="si">}</span><span class="s2">&#34;</span> -H <span class="s2">&#34;Content-Type: application/json&#34;</span> -X POST https://api.pocketcasts.com/user/login <span class="p">|</span> tee token.json
-</code></pre></div><p>If all goes well, you should have a file called <code>token.json</code> that looks something like:</p>
-<div class="highlight"><pre class="chroma"><code class="language-json" data-lang="json"><span class="p">{</span>
-  <span class="nt">&#34;token&#34;</span><span class="p">:</span> <span class="s2">&#34;eyJ0eXAiOiJKV1QiLCJhbGciOsomanymanyrandomcharacters&#34;</span><span class="p">,</span>
-  <span class="nt">&#34;uuid&#34;</span><span class="p">:</span> <span class="s2">&#34;e0472133-e54e-4176-also-random-gibberious&#34;</span>
-<span class="p">}</span>
-</code></pre></div><h2 id="parsing-json">Parsing JSON</h2>
-<p>We need to store that token somewhere and then using it again for making requests.  We can do this by using <code>jq</code> to parse this file to be able to use it again.</p>
-<ol>
-<li><code>-r</code> will print the raw output, without any quotes around it</li>
-<li><code>.token</code> is the query, which means the token attribute on the top level object.</li>
-<li><code>token.json</code> is the file that we created above.</li>
-<li>Lets put it in a variable to use later.</li>
-</ol>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ jq -r .token token.json
-$ <span class="nb">export</span> <span class="nv">POCKET_TOKEN</span><span class="o">=</span><span class="k">$(</span>jq -r .token token.json<span class="k">)</span>
-</code></pre></div><h2 id="getting-a-list-of-starred-podcasts">Getting a list of starred podcasts</h2>
-<p>Now that we have logged in, lets see how to get the list of podcast episodes that we&rsquo;ve starred.  If we click around on the user interface and have the network tab open in the dev tools, we can see all the requests that the client player is making to the API.  If you turn off the filter and show &ldquo;All&rdquo; requests you can see that it&rsquo;s really quite a lot!  And it goes to all different servers, not just <code>play.pocketcasts.com</code> or <code>api.pocketcasts.com</code>.  If you flip over to the &ldquo;Sources&rdquo; tab you can see all of the HTML objects that are loaded in from the various servers out there in the world &ndash; fonts and user tracking tend to come from other places.  <em>This is how they track you</em>.  This site doesn&rsquo;t have ads but basically if it did then this is the mechanism where your user behavior on the internet is linked together and how the ad networks build a profile on you.   You should install an ad blocker.</p>
-<p>Anyway, back to the network tab.  Filter again on &ldquo;XHR&rdquo; requests and (probably) reload the page.  You should see something like:</p>
-<p>
-<img src="starred.png" class="img-fluid" alt="the starred podcast request"/>
-</p>
-<ol>
-<li>Again a <code>POST</code> request, this time to <code>https://api.pocketcasts.com/user/starred</code></li>
-<li>There&rsquo;s an <code>Authorization: Bearer</code> in the request headers.</li>
-<li>The request payload is <code>{}</code> which is sort of silly but ok.  (This is not really REST, where it should be a <code>GET</code> request on the collection object, but when you are writing both the client and the server of a private API you are free to do whatever you want!)</li>
-<li>If we click over to the &ldquo;Response&rdquo; subtab, we get a sense of the data that we are working with:</li>
-</ol>
-<p>
-<img src="response_detail.png" class="img-fluid" alt="details of the response"/>
-</p>
-<p>Interesting things to note here:</p>
-<ol>
-<li>This api uses <code>uuid</code> everywhere, in this case for episodes but it also links out to <code>podcastUuid</code>.</li>
-<li>There&rsquo;s a field for <code>podcastTitle</code> but no data it in.  You can imagine how when they were developing it they thought it would make sense to include that data, but when implementing the front end nothing that used this api needed it.  So they forgot to either populate the attribute or remove it all together.  No one was intending us to look at it.</li>
-<li>Alternatively, this is because we are logging with the &ldquo;webplayer&rdquo; scope, and if we logged in with a different scope &ndash; like whatever the mobile apps use &ndash; the data will populate.  A mystery that we will skip over.</li>
-<li>Looks like the <code>duration</code> is in seconds.</li>
-<li>It&rsquo;s weird that <code>size</code> is zero for this particular episodes.  Others on my list have a non-zero size, but we know that this data can&rsquo;t be trusted.</li>
-<li>Looks like it&rsquo;s figuring out that some podcasts have <code>seasons</code> and <code>episodes</code> &ndash; which I didn&rsquo;t know was an official thing, but doing some googles into RSS feeds shows that this is standard iTunes metadata which is a nifty thing to learn.</li>
-<li>There&rsquo;s no starred date, or no listening date.  It appears to return the data sorted by when I saved the episode, but I don&rsquo;t know what that date is, only the time that the episode was published on the internet.</li>
-</ol>
-<p>In general, data from APIs are messy and annoying.  In many ways it&rsquo;s the same as just scraping the UI, in the sense that the data from the API is what&rsquo;s used to make the UI, the mess is higher upstream.  If it shows up in the user interface you have good reason to believe that it&rsquo;s been tested, but we don&rsquo;t have access to any validation code that the JavaScript uses.  (It&rsquo;s possible to start poking around the minimized JavaScript that you get from the server, but that&rsquo;s for another day.)  What does <code>playingStatus</code> mean?  No idea.  Why are some listed as having a zero sized file length?  No idea.  But you need to first look through the data and get a sense of how dirty it is before moving on.</p>
-<p>OK, lets look at the <code>curl</code> command to pull this data down so we can start playing with it:</p>
-<ol>
-<li><code>-d &quot;{}&quot;</code> posts the empty JSON.</li>
-<li><code>&quot;Authorization: Bearer ${POCKET_TOKEN}&quot;</code> is how we pass back the access token.</li>
-<li>Everything else should look familiar.</li>
-</ol>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ curl -d <span class="s2">&#34;{}&#34;</span> -X POST <span class="se">\
-</span><span class="se"></span>  -H <span class="s2">&#34;Authorization: Bearer </span><span class="si">${</span><span class="nv">POCKET_TOKEN</span><span class="si">}</span><span class="s2">&#34;</span> <span class="se">\
-</span><span class="se"></span>  -H <span class="s2">&#34;Content-Type: application/json&#34;</span>  <span class="se">\
-</span><span class="se"></span>  https://api.pocketcasts.com/user/starred &gt; starred.json
-</code></pre></div><p>So now we have a list of episodes that we&rsquo;ve starred, but we are missing relavent data &ndash; we don&rsquo;t have the podcast title, the url for it, or any of the show notes!</p>
-<h2 id="finding-show-notes-of-the-episodes">Finding show notes of the episodes</h2>
-<p>If we click on an episode itself on the website and look through what is being loaded, we can see that it&rsquo;s a <code>GET</code> request from a different server.  It&rsquo;s still passing back the Bearer token (which is weird again but I&rsquo;m going with it.)</p>
-<p>
-<img src="show_notes.png" class="img-fluid" alt="Show notes"/>
-</p>
-<ol>
-<li>We create a work directory to store all the JSON that we&rsquo;ll get from the server.</li>
-<li>We&rsquo;ll use <code>jq</code> to parse the <code>starred.json</code> and pull out the episide <code>uuid</code>.</li>
-<li>We&rsquo;ll loop over those <code>uuids</code></li>
-<li>We extract out the specific info for this episode into it&rsquo;s own <code>info.json</code> file.</li>
-<li>We hit the API for each show note, putting it into it&rsquo;s own directory.</li>
-</ol>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="k">for</span> uuid in <span class="k">$(</span>jq -r <span class="s1">&#39;.episodes[] | .uuid&#39;</span>  starred.json<span class="k">)</span><span class="p">;</span> <span class="k">do</span>
-  mkdir -p episodes/<span class="si">${</span><span class="nv">uuid</span><span class="si">}</span>
-
-  jq -r <span class="s2">&#34;.episodes[] | select( .uuid == \&#34;</span><span class="si">${</span><span class="nv">uuid</span><span class="si">}</span><span class="s2">\&#34; ) | .&#34;</span> starred.json &gt; episodes/<span class="si">${</span><span class="nv">uuid</span><span class="si">}</span>/info.json
-
-  curl <span class="se">\
-</span><span class="se"></span>    -H <span class="s2">&#34;Authorization: Bearer </span><span class="si">${</span><span class="nv">POCKET_TOKEN</span><span class="si">}</span><span class="s2">&#34;</span> <span class="se">\
-</span><span class="se"></span>    -H <span class="s2">&#34;Content-Type: application/json&#34;</span>  <span class="se">\
-</span><span class="se"></span>    https://cache.pocketcasts.com/episode/show_notes/<span class="si">${</span><span class="nv">uuid</span><span class="si">}</span> <span class="se">\
-</span><span class="se"></span>    &gt; episodes/<span class="si">${</span><span class="nv">uuid</span><span class="si">}</span>/notes.json
-<span class="k">done</span>
-</code></pre></div><h2 id="finding-podcast-info">Finding podcast info</h2>
-<p>Lets look again to see where we can get information about the podcasts.  Looking at the network inspector, we can see that it loads <code>https://api.pocketcasts.com/user/podcast/list</code> for the full list of podcast that I subscribe to.  We&rsquo;ll need to pull down this list and then figure out how to combine the information together with the episodes to get the full information.  This is another strange POST instead of GET request.  In this case it&rsquo;s sending <code>{v:1}</code> so we will too:</p>
-<p>
-<img src="podcast_list.png" class="img-fluid" alt="podcast list info"/>
-</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">curl -d <span class="s2">&#34;{v:1}&#34;</span> -X POST <span class="se">\
-</span><span class="se"></span>    -H <span class="s2">&#34;Authorization: Bearer </span><span class="si">${</span><span class="nv">POCKET_TOKEN</span><span class="si">}</span><span class="s2">&#34;</span> <span class="se">\
-</span><span class="se"></span>    -H <span class="s2">&#34;Content-Type: application/json&#34;</span>  <span class="se">\
-</span><span class="se"></span>    https://api.pocketcasts.com/user/podcast/list <span class="se">\
-</span><span class="se"></span>    &gt; podcasts.json
-</code></pre></div><p>And lets loop through everything to pull in the data.  We are using to use a loop, one which uses <code>jq</code> to pull out the podcast uuid from the file.  We will then call another <code>jq</code> query to pull out just the matching JSON block into a file.  There are probably many better ways to do this.</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">mkdir podcasts
-<span class="k">for</span> podcastUuid in <span class="k">$(</span>jq -r <span class="s1">&#39;.podcasts[] | .uuid&#39;</span> podcasts.json<span class="k">)</span>
-<span class="k">do</span>
-  jq -r <span class="s2">&#34;.podcasts[] | select( .uuid == \&#34;</span><span class="si">${</span><span class="nv">podcastUuid</span><span class="si">}</span><span class="s2">\&#34; ) | .&#34;</span> podcasts.json &gt; podcasts/<span class="si">${</span><span class="nv">podcastUuid</span><span class="si">}</span>.json
-<span class="k">done</span>
-</code></pre></div><h2 id="combining-it-all-together">Combining it all together</h2>
-<ol>
-<li>Loop through the starred episodes JSON.</li>
-<li>Pull out the podcastUuid</li>
-<li>Wrap the <code>info.json</code> file in a <code>info</code> attribute and cat to <code>work.json</code></li>
-<li>Wrap the <code>notes.json</code> file in a <code>notes</code> attribute and append to <code>work.json</code></li>
-<li>Wrap the postcast from the previous command into a <code>podcast</code> attribute and append to <code>work.json</code></li>
-<li>Filter <code>work.json</code> into <code>combined.json</code></li>
-<li>Append <code>combined.json</code> to <code>combined_work.json</code> on the top level.</li>
-<li>Reformat <code>combined_work.json</code> to <code>starred_combined.json</code> on the top level.</li>
-</ol>
-<p>Here we go!</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">&gt; combined_work.json
-<span class="k">for</span> episodeUuid in <span class="k">$(</span>jq -r <span class="s1">&#39;.episodes[] | .uuid&#39;</span>  starred.json<span class="k">)</span><span class="p">;</span> <span class="k">do</span>
-  <span class="nv">dir</span><span class="o">=</span>episodes/<span class="si">${</span><span class="nv">episodeUuid</span><span class="si">}</span>
-  <span class="nv">podcastUuid</span><span class="o">=</span><span class="k">$(</span>jq -r <span class="s1">&#39;.podcastUuid&#39;</span> <span class="si">${</span><span class="nv">dir</span><span class="si">}</span>/info.json<span class="k">)</span>
-
-  jq <span class="s1">&#39;{episode: .}&#39;</span> <span class="si">${</span><span class="nv">dir</span><span class="si">}</span>/info.json &gt; <span class="si">${</span><span class="nv">dir</span><span class="si">}</span>/work.json
-  jq <span class="s1">&#39;{note: .}&#39;</span> <span class="si">${</span><span class="nv">dir</span><span class="si">}</span>/notes.json &gt;&gt; <span class="si">${</span><span class="nv">dir</span><span class="si">}</span>/work.json
-  jq <span class="s1">&#39;{podcast: .}&#39;</span> podcasts/<span class="si">${</span><span class="nv">podcastUuid</span><span class="si">}</span>.json &gt;&gt; <span class="si">${</span><span class="nv">dir</span><span class="si">}</span>/work.json
-
-  jq -s <span class="s1">&#39;add | {
-</span><span class="s1">    episodeTitle: .episode.title,
-</span><span class="s1">    audioUrl: .episode.url,
-</span><span class="s1">    published: .episode.published,
-</span><span class="s1">    duration: .episode.duration,
-</span><span class="s1">    size: .episode.size,
-</span><span class="s1">    podcastTitle: .podcast.title,
-</span><span class="s1">    author: .podcast.author,
-</span><span class="s1">    description: .podcast.description,
-</span><span class="s1">    podcastUrl: .podcast.url,
-</span><span class="s1">    notes: .note.show_notes }&#39;</span> <span class="si">${</span><span class="nv">dir</span><span class="si">}</span>/work.json &gt;&gt; combined_work.json
-<span class="k">done</span>
-
-jq -s <span class="s1">&#39;. | .&#39;</span> combined_work.json &gt; starred_combined.json
-</code></pre></div><h2 id="now-you-have-the-full-json-for-your-starred-episodes">Now you have the full JSON for your starred episodes</h2>
-<p>From here you can do whatever you want with it, JSON is a form that is easily digestible by many tools.  JavaScript can easily consume it directly, or static site generators often have support for bringing in data like this.  (I did this in a previous post on <a href="../easy_scraping_with_httpie_and_jq/">pulling down GitHub Stars</a>)</p>
-<p>Here&rsquo;s the code all put together: <a href="update_pocket_cast_starred.bash">update_pocket_cast_starred.bash</a></p>
-<p>This pulls everything down into a temporary directory, and then writes the final result into <a href="starred_combined.json">starred_combined.json</a> that you can use somewhere else for further processing.</p>
-<p>That&rsquo;s all for this post. We&rsquo;ll look at using Puppeteer next!</p>
-
-  </article>
-
-  
-</div>
-
-
-  <div class="bg-light py-5">
-    <div class="container">
-      <h2 class="text-center">Read next</h2>
-
-      <div class="row">
-        <div class="col-md-6 text-center">
-          
-            Next Post:
-            <a href="../../../articles/2019/installing_guix_on_nuc/">Installing guix on IntelNUC</a>
-          
-        </div>
-        <div class="col-md-6 text-center">
-          
-            Previous Post:
-            <a href="../../../articles/2019/controlling_ikea_tradfri_with_node/">Controlling IKEA Tradfri devices from your computer</a>
-          
-        </div>
-      </div>
-    </div>
-  </div>
-
-
-
-
-<div class="container mt-5">
-  <h2 class="text-center">See also</h2>
-  <div class="row">
-  	
-      <div class="col-md mb-3">
-        <p class="lead mb-0"><a class="text-body" href="../../../articles/2019/easy_scraping_with_httpie_and_jq/">Easy scraping with httpie and jq</a></p>
-
-        
-          <p class="lead font-italic mb-0">Pulling my GitHub starred repositories into Hugo</p>
-        
-        <div class="font-weight-light mt-3">
-          
-          
-            <p>I recently saw a tweet mentioning the combination of using <a href="https://httpie.org/">HTTPie</a> (a command line HTTP client), <a href="https://stedolan.github.io/jq/">jq</a> (a lightweight and flexible command-line JSON processor) and <a href="https://github.com/tomnomnom/gron">Gron</a> (Make JSON greppable!) was &ldquo;all you needed to build a scraper.&rdquo;  Lets see if that&rsquo;s true.</p>
-          
-        </div>
-        <a href="../../../articles/2019/easy_scraping_with_httpie_and_jq/" class="btn btn-primary">Read more</a>
-      </div>
-    
-      <div class="col-md mb-3">
-        <p class="lead mb-0"><a class="text-body" href="../../../articles/2019/controlling_ikea_tradfri_with_node/">Controlling IKEA Tradfri devices from your computer</a></p>
-
-        
-          <p class="lead font-italic mb-0">IKEA is cheap and everywhere</p>
-        
-        <div class="font-weight-light mt-3">
-          
-          
-            <p>I stumbled upon a <a href="https://vas3k.com/blog/dumbass_home/?ref=sn">fun blogpost about the Dumbass Home</a> and it turned me onto the IKEA Trådfri line of products.  So I got a couple, and figured out how to control them from my laptop (or say a Raspberry PI) from node.  Here&rsquo;s how to do it.</p>
-          
-        </div>
-        <a href="../../../articles/2019/controlling_ikea_tradfri_with_node/" class="btn btn-primary">Read more</a>
-      </div>
-    
-      <div class="col-md mb-3">
-        <p class="lead mb-0"><a class="text-body" href="../../../articles/2019/splitting_git_repos_and_workdirectories/">Splitting Git Repos and Work Directories</a></p>
-
-        
-          <p class="lead font-italic mb-0">all the fun things git can do</p>
-        
-        <div class="font-weight-light mt-3">
-          
-          
-            <p>I found a tutorial on how to manage your dotfiles, that works by splitting up the git repository (normally the .git directory) from the work directory. Since I have a lot of code that I put in my tutorials, I adapted the technique to have individual article directories mirrored in their own github repository.
-Repositories and Work Directories The normal usage of git is to type git clone &lt;remote&gt; to get a copy of the local directory, mess with stuff, and then add and commit your changes.</p>
-          
-        </div>
-        <a href="../../../articles/2019/splitting_git_repos_and_workdirectories/" class="btn btn-primary">Read more</a>
-      </div>
-    
-  </div>
-</div>
-
-
-<footer class="footer bg-dark text-light mt-3">
-  <div class="container">
-    <h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2>
-  </div>
-</footer>
-</body>
-</html>
+jq -s <span class=s1>&#39;. | .&#39;</span> combined_work.json &gt; starred_combined.json
+</code></pre></div><h2 id=now-you-have-the-full-json-for-your-starred-episodes>Now you have the full JSON for your starred episodes</h2><p>From here you can do whatever you want with it, JSON is a form that is easily digestible by many tools. JavaScript can easily consume it directly, or static site generators often have support for bringing in data like this. (I did this in a previous post on <a href=../easy_scraping_with_httpie_and_jq/>pulling down GitHub Stars</a>)</p><p>Here&rsquo;s the code all put together: <a href=update_pocket_cast_starred.bash>update_pocket_cast_starred.bash</a></p><p>This pulls everything down into a temporary directory, and then writes the final result into <a href=starred_combined.json>starred_combined.json</a> that you can use somewhere else for further processing.</p><p>That&rsquo;s all for this post. We&rsquo;ll look at using Puppeteer next!</p></article></div><div class="bg-light py-5"><div class=container><h2 class=text-center>Read next</h2><div class=row><div class="col-md-6 text-center">Next Post:
+<a href=../../../articles/2019/installing_guix_on_nuc/>Installing guix on IntelNUC</a></div><div class="col-md-6 text-center">Previous Post:
+<a href=../../../articles/2019/controlling_ikea_tradfri_with_node/>Controlling IKEA Tradfri devices from your computer</a></div></div></div></div><div class="container mt-5"><h2 class=text-center>See also</h2><div class=row><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2019/easy_scraping_with_httpie_and_jq/>Easy scraping with httpie and jq</a></p><p class="lead font-italic mb-0">Pulling my GitHub starred repositories into Hugo</p><div class="font-weight-light mt-3"><p>I recently saw a tweet mentioning the combination of using <a href=https://httpie.org/>HTTPie</a> (a command line HTTP client), <a href=https://stedolan.github.io/jq/>jq</a> (a lightweight and flexible command-line JSON processor) and <a href=https://github.com/tomnomnom/gron>Gron</a> (Make JSON greppable!) was &ldquo;all you needed to build a scraper.&rdquo; Lets see if that&rsquo;s true.</p></div><a href=../../../articles/2019/easy_scraping_with_httpie_and_jq/ class="btn btn-primary">Read more</a></div><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2019/controlling_ikea_tradfri_with_node/>Controlling IKEA Tradfri devices from your computer</a></p><p class="lead font-italic mb-0">IKEA is cheap and everywhere</p><div class="font-weight-light mt-3"><p>I stumbled upon a <a href="https://vas3k.com/blog/dumbass_home/?ref=sn">fun blogpost about the Dumbass Home</a> and it turned me onto the IKEA Trådfri line of products. So I got a couple, and figured out how to control them from my laptop (or say a Raspberry PI) from node. Here&rsquo;s how to do it.</p></div><a href=../../../articles/2019/controlling_ikea_tradfri_with_node/ class="btn btn-primary">Read more</a></div><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2019/splitting_git_repos_and_workdirectories/>Splitting Git Repos and Work Directories</a></p><p class="lead font-italic mb-0">all the fun things git can do</p><div class="font-weight-light mt-3"><p>I found a tutorial on how to manage your dotfiles, that works by splitting up the git repository (normally the .git directory) from the work directory. Since I have a lot of code that I put in my tutorials, I adapted the technique to have individual article directories mirrored in their own github repository.
+Repositories and Work Directories The normal usage of git is to type git clone &lt;remote> to get a copy of the local directory, mess with stuff, and then add and commit your changes.</p></div><a href=../../../articles/2019/splitting_git_repos_and_workdirectories/ class="btn btn-primary">Read more</a></div></div></div><footer class="footer bg-dark text-light mt-3"><div class=container><h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2></div></footer></body></html>

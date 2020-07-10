@@ -1,609 +1,369 @@
-<!DOCTYPE html>
-<html><head>
-    <title>Controlling IKEA Tradfri devices from your computer</title>
-    
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-
-    <link rel="stylesheet" href="../../../css/theme.css"/>
-    <link rel="stylesheet" href="../../../css/syntax.css"/>
-
-    
-      
-<script type="application/javascript">
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
-	ga('create', 'UA-56296045-1', 'auto');
-	
-	ga('send', 'pageview');
-}
-</script>
-<script async src='https://www.google-analytics.com/analytics.js'></script>
-
-      <script async defer data-domain="willschenk.com" src="https://plausible.io/js/plausible.js"></script>
-    
-    <meta property="og:title" content="Controlling IKEA Tradfri devices from your computer" />
-<meta property="og:description" content="I stumbled upon a fun blogpost about the Dumbass Home and it turned me onto the IKEA Trådfri line of products.  So I got a couple, and figured out how to control them from my laptop (or say a Raspberry PI) from node.  Here&rsquo;s how to do it." />
-<meta property="og:type" content="article" />
-<meta property="og:url" content="https://willschenk.com/articles/2019/controlling_ikea_tradfri_with_node/" />
-<meta property="article:published_time" content="2019-04-24T00:00:00+00:00" />
-<meta property="article:modified_time" content="2019-04-24T00:00:00+00:00" />
-
-    <meta name="twitter:card" content="summary"/>
-<meta name="twitter:title" content="Controlling IKEA Tradfri devices from your computer"/>
-<meta name="twitter:description" content="I stumbled upon a fun blogpost about the Dumbass Home and it turned me onto the IKEA Trådfri line of products.  So I got a couple, and figured out how to control them from my laptop (or say a Raspberry PI) from node.  Here&rsquo;s how to do it."/>
-<meta name="twitter:site" content="@wschenk"/>
-
-
-    <style>
-     .article p, .article ul, .article ol, .article table {
-         max-width: 45em;
-     }
-
-     .article pre p {
-         max-width: none;
-         margin-top: -1.5rem;
-     }
-
-     article.article p:first-child, .article blockquote {
-         font-size: 1.25em;
-         font-weight: 300;
-         max-width: 36em;  
-     }
-
-     .half-height-scroll {
-         max-height: 32em;
-         overflow: scroll;
-     }
-    </style>
-</head>
-<body><nav class="container my-5">
-  <h1 class="pt-md-5 display-3"><a class="text-dark" href="../../../">Will Schenk</a></h1>
-  <p>
-    
-      <a class="text-dark h4 mr-3 font-weight-light" href="../../../articles/" title="">Articles</a>
-    
-      <a class="text-dark h4 mr-3 font-weight-light" href="../../../contact" title="">Contact</a>
-    
-      <a class="text-dark h4 mr-3 font-weight-light" href="../../../tags/" title="">Tags</a>
-    
-    <a href="../../../feed.xml" class="mr-3 h4 text-light"><img src="../../../img/rss.svg" alt="rss" height="20" width="20"/></a>
-    
-      <a href="https://twitter.com/@wschenk" class="mr-3 h4 text-light"><img src="../../../img/twitter.svg" alt="twitter" height="20" width="20"/></a>
-    
-    
-      <a href="https://instagram.com/wschenk" class="mr-3 h4 text-light"><img src="../../../img/instagram.svg" alt="instagram" height="20" width="20"/></a>
-    
-    
-      <a href="https://github.com/wschenk" class="mr-3 h4 text-light"><img src="../../../img/github.svg" alt="github" height="20" width="20"/></a>
-    
-    
-      <a href="https://linkedin.com/in/will-schenk-420266" class="mr-3 h4 text-light"><img src="../../../img/linkedin.svg" alt="linkedin" height="20" width="20"/></a>
-    
-  </p>
-</nav>
-
-<div class="container">
-  <h1 class="mt-5">Controlling IKEA Tradfri devices from your computer</h1>
-
-  
-    <h2 class="font-weight-light font-italic mb-3">IKEA is cheap and everywhere</h2>
-  
-
-  <p class="text-muted mt-3">
-    <a class="text-muted" href="https://willschenk.com/articles/2019/controlling_ikea_tradfri_with_node/">Published April 24, 2019</a>
-
-    
-      <a class="text-muted" href="../../../tags/howto">#howto</a>
-    
-      <a class="text-muted" href="../../../tags/zigbee">#zigbee</a>
-    
-      <a class="text-muted" href="../../../tags/ikea">#IKEA</a>
-    
-      <a class="text-muted" href="../../../tags/node">#node</a>
-    
-  </p>
-
-  
-
-  
-  <div class="alert alert-secondary">The code from this article can be found at <a href="https://github.com/wschenk/tradfri-cli">https://github.com/wschenk/tradfri-cli</a></div>
-  
-
-  <article class="article mt-5">
-    <p>I stumbled upon a <a href="https://vas3k.com/blog/dumbass_home/?ref=sn">fun blogpost about the Dumbass Home</a> and it turned me onto the IKEA Trådfri line of products.  So I got a couple, and figured out how to control them from my laptop (or say a Raspberry PI) from node.  Here&rsquo;s how to do it.</p>
-<h2 id="overview">Overview</h2>
-<ol>
-<li>Go to IKEA and buy stuff</li>
-<li>Setup IKEA Trådfri Gateway and Lights as normal</li>
-<li>Install the <code>node-tradfri-client</code> library</li>
-<li>Copy the below scripts</li>
-</ol>
-<p>First, set up a switch, lightbulb, and a gateway.  The gateway needs to be plugged into the router which is a bit of a pain.  You need at least one controller connected to a device to get the gateway to recognize things; once you have that it should be fairly straightforward.  When in doubt, move closer to the gateway.</p>
-<h2 id="example-code">Example code</h2>
-<p>We are going to use the <a href="https://github.com/AlCalzone/node-tradfri-client">node-tradfri-client library</a>, the delay library, and the conf node library to store values after the fun.</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">mkdir ikeatest
-<span class="nb">cd</span> ikeatest
+<!doctype html><html><head><title>Controlling IKEA Tradfri devices from your computer</title><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><link rel=stylesheet href=../../../css/theme.css><link rel=stylesheet href=../../../css/syntax.css><script type=application/javascript>var doNotTrack=false;if(!doNotTrack){window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;ga('create','UA-56296045-1','auto');ga('send','pageview');}</script><script async src=https://www.google-analytics.com/analytics.js></script><script async defer data-domain=willschenk.com src=https://plausible.io/js/plausible.js></script><meta property="og:title" content="Controlling IKEA Tradfri devices from your computer"><meta property="og:description" content="I stumbled upon a fun blogpost about the Dumbass Home and it turned me onto the IKEA Trådfri line of products.  So I got a couple, and figured out how to control them from my laptop (or say a Raspberry PI) from node.  Here&rsquo;s how to do it."><meta property="og:type" content="article"><meta property="og:url" content="https://willschenk.com/articles/2019/controlling_ikea_tradfri_with_node/"><meta property="article:published_time" content="2019-04-24T00:00:00+00:00"><meta property="article:modified_time" content="2019-04-24T00:00:00+00:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Controlling IKEA Tradfri devices from your computer"><meta name=twitter:description content="I stumbled upon a fun blogpost about the Dumbass Home and it turned me onto the IKEA Trådfri line of products.  So I got a couple, and figured out how to control them from my laptop (or say a Raspberry PI) from node.  Here&rsquo;s how to do it."><meta name=twitter:site content="@wschenk"><style>.article p,.article ul,.article ol,.article table{max-width:45em}.article pre p{max-width:none;margin-top:-1.5rem}article.article p:first-child,.article blockquote{font-size:1.25em;font-weight:300;max-width:36em}.half-height-scroll{max-height:32em;overflow:scroll}</style></head><body><nav class="container my-5"><h1 class="pt-md-5 display-3"><a class=text-dark href=../../../>Will Schenk</a></h1><p><a class="text-dark h4 mr-3 font-weight-light" href=../../../articles/>Articles</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../contact>Contact</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../tags/>Tags</a>
+<a href=../../../feed.xml class="mr-3 h4 text-light"><img src=../../../img/rss.svg alt=rss height=20 width=20></a>
+<a href=https://twitter.com/@wschenk class="mr-3 h4 text-light"><img src=../../../img/twitter.svg alt=twitter height=20 width=20></a>
+<a href=https://instagram.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/instagram.svg alt=instagram height=20 width=20></a>
+<a href=https://github.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/github.svg alt=github height=20 width=20></a>
+<a href=https://linkedin.com/in/will-schenk-420266 class="mr-3 h4 text-light"><img src=../../../img/linkedin.svg alt=linkedin height=20 width=20></a></p></nav><div class=container><h1 class=mt-5>Controlling IKEA Tradfri devices from your computer</h1><h2 class="font-weight-light font-italic mb-3">IKEA is cheap and everywhere</h2><p class="text-muted mt-3"><a class=text-muted href=https://willschenk.com/articles/2019/controlling_ikea_tradfri_with_node/>Published April 24, 2019</a>
+<a class=text-muted href=../../../tags/howto>#howto</a>
+<a class=text-muted href=../../../tags/zigbee>#zigbee</a>
+<a class=text-muted href=../../../tags/ikea>#IKEA</a>
+<a class=text-muted href=../../../tags/node>#node</a></p><div class="alert alert-secondary">The code from this article can be found at <a href=https://github.com/wschenk/tradfri-cli>https://github.com/wschenk/tradfri-cli</a></div><article class="article mt-5"><p>I stumbled upon a <a href="https://vas3k.com/blog/dumbass_home/?ref=sn">fun blogpost about the Dumbass Home</a> and it turned me onto the IKEA Trådfri line of products. So I got a couple, and figured out how to control them from my laptop (or say a Raspberry PI) from node. Here&rsquo;s how to do it.</p><h2 id=overview>Overview</h2><ol><li>Go to IKEA and buy stuff</li><li>Setup IKEA Trådfri Gateway and Lights as normal</li><li>Install the <code>node-tradfri-client</code> library</li><li>Copy the below scripts</li></ol><p>First, set up a switch, lightbulb, and a gateway. The gateway needs to be plugged into the router which is a bit of a pain. You need at least one controller connected to a device to get the gateway to recognize things; once you have that it should be fairly straightforward. When in doubt, move closer to the gateway.</p><h2 id=example-code>Example code</h2><p>We are going to use the <a href=https://github.com/AlCalzone/node-tradfri-client>node-tradfri-client library</a>, the delay library, and the conf node library to store values after the fun.</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>mkdir ikeatest
+<span class=nb>cd</span> ikeatest
 npm init
 yarn add node-tradfri-client delay conf
-</code></pre></div><h2 id="find-the-gateway">Find the Gateway</h2>
-<p><a href="gateway.js"><code>gateway.js</code></a>:</p>
-<div class="highlight"><pre class="chroma"><code class="language-js" data-lang="js"><span class="kr">const</span> <span class="nx">tradfri</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span> <span class="s1">&#39;node-tradfri-client&#39;</span> <span class="p">)</span>
+</code></pre></div><h2 id=find-the-gateway>Find the Gateway</h2><p><a href=gateway.js><code>gateway.js</code></a>:</p><div class=highlight><pre class=chroma><code class=language-js data-lang=js><span class=kr>const</span> <span class=nx>tradfri</span> <span class=o>=</span> <span class=nx>require</span><span class=p>(</span> <span class=s1>&#39;node-tradfri-client&#39;</span> <span class=p>)</span>
 
-<span class="nx">tradfri</span><span class="p">.</span><span class="nx">discoverGateway</span><span class="p">().</span><span class="nx">then</span><span class="p">(</span> <span class="nx">result</span> <span class="p">=&gt;</span> <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="nx">result</span> <span class="p">)</span> <span class="p">)</span>
-</code></pre></div>
-<h2 id="getting-a-security-token">Getting a security token</h2>
-<p>Look at the back of your gateway to get the security token.  We will use this to get an
+<span class=nx>tradfri</span><span class=p>.</span><span class=nx>discoverGateway</span><span class=p>().</span><span class=nx>then</span><span class=p>(</span> <span class=nx>result</span> <span class=p>=&gt;</span> <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=nx>result</span> <span class=p>)</span> <span class=p>)</span>
+</code></pre></div><h2 id=getting-a-security-token>Getting a security token</h2><p>Look at the back of your gateway to get the security token. We will use this to get an
 access token to the gateway, which we will then use to communicate with the device.
-Set the <code>IKEASECURITY</code> token in the environment and then run this script:</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ <span class="nb">export</span> <span class="nv">IKEASECURITY</span><span class="o">=</span>akakakak
-</code></pre></div><p><a href="connection.js"><code>connection.js</code></a>:</p>
-<div class="highlight"><pre class="chroma"><code class="language-js" data-lang="js"><span class="kr">const</span> <span class="nx">Conf</span>              <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="s1">&#39;conf&#39;</span><span class="p">);</span>
-<span class="kr">const</span> <span class="nx">delay</span>             <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="s1">&#39;delay&#39;</span><span class="p">);</span>
-<span class="kr">const</span> <span class="nx">NodeTradfriClient</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="s2">&#34;node-tradfri-client&#34;</span><span class="p">);</span>
-<span class="kr">const</span> <span class="nx">path</span>              <span class="o">=</span> <span class="nx">require</span><span class="p">(</span> <span class="s1">&#39;path&#39;</span> <span class="p">);</span>
-
-<span class="kr">const</span> <span class="nx">conf</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Conf</span><span class="p">();</span>
-<span class="kr">const</span> <span class="p">{</span> <span class="nx">discoverGateway</span><span class="p">,</span> <span class="nx">TradfriClient</span> <span class="p">}</span> <span class="o">=</span> <span class="nx">NodeTradfriClient</span><span class="p">;</span>
-
-<span class="nx">async</span> <span class="kd">function</span> <span class="nx">getConnection</span><span class="p">()</span> <span class="p">{</span>
-  <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;Looking up IKEA Tradfri gateway on your network&#34;</span> <span class="p">)</span>
-  <span class="kd">let</span> <span class="nx">gateway</span> <span class="o">=</span> <span class="nx">await</span> <span class="nx">discoverGateway</span><span class="p">()</span>
-
-  <span class="k">if</span><span class="p">(</span> <span class="nx">gateway</span> <span class="o">==</span> <span class="kc">null</span> <span class="p">)</span> <span class="p">{</span>
-    <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;No Tradfri gateway found in local network&#34;</span> <span class="p">);</span>
-    <span class="nx">process</span><span class="p">.</span><span class="nx">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
-  <span class="p">}</span>
-
-  <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;Connecting to&#34;</span><span class="p">,</span> <span class="nx">gateway</span><span class="p">.</span><span class="nx">host</span><span class="p">)</span>
-  <span class="kr">const</span> <span class="nx">tradfri</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">TradfriClient</span><span class="p">(</span><span class="nx">gateway</span><span class="p">.</span><span class="nx">host</span><span class="p">)</span>
-
-  <span class="k">if</span><span class="p">(</span> <span class="o">!</span><span class="nx">conf</span><span class="p">.</span><span class="nx">has</span><span class="p">(</span> <span class="s1">&#39;security.identity&#39;</span> <span class="p">)</span> <span class="o">||</span> <span class="o">!</span><span class="nx">conf</span><span class="p">.</span><span class="nx">has</span><span class="p">(</span><span class="s1">&#39;security.psk&#39;</span> <span class="p">)</span> <span class="p">)</span> <span class="p">{</span>
-    <span class="kd">let</span> <span class="nx">securityCode</span> <span class="o">=</span> <span class="nx">process</span><span class="p">.</span><span class="nx">env</span><span class="p">.</span><span class="nx">IKEASECURITY</span>
-    <span class="k">if</span><span class="p">(</span> <span class="nx">securityCode</span> <span class="o">===</span> <span class="s2">&#34;&#34;</span> <span class="o">||</span> <span class="nx">securityCode</span> <span class="o">===</span> <span class="kc">undefined</span> <span class="p">)</span> <span class="p">{</span>
-      <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;Please set the IKEASECURITY env variable to the code on the back of the gateway&#34;</span><span class="p">)</span>
-      <span class="nx">process</span><span class="p">.</span><span class="nx">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
-    <span class="p">}</span>
-
-    <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;Getting identity from security code&#34;</span> <span class="p">)</span>
-    <span class="kr">const</span> <span class="p">{</span><span class="nx">identity</span><span class="p">,</span> <span class="nx">psk</span><span class="p">}</span> <span class="o">=</span> <span class="nx">await</span> <span class="nx">tradfri</span><span class="p">.</span><span class="nx">authenticate</span><span class="p">(</span><span class="nx">securityCode</span><span class="p">);</span>
-
-    <span class="nx">conf</span><span class="p">.</span><span class="nx">set</span><span class="p">(</span> <span class="s1">&#39;security&#39;</span><span class="p">,</span> <span class="p">{</span><span class="nx">identity</span><span class="p">,</span><span class="nx">psk</span><span class="p">}</span> <span class="p">)</span>
-  <span class="p">}</span>
-
-  <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;Securely connecting to gateway&#34;</span> <span class="p">)</span>
-
-  <span class="nx">await</span> <span class="nx">tradfri</span><span class="p">.</span><span class="nx">connect</span><span class="p">(</span><span class="nx">conf</span><span class="p">.</span><span class="nx">get</span><span class="p">(</span> <span class="s1">&#39;security.identity&#39;</span> <span class="p">),</span> <span class="nx">conf</span><span class="p">.</span><span class="nx">get</span><span class="p">(</span> <span class="s1">&#39;security.psk&#39;</span> <span class="p">))</span>
-
-  <span class="k">return</span> <span class="nx">tradfri</span><span class="p">;</span>
-<span class="p">}</span>
-
-<span class="nx">module</span><span class="p">.</span><span class="nx">exports</span> <span class="o">=</span> <span class="p">{</span><span class="nx">getConnection</span><span class="o">:</span> <span class="nx">getConnection</span><span class="p">};</span>
-
-<span class="c1">// Only run this method if invoked with &#34;node connection.js&#34;
-</span><span class="c1"></span><span class="k">if</span><span class="p">(</span> <span class="nx">__filename</span> <span class="o">===</span> <span class="nx">process</span><span class="p">.</span><span class="nx">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="p">)</span> <span class="p">{</span>
-  <span class="p">(</span><span class="nx">async</span> <span class="p">()</span> <span class="p">=&gt;</span> <span class="p">{</span>
-    <span class="kr">const</span> <span class="nx">tradfri</span> <span class="o">=</span> <span class="nx">await</span> <span class="nx">getConnection</span><span class="p">();</span>
-    <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;Connection complete&#34;</span> <span class="p">)</span>
-
-    <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;Waiting 1 second&#34;</span><span class="p">)</span>
-    <span class="nx">await</span> <span class="nx">delay</span><span class="p">(</span> <span class="mi">1000</span> <span class="p">)</span>
-
-    <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;Closing connection&#34;</span><span class="p">)</span>
-    <span class="nx">tradfri</span><span class="p">.</span><span class="nx">destroy</span><span class="p">()</span>
-    <span class="nx">process</span><span class="p">.</span><span class="nx">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
-  <span class="p">})()</span>
-<span class="p">}</span>
-</code></pre></div>
-<h2 id="printing-out-discovered-device-info">Printing out discovered device info</h2>
-<p>Calling the <code>observeDevices()</code> method will make the client start listening for devices that the gateway is connected to.  The library itself keeps track of what it knows inside of the <code>tradfri.devices</code> hash, so we&rsquo;ll pause for a bit to give it time to listen and then print out what it found.</p>
-<p><a href="devices.js"><code>devices.js</code></a>:</p>
-<div class="highlight"><pre class="chroma"><code class="language-js" data-lang="js"><span class="kr">const</span> <span class="nx">connection</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span> <span class="s1">&#39;./connection&#39;</span> <span class="p">);</span>
-<span class="kr">const</span> <span class="nx">delay</span>      <span class="o">=</span> <span class="nx">require</span><span class="p">(</span> <span class="s1">&#39;delay&#39;</span> <span class="p">);</span>
-
-<span class="kd">function</span> <span class="nx">printDeviceInfo</span><span class="p">(</span> <span class="nx">device</span> <span class="p">)</span> <span class="p">{</span>
-  <span class="k">switch</span><span class="p">(</span> <span class="nx">device</span><span class="p">.</span><span class="nx">type</span> <span class="p">)</span> <span class="p">{</span>
-    <span class="k">case</span> <span class="mi">0</span><span class="o">:</span> <span class="c1">// remote
-</span><span class="c1"></span>    <span class="k">case</span> <span class="mi">4</span><span class="o">:</span> <span class="c1">// sensor
-</span><span class="c1"></span>      <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="nx">device</span><span class="p">.</span><span class="nx">instanceId</span><span class="p">,</span> <span class="nx">device</span><span class="p">.</span><span class="nx">name</span><span class="p">,</span> <span class="sb">`battery </span><span class="si">${</span><span class="nx">device</span><span class="p">.</span><span class="nx">deviceInfo</span><span class="p">.</span><span class="nx">battery</span><span class="si">}</span><span class="sb">%`</span> <span class="p">)</span>
-      <span class="k">break</span><span class="p">;</span>
-    <span class="k">case</span> <span class="mi">2</span><span class="o">:</span> <span class="c1">// light
-</span><span class="c1"></span>      <span class="kd">let</span> <span class="nx">lightInfo</span> <span class="o">=</span> <span class="nx">device</span><span class="p">.</span><span class="nx">lightList</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-      <span class="kd">let</span> <span class="nx">info</span> <span class="o">=</span> <span class="p">{</span>
-        <span class="nx">onOff</span><span class="o">:</span> <span class="nx">lightInfo</span><span class="p">.</span><span class="nx">onOff</span><span class="p">,</span>
-        <span class="nx">spectrum</span><span class="o">:</span> <span class="nx">lightInfo</span><span class="p">.</span><span class="nx">spectrum</span><span class="p">,</span>
-        <span class="nx">dimmer</span><span class="o">:</span> <span class="nx">lightInfo</span><span class="p">.</span><span class="nx">dimmer</span><span class="p">,</span>
-        <span class="nx">color</span><span class="o">:</span> <span class="nx">lightInfo</span><span class="p">.</span><span class="nx">color</span><span class="p">,</span>
-        <span class="nx">colorTemperature</span><span class="o">:</span> <span class="nx">lightInfo</span><span class="p">.</span><span class="nx">colorTemperature</span>
-      <span class="p">}</span>
-      <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="nx">device</span><span class="p">.</span><span class="nx">instanceId</span><span class="p">,</span> <span class="nx">device</span><span class="p">.</span><span class="nx">name</span><span class="p">,</span> <span class="nx">lightInfo</span><span class="p">.</span><span class="nx">onOff</span> <span class="o">?</span> <span class="s2">&#34;On&#34;</span> <span class="o">:</span> <span class="s2">&#34;Off&#34;</span><span class="p">,</span> <span class="nx">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span> <span class="nx">info</span><span class="p">)</span> <span class="p">)</span>
-      <span class="k">break</span><span class="p">;</span>
-    <span class="k">case</span> <span class="mi">3</span><span class="o">:</span> <span class="c1">// plug
-</span><span class="c1"></span>      <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="nx">device</span><span class="p">.</span><span class="nx">instanceId</span><span class="p">,</span> <span class="nx">device</span><span class="p">.</span><span class="nx">name</span><span class="p">,</span> <span class="nx">device</span><span class="p">.</span><span class="nx">plugList</span><span class="p">[</span><span class="mi">0</span><span class="p">].</span><span class="nx">onOff</span> <span class="o">?</span> <span class="s2">&#34;On&#34;</span> <span class="o">:</span> <span class="s2">&#34;Off&#34;</span> <span class="p">)</span>
-      <span class="k">break</span><span class="p">;</span>
-    <span class="k">default</span><span class="o">:</span>
-      <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="nx">device</span><span class="p">.</span><span class="nx">instanceId</span><span class="p">,</span> <span class="nx">device</span><span class="p">.</span><span class="nx">name</span><span class="p">,</span> <span class="s2">&#34;unknown type&#34;</span><span class="p">,</span> <span class="nx">device</span><span class="p">.</span><span class="nx">type</span><span class="p">)</span>
-      <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="nx">device</span> <span class="p">)</span>
-  <span class="p">}</span>
-<span class="p">}</span>
-
-<span class="kd">function</span> <span class="nx">findDevice</span><span class="p">(</span> <span class="nx">tradfri</span><span class="p">,</span> <span class="nx">deviceNameOrId</span> <span class="p">)</span> <span class="p">{</span>
-  <span class="kd">let</span> <span class="nx">lowerName</span> <span class="o">=</span> <span class="nx">deviceNameOrId</span><span class="p">.</span><span class="nx">toLowerCase</span><span class="p">();</span>
-
-  <span class="k">for</span><span class="p">(</span> <span class="kr">const</span> <span class="nx">deviceId</span> <span class="k">in</span> <span class="nx">tradfri</span><span class="p">.</span><span class="nx">devices</span> <span class="p">)</span> <span class="p">{</span>
-    <span class="k">if</span><span class="p">(</span> <span class="nx">deviceId</span> <span class="o">===</span> <span class="nx">deviceNameOrId</span> <span class="p">)</span> <span class="p">{</span>
-      <span class="k">return</span> <span class="nx">tradfri</span><span class="p">.</span><span class="nx">devices</span><span class="p">[</span><span class="nx">deviceId</span><span class="p">];</span>
-    <span class="p">}</span>
-
-    <span class="k">if</span><span class="p">(</span> <span class="nx">tradfri</span><span class="p">.</span><span class="nx">devices</span><span class="p">[</span><span class="nx">deviceId</span><span class="p">].</span><span class="nx">name</span><span class="p">.</span><span class="nx">toLowerCase</span><span class="p">()</span> <span class="o">===</span> <span class="nx">lowerName</span> <span class="p">)</span> <span class="p">{</span>
-      <span class="k">return</span> <span class="nx">tradfri</span><span class="p">.</span><span class="nx">devices</span><span class="p">[</span><span class="nx">deviceId</span><span class="p">];</span>
-    <span class="p">}</span>
-  <span class="p">}</span>
-
-  <span class="k">return</span><span class="p">;</span>
-<span class="p">}</span>
-
-<span class="nx">module</span><span class="p">.</span><span class="nx">exports</span> <span class="o">=</span> <span class="p">{</span><span class="nx">printDeviceInfo</span><span class="p">,</span> <span class="nx">findDevice</span><span class="p">};</span>
-
-<span class="c1">// Only run this method if invoked with &#34;node devices.js&#34;
-</span><span class="c1"></span><span class="k">if</span><span class="p">(</span> <span class="nx">__filename</span> <span class="o">===</span> <span class="nx">process</span><span class="p">.</span><span class="nx">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="p">)</span> <span class="p">{</span>
-  <span class="p">(</span><span class="nx">async</span> <span class="p">()</span> <span class="p">=&gt;</span> <span class="p">{</span>
-    <span class="kr">const</span> <span class="nx">tradfri</span> <span class="o">=</span> <span class="nx">await</span> <span class="nx">connection</span><span class="p">.</span><span class="nx">getConnection</span><span class="p">();</span>
-
-    <span class="nx">tradfri</span><span class="p">.</span><span class="nx">observeDevices</span><span class="p">();</span>
-
-    <span class="c1">// Wait a second hopefully something will be loaded by then!
-</span><span class="c1"></span>    <span class="nx">await</span> <span class="nx">delay</span><span class="p">(</span> <span class="mi">1000</span> <span class="p">)</span>
-
-    <span class="k">for</span> <span class="p">(</span><span class="kr">const</span> <span class="nx">deviceId</span> <span class="k">in</span> <span class="nx">tradfri</span><span class="p">.</span><span class="nx">devices</span> <span class="p">)</span> <span class="p">{</span>
-      <span class="kr">const</span> <span class="nx">device</span> <span class="o">=</span> <span class="nx">tradfri</span><span class="p">.</span><span class="nx">devices</span><span class="p">[</span><span class="nx">deviceId</span><span class="p">];</span>
-      <span class="nx">printDeviceInfo</span><span class="p">(</span> <span class="nx">device</span> <span class="p">)</span>
-    <span class="p">}</span>
-
-    <span class="nx">tradfri</span><span class="p">.</span><span class="nx">destroy</span><span class="p">()</span>
-    <span class="nx">process</span><span class="p">.</span><span class="nx">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
-  <span class="p">})()</span>
-<span class="p">}</span>
-</code></pre></div>
-<h2 id="registering-our-own-device-listeners">Registering our own device listeners</h2>
-<p>We can register a listener callback to watch for when thing change, keeping our program running forever watching for the lights to go on and off!</p>
-<p><a href="device_watcher.js"><code>device_watcher.js</code></a>:</p>
-<div class="highlight"><pre class="chroma"><code class="language-js" data-lang="js"><span class="kr">const</span> <span class="nx">connection</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span> <span class="s1">&#39;./connection&#39;</span> <span class="p">);</span>
-<span class="kr">const</span> <span class="nx">devices</span>    <span class="o">=</span> <span class="nx">require</span><span class="p">(</span> <span class="s1">&#39;./devices&#39;</span> <span class="p">);</span>
-
-<span class="kd">function</span> <span class="nx">deviceUpdated</span><span class="p">(</span> <span class="nx">device</span> <span class="p">)</span> <span class="p">{</span>
-  <span class="nx">devices</span><span class="p">.</span><span class="nx">printDeviceInfo</span><span class="p">(</span> <span class="nx">device</span> <span class="p">);</span>
-<span class="p">}</span>
-
-<span class="kd">function</span> <span class="nx">deviceRemoved</span><span class="p">(</span> <span class="nx">deviceId</span> <span class="p">)</span> <span class="p">{</span>
-  <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;See you later&#34;</span><span class="p">,</span> <span class="nx">deviceId</span><span class="p">,</span> <span class="s2">&#34;it&#39;s been great.&#34;</span><span class="p">)</span>
-<span class="p">}</span>
-
-<span class="p">(</span><span class="nx">async</span> <span class="p">()</span> <span class="p">=&gt;</span> <span class="p">{</span>
-  <span class="kr">const</span> <span class="nx">tradfri</span> <span class="o">=</span> <span class="nx">await</span> <span class="nx">connection</span><span class="p">.</span><span class="nx">getConnection</span><span class="p">();</span>
-
-  <span class="nx">tradfri</span>
-    <span class="p">.</span><span class="nx">on</span><span class="p">(</span><span class="s2">&#34;device updated&#34;</span><span class="p">,</span> <span class="nx">deviceUpdated</span><span class="p">)</span>
-    <span class="p">.</span><span class="nx">on</span><span class="p">(</span><span class="s2">&#34;device removed&#34;</span><span class="p">,</span> <span class="nx">deviceRemoved</span><span class="p">)</span>
-    <span class="p">.</span><span class="nx">observeDevices</span><span class="p">();</span>
-<span class="p">})()</span>
-</code></pre></div>
-<h2 id="switching-and-dimming">Switching and dimming</h2>
-<p>Now that we have code that can react to changes, lets write some code that controls things!</p>
-<p><a href="device_changer.js"><code>device_changer.js</code></a>:</p>
-<div class="highlight"><pre class="chroma"><code class="language-js" data-lang="js"><span class="kr">const</span> <span class="nx">connection</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span> <span class="s1">&#39;./connection&#39;</span> <span class="p">);</span>
-<span class="kr">const</span> <span class="nx">devices</span>    <span class="o">=</span> <span class="nx">require</span><span class="p">(</span> <span class="s1">&#39;./devices&#39;</span> <span class="p">);</span>
-<span class="kr">const</span> <span class="nx">delay</span>      <span class="o">=</span> <span class="nx">require</span><span class="p">(</span> <span class="s1">&#39;delay&#39;</span> <span class="p">);</span>
-
-<span class="p">(</span><span class="nx">async</span> <span class="p">()</span> <span class="p">=&gt;</span> <span class="p">{</span>
-  <span class="kd">let</span> <span class="nx">argv</span> <span class="o">=</span> <span class="nx">process</span><span class="p">.</span><span class="nx">argv</span><span class="p">;</span>
-
-  <span class="k">if</span><span class="p">(</span> <span class="nx">argv</span><span class="p">.</span><span class="nx">length</span> <span class="o">&lt;=</span> <span class="mi">2</span> <span class="p">)</span> <span class="p">{</span>
-    <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;Usage:&#34;</span> <span class="p">)</span>
-    <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;node device_changer.js&#34;</span><span class="p">,</span> <span class="s2">&#34;deviceId&#34;</span><span class="p">,</span> <span class="s2">&#34;--on&#34;</span><span class="p">)</span>
-    <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;node device_changer.js&#34;</span><span class="p">,</span> <span class="s2">&#34;deviceId&#34;</span><span class="p">,</span> <span class="s2">&#34;--off&#34;</span><span class="p">)</span>
-    <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;node device_changer.js&#34;</span><span class="p">,</span> <span class="s2">&#34;deviceId&#34;</span><span class="p">,</span> <span class="s2">&#34;--toggle&#34;</span><span class="p">)</span>
-    <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;node device_changer.js&#34;</span><span class="p">,</span> <span class="s2">&#34;deviceId&#34;</span><span class="p">,</span> <span class="s2">&#34;--color hexcolor&#34;</span><span class="p">)</span>
-    <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;node device_changer.js&#34;</span><span class="p">,</span> <span class="s2">&#34;deviceId&#34;</span><span class="p">,</span> <span class="s2">&#34;--brightness 0-100&#34;</span><span class="p">)</span>
-
-    <span class="nx">process</span><span class="p">.</span><span class="nx">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
-  <span class="p">}</span>
-
-  <span class="kr">const</span> <span class="nx">tradfri</span> <span class="o">=</span> <span class="nx">await</span> <span class="nx">connection</span><span class="p">.</span><span class="nx">getConnection</span><span class="p">();</span>
-  <span class="nx">tradfri</span><span class="p">.</span><span class="nx">observeDevices</span><span class="p">();</span>
-  <span class="nx">await</span> <span class="nx">delay</span><span class="p">(</span> <span class="mi">1000</span> <span class="p">)</span>
-
-  <span class="kd">let</span> <span class="nx">position</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
-  <span class="kd">let</span> <span class="nx">currentDevice</span> <span class="o">=</span> <span class="kc">null</span><span class="p">;</span>
-  <span class="kd">let</span> <span class="nx">accessory</span> <span class="o">=</span> <span class="kc">null</span><span class="p">;</span>
-  <span class="k">while</span><span class="p">(</span> <span class="nx">position</span> <span class="o">&lt;</span> <span class="nx">argv</span><span class="p">.</span><span class="nx">length</span> <span class="p">)</span> <span class="p">{</span>
-    <span class="k">switch</span><span class="p">(</span> <span class="nx">argv</span><span class="p">[</span><span class="nx">position</span><span class="p">]</span> <span class="p">)</span> <span class="p">{</span>
-      <span class="k">case</span> <span class="s1">&#39;--on&#39;</span><span class="o">:</span>
-        <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;Turning&#34;</span><span class="p">,</span> <span class="nx">currentDevice</span><span class="p">.</span><span class="nx">instanceId</span><span class="p">,</span> <span class="s2">&#34;on&#34;</span><span class="p">)</span>
-        <span class="nx">accessory</span><span class="p">.</span><span class="nx">turnOn</span><span class="p">()</span>
-        <span class="k">break</span><span class="p">;</span>
-      <span class="k">case</span> <span class="s1">&#39;--off&#39;</span><span class="o">:</span>
-        <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;Turning&#34;</span><span class="p">,</span> <span class="nx">currentDevice</span><span class="p">.</span><span class="nx">instanceId</span><span class="p">,</span> <span class="s2">&#34;off&#34;</span><span class="p">)</span>
-        <span class="nx">accessory</span><span class="p">.</span><span class="nx">turnOff</span><span class="p">();</span>
-        <span class="k">break</span><span class="p">;</span>
-      <span class="k">case</span> <span class="s1">&#39;--toggle&#39;</span><span class="o">:</span>
-        <span class="nx">accessory</span><span class="p">.</span><span class="nx">toggle</span><span class="p">();</span>
-        <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;toggle device&#34;</span><span class="p">,</span> <span class="nx">currentDevice</span><span class="p">.</span><span class="nx">instanceId</span> <span class="p">)</span>
-        <span class="k">break</span><span class="p">;</span>
-      <span class="k">case</span> <span class="s1">&#39;--color&#39;</span><span class="o">:</span>
-        <span class="nx">position</span><span class="o">++</span><span class="p">;</span>
-        <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;Setting color of&#34;</span><span class="p">,</span> <span class="nx">currentDevice</span><span class="p">.</span><span class="nx">instanceId</span><span class="p">,</span> <span class="s2">&#34;to&#34;</span><span class="p">,</span> <span class="nx">argv</span><span class="p">[</span><span class="nx">position</span><span class="p">])</span>
-        <span class="nx">accessory</span><span class="p">.</span><span class="nx">setColor</span><span class="p">(</span><span class="nx">argv</span><span class="p">[</span><span class="nx">position</span><span class="p">])</span>
-        <span class="k">break</span><span class="p">;</span>
-      <span class="k">case</span> <span class="s1">&#39;--brightness&#39;</span><span class="o">:</span>
-        <span class="nx">position</span><span class="o">++</span><span class="p">;</span>
-        <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;Setting brightness of&#34;</span><span class="p">,</span> <span class="nx">currentDevice</span><span class="p">.</span><span class="nx">instanceId</span><span class="p">,</span> <span class="s2">&#34;to&#34;</span><span class="p">,</span> <span class="nx">argv</span><span class="p">[</span><span class="nx">position</span><span class="p">])</span>
-        <span class="nx">accessory</span><span class="p">.</span><span class="nx">setBrightness</span><span class="p">(</span> <span class="nx">argv</span><span class="p">[</span><span class="nx">position</span><span class="p">]</span> <span class="p">)</span>
-        <span class="k">break</span><span class="p">;</span>
-      <span class="k">default</span><span class="o">:</span>
-        <span class="nx">currentDevice</span> <span class="o">=</span> <span class="nx">devices</span><span class="p">.</span><span class="nx">findDevice</span><span class="p">(</span> <span class="nx">tradfri</span><span class="p">,</span> <span class="nx">argv</span><span class="p">[</span><span class="nx">position</span><span class="p">]</span> <span class="p">)</span>
-        <span class="k">if</span><span class="p">(</span> <span class="nx">currentDevice</span> <span class="o">==</span> <span class="kc">null</span> <span class="p">)</span> <span class="p">{</span>
-          <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;Unable to find device&#34;</span><span class="p">,</span> <span class="nx">argv</span><span class="p">[</span><span class="nx">position</span><span class="p">]</span> <span class="p">)</span>
-          <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="nx">tradfri</span><span class="p">.</span><span class="nx">devices</span> <span class="p">)</span>
-          <span class="nx">process</span><span class="p">.</span><span class="nx">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
-        <span class="p">}</span>
-        <span class="k">switch</span><span class="p">(</span> <span class="nx">currentDevice</span><span class="p">.</span><span class="nx">type</span> <span class="p">)</span> <span class="p">{</span>
-          <span class="k">case</span> <span class="mi">0</span><span class="o">:</span>
-          <span class="k">case</span> <span class="mi">4</span><span class="o">:</span>
-            <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;Can&#39;t control this type of device&#34;</span> <span class="p">)</span>
-            <span class="nx">process</span><span class="p">.</span><span class="nx">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
-            <span class="k">break</span><span class="p">;</span>
-          <span class="k">case</span> <span class="mi">2</span><span class="o">:</span> <span class="c1">//light
-</span><span class="c1"></span>            <span class="nx">accessory</span> <span class="o">=</span> <span class="nx">currentDevice</span><span class="p">.</span><span class="nx">lightList</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-            <span class="nx">accessory</span><span class="p">.</span><span class="nx">client</span> <span class="o">=</span> <span class="nx">tradfri</span>
-            <span class="k">break</span><span class="p">;</span>
-          <span class="k">case</span> <span class="mi">3</span><span class="o">:</span> <span class="c1">// plug
-</span><span class="c1"></span>            <span class="nx">accessory</span> <span class="o">=</span> <span class="nx">currentDevice</span><span class="p">.</span><span class="nx">plugList</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-            <span class="nx">accessory</span><span class="p">.</span><span class="nx">client</span> <span class="o">=</span> <span class="nx">tradfri</span>
-            <span class="k">break</span><span class="p">;</span>
-        <span class="p">}</span>
-        <span class="k">break</span><span class="p">;</span>
-    <span class="p">}</span>
-
-    <span class="nx">position</span> <span class="o">++</span><span class="p">;</span>
-  <span class="p">}</span>
-
-  <span class="nx">await</span> <span class="nx">delay</span><span class="p">(</span><span class="mi">1000</span><span class="p">);</span>
-  <span class="nx">await</span> <span class="nx">tradfri</span><span class="p">.</span><span class="nx">destroy</span><span class="p">();</span>
-  <span class="nx">process</span><span class="p">.</span><span class="nx">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
-<span class="p">})()</span>
-</code></pre></div>
-<p>This lets you add multiple commands on the line, so if we wanted to make a few changes at once you could do something like this:</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">node device_changer.js <span class="m">65538</span> --on --color efd275 <span class="m">65543</span> --brightness <span class="m">50</span> --on <span class="m">65540</span> --on
-</code></pre></div><h2 id="scenes-and-rooms">Scenes and Rooms</h2>
-<p>The library also has methods to deal with scenes and rooms all at once.  Let&rsquo;s take a look at a room watcher:</p>
-<p><a href="scenes.js"><code>scenes.js</code></a>:</p>
-<div class="highlight"><pre class="chroma"><code class="language-js" data-lang="js"><span class="kr">const</span> <span class="nx">connection</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span> <span class="s1">&#39;./connection&#39;</span> <span class="p">);</span>
-<span class="kr">const</span> <span class="nx">delay</span>      <span class="o">=</span> <span class="nx">require</span><span class="p">(</span> <span class="s1">&#39;delay&#39;</span> <span class="p">);</span>
-<span class="kr">const</span> <span class="nx">devices</span>    <span class="o">=</span> <span class="nx">require</span><span class="p">(</span> <span class="s1">&#39;./devices&#39;</span><span class="p">)</span>
-
-<span class="kd">function</span> <span class="nx">printRoomInfo</span><span class="p">(</span> <span class="nx">tradfri</span><span class="p">,</span> <span class="nx">room</span> <span class="p">)</span> <span class="p">{</span>
-  <span class="kr">const</span> <span class="nx">group</span> <span class="o">=</span> <span class="nx">room</span><span class="p">.</span><span class="nx">group</span>
-  <span class="kr">const</span> <span class="nx">scenes</span> <span class="o">=</span> <span class="nx">room</span><span class="p">.</span><span class="nx">scenes</span>
-  <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;ROOM&#34;</span><span class="p">,</span> <span class="nx">group</span><span class="p">.</span><span class="nx">instanceId</span><span class="p">,</span> <span class="nx">room</span><span class="p">.</span><span class="nx">name</span><span class="p">,</span> <span class="s2">&#34;Current Scene:&#34;</span><span class="p">,</span> <span class="nx">scenes</span><span class="p">[</span><span class="nx">group</span><span class="p">.</span><span class="nx">sceneId</span><span class="p">].</span><span class="nx">name</span> <span class="p">)</span>
-  <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;DEVICES&#34;</span><span class="p">)</span>
-  <span class="k">for</span><span class="p">(</span> <span class="kr">const</span> <span class="nx">deviceId</span> <span class="k">of</span> <span class="nx">group</span><span class="p">.</span><span class="nx">deviceIDs</span> <span class="p">)</span> <span class="p">{</span>
-    <span class="nx">devices</span><span class="p">.</span><span class="nx">printDeviceInfo</span><span class="p">(</span> <span class="nx">tradfri</span><span class="p">.</span><span class="nx">devices</span><span class="p">[</span><span class="nx">deviceId</span><span class="p">]</span> <span class="p">)</span>
-  <span class="p">}</span>
-  <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;SCENES&#34;</span> <span class="p">)</span>
-  <span class="k">for</span> <span class="p">(</span><span class="kr">const</span> <span class="nx">sceneId</span> <span class="k">in</span> <span class="nx">scenes</span> <span class="p">)</span> <span class="p">{</span>
-    <span class="kr">const</span> <span class="nx">scene</span> <span class="o">=</span> <span class="nx">scenes</span><span class="p">[</span><span class="nx">sceneId</span><span class="p">]</span>
-    <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="nx">sceneId</span><span class="p">,</span> <span class="nx">scene</span><span class="p">.</span><span class="nx">name</span> <span class="p">)</span> <span class="c1">// , scene.lightSettings )
-</span><span class="c1"></span>  <span class="p">}</span>
-
-  <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;----\n&#34;</span><span class="p">)</span>
-
-<span class="p">}</span>
-
-<span class="kd">function</span> <span class="nx">findRoom</span><span class="p">(</span> <span class="nx">tradfri</span><span class="p">,</span> <span class="nx">name</span> <span class="p">)</span> <span class="p">{</span>
-  <span class="kd">let</span> <span class="nx">lowerName</span> <span class="o">=</span> <span class="nx">name</span><span class="p">.</span><span class="nx">toLowerCase</span><span class="p">();</span>
-
-  <span class="c1">// Look for the group
-</span><span class="c1"></span>  <span class="k">for</span> <span class="p">(</span><span class="kr">const</span> <span class="nx">groupId</span> <span class="k">in</span> <span class="nx">tradfri</span><span class="p">.</span><span class="nx">groups</span> <span class="p">)</span> <span class="p">{</span>
-    <span class="k">if</span><span class="p">(</span> <span class="nx">tradfri</span><span class="p">.</span><span class="nx">groups</span><span class="p">[</span><span class="nx">groupId</span><span class="p">].</span><span class="nx">group</span><span class="p">.</span><span class="nx">name</span><span class="p">.</span><span class="nx">toLowerCase</span><span class="p">()</span> <span class="o">===</span> <span class="nx">lowerName</span> <span class="p">)</span> <span class="p">{</span>
-      <span class="k">return</span> <span class="nx">tradfri</span><span class="p">.</span><span class="nx">groups</span><span class="p">[</span><span class="nx">groupId</span><span class="p">];</span>
-    <span class="p">}</span>
-
-    <span class="k">if</span><span class="p">(</span> <span class="nx">groupId</span> <span class="o">===</span> <span class="nx">name</span> <span class="p">)</span> <span class="p">{</span>
-      <span class="k">return</span> <span class="nx">tradfri</span><span class="p">.</span><span class="nx">groups</span><span class="p">[</span><span class="nx">groupId</span><span class="p">];</span>
-    <span class="p">}</span>
-  <span class="p">}</span>
-
-  <span class="k">return</span> <span class="kc">null</span><span class="p">;</span>
-<span class="p">}</span>
-
-<span class="nx">module</span><span class="p">.</span><span class="nx">exports</span> <span class="o">=</span> <span class="p">{</span><span class="nx">printRoomInfo</span><span class="p">,</span> <span class="nx">findRoom</span><span class="p">};</span>
-
-<span class="c1">// Only run this method if invoked with &#34;node devices.js&#34;
-</span><span class="c1"></span><span class="k">if</span><span class="p">(</span> <span class="nx">__filename</span> <span class="o">===</span> <span class="nx">process</span><span class="p">.</span><span class="nx">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="p">)</span> <span class="p">{</span>
-  <span class="p">(</span><span class="nx">async</span> <span class="p">()</span> <span class="p">=&gt;</span> <span class="p">{</span>
-    <span class="kr">const</span> <span class="nx">tradfri</span> <span class="o">=</span> <span class="nx">await</span> <span class="nx">connection</span><span class="p">.</span><span class="nx">getConnection</span><span class="p">();</span>
-
-    <span class="nx">tradfri</span><span class="p">.</span><span class="nx">observeDevices</span><span class="p">();</span>
-    <span class="nx">tradfri</span><span class="p">.</span><span class="nx">observeGroupsAndScenes</span><span class="p">();</span>
-
-    <span class="c1">// Wait a second hopefully something will be loaded by then!
-</span><span class="c1"></span>    <span class="nx">await</span> <span class="nx">delay</span><span class="p">(</span> <span class="mi">1500</span> <span class="p">)</span>
-
-    <span class="k">for</span> <span class="p">(</span><span class="kr">const</span> <span class="nx">groupId</span> <span class="k">in</span> <span class="nx">tradfri</span><span class="p">.</span><span class="nx">groups</span> <span class="p">)</span> <span class="p">{</span>
-      <span class="kr">const</span> <span class="nx">collection</span> <span class="o">=</span> <span class="nx">tradfri</span><span class="p">.</span><span class="nx">groups</span><span class="p">[</span><span class="nx">groupId</span><span class="p">];</span>
-      <span class="nx">printRoomInfo</span><span class="p">(</span> <span class="nx">tradfri</span><span class="p">,</span> <span class="nx">collection</span> <span class="p">)</span>
-    <span class="p">}</span>
-
-    <span class="nx">tradfri</span><span class="p">.</span><span class="nx">destroy</span><span class="p">()</span>
-    <span class="nx">process</span><span class="p">.</span><span class="nx">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
-  <span class="p">})()</span>
-<span class="p">}</span>
-</code></pre></div>
-<h2 id="setting-the-scene">Setting the scene</h2>
-<p>Lets write another small utility to be able to change a room to a preset setting!</p>
-<p><a href="scene_changer.js"><code>scene_changer.js</code></a>:</p>
-<div class="highlight"><pre class="chroma"><code class="language-js" data-lang="js"><span class="kr">const</span> <span class="nx">connection</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span> <span class="s1">&#39;./connection&#39;</span> <span class="p">);</span>
-<span class="kr">const</span> <span class="nx">devices</span>    <span class="o">=</span> <span class="nx">require</span><span class="p">(</span> <span class="s1">&#39;./devices&#39;</span> <span class="p">);</span>
-<span class="kr">const</span> <span class="nx">scenes</span>     <span class="o">=</span> <span class="nx">require</span><span class="p">(</span> <span class="s1">&#39;./scenes&#39;</span><span class="p">);</span>
-<span class="kr">const</span> <span class="nx">delay</span>      <span class="o">=</span> <span class="nx">require</span><span class="p">(</span> <span class="s1">&#39;delay&#39;</span> <span class="p">);</span>
-
-<span class="p">(</span><span class="nx">async</span> <span class="p">()</span> <span class="p">=&gt;</span> <span class="p">{</span>
-  <span class="kd">let</span> <span class="nx">argv</span> <span class="o">=</span> <span class="nx">process</span><span class="p">.</span><span class="nx">argv</span><span class="p">;</span>
-
-  <span class="k">if</span><span class="p">(</span> <span class="nx">argv</span><span class="p">.</span><span class="nx">length</span> <span class="o">!=</span> <span class="mi">4</span> <span class="p">)</span> <span class="p">{</span>
-    <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;Usage:&#34;</span> <span class="p">)</span>
-    <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;node scene_changer.js&#34;</span><span class="p">,</span> <span class="s2">&#34;room&#34;</span><span class="p">,</span> <span class="s2">&#34;scene&#34;</span><span class="p">)</span>
-
-    <span class="nx">process</span><span class="p">.</span><span class="nx">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
-  <span class="p">}</span>
-
-  <span class="kr">const</span> <span class="nx">tradfri</span> <span class="o">=</span> <span class="nx">await</span> <span class="nx">connection</span><span class="p">.</span><span class="nx">getConnection</span><span class="p">();</span>
-  <span class="nx">tradfri</span><span class="p">.</span><span class="nx">observeDevices</span><span class="p">();</span>
-  <span class="nx">tradfri</span><span class="p">.</span><span class="nx">observeGroupsAndScenes</span><span class="p">();</span>
-  <span class="nx">await</span> <span class="nx">delay</span><span class="p">(</span> <span class="mi">1500</span> <span class="p">)</span>
-
-  <span class="kr">const</span> <span class="nx">roomName</span> <span class="o">=</span> <span class="nx">argv</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
-  <span class="kd">let</span> <span class="nx">sceneName</span> <span class="o">=</span> <span class="nx">argv</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>
-
-  <span class="kr">const</span> <span class="nx">room</span> <span class="o">=</span> <span class="nx">scenes</span><span class="p">.</span><span class="nx">findRoom</span><span class="p">(</span> <span class="nx">tradfri</span><span class="p">,</span> <span class="nx">roomName</span> <span class="p">);</span>
-
-  <span class="k">if</span><span class="p">(</span> <span class="nx">room</span> <span class="o">==</span> <span class="kc">null</span> <span class="p">)</span> <span class="p">{</span>
-    <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;Unable to find room named&#34;</span><span class="p">,</span> <span class="nx">roomName</span><span class="p">);</span>
-    <span class="nx">process</span><span class="p">.</span><span class="nx">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
-  <span class="p">}</span>
-
-  <span class="kd">let</span> <span class="nx">scene</span> <span class="o">=</span> <span class="kc">null</span><span class="p">;</span>
-
-  <span class="nx">sceneName</span> <span class="o">=</span> <span class="nx">sceneName</span><span class="p">.</span><span class="nx">toLowerCase</span><span class="p">();</span>
-  <span class="c1">// Look for the scene
-</span><span class="c1"></span>  <span class="k">for</span> <span class="p">(</span><span class="kr">const</span> <span class="nx">sceneId</span> <span class="k">in</span> <span class="nx">room</span><span class="p">.</span><span class="nx">scenes</span> <span class="p">)</span> <span class="p">{</span>
-    <span class="k">if</span><span class="p">(</span> <span class="nx">room</span><span class="p">.</span><span class="nx">scenes</span><span class="p">[</span><span class="nx">sceneId</span><span class="p">].</span><span class="nx">name</span><span class="p">.</span><span class="nx">toLowerCase</span><span class="p">()</span> <span class="o">===</span> <span class="nx">sceneName</span> <span class="p">)</span> <span class="p">{</span>
-      <span class="nx">scene</span> <span class="o">=</span> <span class="nx">room</span><span class="p">.</span><span class="nx">scenes</span><span class="p">[</span><span class="nx">sceneId</span><span class="p">]</span>
-    <span class="p">}</span>
-  <span class="p">}</span>
-
-  <span class="k">if</span><span class="p">(</span> <span class="nx">scene</span> <span class="o">==</span> <span class="kc">null</span> <span class="p">)</span> <span class="p">{</span>
-    <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;Unable to find scene named&#34;</span><span class="p">,</span> <span class="nx">sceneName</span> <span class="p">)</span>
-    <span class="nx">process</span><span class="p">.</span><span class="nx">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
-  <span class="p">}</span>
-
-  <span class="nx">room</span><span class="p">.</span><span class="nx">group</span><span class="p">.</span><span class="nx">client</span> <span class="o">=</span> <span class="nx">tradfri</span><span class="p">;</span>
-  <span class="nx">scenes</span><span class="p">.</span><span class="nx">printRoomInfo</span><span class="p">(</span> <span class="nx">tradfri</span><span class="p">,</span> <span class="nx">room</span> <span class="p">)</span>
-
-  <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span> <span class="s2">&#34;Switching&#34;</span><span class="p">,</span> <span class="nx">room</span><span class="p">.</span><span class="nx">group</span><span class="p">.</span><span class="nx">name</span><span class="p">,</span> <span class="s2">&#34;to scene&#34;</span><span class="p">,</span> <span class="nx">scene</span><span class="p">.</span><span class="nx">name</span> <span class="p">)</span>
-  <span class="nx">room</span><span class="p">.</span><span class="nx">group</span><span class="p">.</span><span class="nx">activateScene</span><span class="p">(</span><span class="nx">scene</span><span class="p">.</span><span class="nx">instanceId</span><span class="p">);</span>
-
-  <span class="nx">scenes</span><span class="p">.</span><span class="nx">printRoomInfo</span><span class="p">(</span> <span class="nx">tradfri</span><span class="p">,</span> <span class="nx">room</span> <span class="p">)</span>
-
-  <span class="c1">// Give the messages a chance to propogate
-</span><span class="c1"></span>  <span class="nx">await</span> <span class="nx">delay</span><span class="p">(</span><span class="mi">1000</span><span class="p">);</span>
-  <span class="nx">await</span> <span class="nx">tradfri</span><span class="p">.</span><span class="nx">destroy</span><span class="p">();</span>
-  <span class="nx">process</span><span class="p">.</span><span class="nx">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
-<span class="p">})()</span>
-</code></pre></div>
-<h2 id="other-stuff">Other stuff</h2>
-<p>You can also update the settings of the devices in the controller, which we aren&rsquo;t going to cover.  You can also add additional scenes and update them.  These are documented further in the fantastic library.</p>
-<p>Have fun playing around!</p>
-<hr>
-<p>References:</p>
-<ol>
-<li><a href="https://learn.pimoroni.com/tutorial/sandyj/controlling-ikea-tradfri-lights-from-your-pi">https://learn.pimoroni.com/tutorial/sandyj/controlling-ikea-tradfri-lights-from-your-pi</a></li>
-<li><a href="https://github.com/AlCalzone/node-tradfri-client">https://github.com/AlCalzone/node-tradfri-client</a></li>
-</ol>
-  </article>
-
-  
-  <div class="alert alert-secondary">The code from this article can be found at <a href="https://github.com/wschenk/tradfri-cli">https://github.com/wschenk/tradfri-cli</a></div>
-  
-</div>
-
-
-  <div class="bg-light py-5">
-    <div class="container">
-      <h2 class="text-center">Read next</h2>
-
-      <div class="row">
-        <div class="col-md-6 text-center">
-          
-            Next Post:
-            <a href="../../../articles/2019/reverse_engineering_apis_using_chrome/">Reverse engineering APIs using Chrome Developer Tools</a>
-          
-        </div>
-        <div class="col-md-6 text-center">
-          
-            Previous Post:
-            <a href="../../../articles/2019/playing_with_cabal/">Playing with cabal</a>
-          
-        </div>
-      </div>
-    </div>
-  </div>
-
-
-
-
-<div class="container mt-5">
-  <h2 class="text-center">See also</h2>
-  <div class="row">
-  	
-      <div class="col-md mb-3">
-        <p class="lead mb-0"><a class="text-body" href="../../../articles/2019/playing_with_cabal/">Playing with cabal</a></p>
-
-        
-          <p class="lead font-italic mb-0">serverless code</p>
-        
-        <div class="font-weight-light mt-3">
-          
-          
-            <p>Cabal is a &ldquo;experimental p2p community chat platform&rdquo;. It&rsquo;s fully distributed over the dat protocol. When you create a new chat area &ndash; something like a Slack &ndash; it allows anyone with the same key to post and view messages everywhere. When you post a message, everyone gets it and shares it with everyone else, so even when your computer drops off there will still be a coherent view of the data.</p>
-          
-        </div>
-        <a href="../../../articles/2019/playing_with_cabal/" class="btn btn-primary">Read more</a>
-      </div>
-    
-      <div class="col-md mb-3">
-        <p class="lead mb-0"><a class="text-body" href="../../../articles/2019/splitting_git_repos_and_workdirectories/">Splitting Git Repos and Work Directories</a></p>
-
-        
-          <p class="lead font-italic mb-0">all the fun things git can do</p>
-        
-        <div class="font-weight-light mt-3">
-          
-          
-            <p>I found a tutorial on how to manage your dotfiles, that works by splitting up the git repository (normally the .git directory) from the work directory. Since I have a lot of code that I put in my tutorials, I adapted the technique to have individual article directories mirrored in their own github repository.
-Repositories and Work Directories The normal usage of git is to type git clone &lt;remote&gt; to get a copy of the local directory, mess with stuff, and then add and commit your changes.</p>
-          
-        </div>
-        <a href="../../../articles/2019/splitting_git_repos_and_workdirectories/" class="btn btn-primary">Read more</a>
-      </div>
-    
-      <div class="col-md mb-3">
-        <p class="lead mb-0"><a class="text-body" href="../../../articles/2019/setting_up_indieweb/">Setting up Indieweb Homepage</a></p>
-
-        
-          <p class="lead font-italic mb-0">the dream of the nineties is alive on the indieweb</p>
-        
-        <div class="font-weight-light mt-3">
-          
-          
-            <p>Remember <a href="http://microformats.org/">microformats</a>?  Me neither!
+Set the <code>IKEASECURITY</code> token in the environment and then run this script:</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>$ <span class=nb>export</span> <span class=nv>IKEASECURITY</span><span class=o>=</span>akakakak
+</code></pre></div><p><a href=connection.js><code>connection.js</code></a>:</p><div class=highlight><pre class=chroma><code class=language-js data-lang=js><span class=kr>const</span> <span class=nx>Conf</span>              <span class=o>=</span> <span class=nx>require</span><span class=p>(</span><span class=s1>&#39;conf&#39;</span><span class=p>);</span>
+<span class=kr>const</span> <span class=nx>delay</span>             <span class=o>=</span> <span class=nx>require</span><span class=p>(</span><span class=s1>&#39;delay&#39;</span><span class=p>);</span>
+<span class=kr>const</span> <span class=nx>NodeTradfriClient</span> <span class=o>=</span> <span class=nx>require</span><span class=p>(</span><span class=s2>&#34;node-tradfri-client&#34;</span><span class=p>);</span>
+<span class=kr>const</span> <span class=nx>path</span>              <span class=o>=</span> <span class=nx>require</span><span class=p>(</span> <span class=s1>&#39;path&#39;</span> <span class=p>);</span>
+
+<span class=kr>const</span> <span class=nx>conf</span> <span class=o>=</span> <span class=k>new</span> <span class=nx>Conf</span><span class=p>();</span>
+<span class=kr>const</span> <span class=p>{</span> <span class=nx>discoverGateway</span><span class=p>,</span> <span class=nx>TradfriClient</span> <span class=p>}</span> <span class=o>=</span> <span class=nx>NodeTradfriClient</span><span class=p>;</span>
+
+<span class=nx>async</span> <span class=kd>function</span> <span class=nx>getConnection</span><span class=p>()</span> <span class=p>{</span>
+  <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;Looking up IKEA Tradfri gateway on your network&#34;</span> <span class=p>)</span>
+  <span class=kd>let</span> <span class=nx>gateway</span> <span class=o>=</span> <span class=nx>await</span> <span class=nx>discoverGateway</span><span class=p>()</span>
+
+  <span class=k>if</span><span class=p>(</span> <span class=nx>gateway</span> <span class=o>==</span> <span class=kc>null</span> <span class=p>)</span> <span class=p>{</span>
+    <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;No Tradfri gateway found in local network&#34;</span> <span class=p>);</span>
+    <span class=nx>process</span><span class=p>.</span><span class=nx>exit</span><span class=p>(</span><span class=mi>1</span><span class=p>);</span>
+  <span class=p>}</span>
+
+  <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;Connecting to&#34;</span><span class=p>,</span> <span class=nx>gateway</span><span class=p>.</span><span class=nx>host</span><span class=p>)</span>
+  <span class=kr>const</span> <span class=nx>tradfri</span> <span class=o>=</span> <span class=k>new</span> <span class=nx>TradfriClient</span><span class=p>(</span><span class=nx>gateway</span><span class=p>.</span><span class=nx>host</span><span class=p>)</span>
+
+  <span class=k>if</span><span class=p>(</span> <span class=o>!</span><span class=nx>conf</span><span class=p>.</span><span class=nx>has</span><span class=p>(</span> <span class=s1>&#39;security.identity&#39;</span> <span class=p>)</span> <span class=o>||</span> <span class=o>!</span><span class=nx>conf</span><span class=p>.</span><span class=nx>has</span><span class=p>(</span><span class=s1>&#39;security.psk&#39;</span> <span class=p>)</span> <span class=p>)</span> <span class=p>{</span>
+    <span class=kd>let</span> <span class=nx>securityCode</span> <span class=o>=</span> <span class=nx>process</span><span class=p>.</span><span class=nx>env</span><span class=p>.</span><span class=nx>IKEASECURITY</span>
+    <span class=k>if</span><span class=p>(</span> <span class=nx>securityCode</span> <span class=o>===</span> <span class=s2>&#34;&#34;</span> <span class=o>||</span> <span class=nx>securityCode</span> <span class=o>===</span> <span class=kc>undefined</span> <span class=p>)</span> <span class=p>{</span>
+      <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;Please set the IKEASECURITY env variable to the code on the back of the gateway&#34;</span><span class=p>)</span>
+      <span class=nx>process</span><span class=p>.</span><span class=nx>exit</span><span class=p>(</span><span class=mi>1</span><span class=p>)</span>
+    <span class=p>}</span>
+
+    <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;Getting identity from security code&#34;</span> <span class=p>)</span>
+    <span class=kr>const</span> <span class=p>{</span><span class=nx>identity</span><span class=p>,</span> <span class=nx>psk</span><span class=p>}</span> <span class=o>=</span> <span class=nx>await</span> <span class=nx>tradfri</span><span class=p>.</span><span class=nx>authenticate</span><span class=p>(</span><span class=nx>securityCode</span><span class=p>);</span>
+
+    <span class=nx>conf</span><span class=p>.</span><span class=nx>set</span><span class=p>(</span> <span class=s1>&#39;security&#39;</span><span class=p>,</span> <span class=p>{</span><span class=nx>identity</span><span class=p>,</span><span class=nx>psk</span><span class=p>}</span> <span class=p>)</span>
+  <span class=p>}</span>
+
+  <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;Securely connecting to gateway&#34;</span> <span class=p>)</span>
+
+  <span class=nx>await</span> <span class=nx>tradfri</span><span class=p>.</span><span class=nx>connect</span><span class=p>(</span><span class=nx>conf</span><span class=p>.</span><span class=nx>get</span><span class=p>(</span> <span class=s1>&#39;security.identity&#39;</span> <span class=p>),</span> <span class=nx>conf</span><span class=p>.</span><span class=nx>get</span><span class=p>(</span> <span class=s1>&#39;security.psk&#39;</span> <span class=p>))</span>
+
+  <span class=k>return</span> <span class=nx>tradfri</span><span class=p>;</span>
+<span class=p>}</span>
+
+<span class=nx>module</span><span class=p>.</span><span class=nx>exports</span> <span class=o>=</span> <span class=p>{</span><span class=nx>getConnection</span><span class=o>:</span> <span class=nx>getConnection</span><span class=p>};</span>
+
+<span class=c1>// Only run this method if invoked with &#34;node connection.js&#34;
+</span><span class=c1></span><span class=k>if</span><span class=p>(</span> <span class=nx>__filename</span> <span class=o>===</span> <span class=nx>process</span><span class=p>.</span><span class=nx>argv</span><span class=p>[</span><span class=mi>1</span><span class=p>]</span> <span class=p>)</span> <span class=p>{</span>
+  <span class=p>(</span><span class=nx>async</span> <span class=p>()</span> <span class=p>=&gt;</span> <span class=p>{</span>
+    <span class=kr>const</span> <span class=nx>tradfri</span> <span class=o>=</span> <span class=nx>await</span> <span class=nx>getConnection</span><span class=p>();</span>
+    <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;Connection complete&#34;</span> <span class=p>)</span>
+
+    <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;Waiting 1 second&#34;</span><span class=p>)</span>
+    <span class=nx>await</span> <span class=nx>delay</span><span class=p>(</span> <span class=mi>1000</span> <span class=p>)</span>
+
+    <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;Closing connection&#34;</span><span class=p>)</span>
+    <span class=nx>tradfri</span><span class=p>.</span><span class=nx>destroy</span><span class=p>()</span>
+    <span class=nx>process</span><span class=p>.</span><span class=nx>exit</span><span class=p>(</span><span class=mi>0</span><span class=p>);</span>
+  <span class=p>})()</span>
+<span class=p>}</span>
+</code></pre></div><h2 id=printing-out-discovered-device-info>Printing out discovered device info</h2><p>Calling the <code>observeDevices()</code> method will make the client start listening for devices that the gateway is connected to. The library itself keeps track of what it knows inside of the <code>tradfri.devices</code> hash, so we&rsquo;ll pause for a bit to give it time to listen and then print out what it found.</p><p><a href=devices.js><code>devices.js</code></a>:</p><div class=highlight><pre class=chroma><code class=language-js data-lang=js><span class=kr>const</span> <span class=nx>connection</span> <span class=o>=</span> <span class=nx>require</span><span class=p>(</span> <span class=s1>&#39;./connection&#39;</span> <span class=p>);</span>
+<span class=kr>const</span> <span class=nx>delay</span>      <span class=o>=</span> <span class=nx>require</span><span class=p>(</span> <span class=s1>&#39;delay&#39;</span> <span class=p>);</span>
+
+<span class=kd>function</span> <span class=nx>printDeviceInfo</span><span class=p>(</span> <span class=nx>device</span> <span class=p>)</span> <span class=p>{</span>
+  <span class=k>switch</span><span class=p>(</span> <span class=nx>device</span><span class=p>.</span><span class=nx>type</span> <span class=p>)</span> <span class=p>{</span>
+    <span class=k>case</span> <span class=mi>0</span><span class=o>:</span> <span class=c1>// remote
+</span><span class=c1></span>    <span class=k>case</span> <span class=mi>4</span><span class=o>:</span> <span class=c1>// sensor
+</span><span class=c1></span>      <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=nx>device</span><span class=p>.</span><span class=nx>instanceId</span><span class=p>,</span> <span class=nx>device</span><span class=p>.</span><span class=nx>name</span><span class=p>,</span> <span class=sb>`battery </span><span class=si>${</span><span class=nx>device</span><span class=p>.</span><span class=nx>deviceInfo</span><span class=p>.</span><span class=nx>battery</span><span class=si>}</span><span class=sb>%`</span> <span class=p>)</span>
+      <span class=k>break</span><span class=p>;</span>
+    <span class=k>case</span> <span class=mi>2</span><span class=o>:</span> <span class=c1>// light
+</span><span class=c1></span>      <span class=kd>let</span> <span class=nx>lightInfo</span> <span class=o>=</span> <span class=nx>device</span><span class=p>.</span><span class=nx>lightList</span><span class=p>[</span><span class=mi>0</span><span class=p>]</span>
+      <span class=kd>let</span> <span class=nx>info</span> <span class=o>=</span> <span class=p>{</span>
+        <span class=nx>onOff</span><span class=o>:</span> <span class=nx>lightInfo</span><span class=p>.</span><span class=nx>onOff</span><span class=p>,</span>
+        <span class=nx>spectrum</span><span class=o>:</span> <span class=nx>lightInfo</span><span class=p>.</span><span class=nx>spectrum</span><span class=p>,</span>
+        <span class=nx>dimmer</span><span class=o>:</span> <span class=nx>lightInfo</span><span class=p>.</span><span class=nx>dimmer</span><span class=p>,</span>
+        <span class=nx>color</span><span class=o>:</span> <span class=nx>lightInfo</span><span class=p>.</span><span class=nx>color</span><span class=p>,</span>
+        <span class=nx>colorTemperature</span><span class=o>:</span> <span class=nx>lightInfo</span><span class=p>.</span><span class=nx>colorTemperature</span>
+      <span class=p>}</span>
+      <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=nx>device</span><span class=p>.</span><span class=nx>instanceId</span><span class=p>,</span> <span class=nx>device</span><span class=p>.</span><span class=nx>name</span><span class=p>,</span> <span class=nx>lightInfo</span><span class=p>.</span><span class=nx>onOff</span> <span class=o>?</span> <span class=s2>&#34;On&#34;</span> <span class=o>:</span> <span class=s2>&#34;Off&#34;</span><span class=p>,</span> <span class=nx>JSON</span><span class=p>.</span><span class=nx>stringify</span><span class=p>(</span> <span class=nx>info</span><span class=p>)</span> <span class=p>)</span>
+      <span class=k>break</span><span class=p>;</span>
+    <span class=k>case</span> <span class=mi>3</span><span class=o>:</span> <span class=c1>// plug
+</span><span class=c1></span>      <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=nx>device</span><span class=p>.</span><span class=nx>instanceId</span><span class=p>,</span> <span class=nx>device</span><span class=p>.</span><span class=nx>name</span><span class=p>,</span> <span class=nx>device</span><span class=p>.</span><span class=nx>plugList</span><span class=p>[</span><span class=mi>0</span><span class=p>].</span><span class=nx>onOff</span> <span class=o>?</span> <span class=s2>&#34;On&#34;</span> <span class=o>:</span> <span class=s2>&#34;Off&#34;</span> <span class=p>)</span>
+      <span class=k>break</span><span class=p>;</span>
+    <span class=k>default</span><span class=o>:</span>
+      <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=nx>device</span><span class=p>.</span><span class=nx>instanceId</span><span class=p>,</span> <span class=nx>device</span><span class=p>.</span><span class=nx>name</span><span class=p>,</span> <span class=s2>&#34;unknown type&#34;</span><span class=p>,</span> <span class=nx>device</span><span class=p>.</span><span class=nx>type</span><span class=p>)</span>
+      <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=nx>device</span> <span class=p>)</span>
+  <span class=p>}</span>
+<span class=p>}</span>
+
+<span class=kd>function</span> <span class=nx>findDevice</span><span class=p>(</span> <span class=nx>tradfri</span><span class=p>,</span> <span class=nx>deviceNameOrId</span> <span class=p>)</span> <span class=p>{</span>
+  <span class=kd>let</span> <span class=nx>lowerName</span> <span class=o>=</span> <span class=nx>deviceNameOrId</span><span class=p>.</span><span class=nx>toLowerCase</span><span class=p>();</span>
+
+  <span class=k>for</span><span class=p>(</span> <span class=kr>const</span> <span class=nx>deviceId</span> <span class=k>in</span> <span class=nx>tradfri</span><span class=p>.</span><span class=nx>devices</span> <span class=p>)</span> <span class=p>{</span>
+    <span class=k>if</span><span class=p>(</span> <span class=nx>deviceId</span> <span class=o>===</span> <span class=nx>deviceNameOrId</span> <span class=p>)</span> <span class=p>{</span>
+      <span class=k>return</span> <span class=nx>tradfri</span><span class=p>.</span><span class=nx>devices</span><span class=p>[</span><span class=nx>deviceId</span><span class=p>];</span>
+    <span class=p>}</span>
+
+    <span class=k>if</span><span class=p>(</span> <span class=nx>tradfri</span><span class=p>.</span><span class=nx>devices</span><span class=p>[</span><span class=nx>deviceId</span><span class=p>].</span><span class=nx>name</span><span class=p>.</span><span class=nx>toLowerCase</span><span class=p>()</span> <span class=o>===</span> <span class=nx>lowerName</span> <span class=p>)</span> <span class=p>{</span>
+      <span class=k>return</span> <span class=nx>tradfri</span><span class=p>.</span><span class=nx>devices</span><span class=p>[</span><span class=nx>deviceId</span><span class=p>];</span>
+    <span class=p>}</span>
+  <span class=p>}</span>
+
+  <span class=k>return</span><span class=p>;</span>
+<span class=p>}</span>
+
+<span class=nx>module</span><span class=p>.</span><span class=nx>exports</span> <span class=o>=</span> <span class=p>{</span><span class=nx>printDeviceInfo</span><span class=p>,</span> <span class=nx>findDevice</span><span class=p>};</span>
+
+<span class=c1>// Only run this method if invoked with &#34;node devices.js&#34;
+</span><span class=c1></span><span class=k>if</span><span class=p>(</span> <span class=nx>__filename</span> <span class=o>===</span> <span class=nx>process</span><span class=p>.</span><span class=nx>argv</span><span class=p>[</span><span class=mi>1</span><span class=p>]</span> <span class=p>)</span> <span class=p>{</span>
+  <span class=p>(</span><span class=nx>async</span> <span class=p>()</span> <span class=p>=&gt;</span> <span class=p>{</span>
+    <span class=kr>const</span> <span class=nx>tradfri</span> <span class=o>=</span> <span class=nx>await</span> <span class=nx>connection</span><span class=p>.</span><span class=nx>getConnection</span><span class=p>();</span>
+
+    <span class=nx>tradfri</span><span class=p>.</span><span class=nx>observeDevices</span><span class=p>();</span>
+
+    <span class=c1>// Wait a second hopefully something will be loaded by then!
+</span><span class=c1></span>    <span class=nx>await</span> <span class=nx>delay</span><span class=p>(</span> <span class=mi>1000</span> <span class=p>)</span>
+
+    <span class=k>for</span> <span class=p>(</span><span class=kr>const</span> <span class=nx>deviceId</span> <span class=k>in</span> <span class=nx>tradfri</span><span class=p>.</span><span class=nx>devices</span> <span class=p>)</span> <span class=p>{</span>
+      <span class=kr>const</span> <span class=nx>device</span> <span class=o>=</span> <span class=nx>tradfri</span><span class=p>.</span><span class=nx>devices</span><span class=p>[</span><span class=nx>deviceId</span><span class=p>];</span>
+      <span class=nx>printDeviceInfo</span><span class=p>(</span> <span class=nx>device</span> <span class=p>)</span>
+    <span class=p>}</span>
+
+    <span class=nx>tradfri</span><span class=p>.</span><span class=nx>destroy</span><span class=p>()</span>
+    <span class=nx>process</span><span class=p>.</span><span class=nx>exit</span><span class=p>(</span><span class=mi>0</span><span class=p>);</span>
+  <span class=p>})()</span>
+<span class=p>}</span>
+</code></pre></div><h2 id=registering-our-own-device-listeners>Registering our own device listeners</h2><p>We can register a listener callback to watch for when thing change, keeping our program running forever watching for the lights to go on and off!</p><p><a href=device_watcher.js><code>device_watcher.js</code></a>:</p><div class=highlight><pre class=chroma><code class=language-js data-lang=js><span class=kr>const</span> <span class=nx>connection</span> <span class=o>=</span> <span class=nx>require</span><span class=p>(</span> <span class=s1>&#39;./connection&#39;</span> <span class=p>);</span>
+<span class=kr>const</span> <span class=nx>devices</span>    <span class=o>=</span> <span class=nx>require</span><span class=p>(</span> <span class=s1>&#39;./devices&#39;</span> <span class=p>);</span>
+
+<span class=kd>function</span> <span class=nx>deviceUpdated</span><span class=p>(</span> <span class=nx>device</span> <span class=p>)</span> <span class=p>{</span>
+  <span class=nx>devices</span><span class=p>.</span><span class=nx>printDeviceInfo</span><span class=p>(</span> <span class=nx>device</span> <span class=p>);</span>
+<span class=p>}</span>
+
+<span class=kd>function</span> <span class=nx>deviceRemoved</span><span class=p>(</span> <span class=nx>deviceId</span> <span class=p>)</span> <span class=p>{</span>
+  <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;See you later&#34;</span><span class=p>,</span> <span class=nx>deviceId</span><span class=p>,</span> <span class=s2>&#34;it&#39;s been great.&#34;</span><span class=p>)</span>
+<span class=p>}</span>
+
+<span class=p>(</span><span class=nx>async</span> <span class=p>()</span> <span class=p>=&gt;</span> <span class=p>{</span>
+  <span class=kr>const</span> <span class=nx>tradfri</span> <span class=o>=</span> <span class=nx>await</span> <span class=nx>connection</span><span class=p>.</span><span class=nx>getConnection</span><span class=p>();</span>
+
+  <span class=nx>tradfri</span>
+    <span class=p>.</span><span class=nx>on</span><span class=p>(</span><span class=s2>&#34;device updated&#34;</span><span class=p>,</span> <span class=nx>deviceUpdated</span><span class=p>)</span>
+    <span class=p>.</span><span class=nx>on</span><span class=p>(</span><span class=s2>&#34;device removed&#34;</span><span class=p>,</span> <span class=nx>deviceRemoved</span><span class=p>)</span>
+    <span class=p>.</span><span class=nx>observeDevices</span><span class=p>();</span>
+<span class=p>})()</span>
+</code></pre></div><h2 id=switching-and-dimming>Switching and dimming</h2><p>Now that we have code that can react to changes, lets write some code that controls things!</p><p><a href=device_changer.js><code>device_changer.js</code></a>:</p><div class=highlight><pre class=chroma><code class=language-js data-lang=js><span class=kr>const</span> <span class=nx>connection</span> <span class=o>=</span> <span class=nx>require</span><span class=p>(</span> <span class=s1>&#39;./connection&#39;</span> <span class=p>);</span>
+<span class=kr>const</span> <span class=nx>devices</span>    <span class=o>=</span> <span class=nx>require</span><span class=p>(</span> <span class=s1>&#39;./devices&#39;</span> <span class=p>);</span>
+<span class=kr>const</span> <span class=nx>delay</span>      <span class=o>=</span> <span class=nx>require</span><span class=p>(</span> <span class=s1>&#39;delay&#39;</span> <span class=p>);</span>
+
+<span class=p>(</span><span class=nx>async</span> <span class=p>()</span> <span class=p>=&gt;</span> <span class=p>{</span>
+  <span class=kd>let</span> <span class=nx>argv</span> <span class=o>=</span> <span class=nx>process</span><span class=p>.</span><span class=nx>argv</span><span class=p>;</span>
+
+  <span class=k>if</span><span class=p>(</span> <span class=nx>argv</span><span class=p>.</span><span class=nx>length</span> <span class=o>&lt;=</span> <span class=mi>2</span> <span class=p>)</span> <span class=p>{</span>
+    <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;Usage:&#34;</span> <span class=p>)</span>
+    <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;node device_changer.js&#34;</span><span class=p>,</span> <span class=s2>&#34;deviceId&#34;</span><span class=p>,</span> <span class=s2>&#34;--on&#34;</span><span class=p>)</span>
+    <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;node device_changer.js&#34;</span><span class=p>,</span> <span class=s2>&#34;deviceId&#34;</span><span class=p>,</span> <span class=s2>&#34;--off&#34;</span><span class=p>)</span>
+    <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;node device_changer.js&#34;</span><span class=p>,</span> <span class=s2>&#34;deviceId&#34;</span><span class=p>,</span> <span class=s2>&#34;--toggle&#34;</span><span class=p>)</span>
+    <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;node device_changer.js&#34;</span><span class=p>,</span> <span class=s2>&#34;deviceId&#34;</span><span class=p>,</span> <span class=s2>&#34;--color hexcolor&#34;</span><span class=p>)</span>
+    <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;node device_changer.js&#34;</span><span class=p>,</span> <span class=s2>&#34;deviceId&#34;</span><span class=p>,</span> <span class=s2>&#34;--brightness 0-100&#34;</span><span class=p>)</span>
+
+    <span class=nx>process</span><span class=p>.</span><span class=nx>exit</span><span class=p>(</span><span class=mi>1</span><span class=p>)</span>
+  <span class=p>}</span>
+
+  <span class=kr>const</span> <span class=nx>tradfri</span> <span class=o>=</span> <span class=nx>await</span> <span class=nx>connection</span><span class=p>.</span><span class=nx>getConnection</span><span class=p>();</span>
+  <span class=nx>tradfri</span><span class=p>.</span><span class=nx>observeDevices</span><span class=p>();</span>
+  <span class=nx>await</span> <span class=nx>delay</span><span class=p>(</span> <span class=mi>1000</span> <span class=p>)</span>
+
+  <span class=kd>let</span> <span class=nx>position</span> <span class=o>=</span> <span class=mi>2</span><span class=p>;</span>
+  <span class=kd>let</span> <span class=nx>currentDevice</span> <span class=o>=</span> <span class=kc>null</span><span class=p>;</span>
+  <span class=kd>let</span> <span class=nx>accessory</span> <span class=o>=</span> <span class=kc>null</span><span class=p>;</span>
+  <span class=k>while</span><span class=p>(</span> <span class=nx>position</span> <span class=o>&lt;</span> <span class=nx>argv</span><span class=p>.</span><span class=nx>length</span> <span class=p>)</span> <span class=p>{</span>
+    <span class=k>switch</span><span class=p>(</span> <span class=nx>argv</span><span class=p>[</span><span class=nx>position</span><span class=p>]</span> <span class=p>)</span> <span class=p>{</span>
+      <span class=k>case</span> <span class=s1>&#39;--on&#39;</span><span class=o>:</span>
+        <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;Turning&#34;</span><span class=p>,</span> <span class=nx>currentDevice</span><span class=p>.</span><span class=nx>instanceId</span><span class=p>,</span> <span class=s2>&#34;on&#34;</span><span class=p>)</span>
+        <span class=nx>accessory</span><span class=p>.</span><span class=nx>turnOn</span><span class=p>()</span>
+        <span class=k>break</span><span class=p>;</span>
+      <span class=k>case</span> <span class=s1>&#39;--off&#39;</span><span class=o>:</span>
+        <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;Turning&#34;</span><span class=p>,</span> <span class=nx>currentDevice</span><span class=p>.</span><span class=nx>instanceId</span><span class=p>,</span> <span class=s2>&#34;off&#34;</span><span class=p>)</span>
+        <span class=nx>accessory</span><span class=p>.</span><span class=nx>turnOff</span><span class=p>();</span>
+        <span class=k>break</span><span class=p>;</span>
+      <span class=k>case</span> <span class=s1>&#39;--toggle&#39;</span><span class=o>:</span>
+        <span class=nx>accessory</span><span class=p>.</span><span class=nx>toggle</span><span class=p>();</span>
+        <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;toggle device&#34;</span><span class=p>,</span> <span class=nx>currentDevice</span><span class=p>.</span><span class=nx>instanceId</span> <span class=p>)</span>
+        <span class=k>break</span><span class=p>;</span>
+      <span class=k>case</span> <span class=s1>&#39;--color&#39;</span><span class=o>:</span>
+        <span class=nx>position</span><span class=o>++</span><span class=p>;</span>
+        <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;Setting color of&#34;</span><span class=p>,</span> <span class=nx>currentDevice</span><span class=p>.</span><span class=nx>instanceId</span><span class=p>,</span> <span class=s2>&#34;to&#34;</span><span class=p>,</span> <span class=nx>argv</span><span class=p>[</span><span class=nx>position</span><span class=p>])</span>
+        <span class=nx>accessory</span><span class=p>.</span><span class=nx>setColor</span><span class=p>(</span><span class=nx>argv</span><span class=p>[</span><span class=nx>position</span><span class=p>])</span>
+        <span class=k>break</span><span class=p>;</span>
+      <span class=k>case</span> <span class=s1>&#39;--brightness&#39;</span><span class=o>:</span>
+        <span class=nx>position</span><span class=o>++</span><span class=p>;</span>
+        <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;Setting brightness of&#34;</span><span class=p>,</span> <span class=nx>currentDevice</span><span class=p>.</span><span class=nx>instanceId</span><span class=p>,</span> <span class=s2>&#34;to&#34;</span><span class=p>,</span> <span class=nx>argv</span><span class=p>[</span><span class=nx>position</span><span class=p>])</span>
+        <span class=nx>accessory</span><span class=p>.</span><span class=nx>setBrightness</span><span class=p>(</span> <span class=nx>argv</span><span class=p>[</span><span class=nx>position</span><span class=p>]</span> <span class=p>)</span>
+        <span class=k>break</span><span class=p>;</span>
+      <span class=k>default</span><span class=o>:</span>
+        <span class=nx>currentDevice</span> <span class=o>=</span> <span class=nx>devices</span><span class=p>.</span><span class=nx>findDevice</span><span class=p>(</span> <span class=nx>tradfri</span><span class=p>,</span> <span class=nx>argv</span><span class=p>[</span><span class=nx>position</span><span class=p>]</span> <span class=p>)</span>
+        <span class=k>if</span><span class=p>(</span> <span class=nx>currentDevice</span> <span class=o>==</span> <span class=kc>null</span> <span class=p>)</span> <span class=p>{</span>
+          <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;Unable to find device&#34;</span><span class=p>,</span> <span class=nx>argv</span><span class=p>[</span><span class=nx>position</span><span class=p>]</span> <span class=p>)</span>
+          <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=nx>tradfri</span><span class=p>.</span><span class=nx>devices</span> <span class=p>)</span>
+          <span class=nx>process</span><span class=p>.</span><span class=nx>exit</span><span class=p>(</span><span class=mi>1</span><span class=p>)</span>
+        <span class=p>}</span>
+        <span class=k>switch</span><span class=p>(</span> <span class=nx>currentDevice</span><span class=p>.</span><span class=nx>type</span> <span class=p>)</span> <span class=p>{</span>
+          <span class=k>case</span> <span class=mi>0</span><span class=o>:</span>
+          <span class=k>case</span> <span class=mi>4</span><span class=o>:</span>
+            <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;Can&#39;t control this type of device&#34;</span> <span class=p>)</span>
+            <span class=nx>process</span><span class=p>.</span><span class=nx>exit</span><span class=p>(</span><span class=mi>1</span><span class=p>);</span>
+            <span class=k>break</span><span class=p>;</span>
+          <span class=k>case</span> <span class=mi>2</span><span class=o>:</span> <span class=c1>//light
+</span><span class=c1></span>            <span class=nx>accessory</span> <span class=o>=</span> <span class=nx>currentDevice</span><span class=p>.</span><span class=nx>lightList</span><span class=p>[</span><span class=mi>0</span><span class=p>]</span>
+            <span class=nx>accessory</span><span class=p>.</span><span class=nx>client</span> <span class=o>=</span> <span class=nx>tradfri</span>
+            <span class=k>break</span><span class=p>;</span>
+          <span class=k>case</span> <span class=mi>3</span><span class=o>:</span> <span class=c1>// plug
+</span><span class=c1></span>            <span class=nx>accessory</span> <span class=o>=</span> <span class=nx>currentDevice</span><span class=p>.</span><span class=nx>plugList</span><span class=p>[</span><span class=mi>0</span><span class=p>]</span>
+            <span class=nx>accessory</span><span class=p>.</span><span class=nx>client</span> <span class=o>=</span> <span class=nx>tradfri</span>
+            <span class=k>break</span><span class=p>;</span>
+        <span class=p>}</span>
+        <span class=k>break</span><span class=p>;</span>
+    <span class=p>}</span>
+
+    <span class=nx>position</span> <span class=o>++</span><span class=p>;</span>
+  <span class=p>}</span>
+
+  <span class=nx>await</span> <span class=nx>delay</span><span class=p>(</span><span class=mi>1000</span><span class=p>);</span>
+  <span class=nx>await</span> <span class=nx>tradfri</span><span class=p>.</span><span class=nx>destroy</span><span class=p>();</span>
+  <span class=nx>process</span><span class=p>.</span><span class=nx>exit</span><span class=p>(</span><span class=mi>0</span><span class=p>);</span>
+<span class=p>})()</span>
+</code></pre></div><p>This lets you add multiple commands on the line, so if we wanted to make a few changes at once you could do something like this:</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>node device_changer.js <span class=m>65538</span> --on --color efd275 <span class=m>65543</span> --brightness <span class=m>50</span> --on <span class=m>65540</span> --on
+</code></pre></div><h2 id=scenes-and-rooms>Scenes and Rooms</h2><p>The library also has methods to deal with scenes and rooms all at once. Let&rsquo;s take a look at a room watcher:</p><p><a href=scenes.js><code>scenes.js</code></a>:</p><div class=highlight><pre class=chroma><code class=language-js data-lang=js><span class=kr>const</span> <span class=nx>connection</span> <span class=o>=</span> <span class=nx>require</span><span class=p>(</span> <span class=s1>&#39;./connection&#39;</span> <span class=p>);</span>
+<span class=kr>const</span> <span class=nx>delay</span>      <span class=o>=</span> <span class=nx>require</span><span class=p>(</span> <span class=s1>&#39;delay&#39;</span> <span class=p>);</span>
+<span class=kr>const</span> <span class=nx>devices</span>    <span class=o>=</span> <span class=nx>require</span><span class=p>(</span> <span class=s1>&#39;./devices&#39;</span><span class=p>)</span>
+
+<span class=kd>function</span> <span class=nx>printRoomInfo</span><span class=p>(</span> <span class=nx>tradfri</span><span class=p>,</span> <span class=nx>room</span> <span class=p>)</span> <span class=p>{</span>
+  <span class=kr>const</span> <span class=nx>group</span> <span class=o>=</span> <span class=nx>room</span><span class=p>.</span><span class=nx>group</span>
+  <span class=kr>const</span> <span class=nx>scenes</span> <span class=o>=</span> <span class=nx>room</span><span class=p>.</span><span class=nx>scenes</span>
+  <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;ROOM&#34;</span><span class=p>,</span> <span class=nx>group</span><span class=p>.</span><span class=nx>instanceId</span><span class=p>,</span> <span class=nx>room</span><span class=p>.</span><span class=nx>name</span><span class=p>,</span> <span class=s2>&#34;Current Scene:&#34;</span><span class=p>,</span> <span class=nx>scenes</span><span class=p>[</span><span class=nx>group</span><span class=p>.</span><span class=nx>sceneId</span><span class=p>].</span><span class=nx>name</span> <span class=p>)</span>
+  <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;DEVICES&#34;</span><span class=p>)</span>
+  <span class=k>for</span><span class=p>(</span> <span class=kr>const</span> <span class=nx>deviceId</span> <span class=k>of</span> <span class=nx>group</span><span class=p>.</span><span class=nx>deviceIDs</span> <span class=p>)</span> <span class=p>{</span>
+    <span class=nx>devices</span><span class=p>.</span><span class=nx>printDeviceInfo</span><span class=p>(</span> <span class=nx>tradfri</span><span class=p>.</span><span class=nx>devices</span><span class=p>[</span><span class=nx>deviceId</span><span class=p>]</span> <span class=p>)</span>
+  <span class=p>}</span>
+  <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;SCENES&#34;</span> <span class=p>)</span>
+  <span class=k>for</span> <span class=p>(</span><span class=kr>const</span> <span class=nx>sceneId</span> <span class=k>in</span> <span class=nx>scenes</span> <span class=p>)</span> <span class=p>{</span>
+    <span class=kr>const</span> <span class=nx>scene</span> <span class=o>=</span> <span class=nx>scenes</span><span class=p>[</span><span class=nx>sceneId</span><span class=p>]</span>
+    <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=nx>sceneId</span><span class=p>,</span> <span class=nx>scene</span><span class=p>.</span><span class=nx>name</span> <span class=p>)</span> <span class=c1>// , scene.lightSettings )
+</span><span class=c1></span>  <span class=p>}</span>
+
+  <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;----\n&#34;</span><span class=p>)</span>
+
+<span class=p>}</span>
+
+<span class=kd>function</span> <span class=nx>findRoom</span><span class=p>(</span> <span class=nx>tradfri</span><span class=p>,</span> <span class=nx>name</span> <span class=p>)</span> <span class=p>{</span>
+  <span class=kd>let</span> <span class=nx>lowerName</span> <span class=o>=</span> <span class=nx>name</span><span class=p>.</span><span class=nx>toLowerCase</span><span class=p>();</span>
+
+  <span class=c1>// Look for the group
+</span><span class=c1></span>  <span class=k>for</span> <span class=p>(</span><span class=kr>const</span> <span class=nx>groupId</span> <span class=k>in</span> <span class=nx>tradfri</span><span class=p>.</span><span class=nx>groups</span> <span class=p>)</span> <span class=p>{</span>
+    <span class=k>if</span><span class=p>(</span> <span class=nx>tradfri</span><span class=p>.</span><span class=nx>groups</span><span class=p>[</span><span class=nx>groupId</span><span class=p>].</span><span class=nx>group</span><span class=p>.</span><span class=nx>name</span><span class=p>.</span><span class=nx>toLowerCase</span><span class=p>()</span> <span class=o>===</span> <span class=nx>lowerName</span> <span class=p>)</span> <span class=p>{</span>
+      <span class=k>return</span> <span class=nx>tradfri</span><span class=p>.</span><span class=nx>groups</span><span class=p>[</span><span class=nx>groupId</span><span class=p>];</span>
+    <span class=p>}</span>
+
+    <span class=k>if</span><span class=p>(</span> <span class=nx>groupId</span> <span class=o>===</span> <span class=nx>name</span> <span class=p>)</span> <span class=p>{</span>
+      <span class=k>return</span> <span class=nx>tradfri</span><span class=p>.</span><span class=nx>groups</span><span class=p>[</span><span class=nx>groupId</span><span class=p>];</span>
+    <span class=p>}</span>
+  <span class=p>}</span>
+
+  <span class=k>return</span> <span class=kc>null</span><span class=p>;</span>
+<span class=p>}</span>
+
+<span class=nx>module</span><span class=p>.</span><span class=nx>exports</span> <span class=o>=</span> <span class=p>{</span><span class=nx>printRoomInfo</span><span class=p>,</span> <span class=nx>findRoom</span><span class=p>};</span>
+
+<span class=c1>// Only run this method if invoked with &#34;node devices.js&#34;
+</span><span class=c1></span><span class=k>if</span><span class=p>(</span> <span class=nx>__filename</span> <span class=o>===</span> <span class=nx>process</span><span class=p>.</span><span class=nx>argv</span><span class=p>[</span><span class=mi>1</span><span class=p>]</span> <span class=p>)</span> <span class=p>{</span>
+  <span class=p>(</span><span class=nx>async</span> <span class=p>()</span> <span class=p>=&gt;</span> <span class=p>{</span>
+    <span class=kr>const</span> <span class=nx>tradfri</span> <span class=o>=</span> <span class=nx>await</span> <span class=nx>connection</span><span class=p>.</span><span class=nx>getConnection</span><span class=p>();</span>
+
+    <span class=nx>tradfri</span><span class=p>.</span><span class=nx>observeDevices</span><span class=p>();</span>
+    <span class=nx>tradfri</span><span class=p>.</span><span class=nx>observeGroupsAndScenes</span><span class=p>();</span>
+
+    <span class=c1>// Wait a second hopefully something will be loaded by then!
+</span><span class=c1></span>    <span class=nx>await</span> <span class=nx>delay</span><span class=p>(</span> <span class=mi>1500</span> <span class=p>)</span>
+
+    <span class=k>for</span> <span class=p>(</span><span class=kr>const</span> <span class=nx>groupId</span> <span class=k>in</span> <span class=nx>tradfri</span><span class=p>.</span><span class=nx>groups</span> <span class=p>)</span> <span class=p>{</span>
+      <span class=kr>const</span> <span class=nx>collection</span> <span class=o>=</span> <span class=nx>tradfri</span><span class=p>.</span><span class=nx>groups</span><span class=p>[</span><span class=nx>groupId</span><span class=p>];</span>
+      <span class=nx>printRoomInfo</span><span class=p>(</span> <span class=nx>tradfri</span><span class=p>,</span> <span class=nx>collection</span> <span class=p>)</span>
+    <span class=p>}</span>
+
+    <span class=nx>tradfri</span><span class=p>.</span><span class=nx>destroy</span><span class=p>()</span>
+    <span class=nx>process</span><span class=p>.</span><span class=nx>exit</span><span class=p>(</span><span class=mi>0</span><span class=p>);</span>
+  <span class=p>})()</span>
+<span class=p>}</span>
+</code></pre></div><h2 id=setting-the-scene>Setting the scene</h2><p>Lets write another small utility to be able to change a room to a preset setting!</p><p><a href=scene_changer.js><code>scene_changer.js</code></a>:</p><div class=highlight><pre class=chroma><code class=language-js data-lang=js><span class=kr>const</span> <span class=nx>connection</span> <span class=o>=</span> <span class=nx>require</span><span class=p>(</span> <span class=s1>&#39;./connection&#39;</span> <span class=p>);</span>
+<span class=kr>const</span> <span class=nx>devices</span>    <span class=o>=</span> <span class=nx>require</span><span class=p>(</span> <span class=s1>&#39;./devices&#39;</span> <span class=p>);</span>
+<span class=kr>const</span> <span class=nx>scenes</span>     <span class=o>=</span> <span class=nx>require</span><span class=p>(</span> <span class=s1>&#39;./scenes&#39;</span><span class=p>);</span>
+<span class=kr>const</span> <span class=nx>delay</span>      <span class=o>=</span> <span class=nx>require</span><span class=p>(</span> <span class=s1>&#39;delay&#39;</span> <span class=p>);</span>
+
+<span class=p>(</span><span class=nx>async</span> <span class=p>()</span> <span class=p>=&gt;</span> <span class=p>{</span>
+  <span class=kd>let</span> <span class=nx>argv</span> <span class=o>=</span> <span class=nx>process</span><span class=p>.</span><span class=nx>argv</span><span class=p>;</span>
+
+  <span class=k>if</span><span class=p>(</span> <span class=nx>argv</span><span class=p>.</span><span class=nx>length</span> <span class=o>!=</span> <span class=mi>4</span> <span class=p>)</span> <span class=p>{</span>
+    <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;Usage:&#34;</span> <span class=p>)</span>
+    <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;node scene_changer.js&#34;</span><span class=p>,</span> <span class=s2>&#34;room&#34;</span><span class=p>,</span> <span class=s2>&#34;scene&#34;</span><span class=p>)</span>
+
+    <span class=nx>process</span><span class=p>.</span><span class=nx>exit</span><span class=p>(</span><span class=mi>1</span><span class=p>)</span>
+  <span class=p>}</span>
+
+  <span class=kr>const</span> <span class=nx>tradfri</span> <span class=o>=</span> <span class=nx>await</span> <span class=nx>connection</span><span class=p>.</span><span class=nx>getConnection</span><span class=p>();</span>
+  <span class=nx>tradfri</span><span class=p>.</span><span class=nx>observeDevices</span><span class=p>();</span>
+  <span class=nx>tradfri</span><span class=p>.</span><span class=nx>observeGroupsAndScenes</span><span class=p>();</span>
+  <span class=nx>await</span> <span class=nx>delay</span><span class=p>(</span> <span class=mi>1500</span> <span class=p>)</span>
+
+  <span class=kr>const</span> <span class=nx>roomName</span> <span class=o>=</span> <span class=nx>argv</span><span class=p>[</span><span class=mi>2</span><span class=p>]</span>
+  <span class=kd>let</span> <span class=nx>sceneName</span> <span class=o>=</span> <span class=nx>argv</span><span class=p>[</span><span class=mi>3</span><span class=p>]</span>
+
+  <span class=kr>const</span> <span class=nx>room</span> <span class=o>=</span> <span class=nx>scenes</span><span class=p>.</span><span class=nx>findRoom</span><span class=p>(</span> <span class=nx>tradfri</span><span class=p>,</span> <span class=nx>roomName</span> <span class=p>);</span>
+
+  <span class=k>if</span><span class=p>(</span> <span class=nx>room</span> <span class=o>==</span> <span class=kc>null</span> <span class=p>)</span> <span class=p>{</span>
+    <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;Unable to find room named&#34;</span><span class=p>,</span> <span class=nx>roomName</span><span class=p>);</span>
+    <span class=nx>process</span><span class=p>.</span><span class=nx>exit</span><span class=p>(</span><span class=mi>1</span><span class=p>);</span>
+  <span class=p>}</span>
+
+  <span class=kd>let</span> <span class=nx>scene</span> <span class=o>=</span> <span class=kc>null</span><span class=p>;</span>
+
+  <span class=nx>sceneName</span> <span class=o>=</span> <span class=nx>sceneName</span><span class=p>.</span><span class=nx>toLowerCase</span><span class=p>();</span>
+  <span class=c1>// Look for the scene
+</span><span class=c1></span>  <span class=k>for</span> <span class=p>(</span><span class=kr>const</span> <span class=nx>sceneId</span> <span class=k>in</span> <span class=nx>room</span><span class=p>.</span><span class=nx>scenes</span> <span class=p>)</span> <span class=p>{</span>
+    <span class=k>if</span><span class=p>(</span> <span class=nx>room</span><span class=p>.</span><span class=nx>scenes</span><span class=p>[</span><span class=nx>sceneId</span><span class=p>].</span><span class=nx>name</span><span class=p>.</span><span class=nx>toLowerCase</span><span class=p>()</span> <span class=o>===</span> <span class=nx>sceneName</span> <span class=p>)</span> <span class=p>{</span>
+      <span class=nx>scene</span> <span class=o>=</span> <span class=nx>room</span><span class=p>.</span><span class=nx>scenes</span><span class=p>[</span><span class=nx>sceneId</span><span class=p>]</span>
+    <span class=p>}</span>
+  <span class=p>}</span>
+
+  <span class=k>if</span><span class=p>(</span> <span class=nx>scene</span> <span class=o>==</span> <span class=kc>null</span> <span class=p>)</span> <span class=p>{</span>
+    <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;Unable to find scene named&#34;</span><span class=p>,</span> <span class=nx>sceneName</span> <span class=p>)</span>
+    <span class=nx>process</span><span class=p>.</span><span class=nx>exit</span><span class=p>(</span><span class=mi>1</span><span class=p>);</span>
+  <span class=p>}</span>
+
+  <span class=nx>room</span><span class=p>.</span><span class=nx>group</span><span class=p>.</span><span class=nx>client</span> <span class=o>=</span> <span class=nx>tradfri</span><span class=p>;</span>
+  <span class=nx>scenes</span><span class=p>.</span><span class=nx>printRoomInfo</span><span class=p>(</span> <span class=nx>tradfri</span><span class=p>,</span> <span class=nx>room</span> <span class=p>)</span>
+
+  <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;Switching&#34;</span><span class=p>,</span> <span class=nx>room</span><span class=p>.</span><span class=nx>group</span><span class=p>.</span><span class=nx>name</span><span class=p>,</span> <span class=s2>&#34;to scene&#34;</span><span class=p>,</span> <span class=nx>scene</span><span class=p>.</span><span class=nx>name</span> <span class=p>)</span>
+  <span class=nx>room</span><span class=p>.</span><span class=nx>group</span><span class=p>.</span><span class=nx>activateScene</span><span class=p>(</span><span class=nx>scene</span><span class=p>.</span><span class=nx>instanceId</span><span class=p>);</span>
+
+  <span class=nx>scenes</span><span class=p>.</span><span class=nx>printRoomInfo</span><span class=p>(</span> <span class=nx>tradfri</span><span class=p>,</span> <span class=nx>room</span> <span class=p>)</span>
+
+  <span class=c1>// Give the messages a chance to propogate
+</span><span class=c1></span>  <span class=nx>await</span> <span class=nx>delay</span><span class=p>(</span><span class=mi>1000</span><span class=p>);</span>
+  <span class=nx>await</span> <span class=nx>tradfri</span><span class=p>.</span><span class=nx>destroy</span><span class=p>();</span>
+  <span class=nx>process</span><span class=p>.</span><span class=nx>exit</span><span class=p>(</span><span class=mi>0</span><span class=p>);</span>
+<span class=p>})()</span>
+</code></pre></div><h2 id=other-stuff>Other stuff</h2><p>You can also update the settings of the devices in the controller, which we aren&rsquo;t going to cover. You can also add additional scenes and update them. These are documented further in the fantastic library.</p><p>Have fun playing around!</p><hr><p>References:</p><ol><li><a href=https://learn.pimoroni.com/tutorial/sandyj/controlling-ikea-tradfri-lights-from-your-pi>https://learn.pimoroni.com/tutorial/sandyj/controlling-ikea-tradfri-lights-from-your-pi</a></li><li><a href=https://github.com/AlCalzone/node-tradfri-client>https://github.com/AlCalzone/node-tradfri-client</a></li></ol></article><div class="alert alert-secondary">The code from this article can be found at <a href=https://github.com/wschenk/tradfri-cli>https://github.com/wschenk/tradfri-cli</a></div></div><div class="bg-light py-5"><div class=container><h2 class=text-center>Read next</h2><div class=row><div class="col-md-6 text-center">Next Post:
+<a href=../../../articles/2019/reverse_engineering_apis_using_chrome/>Reverse engineering APIs using Chrome Developer Tools</a></div><div class="col-md-6 text-center">Previous Post:
+<a href=../../../articles/2019/playing_with_cabal/>Playing with cabal</a></div></div></div></div><div class="container mt-5"><h2 class=text-center>See also</h2><div class=row><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2019/playing_with_cabal/>Playing with cabal</a></p><p class="lead font-italic mb-0">serverless code</p><div class="font-weight-light mt-3"><p>Cabal is a &ldquo;experimental p2p community chat platform&rdquo;. It&rsquo;s fully distributed over the dat protocol. When you create a new chat area &ndash; something like a Slack &ndash; it allows anyone with the same key to post and view messages everywhere. When you post a message, everyone gets it and shares it with everyone else, so even when your computer drops off there will still be a coherent view of the data.</p></div><a href=../../../articles/2019/playing_with_cabal/ class="btn btn-primary">Read more</a></div><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2019/splitting_git_repos_and_workdirectories/>Splitting Git Repos and Work Directories</a></p><p class="lead font-italic mb-0">all the fun things git can do</p><div class="font-weight-light mt-3"><p>I found a tutorial on how to manage your dotfiles, that works by splitting up the git repository (normally the .git directory) from the work directory. Since I have a lot of code that I put in my tutorials, I adapted the technique to have individual article directories mirrored in their own github repository.
+Repositories and Work Directories The normal usage of git is to type git clone &lt;remote> to get a copy of the local directory, mess with stuff, and then add and commit your changes.</p></div><a href=../../../articles/2019/splitting_git_repos_and_workdirectories/ class="btn btn-primary">Read more</a></div><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2019/setting_up_indieweb/>Setting up Indieweb Homepage</a></p><p class="lead font-italic mb-0">the dream of the nineties is alive on the indieweb</p><div class="font-weight-light mt-3"><p>Remember <a href=http://microformats.org/>microformats</a>? Me neither!
 Back when the web was open and we were trying to find ways to interconnect independent things?
-Let&rsquo;s bring them back!</p>
-          
-        </div>
-        <a href="../../../articles/2019/setting_up_indieweb/" class="btn btn-primary">Read more</a>
-      </div>
-    
-  </div>
-</div>
-
-
-<footer class="footer bg-dark text-light mt-3">
-  <div class="container">
-    <h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2>
-  </div>
-</footer>
-</body>
-</html>
+Let&rsquo;s bring them back!</p></div><a href=../../../articles/2019/setting_up_indieweb/ class="btn btn-primary">Read more</a></div></div></div><footer class="footer bg-dark text-light mt-3"><div class=container><h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2></div></footer></body></html>

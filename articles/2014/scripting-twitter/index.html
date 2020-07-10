@@ -1,503 +1,206 @@
-<!DOCTYPE html>
-<html><head>
-    <title>Scripting Twitter: Collecting Data and Writing Bots</title>
-    
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<!doctype html><html><head><title>Scripting Twitter: Collecting Data and Writing Bots</title><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><link rel=stylesheet href=../../../css/theme.css><link rel=stylesheet href=../../../css/syntax.css><script type=application/javascript>var doNotTrack=false;if(!doNotTrack){window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;ga('create','UA-56296045-1','auto');ga('send','pageview');}</script><script async src=https://www.google-analytics.com/analytics.js></script><script async defer data-domain=willschenk.com src=https://plausible.io/js/plausible.js></script><meta property="og:title" content="Scripting Twitter: Collecting Data and Writing Bots"><meta property="og:description" content="Lets build on our command line url exploring tool to look at how we can interact with Twitter. We are going to cover how to make a script that will pull information out of twitter, how to deal with its rate limiting, and how to interact with users on Twitter itself.
+Twitter uses OAuth 1.0A as a way to authenticate requests. As a script writer, this is super annoying, because you can&rsquo;t just stick a username and password in the environment and go from there."><meta property="og:type" content="article"><meta property="og:url" content="https://willschenk.com/articles/2014/scripting-twitter/"><meta property="article:published_time" content="2014-11-20T00:00:00+00:00"><meta property="article:modified_time" content="2014-11-20T00:00:00+00:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Scripting Twitter: Collecting Data and Writing Bots"><meta name=twitter:description content="Lets build on our command line url exploring tool to look at how we can interact with Twitter. We are going to cover how to make a script that will pull information out of twitter, how to deal with its rate limiting, and how to interact with users on Twitter itself.
+Twitter uses OAuth 1.0A as a way to authenticate requests. As a script writer, this is super annoying, because you can&rsquo;t just stick a username and password in the environment and go from there."><meta name=twitter:site content="@wschenk"><style>.article p,.article ul,.article ol,.article table{max-width:45em}.article pre p{max-width:none;margin-top:-1.5rem}article.article p:first-child,.article blockquote{font-size:1.25em;font-weight:300;max-width:36em}.half-height-scroll{max-height:32em;overflow:scroll}</style></head><body><nav class="container my-5"><h1 class="pt-md-5 display-3"><a class=text-dark href=../../../>Will Schenk</a></h1><p><a class="text-dark h4 mr-3 font-weight-light" href=../../../articles/>Articles</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../contact>Contact</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../tags/>Tags</a>
+<a href=../../../feed.xml class="mr-3 h4 text-light"><img src=../../../img/rss.svg alt=rss height=20 width=20></a>
+<a href=https://twitter.com/@wschenk class="mr-3 h4 text-light"><img src=../../../img/twitter.svg alt=twitter height=20 width=20></a>
+<a href=https://instagram.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/instagram.svg alt=instagram height=20 width=20></a>
+<a href=https://github.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/github.svg alt=github height=20 width=20></a>
+<a href=https://linkedin.com/in/will-schenk-420266 class="mr-3 h4 text-light"><img src=../../../img/linkedin.svg alt=linkedin height=20 width=20></a></p></nav><div class=container><h1 class=mt-5>Scripting Twitter: Collecting Data and Writing Bots</h1><h2 class="font-weight-light font-italic mb-3">adding another client to socialinvestigator</h2><p class="text-muted mt-3"><a class=text-muted href=https://willschenk.com/articles/2014/scripting-twitter/>Published November 20, 2014</a>
+<a class=text-muted href=../../../tags/ruby>#ruby</a>
+<a class=text-muted href=../../../tags/socialinvestigator>#socialinvestigator</a>
+<a class=text-muted href=../../../tags/bots>#bots</a>
+<a class=text-muted href=../../../tags/howto>#howto</a></p><div class="alert alert-danger">This article was published a while ago and may contain obsolete information!</div><article class="article mt-5"><p>Lets build on our <a href=http://willschenk.com/making-a-command-line-utility-with-gems-and-thor>command line url exploring tool</a> to look at how we can interact with Twitter. We are going to cover how to make a script that will pull information out of twitter, how to deal with its rate limiting, and how to interact with users on Twitter itself.</p><p>Twitter uses <a href=https://dev.twitter.com/oauth/overview/faq>OAuth 1.0A</a> as a way to authenticate requests. As a script writer, this is super annoying, because you can&rsquo;t just stick a username and password in the environment and go from there. You need to:</p><ol><li><a href=https://apps.twitter.com>Register you application with twitter</a>.</li><li>Store the &ldquo;client key&rdquo; for your application.</li><li>Get a user to grant your application access to twitter, and then use that &ldquo;authorization key&rdquo; to access the API.</li><li>Then figure out how to use the API.</li></ol><p>This is a bit overkill for building a simple script, especially since the 3 way process of having your application request access on behalf of a specific user on the twitters servers is a pain for a command line interface. And when you configure your application on twitter you need to specify a &ldquo;callback URL&rdquo;, which a) is different on development, staging and production webapp environments and b) you don&rsquo;t have a web app.</p><p>Luckily for you twitter has a work around.</p><h2 id=firstly-we-create-the-twitter-app>Firstly, we create the Twitter App</h2><ol><li>Go to <a href=https://apps.twitter.com/app/new>Create new Twitter App</a> and fill out the required fields. Specifically, leave <em>callback URL</em> blank for now.</li><li>Select <em>Keys and Access Tokens</em>. On this page, create an access token for your user with the <em>Generate Access Token</em> on the bottom of the page.</li></ol><p>Now we have four variables that our script needs to access twitter on behalf of your user.</p><ol><li>The consumer key represents your application.</li><li>The consumer secret represents your application&rsquo;s &ldquo;password&rdquo;.</li><li>The access token represents an authorization that a user has accepted.</li><li>The access token secret is there to make sure that access token is valid.</li></ol><p>Make note of these variables.</p><h2 id=then-we-code-with-the-rest-api>Then, we code with the REST API</h2><p>Make sure you have the twitter gem installed by typing:</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>$ gem install twitter
+</code></pre></div><p>We&rsquo;re eventually going to add this code our CLI gem, and that dependency will be created by adding the line</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=n>spec</span><span class=o>.</span><span class=n>add_dependency</span> <span class=s1>&#39;twitter&#39;</span>
+</code></pre></div><p>OK, lets put this in and see what we get:</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=nb>require</span> <span class=s1>&#39;thor&#39;</span>
+<span class=nb>require</span> <span class=s1>&#39;twitter&#39;</span>
+<span class=nb>require</span> <span class=s1>&#39;httparty&#39;</span>
 
-    <link rel="stylesheet" href="../../../css/theme.css"/>
-    <link rel="stylesheet" href="../../../css/syntax.css"/>
+<span class=no>TWITTER_APP_KEY</span><span class=o>=</span><span class=s2>&#34;rzlJXhI8...&#34;</span>
+<span class=no>TWITTER_APP_SECRET</span><span class=o>=</span><span class=s2>&#34;euF5bItp9w...&#34;</span>
+<span class=no>TWITTER_ACCESS_TOKEN</span><span class=o>=</span><span class=s2>&#34;17827...&#34;</span>
+<span class=no>TWITTER_ACCESS_TOKEN_SECRET</span><span class=o>=</span><span class=s2>&#34;7NSX...&#34;</span>
 
-    
-      
-<script type="application/javascript">
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
-	ga('create', 'UA-56296045-1', 'auto');
-	
-	ga('send', 'pageview');
-}
-</script>
-<script async src='https://www.google-analytics.com/analytics.js'></script>
+<span class=k>def</span> <span class=nf>print_user_info</span><span class=p>(</span> <span class=n>u</span> <span class=p>)</span>
+  <span class=n>t</span> <span class=o>=</span> <span class=s2>&#34;%-20s: %s</span><span class=se>\n</span><span class=s2>&#34;</span>
+  <span class=nb>printf</span> <span class=n>t</span><span class=p>,</span> <span class=s2>&#34;Screenname&#34;</span><span class=p>,</span> <span class=n>u</span><span class=o>.</span><span class=n>user_name</span>
+  <span class=nb>printf</span> <span class=n>t</span><span class=p>,</span> <span class=s2>&#34;Full Name&#34;</span><span class=p>,</span> <span class=n>u</span><span class=o>.</span><span class=n>name</span>
+  <span class=nb>printf</span> <span class=n>t</span><span class=p>,</span> <span class=s2>&#34;Bio&#34;</span><span class=p>,</span> <span class=n>u</span><span class=o>.</span><span class=n>description</span>
+  <span class=nb>printf</span> <span class=n>t</span><span class=p>,</span> <span class=s2>&#34;Website&#34;</span><span class=p>,</span> <span class=n>u</span><span class=o>.</span><span class=n>website</span><span class=o>.</span><span class=n>to_s</span>
+  <span class=nb>printf</span> <span class=n>t</span><span class=p>,</span> <span class=s2>&#34;Joined&#34;</span><span class=p>,</span> <span class=n>u</span><span class=o>.</span><span class=n>created_at</span><span class=o>.</span><span class=n>strftime</span><span class=p>(</span> <span class=s2>&#34;%Y-%m-%d&#34;</span> <span class=p>)</span>
+  <span class=nb>printf</span> <span class=n>t</span><span class=p>,</span> <span class=s2>&#34;Location&#34;</span><span class=p>,</span> <span class=n>u</span><span class=o>.</span><span class=n>location</span>
+  <span class=nb>printf</span> <span class=n>t</span><span class=p>,</span> <span class=s2>&#34;Verified&#34;</span><span class=p>,</span> <span class=n>u</span><span class=o>.</span><span class=n>verified?</span>
+  <span class=nb>printf</span> <span class=n>t</span><span class=p>,</span> <span class=s2>&#34;Tweets&#34;</span><span class=p>,</span> <span class=n>u</span><span class=o>.</span><span class=n>tweets_count</span>
+  <span class=nb>printf</span> <span class=n>t</span><span class=p>,</span> <span class=s2>&#34;Followers&#34;</span><span class=p>,</span> <span class=n>u</span><span class=o>.</span><span class=n>followers_count</span>
+  <span class=nb>printf</span> <span class=n>t</span><span class=p>,</span> <span class=s2>&#34;Following&#34;</span><span class=p>,</span> <span class=n>u</span><span class=o>.</span><span class=n>friends_count</span>
+  <span class=nb>printf</span> <span class=n>t</span><span class=p>,</span> <span class=s2>&#34;Favorites count&#34;</span><span class=p>,</span> <span class=n>u</span><span class=o>.</span><span class=n>favorites_count</span>
+<span class=k>end</span>
 
-      <script async defer data-domain="willschenk.com" src="https://plausible.io/js/plausible.js"></script>
-    
-    <meta property="og:title" content="Scripting Twitter: Collecting Data and Writing Bots" />
-<meta property="og:description" content="Lets build on our command line url exploring tool to look at how we can interact with Twitter. We are going to cover how to make a script that will pull information out of twitter, how to deal with its rate limiting, and how to interact with users on Twitter itself.
-Twitter uses OAuth 1.0A as a way to authenticate requests. As a script writer, this is super annoying, because you can&rsquo;t just stick a username and password in the environment and go from there." />
-<meta property="og:type" content="article" />
-<meta property="og:url" content="https://willschenk.com/articles/2014/scripting-twitter/" />
-<meta property="article:published_time" content="2014-11-20T00:00:00+00:00" />
-<meta property="article:modified_time" content="2014-11-20T00:00:00+00:00" />
+<span class=k>class</span> <span class=nc>CLI</span> <span class=o>&lt;</span> <span class=no>Thor</span>
+  <span class=n>desc</span> <span class=s2>&#34;user SCREENAME&#34;</span><span class=p>,</span> <span class=s2>&#34;Look up info for a specific user.&#34;</span>
+  <span class=k>def</span> <span class=nf>user</span><span class=p>(</span> <span class=n>username</span> <span class=p>)</span>
+    <span class=n>print_user_info</span> <span class=n>client</span><span class=o>.</span><span class=n>user</span><span class=p>(</span> <span class=s2>&#34;wschenk&#34;</span> <span class=p>)</span>
+  <span class=k>end</span>
 
-    <meta name="twitter:card" content="summary"/>
-<meta name="twitter:title" content="Scripting Twitter: Collecting Data and Writing Bots"/>
-<meta name="twitter:description" content="Lets build on our command line url exploring tool to look at how we can interact with Twitter. We are going to cover how to make a script that will pull information out of twitter, how to deal with its rate limiting, and how to interact with users on Twitter itself.
-Twitter uses OAuth 1.0A as a way to authenticate requests. As a script writer, this is super annoying, because you can&rsquo;t just stick a username and password in the environment and go from there."/>
-<meta name="twitter:site" content="@wschenk"/>
+<span class=c1># We will add more methods here</span>
 
+  <span class=kp>private</span>
+  <span class=k>def</span> <span class=nf>client</span>
+    <span class=vi>@client</span> <span class=o>||=</span> <span class=no>Twitter</span><span class=o>::</span><span class=no>REST</span><span class=o>::</span><span class=no>Client</span><span class=o>.</span><span class=n>new</span> <span class=k>do</span> <span class=o>|</span><span class=n>config</span><span class=o>|</span>
+      <span class=n>config</span><span class=o>.</span><span class=n>consumer_key</span>        <span class=o>=</span> <span class=no>TWITTER_APP_KEY</span>
+      <span class=n>config</span><span class=o>.</span><span class=n>consumer_secret</span>     <span class=o>=</span> <span class=no>TWITTER_APP_SECRET</span>
+      <span class=n>config</span><span class=o>.</span><span class=n>access_token</span>        <span class=o>=</span> <span class=no>TWITTER_ACCESS_TOKEN</span>
+      <span class=n>config</span><span class=o>.</span><span class=n>access_token_secret</span> <span class=o>=</span> <span class=no>TWITTER_ACCESS_TOKEN_SECRET</span>
+    <span class=k>end</span>
+  <span class=k>end</span>
+<span class=k>end</span>
 
-    <style>
-     .article p, .article ul, .article ol, .article table {
-         max-width: 45em;
-     }
-
-     .article pre p {
-         max-width: none;
-         margin-top: -1.5rem;
-     }
-
-     article.article p:first-child, .article blockquote {
-         font-size: 1.25em;
-         font-weight: 300;
-         max-width: 36em;  
-     }
-
-     .half-height-scroll {
-         max-height: 32em;
-         overflow: scroll;
-     }
-    </style>
-</head>
-<body><nav class="container my-5">
-  <h1 class="pt-md-5 display-3"><a class="text-dark" href="../../../">Will Schenk</a></h1>
-  <p>
-    
-      <a class="text-dark h4 mr-3 font-weight-light" href="../../../articles/" title="">Articles</a>
-    
-      <a class="text-dark h4 mr-3 font-weight-light" href="../../../contact" title="">Contact</a>
-    
-      <a class="text-dark h4 mr-3 font-weight-light" href="../../../tags/" title="">Tags</a>
-    
-    <a href="../../../feed.xml" class="mr-3 h4 text-light"><img src="../../../img/rss.svg" alt="rss" height="20" width="20"/></a>
-    
-      <a href="https://twitter.com/@wschenk" class="mr-3 h4 text-light"><img src="../../../img/twitter.svg" alt="twitter" height="20" width="20"/></a>
-    
-    
-      <a href="https://instagram.com/wschenk" class="mr-3 h4 text-light"><img src="../../../img/instagram.svg" alt="instagram" height="20" width="20"/></a>
-    
-    
-      <a href="https://github.com/wschenk" class="mr-3 h4 text-light"><img src="../../../img/github.svg" alt="github" height="20" width="20"/></a>
-    
-    
-      <a href="https://linkedin.com/in/will-schenk-420266" class="mr-3 h4 text-light"><img src="../../../img/linkedin.svg" alt="linkedin" height="20" width="20"/></a>
-    
-  </p>
-</nav>
-
-<div class="container">
-  <h1 class="mt-5">Scripting Twitter: Collecting Data and Writing Bots</h1>
-
-  
-    <h2 class="font-weight-light font-italic mb-3">adding another client to socialinvestigator</h2>
-  
-
-  <p class="text-muted mt-3">
-    <a class="text-muted" href="https://willschenk.com/articles/2014/scripting-twitter/">Published November 20, 2014</a>
-
-    
-      <a class="text-muted" href="../../../tags/ruby">#ruby</a>
-    
-      <a class="text-muted" href="../../../tags/socialinvestigator">#socialinvestigator</a>
-    
-      <a class="text-muted" href="../../../tags/bots">#bots</a>
-    
-      <a class="text-muted" href="../../../tags/howto">#howto</a>
-    
-  </p>
-
-  
-  <div class="alert alert-danger">This article was published a while ago and may contain obsolete information!</div>
-  
-
-  
-
-  <article class="article mt-5">
-    <p>Lets build on our <a href="http://willschenk.com/making-a-command-line-utility-with-gems-and-thor">command line url exploring tool</a> to look at how we can interact with Twitter.  We are going to cover how to make a script that will pull information out of twitter, how to deal with its rate limiting, and how to interact with users on Twitter itself.</p>
-<p>Twitter uses <a href="https://dev.twitter.com/oauth/overview/faq">OAuth 1.0A</a> as a way to authenticate requests.  As a script writer, this is super annoying, because you can&rsquo;t just stick a username and password in the environment and go from there.  You need to:</p>
-<ol>
-<li><a href="https://apps.twitter.com">Register you application with twitter</a>.</li>
-<li>Store the &ldquo;client key&rdquo; for your application.</li>
-<li>Get a user to grant your application access to twitter, and then use that &ldquo;authorization key&rdquo; to access the API.</li>
-<li>Then figure out how to use the API.</li>
-</ol>
-<p>This is a bit overkill for building a simple script, especially since the 3 way process of having your application request access on behalf of a specific user on the twitters servers is a pain for a command line interface.  And when you configure your application on twitter you need to specify a &ldquo;callback URL&rdquo;, which a) is different on development, staging and production webapp environments and b) you don&rsquo;t have a web app.</p>
-<p>Luckily for you twitter has a work around.</p>
-<h2 id="firstly-we-create-the-twitter-app">Firstly, we create the Twitter App</h2>
-<ol>
-<li>Go to <a href="https://apps.twitter.com/app/new">Create new Twitter App</a> and fill out the required fields.  Specifically, leave <em>callback URL</em> blank for now.</li>
-<li>Select <em>Keys and Access Tokens</em>.  On this page, create an access token for your user with the <em>Generate Access Token</em> on the bottom of the page.</li>
-</ol>
-<p>Now we have four variables that our script needs to access twitter on behalf of your user.</p>
-<ol>
-<li>The consumer key represents your application.</li>
-<li>The consumer secret represents your application&rsquo;s &ldquo;password&rdquo;.</li>
-<li>The access token represents an authorization that a user has accepted.</li>
-<li>The access token secret is there to make sure that access token is valid.</li>
-</ol>
-<p>Make note of these variables.</p>
-<h2 id="then-we-code-with-the-rest-api">Then, we code with the REST API</h2>
-<p>Make sure you have the twitter gem installed by typing:</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ gem install twitter
-</code></pre></div><p>We&rsquo;re eventually going to add this code our CLI gem, and that dependency will be created by adding the line</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="n">spec</span><span class="o">.</span><span class="n">add_dependency</span> <span class="s1">&#39;twitter&#39;</span>
-</code></pre></div><p>OK, lets put this in and see what we get:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="nb">require</span> <span class="s1">&#39;thor&#39;</span>
-<span class="nb">require</span> <span class="s1">&#39;twitter&#39;</span>
-<span class="nb">require</span> <span class="s1">&#39;httparty&#39;</span>
-
-<span class="no">TWITTER_APP_KEY</span><span class="o">=</span><span class="s2">&#34;rzlJXhI8...&#34;</span>
-<span class="no">TWITTER_APP_SECRET</span><span class="o">=</span><span class="s2">&#34;euF5bItp9w...&#34;</span>
-<span class="no">TWITTER_ACCESS_TOKEN</span><span class="o">=</span><span class="s2">&#34;17827...&#34;</span>
-<span class="no">TWITTER_ACCESS_TOKEN_SECRET</span><span class="o">=</span><span class="s2">&#34;7NSX...&#34;</span>
-
-<span class="k">def</span> <span class="nf">print_user_info</span><span class="p">(</span> <span class="n">u</span> <span class="p">)</span>
-  <span class="n">t</span> <span class="o">=</span> <span class="s2">&#34;%-20s: %s</span><span class="se">\n</span><span class="s2">&#34;</span>
-  <span class="nb">printf</span> <span class="n">t</span><span class="p">,</span> <span class="s2">&#34;Screenname&#34;</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">user_name</span>
-  <span class="nb">printf</span> <span class="n">t</span><span class="p">,</span> <span class="s2">&#34;Full Name&#34;</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">name</span>
-  <span class="nb">printf</span> <span class="n">t</span><span class="p">,</span> <span class="s2">&#34;Bio&#34;</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">description</span>
-  <span class="nb">printf</span> <span class="n">t</span><span class="p">,</span> <span class="s2">&#34;Website&#34;</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">website</span><span class="o">.</span><span class="n">to_s</span>
-  <span class="nb">printf</span> <span class="n">t</span><span class="p">,</span> <span class="s2">&#34;Joined&#34;</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">created_at</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span> <span class="s2">&#34;%Y-%m-%d&#34;</span> <span class="p">)</span>
-  <span class="nb">printf</span> <span class="n">t</span><span class="p">,</span> <span class="s2">&#34;Location&#34;</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">location</span>
-  <span class="nb">printf</span> <span class="n">t</span><span class="p">,</span> <span class="s2">&#34;Verified&#34;</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">verified?</span>
-  <span class="nb">printf</span> <span class="n">t</span><span class="p">,</span> <span class="s2">&#34;Tweets&#34;</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">tweets_count</span>
-  <span class="nb">printf</span> <span class="n">t</span><span class="p">,</span> <span class="s2">&#34;Followers&#34;</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">followers_count</span>
-  <span class="nb">printf</span> <span class="n">t</span><span class="p">,</span> <span class="s2">&#34;Following&#34;</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">friends_count</span>
-  <span class="nb">printf</span> <span class="n">t</span><span class="p">,</span> <span class="s2">&#34;Favorites count&#34;</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">favorites_count</span>
-<span class="k">end</span>
-
-<span class="k">class</span> <span class="nc">CLI</span> <span class="o">&lt;</span> <span class="no">Thor</span>
-  <span class="n">desc</span> <span class="s2">&#34;user SCREENAME&#34;</span><span class="p">,</span> <span class="s2">&#34;Look up info for a specific user.&#34;</span>
-  <span class="k">def</span> <span class="nf">user</span><span class="p">(</span> <span class="n">username</span> <span class="p">)</span>
-    <span class="n">print_user_info</span> <span class="n">client</span><span class="o">.</span><span class="n">user</span><span class="p">(</span> <span class="s2">&#34;wschenk&#34;</span> <span class="p">)</span>
-  <span class="k">end</span>
-
-<span class="c1"># We will add more methods here</span>
-
-  <span class="kp">private</span>
-  <span class="k">def</span> <span class="nf">client</span>
-    <span class="vi">@client</span> <span class="o">||=</span> <span class="no">Twitter</span><span class="o">::</span><span class="no">REST</span><span class="o">::</span><span class="no">Client</span><span class="o">.</span><span class="n">new</span> <span class="k">do</span> <span class="o">|</span><span class="n">config</span><span class="o">|</span>
-      <span class="n">config</span><span class="o">.</span><span class="n">consumer_key</span>        <span class="o">=</span> <span class="no">TWITTER_APP_KEY</span>
-      <span class="n">config</span><span class="o">.</span><span class="n">consumer_secret</span>     <span class="o">=</span> <span class="no">TWITTER_APP_SECRET</span>
-      <span class="n">config</span><span class="o">.</span><span class="n">access_token</span>        <span class="o">=</span> <span class="no">TWITTER_ACCESS_TOKEN</span>
-      <span class="n">config</span><span class="o">.</span><span class="n">access_token_secret</span> <span class="o">=</span> <span class="no">TWITTER_ACCESS_TOKEN_SECRET</span>
-    <span class="k">end</span>
-  <span class="k">end</span>
-<span class="k">end</span>
-
-<span class="c1"># Only run if the script is called directly</span>
-<span class="k">if</span> <span class="bp">__FILE__</span> <span class="o">==</span> <span class="vg">$0</span>
-  <span class="no">CLI</span><span class="o">.</span><span class="n">start</span><span class="p">(</span> <span class="no">ARGV</span> <span class="p">)</span>
-<span class="k">end</span>
-</code></pre></div><p>When we run this, we get:</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ ruby lib/socialinvestigator/client/twitter.rb wschenk
+<span class=c1># Only run if the script is called directly</span>
+<span class=k>if</span> <span class=bp>__FILE__</span> <span class=o>==</span> <span class=vg>$0</span>
+  <span class=no>CLI</span><span class=o>.</span><span class=n>start</span><span class=p>(</span> <span class=no>ARGV</span> <span class=p>)</span>
+<span class=k>end</span>
+</code></pre></div><p>When we run this, we get:</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>$ ruby lib/socialinvestigator/client/twitter.rb wschenk
 Screenname          : wschenk
 Full Name           : Will Schenk
 Bio                 : Co-Founder of HappyFunCorp.
 Website             : http://t.co/OA0tQaQiAX
 Joined              : 2006-12-22
 Location            : Brooklyn NY
-Verified            : <span class="nb">false</span>
-Tweets              : <span class="m">1674</span>
-Followers           : <span class="m">330</span>
-Following           : <span class="m">418</span>
-Favorites count     : <span class="m">17</span>
-</code></pre></div><p><em>For those keeping score at home, that&rsquo;s 209 tweets a year.</em></p>
-<p>We create a <code>Twitter::REST::Client</code>, passing in the variables that we got when we created the twitter app.  Eventually we&rsquo;ll out grow hardcoding them into the script, but for now replace the dummy values I have above with what you have and try it with some screen names.</p>
-<h2 id="longing-for-oa0tqaqiax">Longing for OA0tQaQiAX</h2>
-<p>If there&rsquo;s one word that describes URL shorteners, that word is <em>rude</em>.  This magical place where anyone can setup shop and link directly to other people now is now infested with middle men, who may indeed be useful but are even less popular than used car salesmen.  URL shorteners are services that <em>intermediate</em> the actual destination of the link in order to better track who clicks on the link.  You create many shortened links and give them out to different people, and when the world at large clicks on one of them you know who they got it from.</p>
-<p>The easiest way to resolve the link is to make a <code>HEAD</code> HTTP request to the shortening service and print where they redirect you to.  If there&rsquo;s no location in the response, we&rsquo;ll just return the url that was passed in.</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="k">def</span> <span class="nf">lookup_url</span><span class="p">(</span> <span class="n">url</span> <span class="p">)</span>
-  <span class="k">return</span> <span class="n">url</span> <span class="k">if</span> <span class="n">url</span><span class="o">.</span><span class="n">nil?</span> <span class="o">||</span> <span class="n">url</span> <span class="o">==</span> <span class="s2">&#34;&#34;</span>
-  <span class="n">r</span> <span class="o">=</span> <span class="no">HTTParty</span><span class="o">.</span><span class="n">head</span> <span class="n">url</span><span class="p">,</span> <span class="p">{</span> <span class="ss">follow_redirects</span><span class="p">:</span> <span class="kp">false</span> <span class="p">}</span>
-  <span class="n">r</span><span class="o">[</span><span class="s1">&#39;location&#39;</span><span class="o">]</span> <span class="o">||</span> <span class="n">url</span>
-<span class="k">end</span>
-</code></pre></div><p>and lets add a Thor command for it too, in the <code>CLI</code> class, why not:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="n">desc</span> <span class="s2">&#34;lookup URL&#34;</span><span class="p">,</span> <span class="s2">&#34;Resolve a link&#34;</span>
-  <span class="k">def</span> <span class="nf">lookup</span><span class="p">(</span> <span class="n">url</span> <span class="p">)</span>
-    <span class="nb">puts</span> <span class="n">lookup_url</span><span class="p">(</span> <span class="n">url</span> <span class="p">)</span>
-  <span class="k">end</span>
-</code></pre></div><p>Now we can see that</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ ruby twitter.rb lookup  http://t.co/OA0tQaQiAX
+Verified            : <span class=nb>false</span>
+Tweets              : <span class=m>1674</span>
+Followers           : <span class=m>330</span>
+Following           : <span class=m>418</span>
+Favorites count     : <span class=m>17</span>
+</code></pre></div><p><em>For those keeping score at home, that&rsquo;s 209 tweets a year.</em></p><p>We create a <code>Twitter::REST::Client</code>, passing in the variables that we got when we created the twitter app. Eventually we&rsquo;ll out grow hardcoding them into the script, but for now replace the dummy values I have above with what you have and try it with some screen names.</p><h2 id=longing-for-oa0tqaqiax>Longing for OA0tQaQiAX</h2><p>If there&rsquo;s one word that describes URL shorteners, that word is <em>rude</em>. This magical place where anyone can setup shop and link directly to other people now is now infested with middle men, who may indeed be useful but are even less popular than used car salesmen. URL shorteners are services that <em>intermediate</em> the actual destination of the link in order to better track who clicks on the link. You create many shortened links and give them out to different people, and when the world at large clicks on one of them you know who they got it from.</p><p>The easiest way to resolve the link is to make a <code>HEAD</code> HTTP request to the shortening service and print where they redirect you to. If there&rsquo;s no location in the response, we&rsquo;ll just return the url that was passed in.</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=k>def</span> <span class=nf>lookup_url</span><span class=p>(</span> <span class=n>url</span> <span class=p>)</span>
+  <span class=k>return</span> <span class=n>url</span> <span class=k>if</span> <span class=n>url</span><span class=o>.</span><span class=n>nil?</span> <span class=o>||</span> <span class=n>url</span> <span class=o>==</span> <span class=s2>&#34;&#34;</span>
+  <span class=n>r</span> <span class=o>=</span> <span class=no>HTTParty</span><span class=o>.</span><span class=n>head</span> <span class=n>url</span><span class=p>,</span> <span class=p>{</span> <span class=ss>follow_redirects</span><span class=p>:</span> <span class=kp>false</span> <span class=p>}</span>
+  <span class=n>r</span><span class=o>[</span><span class=s1>&#39;location&#39;</span><span class=o>]</span> <span class=o>||</span> <span class=n>url</span>
+<span class=k>end</span>
+</code></pre></div><p>and lets add a Thor command for it too, in the <code>CLI</code> class, why not:</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=n>desc</span> <span class=s2>&#34;lookup URL&#34;</span><span class=p>,</span> <span class=s2>&#34;Resolve a link&#34;</span>
+  <span class=k>def</span> <span class=nf>lookup</span><span class=p>(</span> <span class=n>url</span> <span class=p>)</span>
+    <span class=nb>puts</span> <span class=n>lookup_url</span><span class=p>(</span> <span class=n>url</span> <span class=p>)</span>
+  <span class=k>end</span>
+</code></pre></div><p>Now we can see that</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>$ ruby twitter.rb lookup  http://t.co/OA0tQaQiAX
 http://happyfuncorp.com
 $ ruby twitter.rb lookup  http://happyfuncorp.com
 http://happyfuncorp.com
-</code></pre></div><p>So we can update the website <code>printf</code> line to be:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="nb">printf</span> <span class="n">t</span><span class="p">,</span> <span class="s2">&#34;Website&#34;</span><span class="p">,</span> <span class="n">lookup_url</span><span class="p">(</span> <span class="n">u</span><span class="o">.</span><span class="n">website</span><span class="o">.</span><span class="n">to_s</span> <span class="p">)</span>
-</code></pre></div><h2 id="tweets-timelines-mentions-retweets">Tweets timelines mentions retweets</h2>
-<p>With read access, you can pull down some basic stuff.</p>
-<p>Load the recent tweets this user has made:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="n">desc</span> <span class="s2">&#34;user_timeline&#34;</span><span class="p">,</span> <span class="s2">&#34;Show the authenticated user&#39;s tweets&#34;</span>
-  <span class="k">def</span> <span class="nf">user_timeline</span>
-    <span class="n">client</span><span class="o">.</span><span class="n">user_timeline</span><span class="o">.</span><span class="n">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">tweet</span><span class="o">|</span>
-      <span class="nb">puts</span> <span class="s2">&#34;@</span><span class="si">#{</span><span class="n">tweet</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">user_name</span><span class="si">}</span><span class="s2">:</span><span class="si">#{</span><span class="n">tweet</span><span class="o">.</span><span class="n">text</span><span class="si">}</span><span class="s2">&#34;</span>
-    <span class="k">end</span>
-  <span class="k">end</span>
-</code></pre></div><p>Show the tweets of people who they are following:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="n">desc</span> <span class="s2">&#34;home_timeline&#34;</span><span class="p">,</span> <span class="s2">&#34;Show the authenticated user&#39;s timeline&#34;</span>
-  <span class="k">def</span> <span class="nf">home_timeline</span>
-    <span class="n">client</span><span class="o">.</span><span class="n">home_timeline</span><span class="o">.</span><span class="n">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">tweet</span><span class="o">|</span>
-      <span class="nb">puts</span> <span class="s2">&#34;@</span><span class="si">#{</span><span class="n">tweet</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">user_name</span><span class="si">}</span><span class="s2">:</span><span class="si">#{</span><span class="n">tweet</span><span class="o">.</span><span class="n">text</span><span class="si">}</span><span class="s2">&#34;</span>
-    <span class="k">end</span>
-  <span class="k">end</span>
-</code></pre></div><p>Show which of their tweets have been retweeted:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="n">desc</span> <span class="s2">&#34;retweets&#34;</span><span class="p">,</span> <span class="s2">&#34;Show the authenticated user&#39;s retweets&#34;</span>
-  <span class="k">def</span> <span class="nf">retweets</span>
-    <span class="n">client</span><span class="o">.</span><span class="n">retweets_of_me</span><span class="o">.</span><span class="n">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">tweet</span><span class="o">|</span>
-      <span class="nb">puts</span> <span class="s2">&#34;@</span><span class="si">#{</span><span class="n">tweet</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">user_name</span><span class="si">}</span><span class="s2">:</span><span class="si">#{</span><span class="n">tweet</span><span class="o">.</span><span class="n">text</span><span class="si">}</span><span class="s2">&#34;</span>
-    <span class="k">end</span>
-  <span class="k">end</span>
-</code></pre></div><p>Pull down only the tweets that mention the authentication user:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="n">desc</span> <span class="s2">&#34;mentions&#34;</span><span class="p">,</span> <span class="s2">&#34;Show the authenticated user&#39;s mentions&#34;</span>
-  <span class="k">def</span> <span class="nf">mentions</span>
-    <span class="n">client</span><span class="o">.</span><span class="n">mentions</span><span class="o">.</span><span class="n">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">tweet</span><span class="o">|</span>
-      <span class="nb">puts</span> <span class="s2">&#34;@</span><span class="si">#{</span><span class="n">tweet</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">user_name</span><span class="si">}</span><span class="s2">:</span><span class="si">#{</span><span class="n">tweet</span><span class="o">.</span><span class="n">text</span><span class="si">}</span><span class="s2">&#34;</span>
-    <span class="k">end</span>
-  <span class="k">end</span>
-</code></pre></div><p>If you are building a bot, for example, that you wanted to respond when someone tweets at it, you could use the <code>client.mentions</code> method to get those tweets in particular.  You&rsquo;d need a way to make sure you don&rsquo;t double respond to people each time the bot was run.  If you wanted to always have the bot running, look at the Streaming API below.  If you want to know how to post to twitter, read on.</p>
-<h2 id="rate-limits-on-the-rest-interface">Rate Limits on the REST interface</h2>
-<p>Unlike Google, who casually has enough computer power to do personalized type ahead search of the <em>entire internet</em> at <em>a global scale</em>, Twitter is prickly about <a href="https://dev.twitter.com/rest/public/rate-limiting">you hammering their site</a>.  Personally, I thought that <a href="http://readwrite.com/2008/07/17/the_story_of_the_fail_whale">the fail whale</a> was really fun.  Let&rsquo;s add a another <code>CLI</code> command to print out the current rate limit status, how many calls you have left, and when your counter for that resource will reset:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="n">desc</span> <span class="s2">&#34;limits&#34;</span><span class="p">,</span> <span class="s2">&#34;Print out the current rate limits&#34;</span>
-  <span class="k">def</span> <span class="nf">limits</span>
-    <span class="n">resp</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span> <span class="s2">&#34;/1.1/application/rate_limit_status.json&#34;</span> <span class="p">)</span>
-    <span class="n">current_time</span> <span class="o">=</span> <span class="no">Time</span><span class="o">.</span><span class="n">now</span><span class="o">.</span><span class="n">to_i</span>
-    <span class="n">template</span> <span class="o">=</span> <span class="s2">&#34;   %-40s %5d remaining, resets in %3d seconds</span><span class="se">\n</span><span class="s2">&#34;</span>
-    <span class="n">resp</span><span class="o">.</span><span class="n">body</span><span class="o">[</span><span class="ss">:resources</span><span class="o">].</span><span class="n">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">category</span><span class="p">,</span><span class="n">resources</span><span class="o">|</span>
-      <span class="nb">puts</span> <span class="n">category</span><span class="o">.</span><span class="n">to_s</span>
-      <span class="n">resources</span><span class="o">.</span><span class="n">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">resource</span><span class="p">,</span><span class="n">info</span><span class="o">|</span>
-        <span class="nb">printf</span> <span class="n">template</span><span class="p">,</span> <span class="n">resource</span><span class="o">.</span><span class="n">to_s</span><span class="p">,</span> <span class="n">info</span><span class="o">[</span><span class="ss">:remaining</span><span class="o">]</span><span class="p">,</span> <span class="n">info</span><span class="o">[</span><span class="ss">:reset</span><span class="o">]</span> <span class="o">-</span> <span class="n">current_time</span>
-      <span class="k">end</span>
-    <span class="k">end</span>
-  <span class="k">end</span>
-</code></pre></div><p>Note that I&rsquo;m making the request using <code>client.get</code> which will make an arbitrary authenticated request to the Twitter api.  This <a href="https://dev.twitter.com/rest/reference/get/application/rate_limit_status">particular api call</a> isn&rsquo;t in the Twitter gem, though the gem is aware of the limits and will throw specific exceptions when you hit those limits.</p>
-<p>The gem provides methods on top of this <code>client.get</code> interface, which may use more API calls then you expect.  Methods like <code>client.user_timeline</code> and <code>client.followers</code> return <code>Twitter::Cursor</code> objects, which you can iterate over in ruby as you&rsquo;d expect, but may trigger multiple API calls throughout the process which you might not expect.  You&rsquo;ll potentially get an exception in the middle of things, and you&rsquo;ll need to figure a way around this.  In a later post we will get into caching and retry strategies, but since it will dramatically increase the complexity we&rsquo;ll keep things simple for now.  <em>Punt!</em></p>
-<p>This basic code will catch the <code>TooManyRequests</code> exception and sleep the process until it&rsquo;s ready to go again.  This could take a very very long time.</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="n">follower_ids</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">follower_ids</span><span class="p">(</span><span class="s1">&#39;justinbieber&#39;</span><span class="p">)</span>
+</code></pre></div><p>So we can update the website <code>printf</code> line to be:</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=nb>printf</span> <span class=n>t</span><span class=p>,</span> <span class=s2>&#34;Website&#34;</span><span class=p>,</span> <span class=n>lookup_url</span><span class=p>(</span> <span class=n>u</span><span class=o>.</span><span class=n>website</span><span class=o>.</span><span class=n>to_s</span> <span class=p>)</span>
+</code></pre></div><h2 id=tweets-timelines-mentions-retweets>Tweets timelines mentions retweets</h2><p>With read access, you can pull down some basic stuff.</p><p>Load the recent tweets this user has made:</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=n>desc</span> <span class=s2>&#34;user_timeline&#34;</span><span class=p>,</span> <span class=s2>&#34;Show the authenticated user&#39;s tweets&#34;</span>
+  <span class=k>def</span> <span class=nf>user_timeline</span>
+    <span class=n>client</span><span class=o>.</span><span class=n>user_timeline</span><span class=o>.</span><span class=n>each</span> <span class=k>do</span> <span class=o>|</span><span class=n>tweet</span><span class=o>|</span>
+      <span class=nb>puts</span> <span class=s2>&#34;@</span><span class=si>#{</span><span class=n>tweet</span><span class=o>.</span><span class=n>user</span><span class=o>.</span><span class=n>user_name</span><span class=si>}</span><span class=s2>:</span><span class=si>#{</span><span class=n>tweet</span><span class=o>.</span><span class=n>text</span><span class=si>}</span><span class=s2>&#34;</span>
+    <span class=k>end</span>
+  <span class=k>end</span>
+</code></pre></div><p>Show the tweets of people who they are following:</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=n>desc</span> <span class=s2>&#34;home_timeline&#34;</span><span class=p>,</span> <span class=s2>&#34;Show the authenticated user&#39;s timeline&#34;</span>
+  <span class=k>def</span> <span class=nf>home_timeline</span>
+    <span class=n>client</span><span class=o>.</span><span class=n>home_timeline</span><span class=o>.</span><span class=n>each</span> <span class=k>do</span> <span class=o>|</span><span class=n>tweet</span><span class=o>|</span>
+      <span class=nb>puts</span> <span class=s2>&#34;@</span><span class=si>#{</span><span class=n>tweet</span><span class=o>.</span><span class=n>user</span><span class=o>.</span><span class=n>user_name</span><span class=si>}</span><span class=s2>:</span><span class=si>#{</span><span class=n>tweet</span><span class=o>.</span><span class=n>text</span><span class=si>}</span><span class=s2>&#34;</span>
+    <span class=k>end</span>
+  <span class=k>end</span>
+</code></pre></div><p>Show which of their tweets have been retweeted:</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=n>desc</span> <span class=s2>&#34;retweets&#34;</span><span class=p>,</span> <span class=s2>&#34;Show the authenticated user&#39;s retweets&#34;</span>
+  <span class=k>def</span> <span class=nf>retweets</span>
+    <span class=n>client</span><span class=o>.</span><span class=n>retweets_of_me</span><span class=o>.</span><span class=n>each</span> <span class=k>do</span> <span class=o>|</span><span class=n>tweet</span><span class=o>|</span>
+      <span class=nb>puts</span> <span class=s2>&#34;@</span><span class=si>#{</span><span class=n>tweet</span><span class=o>.</span><span class=n>user</span><span class=o>.</span><span class=n>user_name</span><span class=si>}</span><span class=s2>:</span><span class=si>#{</span><span class=n>tweet</span><span class=o>.</span><span class=n>text</span><span class=si>}</span><span class=s2>&#34;</span>
+    <span class=k>end</span>
+  <span class=k>end</span>
+</code></pre></div><p>Pull down only the tweets that mention the authentication user:</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=n>desc</span> <span class=s2>&#34;mentions&#34;</span><span class=p>,</span> <span class=s2>&#34;Show the authenticated user&#39;s mentions&#34;</span>
+  <span class=k>def</span> <span class=nf>mentions</span>
+    <span class=n>client</span><span class=o>.</span><span class=n>mentions</span><span class=o>.</span><span class=n>each</span> <span class=k>do</span> <span class=o>|</span><span class=n>tweet</span><span class=o>|</span>
+      <span class=nb>puts</span> <span class=s2>&#34;@</span><span class=si>#{</span><span class=n>tweet</span><span class=o>.</span><span class=n>user</span><span class=o>.</span><span class=n>user_name</span><span class=si>}</span><span class=s2>:</span><span class=si>#{</span><span class=n>tweet</span><span class=o>.</span><span class=n>text</span><span class=si>}</span><span class=s2>&#34;</span>
+    <span class=k>end</span>
+  <span class=k>end</span>
+</code></pre></div><p>If you are building a bot, for example, that you wanted to respond when someone tweets at it, you could use the <code>client.mentions</code> method to get those tweets in particular. You&rsquo;d need a way to make sure you don&rsquo;t double respond to people each time the bot was run. If you wanted to always have the bot running, look at the Streaming API below. If you want to know how to post to twitter, read on.</p><h2 id=rate-limits-on-the-rest-interface>Rate Limits on the REST interface</h2><p>Unlike Google, who casually has enough computer power to do personalized type ahead search of the <em>entire internet</em> at <em>a global scale</em>, Twitter is prickly about <a href=https://dev.twitter.com/rest/public/rate-limiting>you hammering their site</a>. Personally, I thought that <a href=http://readwrite.com/2008/07/17/the_story_of_the_fail_whale>the fail whale</a> was really fun. Let&rsquo;s add a another <code>CLI</code> command to print out the current rate limit status, how many calls you have left, and when your counter for that resource will reset:</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=n>desc</span> <span class=s2>&#34;limits&#34;</span><span class=p>,</span> <span class=s2>&#34;Print out the current rate limits&#34;</span>
+  <span class=k>def</span> <span class=nf>limits</span>
+    <span class=n>resp</span> <span class=o>=</span> <span class=n>client</span><span class=o>.</span><span class=n>get</span><span class=p>(</span> <span class=s2>&#34;/1.1/application/rate_limit_status.json&#34;</span> <span class=p>)</span>
+    <span class=n>current_time</span> <span class=o>=</span> <span class=no>Time</span><span class=o>.</span><span class=n>now</span><span class=o>.</span><span class=n>to_i</span>
+    <span class=n>template</span> <span class=o>=</span> <span class=s2>&#34;   %-40s %5d remaining, resets in %3d seconds</span><span class=se>\n</span><span class=s2>&#34;</span>
+    <span class=n>resp</span><span class=o>.</span><span class=n>body</span><span class=o>[</span><span class=ss>:resources</span><span class=o>].</span><span class=n>each</span> <span class=k>do</span> <span class=o>|</span><span class=n>category</span><span class=p>,</span><span class=n>resources</span><span class=o>|</span>
+      <span class=nb>puts</span> <span class=n>category</span><span class=o>.</span><span class=n>to_s</span>
+      <span class=n>resources</span><span class=o>.</span><span class=n>each</span> <span class=k>do</span> <span class=o>|</span><span class=n>resource</span><span class=p>,</span><span class=n>info</span><span class=o>|</span>
+        <span class=nb>printf</span> <span class=n>template</span><span class=p>,</span> <span class=n>resource</span><span class=o>.</span><span class=n>to_s</span><span class=p>,</span> <span class=n>info</span><span class=o>[</span><span class=ss>:remaining</span><span class=o>]</span><span class=p>,</span> <span class=n>info</span><span class=o>[</span><span class=ss>:reset</span><span class=o>]</span> <span class=o>-</span> <span class=n>current_time</span>
+      <span class=k>end</span>
+    <span class=k>end</span>
+  <span class=k>end</span>
+</code></pre></div><p>Note that I&rsquo;m making the request using <code>client.get</code> which will make an arbitrary authenticated request to the Twitter api. This <a href=https://dev.twitter.com/rest/reference/get/application/rate_limit_status>particular api call</a> isn&rsquo;t in the Twitter gem, though the gem is aware of the limits and will throw specific exceptions when you hit those limits.</p><p>The gem provides methods on top of this <code>client.get</code> interface, which may use more API calls then you expect. Methods like <code>client.user_timeline</code> and <code>client.followers</code> return <code>Twitter::Cursor</code> objects, which you can iterate over in ruby as you&rsquo;d expect, but may trigger multiple API calls throughout the process which you might not expect. You&rsquo;ll potentially get an exception in the middle of things, and you&rsquo;ll need to figure a way around this. In a later post we will get into caching and retry strategies, but since it will dramatically increase the complexity we&rsquo;ll keep things simple for now. <em>Punt!</em></p><p>This basic code will catch the <code>TooManyRequests</code> exception and sleep the process until it&rsquo;s ready to go again. This could take a very very long time.</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=n>follower_ids</span> <span class=o>=</span> <span class=n>client</span><span class=o>.</span><span class=n>follower_ids</span><span class=p>(</span><span class=s1>&#39;justinbieber&#39;</span><span class=p>)</span>
 
-<span class="k">begin</span>
-  <span class="n">follower_ids</span><span class="o">.</span><span class="n">to_a</span>
-<span class="k">rescue</span> <span class="no">Twitter</span><span class="o">::</span><span class="no">Error</span><span class="o">::</span><span class="no">TooManyRequests</span> <span class="o">=&gt;</span> <span class="n">error</span>
-  <span class="c1"># NOTE: Your process could go to sleep for up to 15 minutes but if you</span>
-  <span class="c1"># retry any sooner, it will almost certainly fail with the same exception.</span>
-  <span class="nb">sleep</span> <span class="n">error</span><span class="o">.</span><span class="n">rate_limit</span><span class="o">.</span><span class="n">reset_in</span> <span class="o">+</span> <span class="mi">1</span>
-  <span class="k">retry</span>
-<span class="k">end</span>
-</code></pre></div><h2 id="listing-followers">Listing followers</h2>
-<p>To see what that looks like, lets add another <code>CLI</code> command for listing a person&rsquo;s followers:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="n">desc</span> <span class="s2">&#34;followers SCREENNAME&#34;</span><span class="p">,</span> <span class="s2">&#34;Prints out all of the users followers&#34;</span>
-  <span class="k">def</span> <span class="nf">followers</span><span class="p">(</span> <span class="n">screenname</span> <span class="p">)</span>
-    <span class="n">client</span><span class="o">.</span><span class="n">followers</span><span class="p">(</span> <span class="n">screenname</span> <span class="p">)</span><span class="o">.</span><span class="n">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">u</span><span class="o">|</span>
-      <span class="nb">printf</span><span class="p">(</span> <span class="s2">&#34;@%-15s %-20s %s</span><span class="se">\n</span><span class="s2">&#34;</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">user_name</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">description</span> <span class="p">)</span>
-    <span class="k">end</span>
-  <span class="k">end</span>
-</code></pre></div><p>And if we run this on someone will a lot of followers, you&rsquo;ll see the <code>Twitter::Error::TooManyRequests</code> thrown.  We can look use our limits command above to see how long we have to wait until it resets.  Though, since we don&rsquo;t have any smart retrying logic in place, chances are it will still fail when we try it again.</p>
-<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">$ ruby twitter.rb limits <span class="p">|</span> grep /followers/list
-   /followers/list        <span class="m">0</span> remaining, resets in <span class="m">288</span> seconds
-</code></pre></div><h2 id="searching-for-urls">Searching for URLs</h2>
-<p>There are different types of URLs on twitter.  Lets look at a specific tweet of mine, 529342690476179456, to see what there is:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="o">&gt;</span> <span class="n">tweet</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">status</span><span class="p">(</span> <span class="mi">529342690476179456</span> <span class="p">)</span>
- <span class="o">=&gt;</span> <span class="c1">#&lt;Twitter::Tweet id=529342690476179456&gt;</span>
-<span class="o">&gt;</span> <span class="n">tweet</span><span class="o">.</span><span class="n">uris</span>
- <span class="o">=&gt;</span> <span class="o">[</span><span class="c1">#&lt;Twitter::Entity::URI:0x007ff614b0fce0 @attrs={:url=&gt;&#34;http://t.co/frfwwIqrYB&#34;, :expanded_url=&gt;&#34;http://willschenk.com/bootstrap-advanced-grid-tricks&#34;, :display_url=&gt;&#34;willschenk.com/bootstrap-adva…&#34;, :indices=&gt;[67, 89]}&gt;]</span>
-</code></pre></div><p><code>:url</code> is the actual link that get&rsquo;s clicked, and in your logs, the one that will show up as the referer.</p>
-<p><code>:expanded_url</code> is the end link.</p>
-<p><code>:display_url</code> is a shortened version of the end link.</p>
-<p>In the twitter search box we can type in <code>http://willschenk.com/bootstrap-advanced-grid-tricks</code> and that will match all tweets that go to this URL, regardless of which URL shortening service they use.  (To clarify, all those services which Twitter has support for, which for our purposes is all.)  If we type in <code>http://t.co/frfwwIqrYB</code> to the twitter search it won&rsquo;t match the tweet, but if we do <em>an exact search</em>, with quotes around it like so: <code>&quot;http://t.co/frfwwIqrYB&quot;</code> we will match the tweet.</p>
-<p>Let&rsquo;s write some code:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="n">desc</span> <span class="s2">&#34;search STRING&#34;</span><span class="p">,</span> <span class="s2">&#34;Shows all the tweets that match the string&#34;</span>
-  <span class="n">options</span> <span class="o">[</span><span class="ss">:exact</span><span class="p">,</span> <span class="ss">:user_info</span><span class="o">]</span>
-  <span class="k">def</span> <span class="nf">search</span><span class="p">(</span> <span class="n">string</span> <span class="p">)</span>
-    <span class="n">string</span> <span class="o">=</span> <span class="s2">&#34;</span><span class="se">\&#34;</span><span class="si">#{</span><span class="n">string</span><span class="si">}</span><span class="se">\&#34;</span><span class="s2">&#34;</span> <span class="k">if</span> <span class="n">options</span><span class="o">[</span><span class="ss">:exact</span><span class="o">]</span>
-    <span class="n">reach</span> <span class="o">=</span> <span class="mi">0</span>
-    <span class="n">client</span><span class="o">.</span><span class="n">search</span><span class="p">(</span> <span class="n">string</span><span class="p">,</span> <span class="ss">count</span><span class="p">:</span> <span class="mi">100</span> <span class="p">)</span><span class="o">.</span><span class="n">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">t</span><span class="o">|</span>
-      <span class="nb">puts</span> <span class="s2">&#34;</span><span class="si">#{</span><span class="n">t</span><span class="o">.</span><span class="n">id</span><span class="si">}</span><span class="s2">:</span><span class="si">#{</span><span class="n">t</span><span class="o">.</span><span class="n">created_at</span><span class="si">}</span><span class="s2">:@</span><span class="si">#{</span><span class="n">t</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">user_name</span><span class="si">}</span><span class="s2">:</span><span class="si">#{</span><span class="n">t</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">followers_count</span><span class="si">}</span><span class="s2">:</span><span class="si">#{</span><span class="n">t</span><span class="o">.</span><span class="n">retweet_count</span><span class="si">}</span><span class="s2">:</span><span class="si">#{</span><span class="n">t</span><span class="o">.</span><span class="n">text</span><span class="si">}</span><span class="s2">&#34;</span>
-      <span class="n">reach</span> <span class="o">+=</span> <span class="n">t</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">followers_count</span>
-      <span class="k">if</span> <span class="n">options</span><span class="o">[</span><span class="ss">:user_info</span><span class="o">]</span>
-        <span class="n">print_user_info</span> <span class="n">t</span><span class="o">.</span><span class="n">user</span> <span class="k">if</span> <span class="n">options</span><span class="o">[</span><span class="ss">:user_info</span><span class="o">]</span>
-        <span class="nb">puts</span>
-      <span class="k">end</span>
-    <span class="k">end</span>
-    <span class="nb">puts</span> <span class="s2">&#34;</span><span class="si">#{</span><span class="n">string</span><span class="si">}</span><span class="s2"> reached </span><span class="si">#{</span><span class="n">reach</span><span class="si">}</span><span class="s2"> people.&#34;</span>
-  <span class="k">end</span>
-</code></pre></div><p>This will print out the tweet id, when it was created, who tweeted it, how many followers they had, how many times it was retweeted, and the text of the tweet.  <em>Whew!</em> Since there&rsquo;s so much stuff here we made it <code>:</code> separated on one line, in case you want to parse it with something else.</p>
-<p>The option <code>--exact</code> will put quotes around the search string, so if you are looking up a tweet from your referrers you can find which tweet sent people to your site.</p>
-<p>The option <code>--user_info</code> will print out the full information about the user who tweeted.</p>
-<p>Twitter search only returns results from the previous 6-9 days, so better act fast!</p>
-<h2 id="the-streaming-api-filters">The Streaming API: Filters</h2>
-<p>So far we have been looking at the REST API, which lets us interact with the Twitter services much like a user would: in response to something that the user requests.  The other API type is called the <a href="https://dev.twitter.com/streaming/userstreams">streaming api</a>, which lets us open up a single connection and receive information when Twitter has something new.  This is useful for a few things:</p>
-<ol>
-<li>We can get notified immediately when our search term is seen</li>
-<li>We can get notified if someone mentions us, either with an @reply or, when we have more permissions, with Direct Messages.</li>
-</ol>
-<p>Here&rsquo;s how you can watch twitter for different terms, they can be comma separated.  Notice that we&rsquo;ve added another private method, <code>streaming_client</code> which uses a different interface, and we&rsquo;ll need to <code>^C</code> the script to start it.</p>
-<p>The method <code>filter</code> takes a block, and will call that block every time it gets a response from twitter.</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="n">desc</span> <span class="s2">&#34;filter TERMS&#34;</span><span class="p">,</span> <span class="s2">&#34;Print out tweets that match the terms&#34;</span>
-  <span class="k">def</span> <span class="nf">filter</span><span class="p">(</span> <span class="n">terms</span> <span class="p">)</span>
-    <span class="n">streaming_client</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="ss">track</span><span class="p">:</span> <span class="n">terms</span><span class="p">)</span> <span class="k">do</span> <span class="o">|</span><span class="n">object</span><span class="o">|</span>
-      <span class="nb">puts</span> <span class="s2">&#34;@</span><span class="si">#{</span><span class="n">object</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">user_name</span><span class="si">}</span><span class="s2">:</span><span class="si">#{</span><span class="n">object</span><span class="o">.</span><span class="n">text</span><span class="si">}</span><span class="s2">&#34;</span> <span class="k">if</span> <span class="n">object</span><span class="o">.</span><span class="n">is_a?</span><span class="p">(</span><span class="no">Twitter</span><span class="o">::</span><span class="no">Tweet</span><span class="p">)</span>
-    <span class="k">end</span>
-  <span class="k">end</span>
+<span class=k>begin</span>
+  <span class=n>follower_ids</span><span class=o>.</span><span class=n>to_a</span>
+<span class=k>rescue</span> <span class=no>Twitter</span><span class=o>::</span><span class=no>Error</span><span class=o>::</span><span class=no>TooManyRequests</span> <span class=o>=&gt;</span> <span class=n>error</span>
+  <span class=c1># NOTE: Your process could go to sleep for up to 15 minutes but if you</span>
+  <span class=c1># retry any sooner, it will almost certainly fail with the same exception.</span>
+  <span class=nb>sleep</span> <span class=n>error</span><span class=o>.</span><span class=n>rate_limit</span><span class=o>.</span><span class=n>reset_in</span> <span class=o>+</span> <span class=mi>1</span>
+  <span class=k>retry</span>
+<span class=k>end</span>
+</code></pre></div><h2 id=listing-followers>Listing followers</h2><p>To see what that looks like, lets add another <code>CLI</code> command for listing a person&rsquo;s followers:</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=n>desc</span> <span class=s2>&#34;followers SCREENNAME&#34;</span><span class=p>,</span> <span class=s2>&#34;Prints out all of the users followers&#34;</span>
+  <span class=k>def</span> <span class=nf>followers</span><span class=p>(</span> <span class=n>screenname</span> <span class=p>)</span>
+    <span class=n>client</span><span class=o>.</span><span class=n>followers</span><span class=p>(</span> <span class=n>screenname</span> <span class=p>)</span><span class=o>.</span><span class=n>each</span> <span class=k>do</span> <span class=o>|</span><span class=n>u</span><span class=o>|</span>
+      <span class=nb>printf</span><span class=p>(</span> <span class=s2>&#34;@%-15s %-20s %s</span><span class=se>\n</span><span class=s2>&#34;</span><span class=p>,</span> <span class=n>u</span><span class=o>.</span><span class=n>user_name</span><span class=p>,</span> <span class=n>u</span><span class=o>.</span><span class=n>name</span><span class=p>,</span> <span class=n>u</span><span class=o>.</span><span class=n>description</span> <span class=p>)</span>
+    <span class=k>end</span>
+  <span class=k>end</span>
+</code></pre></div><p>And if we run this on someone will a lot of followers, you&rsquo;ll see the <code>Twitter::Error::TooManyRequests</code> thrown. We can look use our limits command above to see how long we have to wait until it resets. Though, since we don&rsquo;t have any smart retrying logic in place, chances are it will still fail when we try it again.</p><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>$ ruby twitter.rb limits <span class=p>|</span> grep /followers/list
+   /followers/list        <span class=m>0</span> remaining, resets in <span class=m>288</span> seconds
+</code></pre></div><h2 id=searching-for-urls>Searching for URLs</h2><p>There are different types of URLs on twitter. Lets look at a specific tweet of mine, 529342690476179456, to see what there is:</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=o>&gt;</span> <span class=n>tweet</span> <span class=o>=</span> <span class=n>client</span><span class=o>.</span><span class=n>status</span><span class=p>(</span> <span class=mi>529342690476179456</span> <span class=p>)</span>
+ <span class=o>=&gt;</span> <span class=c1>#&lt;Twitter::Tweet id=529342690476179456&gt;</span>
+<span class=o>&gt;</span> <span class=n>tweet</span><span class=o>.</span><span class=n>uris</span>
+ <span class=o>=&gt;</span> <span class=o>[</span><span class=c1>#&lt;Twitter::Entity::URI:0x007ff614b0fce0 @attrs={:url=&gt;&#34;http://t.co/frfwwIqrYB&#34;, :expanded_url=&gt;&#34;http://willschenk.com/bootstrap-advanced-grid-tricks&#34;, :display_url=&gt;&#34;willschenk.com/bootstrap-adva…&#34;, :indices=&gt;[67, 89]}&gt;]</span>
+</code></pre></div><p><code>:url</code> is the actual link that get&rsquo;s clicked, and in your logs, the one that will show up as the referer.</p><p><code>:expanded_url</code> is the end link.</p><p><code>:display_url</code> is a shortened version of the end link.</p><p>In the twitter search box we can type in <code>http://willschenk.com/bootstrap-advanced-grid-tricks</code> and that will match all tweets that go to this URL, regardless of which URL shortening service they use. (To clarify, all those services which Twitter has support for, which for our purposes is all.) If we type in <code>http://t.co/frfwwIqrYB</code> to the twitter search it won&rsquo;t match the tweet, but if we do <em>an exact search</em>, with quotes around it like so: <code>"http://t.co/frfwwIqrYB"</code> we will match the tweet.</p><p>Let&rsquo;s write some code:</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=n>desc</span> <span class=s2>&#34;search STRING&#34;</span><span class=p>,</span> <span class=s2>&#34;Shows all the tweets that match the string&#34;</span>
+  <span class=n>options</span> <span class=o>[</span><span class=ss>:exact</span><span class=p>,</span> <span class=ss>:user_info</span><span class=o>]</span>
+  <span class=k>def</span> <span class=nf>search</span><span class=p>(</span> <span class=n>string</span> <span class=p>)</span>
+    <span class=n>string</span> <span class=o>=</span> <span class=s2>&#34;</span><span class=se>\&#34;</span><span class=si>#{</span><span class=n>string</span><span class=si>}</span><span class=se>\&#34;</span><span class=s2>&#34;</span> <span class=k>if</span> <span class=n>options</span><span class=o>[</span><span class=ss>:exact</span><span class=o>]</span>
+    <span class=n>reach</span> <span class=o>=</span> <span class=mi>0</span>
+    <span class=n>client</span><span class=o>.</span><span class=n>search</span><span class=p>(</span> <span class=n>string</span><span class=p>,</span> <span class=ss>count</span><span class=p>:</span> <span class=mi>100</span> <span class=p>)</span><span class=o>.</span><span class=n>each</span> <span class=k>do</span> <span class=o>|</span><span class=n>t</span><span class=o>|</span>
+      <span class=nb>puts</span> <span class=s2>&#34;</span><span class=si>#{</span><span class=n>t</span><span class=o>.</span><span class=n>id</span><span class=si>}</span><span class=s2>:</span><span class=si>#{</span><span class=n>t</span><span class=o>.</span><span class=n>created_at</span><span class=si>}</span><span class=s2>:@</span><span class=si>#{</span><span class=n>t</span><span class=o>.</span><span class=n>user</span><span class=o>.</span><span class=n>user_name</span><span class=si>}</span><span class=s2>:</span><span class=si>#{</span><span class=n>t</span><span class=o>.</span><span class=n>user</span><span class=o>.</span><span class=n>followers_count</span><span class=si>}</span><span class=s2>:</span><span class=si>#{</span><span class=n>t</span><span class=o>.</span><span class=n>retweet_count</span><span class=si>}</span><span class=s2>:</span><span class=si>#{</span><span class=n>t</span><span class=o>.</span><span class=n>text</span><span class=si>}</span><span class=s2>&#34;</span>
+      <span class=n>reach</span> <span class=o>+=</span> <span class=n>t</span><span class=o>.</span><span class=n>user</span><span class=o>.</span><span class=n>followers_count</span>
+      <span class=k>if</span> <span class=n>options</span><span class=o>[</span><span class=ss>:user_info</span><span class=o>]</span>
+        <span class=n>print_user_info</span> <span class=n>t</span><span class=o>.</span><span class=n>user</span> <span class=k>if</span> <span class=n>options</span><span class=o>[</span><span class=ss>:user_info</span><span class=o>]</span>
+        <span class=nb>puts</span>
+      <span class=k>end</span>
+    <span class=k>end</span>
+    <span class=nb>puts</span> <span class=s2>&#34;</span><span class=si>#{</span><span class=n>string</span><span class=si>}</span><span class=s2> reached </span><span class=si>#{</span><span class=n>reach</span><span class=si>}</span><span class=s2> people.&#34;</span>
+  <span class=k>end</span>
+</code></pre></div><p>This will print out the tweet id, when it was created, who tweeted it, how many followers they had, how many times it was retweeted, and the text of the tweet. <em>Whew!</em> Since there&rsquo;s so much stuff here we made it <code>:</code> separated on one line, in case you want to parse it with something else.</p><p>The option <code>--exact</code> will put quotes around the search string, so if you are looking up a tweet from your referrers you can find which tweet sent people to your site.</p><p>The option <code>--user_info</code> will print out the full information about the user who tweeted.</p><p>Twitter search only returns results from the previous 6-9 days, so better act fast!</p><h2 id=the-streaming-api-filters>The Streaming API: Filters</h2><p>So far we have been looking at the REST API, which lets us interact with the Twitter services much like a user would: in response to something that the user requests. The other API type is called the <a href=https://dev.twitter.com/streaming/userstreams>streaming api</a>, which lets us open up a single connection and receive information when Twitter has something new. This is useful for a few things:</p><ol><li>We can get notified immediately when our search term is seen</li><li>We can get notified if someone mentions us, either with an @reply or, when we have more permissions, with Direct Messages.</li></ol><p>Here&rsquo;s how you can watch twitter for different terms, they can be comma separated. Notice that we&rsquo;ve added another private method, <code>streaming_client</code> which uses a different interface, and we&rsquo;ll need to <code>^C</code> the script to start it.</p><p>The method <code>filter</code> takes a block, and will call that block every time it gets a response from twitter.</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=n>desc</span> <span class=s2>&#34;filter TERMS&#34;</span><span class=p>,</span> <span class=s2>&#34;Print out tweets that match the terms&#34;</span>
+  <span class=k>def</span> <span class=nf>filter</span><span class=p>(</span> <span class=n>terms</span> <span class=p>)</span>
+    <span class=n>streaming_client</span><span class=o>.</span><span class=n>filter</span><span class=p>(</span><span class=ss>track</span><span class=p>:</span> <span class=n>terms</span><span class=p>)</span> <span class=k>do</span> <span class=o>|</span><span class=n>object</span><span class=o>|</span>
+      <span class=nb>puts</span> <span class=s2>&#34;@</span><span class=si>#{</span><span class=n>object</span><span class=o>.</span><span class=n>user</span><span class=o>.</span><span class=n>user_name</span><span class=si>}</span><span class=s2>:</span><span class=si>#{</span><span class=n>object</span><span class=o>.</span><span class=n>text</span><span class=si>}</span><span class=s2>&#34;</span> <span class=k>if</span> <span class=n>object</span><span class=o>.</span><span class=n>is_a?</span><span class=p>(</span><span class=no>Twitter</span><span class=o>::</span><span class=no>Tweet</span><span class=p>)</span>
+    <span class=k>end</span>
+  <span class=k>end</span>
 
 
-  <span class="kp">private</span>
-  <span class="o">[...]</span>
+  <span class=kp>private</span>
+  <span class=o>[...]</span>
 
-  <span class="k">def</span> <span class="nf">streaming_client</span>
-    <span class="vi">@streaming_client</span> <span class="o">||=</span> <span class="no">Twitter</span><span class="o">::</span><span class="no">Streaming</span><span class="o">::</span><span class="no">Client</span><span class="o">.</span><span class="n">new</span> <span class="k">do</span> <span class="o">|</span><span class="n">config</span><span class="o">|</span>
-      <span class="n">config</span><span class="o">.</span><span class="n">consumer_key</span>        <span class="o">=</span> <span class="no">TWITTER_APP_KEY</span>
-      <span class="n">config</span><span class="o">.</span><span class="n">consumer_secret</span>     <span class="o">=</span> <span class="no">TWITTER_APP_SECRET</span>
-      <span class="n">config</span><span class="o">.</span><span class="n">access_token</span>        <span class="o">=</span> <span class="no">TWITTER_ACCESS_TOKEN</span>
-      <span class="n">config</span><span class="o">.</span><span class="n">access_token_secret</span> <span class="o">=</span> <span class="no">TWITTER_ACCESS_TOKEN_SECRET</span>
-    <span class="k">end</span>
-  <span class="k">end</span>
-</code></pre></div><h2 id="the-streaming-api-reacting-to-the-timeline">The Streaming API: Reacting to the timeline</h2>
-<p>We can also watch the timeline come through for the registered user, and do something with it.  The pattern is the same as the <code>filter</code> method, but it passes an Object of one of the following types:</p>
-<ul>
-<li><code>Twitter::Tweet</code></li>
-<li><code>Twitter::DirectMessage</code></li>
-<li><code>Twitter::Streaming::DeletedTweet</code></li>
-<li><code>Twitter::Streaming::Event</code></li>
-<li><code>Twitter::Streaming::FriendList</code></li>
-<li><code>Twitter::Streaming::StallWarning</code></li>
-</ul>
-<p>We&rsquo;ll be ignoring most of them:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby">  <span class="n">desc</span> <span class="s2">&#34;listen&#34;</span><span class="p">,</span> <span class="s2">&#34;Prints our the authenticated user&#39;s stream as it happens&#34;</span>
-  <span class="k">def</span> <span class="nf">listen</span>
-    <span class="n">streaming_client</span><span class="o">.</span><span class="n">user</span> <span class="k">do</span> <span class="o">|</span><span class="n">object</span><span class="o">|</span>
-      <span class="k">case</span> <span class="n">object</span>
-      <span class="k">when</span> <span class="no">Twitter</span><span class="o">::</span><span class="no">Tweet</span>
-        <span class="nb">puts</span> <span class="s2">&#34;Tweet:@</span><span class="si">#{</span><span class="n">object</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">user_name</span><span class="si">}</span><span class="s2">:</span><span class="si">#{</span><span class="n">object</span><span class="o">.</span><span class="n">text</span><span class="si">}</span><span class="s2">&#34;</span>
-      <span class="k">when</span> <span class="no">Twitter</span><span class="o">::</span><span class="no">DirectMessage</span>
-        <span class="nb">puts</span> <span class="s2">&#34;DM:@</span><span class="si">#{</span><span class="n">object</span><span class="o">.</span><span class="n">sender</span><span class="o">.</span><span class="n">user_name</span><span class="si">}</span><span class="s2">:</span><span class="si">#{</span><span class="n">object</span><span class="o">.</span><span class="n">text</span><span class="si">}</span><span class="s2">&#34;</span>
-      <span class="k">when</span> <span class="no">Twitter</span><span class="o">::</span><span class="no">Streaming</span><span class="o">::</span><span class="no">StallWarning</span>
-        <span class="nb">warn</span> <span class="s2">&#34;Falling behind!&#34;</span>
-      <span class="k">end</span>
-    <span class="k">end</span>
-  <span class="k">end</span>
-</code></pre></div><p>Running this command will print out tweets and messages as they come in.  If you wanted to make an interactive bot, you&rsquo;d put logic in here to respond to the tweets coming in, calling something like</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="n">client</span><span class="o">.</span><span class="n">update</span><span class="p">(</span> <span class="s2">&#34;@</span><span class="si">#{</span><span class="n">object</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">user_name</span><span class="si">}</span><span class="s2"> my reply&#34;</span><span class="p">,</span> <span class="p">{</span> <span class="ss">in_reply_to_status</span><span class="p">:</span> <span class="n">object</span><span class="o">.</span><span class="n">id</span> <span class="p">}</span> <span class="p">)</span>
-</code></pre></div><p>Only, you&rsquo;re not going to get any direct messages, nor are you going to be able to reply, unless you change your application permission settings.</p>
-<h2 id="upgrading-to-the-all-access-pass">Upgrading to the All Access Pass</h2>
-<p>In order to</p>
-<ul>
-<li>Update a status</li>
-<li>Read direct messages</li>
-<li>Send direct messages</li>
-</ul>
-<p>You need to change the application permission level.  There are three different levels.  Read will let you pull things on behalf of the user.  If they have a private account, or they have access to a private account, your script will be able to see those things.  You will not be able to access or receive direct messages</p>
-<p>Write will let you post public status updates, but not Direct Messages.</p>
-<p>Access direct messages is the third.</p>
-<ol>
-<li>Go to the <a href="https://apps.twitter.com">twitter app console</a> and find your application.</li>
-<li>Go to the &ldquo;Permissions Tab&rdquo;</li>
-<li>Change the settings to &ldquo;Read, Write&rdquo; or &ldquo;Read, Write and Access direct messages&rdquo;</li>
-<li>Go to &ldquo;Keys and Access Settings&rdquo;</li>
-<li>Scroll down and &ldquo;Regenerate My Access Token and Token Secret&rdquo;</li>
-</ol>
-<p>Depending upon what you chose, you can now post on behalf of the user:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="n">client</span><span class="o">.</span><span class="n">update</span><span class="p">(</span> <span class="s2">&#34;Hello, World&#34;</span> <span class="p">)</span>
-</code></pre></div><p>Read their direct messages:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="n">client</span><span class="o">.</span><span class="n">direct_messages</span>
-</code></pre></div><p>Or send a direct message:</p>
-<div class="highlight"><pre class="chroma"><code class="language-ruby" data-lang="ruby"><span class="n">client</span><span class="o">.</span><span class="n">create_direct_message</span> <span class="s2">&#34;wschenk&#34;</span><span class="p">,</span> <span class="s2">&#34;Hi there&#34;</span>
-</code></pre></div><h2 id="the-code">The Code</h2>
-<p>Here is the <a href="https://gist.github.com/wschenk/86e1e87772e7d589e963">code written for this article</a>.  The github for <a href="https://github.com/sublimeguile/socialinvestigator">socialinvestigator</a> has a more complete sample that loads and stores the credentials in a file.</p>
-<p><em>Image Credit <a href="https://www.flickr.com/photos/jurvetson/7408451314/in/photolist-bvcbis-7DN6Sk-7DRVeq-7DRUVq-jB3M44-dhZrKM-atAnS1-bi4yL6-atHJJo-85tMTG-cp5WgS-asg29e-chEftd-6Zex9h-djkSiW-acqro-c7PG79-72SJuQ-7fPiox-avgwDx-bEWnc2-4FAqy9-9mvMsP-8fp27H-chEjh3-66UgvR-6oqRAV-6oqUMD-5zWDAn-9mqRC4-6ov3Mw-6oqRQZ-6ov4bh-avgxEZ-6VXNYF-avgwMM-avjcLf-avjcQ1-avjcLS-avjcPd-avjcTW-avjduE-avgwZK-avjdMm-avjcVy-avjcSU-avgwRt-avjcY1-avjd2d-avgwTv">Steve Jurvetson</a></em></p>
-
-  </article>
-
-  
-</div>
-
-
-  <div class="bg-light py-5">
-    <div class="container">
-      <h2 class="text-center">Read next</h2>
-
-      <div class="row">
-        <div class="col-md-6 text-center">
-          
-            Next Post:
-            <a href="../../../articles/2014/building-sites-with-middleman/">Building Sites with Middleman</a>
-          
-        </div>
-        <div class="col-md-6 text-center">
-          
-            Previous Post:
-            <a href="../../../articles/2014/embedding-3d-models-on-your-page/">Embedding 3d models on your page</a>
-          
-        </div>
-      </div>
-    </div>
-  </div>
-
-
-
-
-<div class="container mt-5">
-  <h2 class="text-center">See also</h2>
-  <div class="row">
-  	
-      <div class="col-md mb-3">
-        <p class="lead mb-0"><a class="text-body" href="../../../articles/2014/making-a-command-line-utility-with-gems-and-thor/">Making a command line utility with gems and thor</a></p>
-
-        
-          <p class="lead font-italic mb-0">Any excuse to the use the phrase &ldquo;Hammer of the Gods&rdquo;</p>
-        
-        <div class="font-weight-light mt-3">
-          
-          
-            <p>Some scripts work well because they are self contained and don&rsquo;t have a lot of dependancies, like the hosts on your network tracker.
+  <span class=k>def</span> <span class=nf>streaming_client</span>
+    <span class=vi>@streaming_client</span> <span class=o>||=</span> <span class=no>Twitter</span><span class=o>::</span><span class=no>Streaming</span><span class=o>::</span><span class=no>Client</span><span class=o>.</span><span class=n>new</span> <span class=k>do</span> <span class=o>|</span><span class=n>config</span><span class=o>|</span>
+      <span class=n>config</span><span class=o>.</span><span class=n>consumer_key</span>        <span class=o>=</span> <span class=no>TWITTER_APP_KEY</span>
+      <span class=n>config</span><span class=o>.</span><span class=n>consumer_secret</span>     <span class=o>=</span> <span class=no>TWITTER_APP_SECRET</span>
+      <span class=n>config</span><span class=o>.</span><span class=n>access_token</span>        <span class=o>=</span> <span class=no>TWITTER_ACCESS_TOKEN</span>
+      <span class=n>config</span><span class=o>.</span><span class=n>access_token_secret</span> <span class=o>=</span> <span class=no>TWITTER_ACCESS_TOKEN_SECRET</span>
+    <span class=k>end</span>
+  <span class=k>end</span>
+</code></pre></div><h2 id=the-streaming-api-reacting-to-the-timeline>The Streaming API: Reacting to the timeline</h2><p>We can also watch the timeline come through for the registered user, and do something with it. The pattern is the same as the <code>filter</code> method, but it passes an Object of one of the following types:</p><ul><li><code>Twitter::Tweet</code></li><li><code>Twitter::DirectMessage</code></li><li><code>Twitter::Streaming::DeletedTweet</code></li><li><code>Twitter::Streaming::Event</code></li><li><code>Twitter::Streaming::FriendList</code></li><li><code>Twitter::Streaming::StallWarning</code></li></ul><p>We&rsquo;ll be ignoring most of them:</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=n>desc</span> <span class=s2>&#34;listen&#34;</span><span class=p>,</span> <span class=s2>&#34;Prints our the authenticated user&#39;s stream as it happens&#34;</span>
+  <span class=k>def</span> <span class=nf>listen</span>
+    <span class=n>streaming_client</span><span class=o>.</span><span class=n>user</span> <span class=k>do</span> <span class=o>|</span><span class=n>object</span><span class=o>|</span>
+      <span class=k>case</span> <span class=n>object</span>
+      <span class=k>when</span> <span class=no>Twitter</span><span class=o>::</span><span class=no>Tweet</span>
+        <span class=nb>puts</span> <span class=s2>&#34;Tweet:@</span><span class=si>#{</span><span class=n>object</span><span class=o>.</span><span class=n>user</span><span class=o>.</span><span class=n>user_name</span><span class=si>}</span><span class=s2>:</span><span class=si>#{</span><span class=n>object</span><span class=o>.</span><span class=n>text</span><span class=si>}</span><span class=s2>&#34;</span>
+      <span class=k>when</span> <span class=no>Twitter</span><span class=o>::</span><span class=no>DirectMessage</span>
+        <span class=nb>puts</span> <span class=s2>&#34;DM:@</span><span class=si>#{</span><span class=n>object</span><span class=o>.</span><span class=n>sender</span><span class=o>.</span><span class=n>user_name</span><span class=si>}</span><span class=s2>:</span><span class=si>#{</span><span class=n>object</span><span class=o>.</span><span class=n>text</span><span class=si>}</span><span class=s2>&#34;</span>
+      <span class=k>when</span> <span class=no>Twitter</span><span class=o>::</span><span class=no>Streaming</span><span class=o>::</span><span class=no>StallWarning</span>
+        <span class=nb>warn</span> <span class=s2>&#34;Falling behind!&#34;</span>
+      <span class=k>end</span>
+    <span class=k>end</span>
+  <span class=k>end</span>
+</code></pre></div><p>Running this command will print out tweets and messages as they come in. If you wanted to make an interactive bot, you&rsquo;d put logic in here to respond to the tweets coming in, calling something like</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=n>client</span><span class=o>.</span><span class=n>update</span><span class=p>(</span> <span class=s2>&#34;@</span><span class=si>#{</span><span class=n>object</span><span class=o>.</span><span class=n>user</span><span class=o>.</span><span class=n>user_name</span><span class=si>}</span><span class=s2> my reply&#34;</span><span class=p>,</span> <span class=p>{</span> <span class=ss>in_reply_to_status</span><span class=p>:</span> <span class=n>object</span><span class=o>.</span><span class=n>id</span> <span class=p>}</span> <span class=p>)</span>
+</code></pre></div><p>Only, you&rsquo;re not going to get any direct messages, nor are you going to be able to reply, unless you change your application permission settings.</p><h2 id=upgrading-to-the-all-access-pass>Upgrading to the All Access Pass</h2><p>In order to</p><ul><li>Update a status</li><li>Read direct messages</li><li>Send direct messages</li></ul><p>You need to change the application permission level. There are three different levels. Read will let you pull things on behalf of the user. If they have a private account, or they have access to a private account, your script will be able to see those things. You will not be able to access or receive direct messages</p><p>Write will let you post public status updates, but not Direct Messages.</p><p>Access direct messages is the third.</p><ol><li>Go to the <a href=https://apps.twitter.com>twitter app console</a> and find your application.</li><li>Go to the &ldquo;Permissions Tab&rdquo;</li><li>Change the settings to &ldquo;Read, Write&rdquo; or &ldquo;Read, Write and Access direct messages&rdquo;</li><li>Go to &ldquo;Keys and Access Settings&rdquo;</li><li>Scroll down and &ldquo;Regenerate My Access Token and Token Secret&rdquo;</li></ol><p>Depending upon what you chose, you can now post on behalf of the user:</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=n>client</span><span class=o>.</span><span class=n>update</span><span class=p>(</span> <span class=s2>&#34;Hello, World&#34;</span> <span class=p>)</span>
+</code></pre></div><p>Read their direct messages:</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=n>client</span><span class=o>.</span><span class=n>direct_messages</span>
+</code></pre></div><p>Or send a direct message:</p><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=n>client</span><span class=o>.</span><span class=n>create_direct_message</span> <span class=s2>&#34;wschenk&#34;</span><span class=p>,</span> <span class=s2>&#34;Hi there&#34;</span>
+</code></pre></div><h2 id=the-code>The Code</h2><p>Here is the <a href=https://gist.github.com/wschenk/86e1e87772e7d589e963>code written for this article</a>. The github for <a href=https://github.com/sublimeguile/socialinvestigator>socialinvestigator</a> has a more complete sample that loads and stores the credentials in a file.</p><p><em>Image Credit <a href=https://www.flickr.com/photos/jurvetson/7408451314/in/photolist-bvcbis-7DN6Sk-7DRVeq-7DRUVq-jB3M44-dhZrKM-atAnS1-bi4yL6-atHJJo-85tMTG-cp5WgS-asg29e-chEftd-6Zex9h-djkSiW-acqro-c7PG79-72SJuQ-7fPiox-avgwDx-bEWnc2-4FAqy9-9mvMsP-8fp27H-chEjh3-66UgvR-6oqRAV-6oqUMD-5zWDAn-9mqRC4-6ov3Mw-6oqRQZ-6ov4bh-avgxEZ-6VXNYF-avgwMM-avjcLf-avjcQ1-avjcLS-avjcPd-avjcTW-avjduE-avgwZK-avjdMm-avjcVy-avjcSU-avgwRt-avjcY1-avjd2d-avgwTv>Steve Jurvetson</a></em></p></article></div><div class="bg-light py-5"><div class=container><h2 class=text-center>Read next</h2><div class=row><div class="col-md-6 text-center">Next Post:
+<a href=../../../articles/2014/building-sites-with-middleman/>Building Sites with Middleman</a></div><div class="col-md-6 text-center">Previous Post:
+<a href=../../../articles/2014/embedding-3d-models-on-your-page/>Embedding 3d models on your page</a></div></div></div></div><div class="container mt-5"><h2 class=text-center>See also</h2><div class=row><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2014/making-a-command-line-utility-with-gems-and-thor/>Making a command line utility with gems and thor</a></p><p class="lead font-italic mb-0">Any excuse to the use the phrase &ldquo;Hammer of the Gods&rdquo;</p><div class="font-weight-light mt-3"><p>Some scripts work well because they are self contained and don&rsquo;t have a lot of dependancies, like the hosts on your network tracker.
 Others scripts
- have more code than fits into a single file multiple options and switches have an extensive set of dependancies  And on those cases, its better to make a gem and use thor
-Hammer of the Gods Lets figure out how to make some command line tools and package them up so that they can be shared and used by other people.</p>
-          
-        </div>
-        <a href="../../../articles/2014/making-a-command-line-utility-with-gems-and-thor/" class="btn btn-primary">Read more</a>
-      </div>
-    
-      <div class="col-md mb-3">
-        <p class="lead mb-0"><a class="text-body" href="../../../articles/2014/personal-information-from-only-a-url/">Personal information from only a URL</a></p>
-
-        
-          <p class="lead font-italic mb-0">what can automated tools find out</p>
-        
-        <div class="font-weight-light mt-3">
-          
-          
-            <p>Ever wonder what you can find out by looking at a url? How about physical addresses, server location, emails, phone numbers, various links to other profiles (which can in turn be structurally scraped), technology stack, and more.
-$ socialinvestigator net page http://willschenk.com/bio domain: willschenk.com created_on: 2014-10-31 expires_on: 2015-10-31 updated_on: 2014-10-31 registrar_name: ENOM, INC. registrar_url: www.enom.com registrant_contact: name: WILL SCHENK organization: HAPPYFUNCORP address: 18 BRIDGE STREET, 2E city: BROOKLYN zip: 11201 state: NY country_code: US phone: +91.</p>
-          
-        </div>
-        <a href="../../../articles/2014/personal-information-from-only-a-url/" class="btn btn-primary">Read more</a>
-      </div>
-    
-      <div class="col-md mb-3">
-        <p class="lead mb-0"><a class="text-body" href="../../../articles/2014/how-to-track-your-coworkers/">How to track your coworkers</a></p>
-
-        
-          <p class="lead font-italic mb-0">Simple passive network surveillance</p>
-        
-        <div class="font-weight-light mt-3">
-          
-          
-            <p>How much information do you bleed?
+have more code than fits into a single file multiple options and switches have an extensive set of dependancies And on those cases, its better to make a gem and use thor
+Hammer of the Gods Lets figure out how to make some command line tools and package them up so that they can be shared and used by other people.</p></div><a href=../../../articles/2014/making-a-command-line-utility-with-gems-and-thor/ class="btn btn-primary">Read more</a></div><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2014/personal-information-from-only-a-url/>Personal information from only a URL</a></p><p class="lead font-italic mb-0">what can automated tools find out</p><div class="font-weight-light mt-3"><p>Ever wonder what you can find out by looking at a url? How about physical addresses, server location, emails, phone numbers, various links to other profiles (which can in turn be structurally scraped), technology stack, and more.
+$ socialinvestigator net page http://willschenk.com/bio domain: willschenk.com created_on: 2014-10-31 expires_on: 2015-10-31 updated_on: 2014-10-31 registrar_name: ENOM, INC. registrar_url: www.enom.com registrant_contact: name: WILL SCHENK organization: HAPPYFUNCORP address: 18 BRIDGE STREET, 2E city: BROOKLYN zip: 11201 state: NY country_code: US phone: +91.</p></div><a href=../../../articles/2014/personal-information-from-only-a-url/ class="btn btn-primary">Read more</a></div><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2014/how-to-track-your-coworkers/>How to track your coworkers</a></p><p class="lead font-italic mb-0">Simple passive network surveillance</p><div class="font-weight-light mt-3"><p>How much information do you bleed?
 Ever wonder who is else is using your network? Or,who has actually showed up at the office?
-Networking primer The simplest thing we can do to make this work is to check to see which devices have registered themselves on the network. As devices come and go, they connect automatically, so we will have a pretty good idea if people are there or not. Phones seem to attach and detach quite frequency, probably to conserve battery, so if we are want to answer the question &ldquo;is so-and-so in the office&rdquo; we&rsquo;ll need to add additional logic to determine how far spaced the &ldquo;sighting&rdquo; events are to mean that the person has left the office, rather than the phone has gone to sleep.</p>
-          
-        </div>
-        <a href="../../../articles/2014/how-to-track-your-coworkers/" class="btn btn-primary">Read more</a>
-      </div>
-    
-  </div>
-</div>
-
-
-<footer class="footer bg-dark text-light mt-3">
-  <div class="container">
-    <h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2>
-  </div>
-</footer>
-</body>
-</html>
+Networking primer The simplest thing we can do to make this work is to check to see which devices have registered themselves on the network. As devices come and go, they connect automatically, so we will have a pretty good idea if people are there or not. Phones seem to attach and detach quite frequency, probably to conserve battery, so if we are want to answer the question &ldquo;is so-and-so in the office&rdquo; we&rsquo;ll need to add additional logic to determine how far spaced the &ldquo;sighting&rdquo; events are to mean that the person has left the office, rather than the phone has gone to sleep.</p></div><a href=../../../articles/2014/how-to-track-your-coworkers/ class="btn btn-primary">Read more</a></div></div></div><footer class="footer bg-dark text-light mt-3"><div class=container><h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2></div></footer></body></html>
