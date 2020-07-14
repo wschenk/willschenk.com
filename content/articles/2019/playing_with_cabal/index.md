@@ -12,6 +12,8 @@ date: "2019-04-23"
 
 Cabal is a "experimental p2p community chat platform".  It's fully distributed over the [dat protocol](https://www.datprotocol.com/).  When you create a new chat area -- something like a Slack -- it allows anyone with the same key to post and view messages everywhere.  When you post a message, everyone gets it and shares it with everyone else, so even when your computer drops off there will still be a coherent view of the data.
 
+/Updated 2020-07-14 for cabal-core 5.0/
+
 ## Local computer
 
 You'll need at least two computers to really play with this.  But we can simulate the situation by running a docker container as well as a local instance of the cabal cli client.  We can then move that container (or at least the image) around to run it on a remote server if you don't want to mess with anything on the remote machine.  Lets first install it locally:
@@ -67,14 +69,14 @@ That's super cool already, but lets go a little deep and start writing our own h
 
 ```bash
 npm init
-yarn add cabal-core tmp delay
+npm i add cabal-core tmp delay
 ```
 
 ## Printing out everything that is in a swarm
 
 1. First we create a `Cabal` instance with a storage directory and our key, using `cabel = Cabal(directoy,key)`
 2. Then we connect it to the swarm to start replicating using `swarm(cabal)`
-3. Once the local database has been loaded and processed, the `cabal.db.ready()` callback is called.  Events received after this are new.
+3. Once the local database has been loaded and processed, the `cabal.ready()` callback is called.  Events received after this are new.
 4. We can watch peers join and disconnect using `cabal.on('peer-added')` and `cabal.on('peer-dropped')`
 5. We can listen for new messages and topics using `cabal.messages.events.on('message')`
 6. (We can also listen for messages just in a specific channel, not shown below)

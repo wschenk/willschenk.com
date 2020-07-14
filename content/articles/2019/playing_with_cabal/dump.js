@@ -23,7 +23,7 @@ console.log( "Connecting to swarm")
 swarm(cabal);
 
 // This is called after the local database is loaded
-cabal.db.ready( () => {console.log( "Database is ready!")})
+cabal.ready( () => {console.log( "Database is ready!")})
 
 // Print out connect and disconnect messages
 cabal.on('peer-added', (key) => console.log( "Peer added",  key ) );

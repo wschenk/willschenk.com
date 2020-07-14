@@ -28,4 +28,4 @@ if [ -z "${LOCAL_GIT}" ] || [ ! -d "${LOCAL_GIT}" ]; then
   echo $LOCAL_GIT > .local_git
 fi
 
-git --git-dir=${LOCAL_GIT} --work-tree=. $@
+git --git-dir=${LOCAL_GIT} --work-tree=. "$@"

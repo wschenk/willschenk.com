@@ -40,7 +40,7 @@ function publishCallback() {
 }
 
 // This is called after the local database is loaded
-cabal.db.ready( () => {
+cabal.ready( () => {
   console.log( "Database is ready!")
 
   cabal.publish( {type: "chat/text", content: { text: message, channel}}, publishCallback );
