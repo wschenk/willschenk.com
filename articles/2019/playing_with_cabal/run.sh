@@ -1,3 +1,3 @@
 #!/bin/bash
 
-docker run -it --rm --name cabal --network host wschenk/cabal cabal "$@"
+docker run -it --rm --name cabal --network host $USER/cabal cabal "$@"
