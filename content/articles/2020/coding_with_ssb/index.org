@@ -115,6 +115,7 @@ it's a source of data.
 #+begin_src javascript :tangle pull_test.js
   const pull = require('pull-stream')
 
+  /*
   const range = ( source, closure ) => {
       let done = false;
       while( !done ) {
@@ -127,13 +128,77 @@ it's a source of data.
           })
       }
   }
-
-  range( pull.values( [1,2,3,4] ), (e) => console.log( e ) )
+  ,*/
+  function range(source) {
+      return new Promise( (resolve, reject) => {
+          let values = []
+          pull( source,
+                pull.drain( (e) => values.push(e), (err) => {
+                    if( err ) {
+                        reject(err);
+                    } else {
+                        resolve(values);
+                    }
+                }))
+      })
+  }
+        
+  (async () => {
+      values = await range( pull.values([1,2,3,4]) )
+      console.log( values );
+  })()
 #+end_src
 
 The nifty thing is that it can also be used to simulate =channels=, so
 when you call for the next value it may block waiting for, say,
 network input.
+
+Trying it with sbot.links, we can do
+
+#+begin_src javascript :tangle pull_test.js
+  const ssb = require('ssb-client')
+
+  async function to_a( source ) {
+      return new Promise( (resolve, reject) => {
+          let values = [];
+          pull( source,
+                pull.drain( (v) => {
+                    values.push(v)
+                },
+                            (err) => {
+                                console.log( "Done" );
+                                if( err ) {
+                                    reject(err);
+                                } else {
+                                    resolve(values);
+                                }
+                            } )
+              )
+      })
+  }
+
+  ssb( async (err, sbot) =>  {
+      if( err ) {
+          console.log( err );
+          process.exit(1);
+      }
+
+      const identity = sbot.id;
+
+      contacts = sbot.links( {
+          source: identity,
+          rel: 'contact',
+          values: true
+      })
+
+      console.log( "Looping over contacts" )
+      v = await to_a( contacts )
+      console.log( `Found ${v.length} entries` );
+
+      process.exit(0);
+  } )
+
+#+end_src
 
 * Profile infomation
 Lets look at how to [[http://scuttlebot.io/docs/social/view-a-profile.html][view profile information]]:
@@ -297,6 +362,7 @@ Here we are looking at
 #+begin_src bash
 ./node_modules/.bin/ssb-server links --source $(node whoami.js) --rel contact --values
 #+end_src
+
 #+begin_src javascript :tangle following.js
   const ssb = require('ssb-client')
   const pull = require('pull-stream')
@@ -338,7 +404,6 @@ Here we are looking at
   ssb( onSsb );
 
 #+end_src
-
 
 
 * Getting Started
