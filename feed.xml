@@ -1,4 +1,785 @@
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Thu, 30 Jul 2020 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Getting Websters</title><link>https://willschenk.com/articles/2020/getting_websters/</link><pubDate>Thu, 30 Jul 2020 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2020/getting_websters/</guid><description>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Fri, 14 Aug 2020 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Using Askgit</title><link>https://willschenk.com/articles/2020/using_askgit/</link><pubDate>Fri, 14 Aug 2020 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2020/using_askgit/</guid><description>
+&lt;p>
+&lt;a href="https://github.com/augmentable-dev/askgit">askgit&lt;/a> provides a sql interface to your git repository. Lets install
+it and see what we can figure out about the repo.
+&lt;/p>
+&lt;h2 id="headline-1">
+Installing
+&lt;/h2>
+&lt;p>
+Following the instructions on the website, we can build the go binary
+with:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">go get -v -tags&lt;span class="o">=&lt;/span>sqlite_vtable github.com/augmentable-dev/askgit&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+This will download the package, the dependancies, and compile
+everything up into an executable. If you can&amp;#39;t figure out where it&amp;#39;s
+installed, check that you have &lt;code class="verbatim">GOPATH&lt;/code> set correctly, and it will end
+up in &lt;code class="verbatim">$GOPATH/bin&lt;/code>. And make sure that its in your path by checking
+&lt;code class="verbatim">which askgit&lt;/code>.
+&lt;/p>
+&lt;h2 id="headline-2">
+Get a test repository
+&lt;/h2>
+&lt;p>
+I&amp;#39;m going to look at the &lt;code class="verbatim">ruby-git&lt;/code> repo so you can follow along.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="nb">cd&lt;/span> /tmp
+git clone https://github.com/ruby-git/ruby-git
+&lt;span class="nb">cd&lt;/span> ruby-git&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-3">
+Commits
+&lt;/h2>
+&lt;p>
+The basic unit that git works on is a commit, which is a series of
+file changes applied to a parent. Or multiple parents in the case of
+a merge. Lets do some basic analysis of what&amp;#39;s in a repo, how long
+it&amp;#39;s been working on, and who has been working on it.
+&lt;/p>
+&lt;h3 id="headline-4">
+How old is the repo?
+&lt;/h3>
+&lt;p>
+Lets find the earliest timestamps in the repo. For most workflows
+these dates will be similar, but if the project shares patches over
+email (like linux or postgres or anything on &lt;a href="https://sr.ht/">sr.ht&lt;/a>) the &lt;code class="verbatim">author_when&lt;/code> is
+when the code was written (according to the author) and the
+&lt;code class="verbatim">committer_when&lt;/code> is when it was added to the repo.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">
+askgit &lt;span class="s2">&amp;#34;select min(author_when), min(committer_when) from commits&amp;#34;&lt;/span>
++---------------------------+---------------------------+
+&lt;span class="p">|&lt;/span> MIN&lt;span class="o">(&lt;/span>AUTHOR WHEN&lt;span class="o">)&lt;/span> &lt;span class="p">|&lt;/span> MIN&lt;span class="o">(&lt;/span>COMMITTER WHEN&lt;span class="o">)&lt;/span> &lt;span class="p">|&lt;/span>
++---------------------------+---------------------------+
+&lt;span class="p">|&lt;/span> 2007-11-07T12:54:26-08:00 &lt;span class="p">|&lt;/span> 2007-11-07T12:54:26-08:00 &lt;span class="p">|&lt;/span>
++---------------------------+---------------------------+&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-5">
+First commit
+&lt;/h3>
+&lt;p>
+And here&amp;#39;s who did it:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">askgit &lt;span class="s2">&amp;#34;select message, author_name, author_email, author_when from commits order by committer_when asc limit 1&amp;#34;&lt;/span>
++-------------------------------+--------------+-------------------------------------------+---------------------------+
+&lt;span class="p">|&lt;/span> MESSAGE &lt;span class="p">|&lt;/span> AUTHOR NAME &lt;span class="p">|&lt;/span> AUTHOR EMAIL &lt;span class="p">|&lt;/span> AUTHOR WHEN &lt;span class="p">|&lt;/span>
++-------------------------------+--------------+-------------------------------------------+---------------------------+
+&lt;span class="p">|&lt;/span> beginning of Ruby/Git project &lt;span class="p">|&lt;/span> scott Chacon &lt;span class="p">|&lt;/span> schacon@agadorsparticus.corp.reactrix.com &lt;span class="p">|&lt;/span> 2007-11-07T12:54:26-08:00 &lt;span class="p">|&lt;/span>
++-------------------------------+--------------+-------------------------------------------+---------------------------+&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-6">
+Biggest commit
+&lt;/h3>
+&lt;p>
+Which commits added the most code?
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">askgit &lt;span class="s2">&amp;#34;select summary, author_name, author_when, additions from commits order by additions desc limit 10&amp;#34;&lt;/span>
++--------------------------------+---------------+---------------------------+-----------+
+&lt;span class="p">|&lt;/span> SUMMARY &lt;span class="p">|&lt;/span> AUTHOR NAME &lt;span class="p">|&lt;/span> AUTHOR WHEN &lt;span class="p">|&lt;/span> ADDITIONS &lt;span class="p">|&lt;/span>
++--------------------------------+---------------+---------------------------+-----------+
+&lt;span class="p">|&lt;/span> added documentation and a &lt;span class="p">|&lt;/span> scott Chacon &lt;span class="p">|&lt;/span> 2007-11-11T17:59:18-08:00 &lt;span class="p">|&lt;/span> &lt;span class="m">12707&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> license file &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> updated a bunch of the &lt;span class="p">|&lt;/span> scott Chacon &lt;span class="p">|&lt;/span> 2007-11-13T07:36:50-08:00 &lt;span class="p">|&lt;/span> &lt;span class="m">2223&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> documentation &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> updated the docs &lt;span class="p">|&lt;/span> scott Chacon &lt;span class="p">|&lt;/span> 2007-11-16T13:24:30-08:00 &lt;span class="p">|&lt;/span> &lt;span class="m">2109&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> updated docs &lt;span class="p">|&lt;/span> scott Chacon &lt;span class="p">|&lt;/span> 2007-11-19T07:34:25-08:00 &lt;span class="p">|&lt;/span> &lt;span class="m">1448&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> added push, changed some docs, &lt;span class="p">|&lt;/span> scott Chacon &lt;span class="p">|&lt;/span> 2007-11-12T10:55:39-08:00 &lt;span class="p">|&lt;/span> &lt;span class="m">1193&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> merged README and EXAMPLES, &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> fixed the Rake tasks to build &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> a proper gem &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> Implementation and tests &lt;span class="p">|&lt;/span> James Couball &lt;span class="p">|&lt;/span> 2019-12-11T10:04:03-08:00 &lt;span class="p">|&lt;/span> &lt;span class="m">763&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> required to ensure that &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> &lt;span class="nb">command&lt;/span> output encoding does &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> not raise an exception &lt;span class="o">(&lt;/span>&lt;span class="c1">#405) | | | |&lt;/span>
+&lt;span class="p">|&lt;/span> added files from the &lt;span class="p">|&lt;/span> scott Chacon &lt;span class="p">|&lt;/span> 2007-11-20T12:07:46-08:00 &lt;span class="p">|&lt;/span> &lt;span class="m">749&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> gitrb project, which seems &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> abandoned, but which is great &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> code &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> adding my testing git &lt;span class="p">|&lt;/span> scott Chacon &lt;span class="p">|&lt;/span> 2007-11-11T17:11:19-08:00 &lt;span class="p">|&lt;/span> &lt;span class="m">711&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> directory &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> added branches, more log &lt;span class="p">|&lt;/span> scott Chacon &lt;span class="p">|&lt;/span> 2007-11-09T13:11:22-08:00 &lt;span class="p">|&lt;/span> &lt;span class="m">522&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> stuff, better tests, changed &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> the log api a bit added &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> tests &lt;span class="k">for&lt;/span> Git::Lib, started &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> Git::Diff development &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> added some testing files and &lt;span class="p">|&lt;/span> scott Chacon &lt;span class="p">|&lt;/span> 2007-11-07T17:19:09-08:00 &lt;span class="p">|&lt;/span> &lt;span class="m">486&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> got some real tests to run &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span>
++--------------------------------+---------------+---------------------------+-----------+&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+We can see that these are at all the beginning of the project.
+&lt;/p>
+&lt;h3 id="headline-7">
+Biggest cleanup
+&lt;/h3>
+&lt;p>
+Which commit removed the most code?
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">askgit &lt;span class="s2">&amp;#34;select summary, author_name, author_when, deletions from commits order by deletions desc limit 10&amp;#34;&lt;/span>
++--------------------------------+--------------------+---------------------------+-----------+
+&lt;span class="p">|&lt;/span> SUMMARY &lt;span class="p">|&lt;/span> AUTHOR NAME &lt;span class="p">|&lt;/span> AUTHOR WHEN &lt;span class="p">|&lt;/span> DELETIONS &lt;span class="p">|&lt;/span>
++--------------------------------+--------------------+---------------------------+-----------+
+&lt;span class="p">|&lt;/span> remove doc from revision &lt;span class="p">|&lt;/span> Jonathan Rudenberg &lt;span class="p">|&lt;/span> 2008-12-24T08:08:19+08:00 &lt;span class="p">|&lt;/span> &lt;span class="m">14822&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> control &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> updated docs &lt;span class="p">|&lt;/span> scott Chacon &lt;span class="p">|&lt;/span> 2007-11-19T07:34:25-08:00 &lt;span class="p">|&lt;/span> &lt;span class="m">1311&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> updated the docs &lt;span class="p">|&lt;/span> scott Chacon &lt;span class="p">|&lt;/span> 2007-11-16T13:24:30-08:00 &lt;span class="p">|&lt;/span> &lt;span class="m">1141&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> updated a bunch of the &lt;span class="p">|&lt;/span> scott Chacon &lt;span class="p">|&lt;/span> 2007-11-13T07:36:50-08:00 &lt;span class="p">|&lt;/span> &lt;span class="m">1061&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> documentation &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> reverted the pure ruby code &lt;span class="p">|&lt;/span> Scott Chacon &lt;span class="p">|&lt;/span> 2008-03-08T18:14:15-08:00 &lt;span class="p">|&lt;/span> &lt;span class="m">1050&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> to system calls and split the &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> pure ruby to a new library &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> added push, changed some docs, &lt;span class="p">|&lt;/span> scott Chacon &lt;span class="p">|&lt;/span> 2007-11-12T10:55:39-08:00 &lt;span class="p">|&lt;/span> &lt;span class="m">976&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> merged README and EXAMPLES, &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> fixed the Rake tasks to build &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> a proper gem &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> Cleaning up unused files/tasks &lt;span class="p">|&lt;/span> robertodecurnex &lt;span class="p">|&lt;/span> 2014-02-03T18:14:29-03:00 &lt;span class="p">|&lt;/span> &lt;span class="m">750&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> have the pure ruby bindings &lt;span class="p">|&lt;/span> scott Chacon &lt;span class="p">|&lt;/span> 2007-11-20T13:24:44-08:00 &lt;span class="p">|&lt;/span> &lt;span class="m">393&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> working to some degree &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> add markdown styling to readme &lt;span class="p">|&lt;/span> schneems &lt;span class="p">|&lt;/span> 2011-10-19T16:30:26-05:00 &lt;span class="p">|&lt;/span> &lt;span class="m">240&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> added documentation and a &lt;span class="p">|&lt;/span> scott Chacon &lt;span class="p">|&lt;/span> 2007-11-11T17:59:18-08:00 &lt;span class="p">|&lt;/span> &lt;span class="m">179&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> license file &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span>
++--------------------------------+--------------------+---------------------------+-----------+&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Again most of these are at the beginning of the project, through there
+is a big 2014 cleanup that is probably a refactor of some kind.
+&lt;/p>
+&lt;h3 id="headline-8">
+How many commits do we have?
+&lt;/h3>
+&lt;p>
+We&amp;#39;ve all seen this query before:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">askgit &lt;span class="s2">&amp;#34;select count(*) from commits&amp;#34;&lt;/span>
++----------+
+&lt;span class="p">|&lt;/span> COUNT&lt;span class="o">(&lt;/span>*&lt;span class="o">)&lt;/span> &lt;span class="p">|&lt;/span>
++----------+
+&lt;span class="p">|&lt;/span> &lt;span class="m">402&lt;/span> &lt;span class="p">|&lt;/span>
++----------+&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-9">
+How about most frequent multi-commiter?
+&lt;/h3>
+&lt;p>
+Lets group the commits by &lt;code class="verbatim">author_name&lt;/code> and sort by the most commiters.
+It looks like somewhere down the line &lt;code class="verbatim">scott Chacon&lt;/code> changed to &lt;code class="verbatim">Scott
+Chacon&lt;/code> so he&amp;#39;s counted twice. Still, looks like he&amp;#39;s been doing a
+lot.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">askgit &lt;span class="s2">&amp;#34;select count(*) as count, author_name from commits group by author_name having count &amp;gt; 1 order by count desc&amp;#34;&lt;/span>
++-------+--------------------+
+&lt;span class="p">|&lt;/span> COUNT &lt;span class="p">|&lt;/span> AUTHOR NAME &lt;span class="p">|&lt;/span>
++-------+--------------------+
+&lt;span class="p">|&lt;/span> &lt;span class="m">81&lt;/span> &lt;span class="p">|&lt;/span> scott Chacon &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> &lt;span class="m">78&lt;/span> &lt;span class="p">|&lt;/span> robertodecurnex &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> &lt;span class="m">77&lt;/span> &lt;span class="p">|&lt;/span> Roberto Decurnex &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> &lt;span class="m">20&lt;/span> &lt;span class="p">|&lt;/span> Scott Chacon &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> &lt;span class="m">20&lt;/span> &lt;span class="p">|&lt;/span> Joshua Nichols &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> &lt;span class="m">9&lt;/span> &lt;span class="p">|&lt;/span> Per Lundberg &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> &lt;span class="m">9&lt;/span> &lt;span class="p">|&lt;/span> James Couball &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> &lt;span class="m">8&lt;/span> &lt;span class="p">|&lt;/span> Daniel Mendler &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> &lt;span class="m">5&lt;/span> &lt;span class="p">|&lt;/span> Vern Burton &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> &lt;span class="m">5&lt;/span> &lt;span class="p">|&lt;/span> Kelly Stannard &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> &lt;span class="m">4&lt;/span> &lt;span class="p">|&lt;/span> elliottcable &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> &lt;span class="m">4&lt;/span> &lt;span class="p">|&lt;/span> Josh Nichols &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> &lt;span class="m">4&lt;/span> &lt;span class="p">|&lt;/span> James Rosen &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> &lt;span class="m">3&lt;/span> &lt;span class="p">|&lt;/span> Yuichi Tateno &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> &lt;span class="m">3&lt;/span> &lt;span class="p">|&lt;/span> Michael Mallete &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> &lt;span class="m">3&lt;/span> &lt;span class="p">|&lt;/span> Jorge Bernal &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> &lt;span class="m">2&lt;/span> &lt;span class="p">|&lt;/span> Yuya.Nishida &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> &lt;span class="m">2&lt;/span> &lt;span class="p">|&lt;/span> Yuta Harima &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> &lt;span class="m">2&lt;/span> &lt;span class="p">|&lt;/span> TIT &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> &lt;span class="m">2&lt;/span> &lt;span class="p">|&lt;/span> Joshua Liebowitz &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> &lt;span class="m">2&lt;/span> &lt;span class="p">|&lt;/span> Jonathan Rudenberg &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> &lt;span class="m">2&lt;/span> &lt;span class="p">|&lt;/span> Joe Moore &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> &lt;span class="m">2&lt;/span> &lt;span class="p">|&lt;/span> Gianni Chiappetta &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> &lt;span class="m">2&lt;/span> &lt;span class="p">|&lt;/span> Eric Goodwin &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> &lt;span class="m">2&lt;/span> &lt;span class="p">|&lt;/span> Cameron Walsh &lt;span class="p">|&lt;/span>
++-------+--------------------+&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-10">
+Commits by month
+&lt;/h3>
+&lt;p>
+We can look at the activity of the project over time using the sqlite
+date functions. We can see that there&amp;#39;s a lot of activity in the
+beginning and it trails off.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="nb">cd&lt;/span> /tmp/ruby-git
+askgit &lt;span class="s2">&amp;#34;select strftime(\&amp;#34;%Y-%m\&amp;#34;, author_when) as &amp;#39;month&amp;#39;,
+&lt;/span>&lt;span class="s2"> count(*) as total_commits, sum(additions), sum(deletions)
+&lt;/span>&lt;span class="s2"> from commits group by strftime(\&amp;#34;%Y-%me\&amp;#34;, author_when) order by strftime(\&amp;#34;%Y-%m\&amp;#34;, author_when);&amp;#34;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example half-height-scroll">+---------+---------------+----------------+----------------+
+| MONTH | TOTAL COMMITS | SUM(ADDITIONS) | SUM(DELETIONS) |
++---------+---------------+----------------+----------------+
+| 2007-11 | 78 | 27597 | 6204 |
+| 2008-01 | 3 | 5 | 5 |
+| 2008-03 | 12 | 279 | 1101 |
+| 2008-05 | 10 | 180 | 34 |
+| 2008-07 | 4 | 33 | 6 |
+| 2008-08 | 1 | 2 | 2 |
+| 2008-10 | 1 | 1 | 1 |
+| 2008-11 | 1 | 1 | 1 |
+| 2008-12 | 6 | 180 | 15039 |
+| 2009-02 | 16 | 202 | 216 |
+| 2009-03 | 2 | 9 | 2 |
+| 2009-04 | 1 | 1 | 1 |
+| 2009-05 | 2 | 115 | 16 |
+| 2009-08 | 13 | 168 | 97 |
+| 2009-09 | 4 | 10 | 6 |
+| 2009-10 | 6 | 11 | 11 |
+| 2011-08 | 1 | 1 | 1 |
+| 2011-09 | 1 | 0 | 0 |
+| 2011-10 | 1 | 251 | 240 |
+| 2011-12 | 1 | 30 | 1 |
+| 2012-03 | 1 | 1 | 0 |
+| 2012-04 | 1 | 1 | 1 |
+| 2013-01 | 1 | 6 | 4 |
+| 2013-04 | 45 | 704 | 388 |
+| 2013-05 | 3 | 8 | 5 |
+| 2013-06 | 1 | 9 | 0 |
+| 2013-08 | 17 | 184 | 41 |
+| 2013-09 | 1 | 8 | 8 |
+| 2013-12 | 2 | 4 | 4 |
+| 2014-01 | 26 | 254 | 96 |
+| 2014-02 | 5 | 8 | 753 |
+| 2014-05 | 1 | 2 | 2 |
+| 2014-06 | 4 | 14 | 2 |
+| 2014-07 | 6 | 44 | 35 |
+| 2014-08 | 4 | 4 | 4 |
+| 2014-09 | 5 | 109 | 54 |
+| 2014-10 | 1 | 20 | 0 |
+| 2014-11 | 4 | 10 | 4 |
+| 2014-12 | 11 | 244 | 60 |
+| 2015-01 | 36 | 446 | 216 |
+| 2015-10 | 1 | 1 | 0 |
+| 2016-02 | 12 | 216 | 196 |
+| 2018-01 | 2 | 40 | 42 |
+| 2018-02 | 1 | 17 | 17 |
+| 2018-03 | 4 | 233 | 64 |
+| 2018-04 | 1 | 8 | 4 |
+| 2018-05 | 4 | 81 | 35 |
+| 2018-06 | 5 | 192 | 19 |
+| 2018-07 | 4 | 37 | 9 |
+| 2018-08 | 5 | 64 | 15 |
+| 2018-10 | 1 | 169 | 0 |
+| 2019-02 | 1 | 65 | 45 |
+| 2019-09 | 1 | 8 | 2 |
+| 2019-12 | 1 | 763 | 17 |
+| 2020-01 | 6 | 172 | 56 |
+| 2020-02 | 5 | 15 | 10 |
+| 2020-04 | 9 | 63 | 9 |
++---------+---------------+----------------+----------------+
+&lt;/pre>
+&lt;p>
+Looking at this you can see that nothing happened in 2010 and 2017, a
+whole bunch of stuff was removed on 2008-11, and really there&amp;#39;s only
+be faily small work done after the initial flurry of implementation.
+&lt;/p>
+&lt;h2 id="headline-11">
+Tags
+&lt;/h2>
+&lt;p>
+Tags can represent releases. Presumably the project is at a point
+where you want to mark it in some way, and we&amp;#39;ll use that to look at
+the life cycle of what&amp;#39;s been going on.
+&lt;/p>
+&lt;h3 id="headline-12">
+Get a list of tags
+&lt;/h3>
+&lt;p>
+Here we can see a list of tags for the project.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">askgit &lt;span class="s2">&amp;#34;select name, tagger_name, target_type from tags&amp;#34;&lt;/span>
++-----------------------+------------------------------+------------------------------------------+
+&lt;span class="p">|&lt;/span> NAME &lt;span class="p">|&lt;/span> TAGGER NAME &lt;span class="p">|&lt;/span> TARGET TYPE &lt;span class="p">|&lt;/span>
++-----------------------+------------------------------+------------------------------------------+
+&lt;span class="p">|&lt;/span> refs/tags/1.0.3 &lt;span class="p">|&lt;/span> NULL &lt;span class="p">|&lt;/span> NULL &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> refs/tags/1.0.5 &lt;span class="p">|&lt;/span> NULL &lt;span class="p">|&lt;/span> NULL &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> refs/tags/1.0.5.1 &lt;span class="p">|&lt;/span> schacon@gmail.com &lt;span class="p">|&lt;/span> ae106e2a3569e5ea874852c613ed060d8e232109 &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> refs/tags/v1.0.7 &lt;span class="p">|&lt;/span> schacon@gmail.com &lt;span class="p">|&lt;/span> 1adc5b8136c2cd6c694629947e1dbc49c8bffe6a &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> refs/tags/v1.2.0 &lt;span class="p">|&lt;/span> NULL &lt;span class="p">|&lt;/span> NULL &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> refs/tags/v1.2.1 &lt;span class="p">|&lt;/span> NULL &lt;span class="p">|&lt;/span> NULL &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> refs/tags/v1.2.10 &lt;span class="p">|&lt;/span> decurnex.roberto@gmail.com &lt;span class="p">|&lt;/span> 6f48447656c68317842aaa39a959dbe69681e38d &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> refs/tags/v1.2.2 &lt;span class="p">|&lt;/span> NULL &lt;span class="p">|&lt;/span> NULL &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> refs/tags/v1.2.3 &lt;span class="p">|&lt;/span> NULL &lt;span class="p">|&lt;/span> NULL &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> refs/tags/v1.2.4 &lt;span class="p">|&lt;/span> NULL &lt;span class="p">|&lt;/span> NULL &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> refs/tags/v1.2.5 &lt;span class="p">|&lt;/span> NULL &lt;span class="p">|&lt;/span> NULL &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> refs/tags/v1.2.6 &lt;span class="p">|&lt;/span> decurnex.roberto@gmail.com &lt;span class="p">|&lt;/span> 6db4fdcad851eeaff6382a9eb6748455c3818c3e &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> refs/tags/v1.2.7 &lt;span class="p">|&lt;/span> roberto.decurnex@avature.net &lt;span class="p">|&lt;/span> 219c729b24b1dc868986f821655912612919ac21 &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> refs/tags/v1.2.8 &lt;span class="p">|&lt;/span> roberto.decurnex@avature.net &lt;span class="p">|&lt;/span> 8425a6b6169eaeda0afe2e16b0e4210ed433caf2 &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> refs/tags/v1.2.9 &lt;span class="p">|&lt;/span> decurnex.roberto@gmail.com &lt;span class="p">|&lt;/span> 99b11561a64740285872f4c0a8b72e3e69308ed2 &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> refs/tags/v1.2.9.1 &lt;span class="p">|&lt;/span> decurnex.roberto@gmail.com &lt;span class="p">|&lt;/span> cc6d6efc1b7eaf63609c4c06969b0f839dc80095 &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> refs/tags/v1.3.0 &lt;span class="p">|&lt;/span> decurnex.roberto@gmail.com &lt;span class="p">|&lt;/span> a223fcf873bd99658cd1d0bdee1818adc7e3e92c &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> refs/tags/v1.4.0 &lt;span class="p">|&lt;/span> per.lundberg@ecraft.com &lt;span class="p">|&lt;/span> c8d10125d0cf172684e2da776b79edf90baebc52 &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> refs/tags/v1.5.0 &lt;span class="p">|&lt;/span> per.lundberg@ecraft.com &lt;span class="p">|&lt;/span> fd2642a626d20594a25010526f10ff99431c2cca &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> refs/tags/v1.6.0 &lt;span class="p">|&lt;/span> NULL &lt;span class="p">|&lt;/span> NULL &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> refs/tags/v1.6.0.pre1 &lt;span class="p">|&lt;/span> jcouball@yahoo.com &lt;span class="p">|&lt;/span> b9c7c5c51f935e547ab15a134e66c65ea0d9ab76 &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> refs/tags/v1.7.0 &lt;span class="p">|&lt;/span> couballj@verizonmedia.com &lt;span class="p">|&lt;/span> 4bef5abbba073c77b4d0ccc1ffcd0ed7d48be5d4 &lt;span class="p">|&lt;/span>
++-----------------------+------------------------------+------------------------------------------+&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+When &lt;code class="verbatim">target_type&lt;/code> is &lt;code class="verbatim">NULL&lt;/code> it means that it&amp;#39;s a lightweight tag and
+doesn&amp;#39;t have a commit associated with it. Most of the time people
+will have a commit, and since commit has a date it makes it easier for
+us to associate with.
+&lt;/p>
+&lt;h3 id="headline-13">
+Finding out who did the actual tagging and when
+&lt;/h3>
+&lt;p>
+Here we can find out who did the tagging and what the message was.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">askgit &lt;span class="s2">&amp;#34;select name, commits.id, commits.message, author_name, author_email, author_when from tags, commits where tags.target_type = commits.id order by author_when&amp;#34;&lt;/span>
++--------------------+------------------------------------------+--------------------------------+------------------+------------------------------+---------------------------+
+&lt;span class="p">|&lt;/span> NAME &lt;span class="p">|&lt;/span> ID &lt;span class="p">|&lt;/span> MESSAGE &lt;span class="p">|&lt;/span> AUTHOR NAME &lt;span class="p">|&lt;/span> AUTHOR EMAIL &lt;span class="p">|&lt;/span> AUTHOR WHEN &lt;span class="p">|&lt;/span>
++--------------------+------------------------------------------+--------------------------------+------------------+------------------------------+---------------------------+
+&lt;span class="p">|&lt;/span> refs/tags/1.0.5.1 &lt;span class="p">|&lt;/span> ae106e2a3569e5ea874852c613ed060d8e232109 &lt;span class="p">|&lt;/span> bug fixes &lt;span class="p">|&lt;/span> Scott Chacon &lt;span class="p">|&lt;/span> schacon@gmail.com &lt;span class="p">|&lt;/span> 2008-03-23T13:32:52-07:00 &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> refs/tags/v1.0.7 &lt;span class="p">|&lt;/span> 1adc5b8136c2cd6c694629947e1dbc49c8bffe6a &lt;span class="p">|&lt;/span> updated README with new &lt;span class="p">|&lt;/span> Scott Chacon &lt;span class="p">|&lt;/span> schacon@gmail.com &lt;span class="p">|&lt;/span> 2008-05-27T12:59:54-07:00 &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> install instructions &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> refs/tags/v1.2.6 &lt;span class="p">|&lt;/span> 6db4fdcad851eeaff6382a9eb6748455c3818c3e &lt;span class="p">|&lt;/span> Version 1.2.6 changelog &lt;span class="p">|&lt;/span> robertodecurnex &lt;span class="p">|&lt;/span> decurnex.roberto@gmail.com &lt;span class="p">|&lt;/span> 2013-08-17T04:23:53-03:00 &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> refs/tags/v1.2.7 &lt;span class="p">|&lt;/span> 219c729b24b1dc868986f821655912612919ac21 &lt;span class="p">|&lt;/span> Moving version to 1.2.7 &lt;span class="p">|&lt;/span> robertodecurnex &lt;span class="p">|&lt;/span> roberto.decurnex@avature.net &lt;span class="p">|&lt;/span> 2014-06-09T17:06:42-03:00 &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> refs/tags/v1.2.8 &lt;span class="p">|&lt;/span> 8425a6b6169eaeda0afe2e16b0e4210ed433caf2 &lt;span class="p">|&lt;/span> Removing jruby-head from &lt;span class="p">|&lt;/span> Roberto Decurnex &lt;span class="p">|&lt;/span> roberto.decurnex@avature.net &lt;span class="p">|&lt;/span> 2014-07-31T16:57:57-03:00 &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> .travis.yml &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> refs/tags/v1.2.9 &lt;span class="p">|&lt;/span> 99b11561a64740285872f4c0a8b72e3e69308ed2 &lt;span class="p">|&lt;/span> Updating CHANGELOG &lt;span class="p">|&lt;/span> Roberto Decurnex &lt;span class="p">|&lt;/span> decurnex.roberto@gmail.com &lt;span class="p">|&lt;/span> 2015-01-12T16:51:41-03:00 &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> refs/tags/v1.2.9.1 &lt;span class="p">|&lt;/span> cc6d6efc1b7eaf63609c4c06969b0f839dc80095 &lt;span class="p">|&lt;/span> Updating version &lt;span class="o">(&lt;/span>1.2.9.1&lt;span class="o">)&lt;/span> &lt;span class="p">|&lt;/span> Roberto Decurnex &lt;span class="p">|&lt;/span> decurnex.roberto@gmail.com &lt;span class="p">|&lt;/span> 2015-01-15T14:15:46-03:00 &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> refs/tags/v1.2.10 &lt;span class="p">|&lt;/span> 6f48447656c68317842aaa39a959dbe69681e38d &lt;span class="p">|&lt;/span> Adding before install to &lt;span class="p">|&lt;/span> Roberto Decurnex &lt;span class="p">|&lt;/span> decurnex.roberto@gmail.com &lt;span class="p">|&lt;/span> 2016-02-25T16:16:06-03:00 &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> travis. &lt;span class="o">(&lt;/span>update bundler&lt;span class="o">)&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> refs/tags/v1.3.0 &lt;span class="p">|&lt;/span> a223fcf873bd99658cd1d0bdee1818adc7e3e92c &lt;span class="p">|&lt;/span> Bump version 1.3.0 Dropping &lt;span class="p">|&lt;/span> Roberto Decurnex &lt;span class="p">|&lt;/span> decurnex.roberto@gmail.com &lt;span class="p">|&lt;/span> 2016-02-25T19:22:08-03:00 &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> ruby 1.8.x support &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> refs/tags/v1.4.0 &lt;span class="p">|&lt;/span> c8d10125d0cf172684e2da776b79edf90baebc52 &lt;span class="p">|&lt;/span> Release 1.4.0 &lt;span class="p">|&lt;/span> Per Lundberg &lt;span class="p">|&lt;/span> per.lundberg@ecraft.com &lt;span class="p">|&lt;/span> 2018-05-16T09:49:34+03:00 &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> refs/tags/v1.5.0 &lt;span class="p">|&lt;/span> fd2642a626d20594a25010526f10ff99431c2cca &lt;span class="p">|&lt;/span> Release v1.5.0 &lt;span class="p">|&lt;/span> Per Lundberg &lt;span class="p">|&lt;/span> per.lundberg@ecraft.com &lt;span class="p">|&lt;/span> 2018-08-10T09:57:26+02:00 &lt;span class="p">|&lt;/span>
+&lt;span class="p">|&lt;/span> refs/tags/v1.7.0 &lt;span class="p">|&lt;/span> 4bef5abbba073c77b4d0ccc1ffcd0ed7d48be5d4 &lt;span class="p">|&lt;/span> Release v1.7.0 &lt;span class="p">|&lt;/span> James Couball &lt;span class="p">|&lt;/span> couballj@verizonmedia.com &lt;span class="p">|&lt;/span> 2020-04-25T14:40:51-07:00 &lt;span class="p">|&lt;/span>
++--------------------+------------------------------------------+--------------------------------+------------------+------------------------------+---------------------------+&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Looking at the dates of this, we can see that Scott Chacon started the
+project in 2008, Roberto Decurnex took over from 2013-2016, Per
+Lundberg in 2018, and finally James Couball did a release in 2020.
+&lt;/p>
+&lt;p>
+Looking at the notes it seems like its the world around of &lt;code class="verbatim">ruby-git&lt;/code>
+that is changing (travis, ruby very support, etc.).
+&lt;/p>
+&lt;h3 id="headline-14">
+Figuring out start and end dates
+&lt;/h3>
+&lt;p>
+We can ask all of the questions above based upon the timestamps of
+when a tag was created. This will give us an idea of what&amp;#39;s going on
+in the project during that time. Lets create a simple CSV file that
+will make it easier to ask these questions.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="nb">cd&lt;/span> /tmp/ruby-git
+askgit &lt;span class="s2">&amp;#34;select name, commits.id, author_when from tags, commits where tags.target_type = commits.id order by author_when&amp;#34;&lt;/span> --format csv &amp;gt; tags.csv&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Then we can make this a little simplier to loop over, where we have a
+start time and end time for each of the tags. We start with the
+initial commit as the start time, and then use the previous tag time
+going forward.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="nv">PREV_DATE&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="k">$(&lt;/span>askgit &lt;span class="s2">&amp;#34;select min(author_when) as first from commits&amp;#34;&lt;/span> --format csv &lt;span class="p">|&lt;/span>grep -v first&lt;span class="k">)&lt;/span>
+&lt;span class="k">while&lt;/span> &lt;span class="nv">IFS&lt;/span>&lt;span class="o">=&lt;/span>, &lt;span class="nb">read&lt;/span> -r tag id date&lt;span class="p">;&lt;/span> &lt;span class="k">do&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="o">[[&lt;/span> &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="nv">$tag&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> !&lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;name&amp;#34;&lt;/span> &lt;span class="o">]]&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="k">then&lt;/span>
+&lt;span class="nb">echo&lt;/span> &lt;span class="si">${&lt;/span>&lt;span class="nv">tag&lt;/span>&lt;span class="si">}&lt;/span>,&lt;span class="si">${&lt;/span>&lt;span class="nv">id&lt;/span>&lt;span class="si">}&lt;/span>,&lt;span class="si">${&lt;/span>&lt;span class="nv">PREV_DATE&lt;/span>&lt;span class="si">}&lt;/span>,&lt;span class="si">${&lt;/span>&lt;span class="nv">date&lt;/span>&lt;span class="si">}&lt;/span>
+&lt;span class="nv">PREV_DATE&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">date&lt;/span>&lt;span class="si">}&lt;/span>
+&lt;span class="k">fi&lt;/span>
+&lt;span class="k">done&lt;/span> &amp;lt; /tmp/ruby-git/tags.csv &amp;gt; /tmp/ruby-git/start_end.csv&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-15">
+Tag stats
+&lt;/h3>
+&lt;p>
+We can loop over this file and pull out some stats for what went into
+each tag.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="nb">cd&lt;/span> /tmp/ruby-git
+&lt;span class="k">while&lt;/span> &lt;span class="nv">IFS&lt;/span>&lt;span class="o">=&lt;/span>, &lt;span class="nb">read&lt;/span> -r tag id start end&lt;span class="p">;&lt;/span> &lt;span class="k">do&lt;/span>
+&lt;span class="nb">echo&lt;/span> &lt;span class="nv">$tag&lt;/span>
+askgit &lt;span class="s2">&amp;#34;select count(*) as count from commits where author_when &amp;gt; &amp;#39;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">start&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#39; and author_when &amp;lt;= &amp;#39;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">end&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#39;&amp;#34;&lt;/span> --format json &lt;span class="p">|&lt;/span> jq .count
+askgit &lt;span class="s2">&amp;#34;select count(*) as count, author_name from commits where author_when &amp;gt; &amp;#39;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">start&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#39; and author_when &amp;lt;= &amp;#39;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">end&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#39; group by author_name order by count desc&amp;#34;&lt;/span>
+&lt;span class="k">done&lt;/span> &amp;lt; start_end.csv&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example half-height-scroll">refs/tags/1.0.5.1
+0
++-------+-------------+
+| COUNT | AUTHOR NAME |
++-------+-------------+
++-------+-------------+
+refs/tags/v1.0.7
+10
++-------+-----------------+
+| COUNT | AUTHOR NAME |
++-------+-----------------+
+| 6 | Scott Chacon |
+| 3 | Jorge Bernal |
+| 1 | Michael Siebert |
++-------+-----------------+
+refs/tags/v1.2.6
+128
++-------+--------------------+
+| COUNT | AUTHOR NAME |
++-------+--------------------+
+| 54 | robertodecurnex |
+| 20 | Joshua Nichols |
+| 8 | Daniel Mendler |
+| 5 | Scott Chacon |
+| 4 | elliottcable |
+| 4 | Roberto Decurnex |
+| 4 | Josh Nichols |
+| 4 | James Rosen |
+| 3 | Yuichi Tateno |
+| 3 | Michael Mallete |
+| 2 | Jonathan Rudenberg |
+| 2 | Joe Moore |
+| 2 | Gianni Chiappetta |
+| 1 | schneems |
+| 1 | schacon |
+| 1 | devyn |
+| 1 | Zachery Hostens |
+| 1 | TJ Biddle |
+| 1 | TIT |
+| 1 | Steve Schwartz |
+| 1 | Nathan Fixler |
+| 1 | Michael Hale |
+| 1 | Ken Pratt |
+| 1 | Gabriel Cardoso |
+| 1 | Chad Rosen |
+| 1 | Bryan Larsen |
++-------+--------------------+
+refs/tags/v1.2.7
+39
++-------+------------------+
+| COUNT | AUTHOR NAME |
++-------+------------------+
+| 22 | robertodecurnex |
+| 9 | Roberto Decurnex |
+| 2 | Cameron Walsh |
+| 1 | OHTAKE Tomohiro |
+| 1 | Guy Hughes |
+| 1 | David Underwood |
+| 1 | Ben Sedat |
+| 1 | Arnvald |
+| 1 | Andy Schrage |
++-------+------------------+
+refs/tags/v1.2.8
+8
++-------+------------------+
+| COUNT | AUTHOR NAME |
++-------+------------------+
+| 3 | Roberto Decurnex |
+| 2 | robertodecurnex |
+| 2 | Yuya.Nishida |
+| 1 | Xavier Calland |
++-------+------------------+
+refs/tags/v1.2.9
+56
++-------+------------------------+
+| COUNT | AUTHOR NAME |
++-------+------------------------+
+| 46 | Roberto Decurnex |
+| 4 | Kelly Stannard |
+| 1 | mwrock |
+| 1 | Harald Sitter |
+| 1 | Francis Luong (Franco) |
+| 1 | Dave Lane |
+| 1 | Brian Stevens |
+| 1 | Adam Hooper |
++-------+------------------------+
+refs/tags/v1.2.9.1
+4
++-------+------------------+
+| COUNT | AUTHOR NAME |
++-------+------------------+
+| 3 | Roberto Decurnex |
+| 1 | Eric Tsiliacos |
++-------+------------------+
+refs/tags/v1.2.10
+12
++-------+------------------+
+| COUNT | AUTHOR NAME |
++-------+------------------+
+| 10 | Roberto Decurnex |
+| 1 | David Vartanian |
+| 1 | Christian Paling |
++-------+------------------+
+refs/tags/v1.3.0
+2
++-------+------------------+
+| COUNT | AUTHOR NAME |
++-------+------------------+
+| 2 | Roberto Decurnex |
++-------+------------------+
+refs/tags/v1.4.0
+12
++-------+-------------------------+
+| COUNT | AUTHOR NAME |
++-------+-------------------------+
+| 6 | Per Lundberg |
+| 1 | Vern Burton |
+| 1 | Tom Potts |
+| 1 | Richard Vodden |
+| 1 | Rafael Reggiani Manzo |
+| 1 | Guilherme Maluf Balzana |
+| 1 | Alexander Maslov |
++-------+-------------------------+
+refs/tags/v1.5.0
+12
++-------+---------------------+
+| COUNT | AUTHOR NAME |
++-------+---------------------+
+| 3 | Vern Burton |
+| 2 | Per Lundberg |
+| 2 | Joshua Liebowitz |
+| 1 | Taichiro Suzuki |
+| 1 | Matias Garcia Isaia |
+| 1 | Kody |
+| 1 | Kelly Stannard |
+| 1 | Denis Defreyne |
++-------+---------------------+
+refs/tags/v1.7.0
+26
++-------+--------------------+
+| COUNT | AUTHOR NAME |
++-------+--------------------+
+| 9 | James Couball |
+| 2 | Yuta Harima |
+| 1 | cyclotron3k |
+| 1 | Vern Burton |
+| 1 | TIT |
+| 1 | Stephen Paul Weber |
+| 1 | Salim Afiune |
+| 1 | Per Lundberg |
+| 1 | Michael Camilleri |
+| 1 | Marcel Hoyer |
+| 1 | Jonas Müller |
+| 1 | James Bunch |
+| 1 | Harald |
+| 1 | Evgenii Pecherkin |
+| 1 | Antonio Terceiro |
+| 1 | Alex Mayer |
+| 1 | Agora Security |
++-------+--------------------+
+&lt;/pre>
+&lt;h2 id="headline-16">
+Files
+&lt;/h2>
+&lt;p>
+We can also look at the files inside of the commits. &lt;code class="verbatim">askgit&lt;/code> does have
+a &lt;code class="verbatim">file&lt;/code> table, but that shows the repository state at as specific
+commit, and thus is less useful for actually tracking changes that
+happened in a commit, or between commits.
+&lt;/p>
+&lt;p>
+But there&amp;#39;s no reason why we can&amp;#39;t use &lt;code class="verbatim">git diff-tree&lt;/code> to find the
+information.
+&lt;/p>
+&lt;h3 id="headline-17">
+Files modified with a specific commit
+&lt;/h3>
+&lt;p>
+We can see which files were changed in the latest commit:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="nb">cd&lt;/span> /tmp/ruby-git
+git diff-tree --no-commit-id -r --name-only HEAD^1&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+CHANGELOG.md
+lib/git/version.rb
+&lt;/pre>
+&lt;p>
+Which, at the time of this writing, is the same as:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="nb">cd&lt;/span> /tmp/ruby-git
+git diff-tree --no-commit-id -r --name-only 2eb64a4147b75ea8776828f2b8a6b50427dec06c&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+CHANGELOG.md
+lib/git/version.rb
+&lt;/pre>
+&lt;h3 id="headline-18">
+Files modified by a tag
+&lt;/h3>
+&lt;p>
+We can use the &lt;code class="verbatim">..&lt;/code> way of specifying commit ranges, so let&amp;#39;s look to
+see which files have changed between &lt;code class="verbatim">v1.5.0&lt;/code> and &lt;code class="verbatim">v1.7.0&lt;/code>.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="nb">cd&lt;/span> /tmp/ruby-git
+git diff-tree --no-commit-id -r --name-only v1.5.0..v1.7.0&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example half-height-scroll">.github/stale.yml
+.jrubyrc
+.travis.yml
+CHANGELOG.md
+CONTRIBUTING.md
+MAINTAINERS.md
+PULL_REQUEST_TEMPLATE.md
+README.md
+RELEASING.md
+git.gemspec
+lib/git.rb
+lib/git/base/factory.rb
+lib/git/branch.rb
+lib/git/config.rb
+lib/git/diff.rb
+lib/git/lib.rb
+lib/git/version.rb
+tests/files/encoding/dot_git/COMMIT_EDITMSG
+tests/files/encoding/dot_git/HEAD
+tests/files/encoding/dot_git/config
+tests/files/encoding/dot_git/description
+tests/files/encoding/dot_git/hooks/applypatch-msg.sample
+tests/files/encoding/dot_git/hooks/commit-msg.sample
+tests/files/encoding/dot_git/hooks/fsmonitor-watchman.sample
+tests/files/encoding/dot_git/hooks/post-update.sample
+tests/files/encoding/dot_git/hooks/pre-applypatch.sample
+tests/files/encoding/dot_git/hooks/pre-commit.sample
+tests/files/encoding/dot_git/hooks/pre-push.sample
+tests/files/encoding/dot_git/hooks/pre-rebase.sample
+tests/files/encoding/dot_git/hooks/pre-receive.sample
+tests/files/encoding/dot_git/hooks/prepare-commit-msg.sample
+tests/files/encoding/dot_git/hooks/update.sample
+tests/files/encoding/dot_git/index
+tests/files/encoding/dot_git/info/exclude
+tests/files/encoding/dot_git/logs/HEAD
+tests/files/encoding/dot_git/logs/refs/heads/master
+tests/files/encoding/dot_git/objects/20/aefc8947d5bf08710afabe7712a1d6040ed5bd
+tests/files/encoding/dot_git/objects/54/82c9609dd461acafcc859279490acfdea01f00
+tests/files/encoding/dot_git/objects/87/d9aa884f84c67ac2185530f0b84d5eebda3eca
+tests/files/encoding/dot_git/objects/91/59312af5dd77ca1fac174a3b965a806451b5c6
+tests/files/encoding/dot_git/objects/cf/921422e5382afe0c90a772a2cb37867839ae64
+tests/files/encoding/dot_git/objects/d4/fc598fff13f7bd681ceb38afafcae631ab3e50
+tests/files/encoding/dot_git/refs/heads/master
+tests/files/encoding/test1.txt
+tests/files/encoding/test2.txt
+tests/files/working/dot_git/config
+tests/test_helper.rb
+tests/units/test_config.rb
+tests/units/test_diff_non_default_encoding.rb
+tests/units/test_lib.rb
+tests/units/test_logger.rb
+tests/units/test_merge_base.rb
+tests/units/test_thread_safety.rb
+tests/units/test_thread_safty.rb
+&lt;/pre>
+&lt;h3 id="headline-19">
+File history
+&lt;/h3>
+&lt;p>
+It can be useful to see when a file was added. In this case again,
+&lt;code class="verbatim">askgit&lt;/code> isn&amp;#39;t necessarily the right way to go about it, since &lt;code class="verbatim">git log&lt;/code>
+is much faster.
+&lt;/p>
+&lt;p>
+Here we can show the history of a specific file,
+&lt;code class="verbatim">PULL_REQUEST_TEMPLATE.md&lt;/code>. We&amp;#39;ll pass in some formatting options so
+that we could parse this later, and the &lt;code class="verbatim">--reverse&lt;/code> field so that it&amp;#39;s
+in chronological order. The &lt;a href="https://git-scm.com/docs/git-log#_pretty_formats">pretty format&lt;/a> that we are using is:
+&lt;/p>
+&lt;table class="table table-bordered">
+&lt;tbody>
+&lt;tr>
+&lt;td>&lt;code class="verbatim">%aI&lt;/code>&lt;/td>
+&lt;td>Author date in iso8601&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code class="verbatim">%an&lt;/code>&lt;/td>
+&lt;td>Author Name&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code class="verbatim">%h&lt;/code>&lt;/td>
+&lt;td>Short commit id&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code class="verbatim">%s&lt;/code>&lt;/td>
+&lt;td>Summary string&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="nb">cd&lt;/span> /tmp/ruby-git
+git log --reverse --pretty&lt;span class="o">=&lt;/span>&lt;span class="s1">&amp;#39;format:%aI %h %an %s&amp;#39;&lt;/span> PULL_REQUEST_TEMPLATE.md&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+2018-06-20T06:58:17-05:00 4aa6d1f Vern Burton Creates CONTRIBUTOR and MAINTAINERS files (#353)
+2020-02-04T03:31:12+09:00 e0a385f Yuta Harima Fix broken link in a PR template (#444)
+2020-02-05T00:20:01+09:00 5c89ef6 Yuta Harima fix broken link in a PR template again (#446)
+&lt;/pre>
+&lt;p>
+So we can see that &lt;code class="verbatim">Vern Burton&lt;/code> did some github related things in mid
+2018, and &lt;code class="verbatim">Yuta Harima&lt;/code> did some maintence on it in feb of 2020.
+&lt;/p>
+&lt;h2 id="headline-20">
+Thoughts
+&lt;/h2>
+&lt;p>
+Static analysis of code repositories can add some interesting insights
+to how a project is maintained. Both in terms of who is working on it,
+have the original maintainers left or moved on to other things.
+&lt;/p>
+&lt;p>
+For example, we could look who has been making changes to part of a
+system and based upon who has been commiting changes to those files
+and how recently they&amp;#39;ve contributed to the project understand if the
+&lt;em>knowledge of how it works&lt;/em> is still with the project, or if the
+knowledge has decayed. &lt;code class="verbatim">git blame&lt;/code> – terribly named, btw, I think it
+should be more like &lt;code class="verbatim">git gratitude&lt;/code> – shows who last touched a specific
+line of code, but they may have moved on to other things. But it
+people have touched the surrounding lines or even the file itself, you
+can believe that the knowledge has been refreshed within the project
+as a whole.
+&lt;/p>
+&lt;p>
+Another thing that would be interesting to look at is churn on files,
+and churn on sets of files – which files have been changing, and
+which files change together. When commits change lots of things
+together, does this tell us something about the complexity of the
+project? Are we more likely to find bugs in &amp;#34;big&amp;#34; commits? Are files
+that have been unchanged in a long time more polished and complete,
+but ones that are frequently changing immature and need to be more
+tested?
+&lt;/p>
+&lt;h2 id="headline-21">
+References
+&lt;/h2>
+&lt;ol>
+&lt;li>
+&lt;p>
+&lt;a href="https://askgit.com/">https://askgit.com/&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://github.com/augmentable-dev/askgit">https://github.com/augmentable-dev/askgit&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://git-scm.com/docs/git-log#_pretty_formats">https://git-scm.com/docs/git-log#_pretty_formats&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;/ol></description></item><item><title>Getting Websters</title><link>https://willschenk.com/articles/2020/getting_websters/</link><pubDate>Thu, 30 Jul 2020 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2020/getting_websters/</guid><description>
 &lt;p>
 A few years ago I read a &lt;a href="http://jsomers.net/blog/dictionary">great post about the value of a good
 dictionary&lt;/a>, which I installed on my laptop and then promptly forgot
