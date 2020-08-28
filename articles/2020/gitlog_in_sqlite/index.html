@@ -1,0 +1,586 @@
+<!doctype html><html><head><title>gitlog in sqlite</title><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><link rel=stylesheet href=../../../css/theme.css><link rel=stylesheet href=../../../css/syntax.css><script type=application/javascript>var doNotTrack=false;if(!doNotTrack){window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;ga('create','UA-56296045-1','auto');ga('send','pageview');}</script><script async src=https://www.google-analytics.com/analytics.js></script><script async defer data-domain=willschenk.com src=https://plausible.io/js/plausible.js></script><meta property="og:title" content="gitlog in sqlite"><meta property="og:description" content="askgit is a great way to look at information inside of a repository. However it currently doesn't support looking at the files inside of the commit itself – it gives you a view of the repository at the time of the commit, but not the patch itself. Since I don't know enough about golang and sqlite virtual tables, lets just create a sqlite3 database from the logfile. Get the gitlog   We are going to use our favorite test repo, ruby-git because it's so deliciously meta."><meta property="og:type" content="article"><meta property="og:url" content="https://willschenk.com/articles/2020/gitlog_in_sqlite/"><meta property="article:published_time" content="2020-08-28T00:00:00+00:00"><meta property="article:modified_time" content="2020-08-28T00:00:00+00:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="gitlog in sqlite"><meta name=twitter:description content="askgit is a great way to look at information inside of a repository. However it currently doesn't support looking at the files inside of the commit itself – it gives you a view of the repository at the time of the commit, but not the patch itself. Since I don't know enough about golang and sqlite virtual tables, lets just create a sqlite3 database from the logfile. Get the gitlog   We are going to use our favorite test repo, ruby-git because it's so deliciously meta."><meta name=twitter:site content="@wschenk"><style>.article p,.article ul,.article ol,.article table{max-width:45em}.article pre p{max-width:none;margin-top:-1.5rem}article.article p:first-child,.article blockquote{font-size:1.25em;font-weight:300;max-width:36em}.half-height-scroll{max-height:32em;overflow:scroll}</style></head><body><nav class="container my-5"><h1 class="pt-md-5 display-3"><a class=text-dark href=../../../>Will Schenk</a></h1><p><a class="text-dark h4 mr-3 font-weight-light" href=../../../articles/>Articles</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../contact>Contact</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../tags/>Tags</a>
+<a href=../../../feed.xml class="mr-3 h4 text-light"><img src=../../../img/rss.svg alt=rss height=20 width=20></a>
+<a href=https://twitter.com/@wschenk class="mr-3 h4 text-light"><img src=../../../img/twitter.svg alt=twitter height=20 width=20></a>
+<a href=https://instagram.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/instagram.svg alt=instagram height=20 width=20></a>
+<a href=https://github.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/github.svg alt=github height=20 width=20></a>
+<a href=https://linkedin.com/in/will-schenk-420266 class="mr-3 h4 text-light"><img src=../../../img/linkedin.svg alt=linkedin height=20 width=20></a></p></nav><div class=container><h1 class=mt-5>gitlog in sqlite</h1><h2 class="font-weight-light font-italic mb-3">sql is great</h2><p class="text-muted mt-3"><a class=text-muted href=https://willschenk.com/articles/2020/gitlog_in_sqlite/>Published August 28, 2020</a>
+<a class=text-muted href=../../../tags/git>#git,</a>
+<a class=text-muted href=../../../tags/sqlite>#sqlite</a></p><article class="article mt-5"><p><a href=https://willschenk.com/articles/2020/using_askgit/>askgit</a> is a great way to look at information inside of a repository.
+However it currently doesn't support looking at the files inside of
+the commit itself – it gives you a view of the repository at the time
+of the commit, but not the patch itself. Since I don't know enough
+about golang and sqlite virtual tables, lets just create a sqlite3
+database from the logfile.</p><h2 id=headline-1>Get the gitlog</h2><p>We are going to use our favorite test repo, <a href=https://github.com/ruby-git/ruby-git>ruby-git</a> because it's so
+deliciously meta.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash><span class=nb>cd</span> /tmp
+git clone https://github.com/ruby-git/ruby-git
+<span class=nb>cd</span> /tmp/ruby-git</code></pre></div></div><p>And then, lets pull out a list of commits, that includes</p><table><tbody><tr><td><code class=verbatim>%h</code></td><td>The hash</td></tr><tr><td><code class=verbatim>%ae</code></td><td>Author email</td></tr><tr><td><code class=verbatim>%aI</code></td><td>Author date</td></tr><tr><td><code class=verbatim>%s</code></td><td>Summary</td></tr><tr><td><code class=verbatim>--numstat</code></td><td>Files with changes in the commit</td></tr></tbody></table><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>git log --pretty<span class=o>=</span>format:<span class=s1>&#39;|%h|%ae|%an|%aI|%s&#39;</span> --numstat &gt; /tmp/commits.log</code></pre></div></div><p>We are going to load this file into a sqlite database that we'll use
+to do some analysis.</p><h2 id=headline-2>Parse and load</h2><p>First we need a <code class=verbatim>Gemfile</code> for the <code class=verbatim>sqlite3</code> gem:</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=n>source</span> <span class=s1>&#39;https://rubygems.org&#39;</span>
+
+<span class=n>gem</span> <span class=s1>&#39;sqlite3&#39;</span></code></pre></div></div><p>And then we can write a script that loads everything up.</p><ol><li><p>Create the database and tables</p></li><li><p>Go through commits.log file one line at a time</p></li><li><p>If the line starts with <code class=verbatim>|</code> parse out the fields and add them to the
+<code class=verbatim>commits</code> table.</p></li><li><p>If the line isn't blank (and isn't already a <code class=verbatim>|</code>) then parse out the
+file changes and add them to the <code class=verbatim>commit_files</code> table.</p></li><li><p>If the commit is already in the database, then abort.</p></li></ol><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=nb>require</span> <span class=s1>&#39;sqlite3&#39;</span>
+
+  <span class=k>def</span> <span class=nf>create_database</span> <span class=n>filename</span>
+    <span class=n>db</span> <span class=o>=</span> <span class=no>SQLite3</span><span class=o>::</span><span class=no>Database</span><span class=o>.</span><span class=n>new</span> <span class=n>filename</span>
+
+    <span class=n>rows</span> <span class=o>=</span> <span class=n>db</span><span class=o>.</span><span class=n>execute</span> <span class=s>&lt;&lt;-SQL1
+</span><span class=s></span>         <span class=no>CREATE</span> <span class=no>TABLE</span> <span class=no>IF</span> <span class=no>NOT</span> <span class=no>EXISTS</span> <span class=n>commits</span> <span class=p>(</span>
+                <span class=nb>id</span>	<span class=no>TEXT</span> <span class=no>UNIQUE</span><span class=p>,</span>
+                <span class=n>summary</span>	<span class=no>TEXT</span><span class=p>,</span>
+                <span class=n>author_name</span>	<span class=no>TEXT</span><span class=p>,</span>
+                <span class=n>author_email</span>	<span class=no>TEXT</span><span class=p>,</span>
+                <span class=n>author_when</span>	<span class=no>DATETIME</span>
+                <span class=p>);</span>
+  <span class=no>SQL1</span>
+
+    <span class=n>rows</span> <span class=o>=</span> <span class=n>db</span><span class=o>.</span><span class=n>execute</span> <span class=s>&lt;&lt;-SQL2
+</span><span class=s></span>         <span class=no>CREATE</span> <span class=no>TABLE</span> <span class=no>IF</span> <span class=no>NOT</span> <span class=no>EXISTS</span> <span class=n>commit_files</span> <span class=p>(</span>
+                <span class=nb>id</span>    <span class=no>TEXT</span><span class=p>,</span>
+                <span class=nb>name</span>  <span class=no>TEXT</span><span class=p>,</span>
+                <span class=n>added</span> <span class=no>INT</span><span class=p>,</span>
+                <span class=n>deleted</span> <span class=no>INT</span>
+                <span class=p>);</span>
+  <span class=no>SQL2</span>
+
+    <span class=n>db</span>
+  <span class=k>end</span>
+
+  <span class=k>def</span> <span class=nf>add_commit</span> <span class=n>db</span><span class=p>,</span> <span class=nb>id</span><span class=p>,</span> <span class=n>email</span><span class=p>,</span> <span class=nb>name</span><span class=p>,</span> <span class=n>date</span><span class=p>,</span> <span class=n>summary</span>
+    <span class=n>ret</span> <span class=o>=</span> <span class=n>db</span><span class=o>.</span><span class=n>execute</span><span class=p>(</span><span class=s2>&#34;INSERT INTO commits (id, summary, author_name, author_email, author_when)
+</span><span class=s2>          VALUES (?, ?, ?, ?, ?)&#34;</span><span class=p>,</span> <span class=o>[</span><span class=nb>id</span><span class=p>,</span> <span class=n>summary</span><span class=p>,</span> <span class=nb>name</span><span class=p>,</span> <span class=n>email</span><span class=p>,</span> <span class=n>date</span> <span class=o>]</span> <span class=p>)</span>
+  <span class=k>end</span>
+
+  <span class=k>def</span> <span class=nf>add_file_commit</span> <span class=n>db</span><span class=p>,</span> <span class=nb>id</span><span class=p>,</span> <span class=n>file</span><span class=p>,</span> <span class=n>added</span><span class=p>,</span> <span class=n>deleted</span>
+    <span class=n>ret</span> <span class=o>=</span> <span class=n>db</span><span class=o>.</span><span class=n>execute</span><span class=p>(</span><span class=s2>&#34;INSERT INTO commit_files (id, name, added, deleted)
+</span><span class=s2>          VALUES (?, ?, ?, ?)&#34;</span><span class=p>,</span> <span class=o>[</span><span class=nb>id</span><span class=p>,</span> <span class=n>file</span><span class=p>,</span> <span class=n>added</span><span class=p>,</span> <span class=n>deleted</span><span class=o>]</span> <span class=p>)</span>
+
+  <span class=k>end</span>
+
+  <span class=k>def</span> <span class=nf>parse_file</span> <span class=n>db</span><span class=p>,</span> <span class=n>file</span>
+    <span class=n>commit</span> <span class=o>=</span> <span class=kp>nil</span>
+    <span class=no>File</span><span class=o>.</span><span class=n>open</span><span class=p>(</span> <span class=n>file</span> <span class=p>)</span><span class=o>.</span><span class=n>each_line</span> <span class=k>do</span> <span class=o>|</span><span class=n>line</span><span class=o>|</span>
+      <span class=n>line</span><span class=o>.</span><span class=n>chomp!</span>
+      <span class=k>if</span> <span class=n>line</span><span class=o>[</span><span class=mi>0</span><span class=o>]</span> <span class=o>==</span> <span class=s1>&#39;|&#39;</span>
+        <span class=n>md</span> <span class=o>=</span> <span class=sr>/\|(.*?)\|(.*?)\|(.*?)\|(.*?)\|(.*)/</span><span class=o>.</span><span class=n>match</span><span class=p>(</span> <span class=n>line</span> <span class=p>)</span>
+        <span class=n>commit</span> <span class=o>=</span> <span class=n>md</span><span class=o>[</span><span class=mi>1</span><span class=o>]</span>
+
+        <span class=nb>puts</span> <span class=n>line</span>
+
+        <span class=k>begin</span>
+          <span class=n>add_commit</span> <span class=n>db</span><span class=p>,</span> <span class=n>md</span><span class=o>[</span><span class=mi>1</span><span class=o>]</span><span class=p>,</span> <span class=n>md</span><span class=o>[</span><span class=mi>2</span><span class=o>]</span><span class=p>,</span> <span class=n>md</span><span class=o>[</span><span class=mi>3</span><span class=o>]</span><span class=p>,</span> <span class=n>md</span><span class=o>[</span><span class=mi>4</span><span class=o>]</span><span class=p>,</span> <span class=n>md</span><span class=o>[</span><span class=mi>5</span><span class=o>]</span>
+        <span class=k>rescue</span> <span class=no>SQLite3</span><span class=o>::</span><span class=no>ConstraintException</span>
+          <span class=nb>puts</span> <span class=s2>&#34;Found existing commit, exiting&#34;</span>
+          <span class=nb>exit</span>
+        <span class=k>end</span>
+      <span class=k>elsif</span> <span class=n>line</span><span class=o>.</span><span class=n>length</span> <span class=o>!=</span> <span class=mi>0</span>
+        <span class=n>md</span> <span class=o>=</span> <span class=sr>/([\d|-]*)\s*([\d|-]*)\s*(.*)/</span><span class=o>.</span><span class=n>match</span><span class=p>(</span> <span class=n>line</span> <span class=p>)</span>
+        <span class=n>add_file_commit</span> <span class=n>db</span><span class=p>,</span> <span class=n>commit</span><span class=p>,</span> <span class=n>md</span><span class=o>[</span><span class=mi>3</span><span class=o>]</span><span class=p>,</span> <span class=n>md</span><span class=o>[</span><span class=mi>1</span><span class=o>]</span><span class=p>,</span> <span class=n>md</span><span class=o>[</span><span class=mi>2</span><span class=o>]</span>
+      <span class=k>end</span>
+    <span class=k>end</span>
+  <span class=k>end</span>
+
+  <span class=n>db</span> <span class=o>=</span> <span class=n>create_database</span> <span class=s2>&#34;test.db&#34;</span>
+
+  <span class=n>parse_file</span> <span class=n>db</span><span class=p>,</span> <span class=s2>&#34;/tmp/commits.log&#34;</span></code></pre></div></div><pre class=example>
+|4bef5ab|couballj@verizonmedia.com|James Couball|2020-04-25T14:40:51-07:00|Release v1.7.0
+Found existing commit, exiting
+</pre><h2 id=headline-3>Sanity check the data</h2><p>We can run some of the queries that we did before.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>sqlite3 test.db <span class=s2>&#34;select count(*) from commits;&#34;</span>
+sqlite3 test.db <span class=s2>&#34;select min(author_when) from commits;&#34;</span>
+sqlite3 test.db <span class=s2>&#34;select * from commits where author_when = (select min(author_when) from commits);&#34;</span> --csv</code></pre></div></div><pre class=example>
+402
+2007-11-07T12:54:26-08:00
+f5baa11,&#34;beginning of Ruby/Git project&#34;,&#34;scott Chacon&#34;,schacon@agadorsparticus.corp.reactrix.com,2007-11-07T12:54:26-08:00
+</pre><p>We can also look to see who has contributed the must number of commits
+since a certain time frame, like say after 2015.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>sqlite3 test.db <span class=s2>&#34;select count(*), author_name from commits 
+</span><span class=s2>where author_when &gt;= &#39;2015-01-01&#39; 
+</span><span class=s2>group by author_name 
+</span><span class=s2>having count(*) &gt; 1 
+</span><span class=s2>order by count(*) desc &#34;</span> -column -header</code></pre></div></div><pre class=example>
+count(*)    author_name     
+----------  ----------------
+44          Roberto Decurnex
+9           James Couball   
+9           Per Lundberg    
+5           Vern Burton     
+2           Joshua Liebowitz
+2           Yuta Harima     
+</pre><h2 id=headline-4>Looking into file change patterns</h2><p>All of this we could have done with <code class=verbatim>askgit</code> which maps directly to the
+repository without having to do a seperate processing step. Let's see
+what interesting information we can find looking inside the commits
+themselves.</p><h3 id=headline-5>Most touched file</h3><p>This shows how many commits reference a specific file, so we can see
+which is the most active.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>sqlite3 test.db <span class=s2>&#34;select count(*), name from commits, commit_files
+</span><span class=s2>where commits.id = commit_files.id
+</span><span class=s2>and commits.author_when &gt;= &#39;2016-01-01&#39;
+</span><span class=s2>group by name order by count(*) desc limit 20&#34;</span> -header</code></pre></div></div><pre class=example>
+count(*)|name
+22|lib/git/lib.rb
+9|README.md
+8|lib/git/version.rb
+7|.travis.yml
+7|git.gemspec
+4|CHANGELOG.md
+4|lib/git/diff.rb
+4|tests/units/test_lib.rb
+3|PULL_REQUEST_TEMPLATE.md
+3|VERSION
+3|tests/test_helper.rb
+2|.github/stale.yml
+2|CHANGELOG
+2|CONTRIBUTING.md
+2|MAINTAINERS.md
+2|lib/git/branch.rb
+2|tests/units/test_archive.rb
+2|tests/units/test_bare.rb
+2|tests/units/test_config.rb
+2|tests/units/test_remotes.rb
+</pre><h3 id=headline-6>Most changed files in a time frame</h3><p>Lets look to see which files have changed the most in a certain time
+frame. This gives you an idea of where the activity of the project
+has been focused.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>sqlite3 test.db <span class=s2>&#34;select count(*) as commits, sum(added) + sum(deleted) as lines_touched, name from commits, commit_files
+</span><span class=s2>where commits.id = commit_files.id
+</span><span class=s2>and commits.author_when &gt;= &#39;2016-01-01&#39;
+</span><span class=s2>group by name
+</span><span class=s2>order by lines_touched desc
+</span><span class=s2>limit 20&#34;</span> -header</code></pre></div></div><pre class=example>
+commits|lines_touched|name
+22|430|lib/git/lib.rb
+2|222|CONTRIBUTING.md
+1|196|lib/git/status.rb
+1|169|tests/files/encoding/dot_git/hooks/pre-rebase.sample
+1|144|tests/units/test_merge_base.rb
+1|128|tests/files/encoding/dot_git/hooks/update.sample
+4|115|tests/units/test_lib.rb
+1|114|tests/files/encoding/dot_git/hooks/fsmonitor-watchman.sample
+4|70|lib/git/diff.rb
+1|65|tests/units/test_status.rb
+1|61|tests/units/test_diff_non_default_encoding.rb
+1|57|RELEASING.md
+1|53|tests/files/encoding/dot_git/hooks/pre-push.sample
+1|52|tests/units/test_object.rb
+7|51|.travis.yml
+1|49|tests/files/encoding/dot_git/hooks/pre-commit.sample
+1|44|tests/units/test_init.rb
+2|43|tests/units/test_remotes.rb
+1|42|tests/files/encoding/dot_git/hooks/prepare-commit-msg.sample
+2|42|tests/units/test_config.rb
+</pre><h3 id=headline-7>Finding commits that changed a specific file</h3><p>This is a fairly mature library that doesn't require that many
+changes. But those changes seem to be focused in <code class=verbatim>lib/git/lib.rb</code>.
+What do we think was going on?</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>sqlite3 test.db <span class=s2>&#34;select summary, author_name, author_when from commits, commit_files
+</span><span class=s2>where commits.id = commit_files.id
+</span><span class=s2>and commit_files.name = &#39;lib/git/lib.rb&#39;
+</span><span class=s2>and commits.author_when &gt;= &#39;2016-01-01&#39;
+</span><span class=s2>order by author_when desc&#34;</span> -column -header</code></pre></div></div><pre class=example>
+summary                                              author_name  author_when              
+---------------------------------------------------  -----------  -------------------------
+Ruby version compatibility conflict solution (#453)  TIT          2020-04-05T20:33:35+03:00
+Add no verify for commit with documentation (#454)   Agora Secur  2020-04-05T17:33:04-05:00
+Remove extraneous '--' from `git stash save -- mess  Antonio Ter  2020-04-05T17:06:53-03:00
+Git::Lib#normalize_encoding early return fix (#461)  James Bunch  2020-04-05T14:15:30-07:00
+Fix issue with color escape codes after recent upda  Marcel Hoye  2020-02-10T22:29:14+01:00
+Fix describe command's dirty, abbrev, candidates, a  Harald       2020-02-06T02:13:29+01:00
+Implementation and tests required to ensure that co  James Couba  2019-12-11T10:04:03-08:00
+Support merge-base (#370)                            Evgenii Pec  2018-10-02T10:03:44-04:00
+Add support for unshallow (#377)                     Stephen Pau  2018-08-24T18:06:12-05:00
+using File as a block so that it tears down once ev  Vern Burton  2018-08-01T09:16:42-05:00
+Support 'push <remote> <branch> --delete' (#325)     Kody         2018-07-28T17:33:52+01:00
+commit with custom author date (#374)                Matias Garc  2018-07-12T16:49:52-03:00
+Check if branch contains commit (#174)               Kelly Stann  2018-07-12T06:19:21-04:00
+config_get: Fix incorrect block name (#373)          Joshua Lieb  2018-06-25T11:46:53-07:00
+Allow fetch operation to receive a `ref` param (#36  Joshua Lieb  2018-06-25T11:45:38-07:00
+Fix space prefix in tag message (#316)               Denis Defre  2018-06-20T14:02:19+02:00
+Enable set url on remotes (#338)                     Tom Potts    2018-05-03T13:48:03+01:00
+Enable mirror option for git clone and push (#342)   Guilherme M  2018-05-03T09:37:17-03:00
+Fix UTF-8 message errors (#327)                      Alexander M  2018-04-30T14:47:26+03:00
+Fix ls-files for git 2.16 (#350)                     Rafael Regg  2018-03-28T08:44:59-03:00
+Updating String#encode usage to prevent silly type   Roberto Dec  2016-02-25T12:31:33-03:00
+Fix the encoding issue - 'split': invalid byte sequ  David Varta  2016-02-16T15:42:14+00:00
+</pre><h3 id=headline-8>Change coupling by commit</h3><p>Lets look to see which files are changed together, which will give us
+a sense of which files are coupled together.</p><p>First we're create <code class=verbatim>query_and_pivot.rb</code> that we'll use to do our query
+and do the count pivot stuff to parse the output.</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=nb>require</span> <span class=s1>&#39;sqlite3&#39;</span>
+
+  <span class=c1># Query the database and pivot the second result (filename) around the</span>
+  <span class=c1># first result (either date or commit id) into a cochange structure</span>
+  <span class=k>def</span> <span class=nf>query_and_loop</span>
+    <span class=n>db</span> <span class=o>=</span> <span class=no>SQLite3</span><span class=o>::</span><span class=no>Database</span><span class=o>.</span><span class=n>new</span> <span class=s2>&#34;test.db&#34;</span>
+
+    <span class=n>cochanges</span> <span class=o>=</span> <span class=k>yield</span> <span class=n>db</span>
+
+    <span class=n>file_set</span> <span class=o>=</span> <span class=o>[]</span>
+    <span class=n>prev_id</span> <span class=o>=</span> <span class=kp>nil</span>
+
+    <span class=n>ret</span> <span class=o>=</span> <span class=p>{}</span>
+
+    <span class=n>cochanges</span><span class=o>.</span><span class=n>each</span> <span class=k>do</span> <span class=o>|</span><span class=nb>id</span><span class=p>,</span><span class=nb>name</span><span class=o>|</span>
+      <span class=k>if</span> <span class=n>prev_id</span> <span class=o>!=</span> <span class=nb>id</span>
+        <span class=n>add_set</span> <span class=n>ret</span><span class=p>,</span> <span class=n>file_set</span>
+        <span class=n>file_set</span> <span class=o>=</span> <span class=o>[]</span>
+      <span class=k>end</span>
+      <span class=n>file_set</span> <span class=o>&lt;&lt;</span> <span class=nb>name</span> <span class=k>unless</span> <span class=n>file_set</span><span class=o>.</span><span class=n>include?</span> <span class=nb>name</span>
+      <span class=n>prev_id</span> <span class=o>=</span> <span class=nb>id</span>
+    <span class=k>end</span>
+    <span class=n>add_set</span> <span class=n>ret</span><span class=p>,</span> <span class=n>file_set</span>
+    <span class=n>collect_and_sort</span> <span class=n>ret</span>
+  <span class=k>end</span>
+
+  <span class=c1># Add each set into the cochange structure.  This tracks how many</span>
+  <span class=c1># times each file was seen with another file, and the number of times</span>
+  <span class=c1># the file was seen overall.</span>
+  <span class=k>def</span> <span class=nf>add_set</span> <span class=n>cochange</span><span class=p>,</span> <span class=n>set</span>
+    <span class=n>set</span><span class=o>.</span><span class=n>each</span> <span class=k>do</span> <span class=o>|</span><span class=n>file</span><span class=o>|</span>
+      <span class=n>cochange</span><span class=o>[</span><span class=n>file</span><span class=o>]</span> <span class=o>||=</span> <span class=p>{}</span>
+      <span class=n>cochange</span><span class=o>[</span><span class=n>file</span><span class=o>][</span><span class=ss>:count</span><span class=o>]</span> <span class=o>||=</span> <span class=mi>0</span>
+      <span class=n>cochange</span><span class=o>[</span><span class=n>file</span><span class=o>][</span><span class=ss>:count</span><span class=o>]</span> <span class=o>+=</span> <span class=mi>1</span>
+      <span class=n>set</span><span class=o>.</span><span class=n>each</span> <span class=k>do</span> <span class=o>|</span><span class=n>cofile</span><span class=o>|</span>
+        <span class=k>if</span> <span class=n>file</span> <span class=o>!=</span> <span class=n>cofile</span>
+          <span class=n>cochange</span><span class=o>[</span><span class=n>file</span><span class=o>][</span><span class=n>cofile</span><span class=o>]</span> <span class=o>||=</span> <span class=mi>0</span>
+          <span class=n>cochange</span><span class=o>[</span><span class=n>file</span><span class=o>][</span><span class=n>cofile</span><span class=o>]</span> <span class=o>+=</span> <span class=mi>1</span>
+        <span class=k>end</span>
+      <span class=k>end</span>
+    <span class=k>end</span>
+  <span class=k>end</span>
+
+  <span class=c1># Turn the cochange sent into an array that is sorted by the</span>
+  <span class=c1># cooralation</span>
+  <span class=k>def</span> <span class=nf>collect_and_sort</span> <span class=n>cochange</span>
+    <span class=n>ret</span> <span class=o>=</span> <span class=o>[]</span>
+
+    <span class=n>cochange</span><span class=o>.</span><span class=n>each</span> <span class=k>do</span> <span class=o>|</span><span class=n>file</span><span class=p>,</span> <span class=n>stats</span><span class=o>|</span>
+      <span class=n>commits</span> <span class=o>=</span> <span class=n>stats</span><span class=o>[</span><span class=ss>:count</span><span class=o>]</span>
+      <span class=n>stats</span><span class=o>.</span><span class=n>each</span> <span class=k>do</span> <span class=o>|</span><span class=n>cofile</span><span class=p>,</span> <span class=n>cocount</span><span class=o>|</span>
+        <span class=n>coorelation</span> <span class=o>=</span> <span class=n>cocount</span> <span class=o>/</span> <span class=n>commits</span><span class=o>.</span><span class=n>to_f</span>
+        <span class=k>if</span> <span class=n>cofile</span> <span class=o>!=</span> <span class=ss>:count</span> <span class=o>&amp;&amp;</span> <span class=n>coorelation</span> <span class=o>&gt;</span> <span class=mi>0</span><span class=o>.</span><span class=mi>3</span> <span class=o>&amp;&amp;</span> <span class=n>cocount</span> <span class=o>&gt;</span> <span class=mi>2</span>
+          <span class=n>ret</span> <span class=o>&lt;&lt;</span> <span class=p>{</span> <span class=ss>file</span><span class=p>:</span> <span class=n>file</span><span class=p>,</span>
+                   <span class=ss>commits</span><span class=p>:</span> <span class=n>commits</span><span class=p>,</span>
+                   <span class=ss>cofile</span><span class=p>:</span> <span class=n>cofile</span><span class=p>,</span>
+                   <span class=ss>coorelation</span><span class=p>:</span> <span class=n>coorelation</span><span class=p>,</span>
+                   <span class=ss>cocount</span><span class=p>:</span> <span class=n>cocount</span> <span class=p>}</span>
+        <span class=k>end</span>
+      <span class=k>end</span>
+    <span class=k>end</span>
+
+    <span class=n>ret</span><span class=o>.</span><span class=n>sort</span> <span class=p>{</span> <span class=o>|</span><span class=n>a</span><span class=p>,</span><span class=n>b</span><span class=o>|</span> <span class=n>b</span><span class=o>[</span><span class=ss>:coorelation</span><span class=o>]</span> <span class=o>&lt;=&gt;</span> <span class=n>a</span><span class=o>[</span><span class=ss>:coorelation</span><span class=o>]</span> <span class=p>}</span>
+  <span class=k>end</span>
+
+  <span class=c1># Prints the results into a table that org-mode can easily reformat.</span>
+  <span class=k>def</span> <span class=nf>print_cochange</span> <span class=n>cochange</span>
+    <span class=nb>puts</span> <span class=s2>&#34;| file | commits | cofile | coorelation | count |&#34;</span>
+    <span class=nb>puts</span> <span class=s2>&#34;|-|-|-|-|-|&#34;</span>
+
+    <span class=n>cochange</span><span class=o>.</span><span class=n>each</span> <span class=k>do</span> <span class=o>|</span><span class=n>file</span><span class=o>|</span>
+      <span class=nb>puts</span> <span class=s2>&#34;|</span><span class=si>#{</span><span class=n>file</span><span class=o>[</span><span class=ss>:file</span><span class=o>]</span><span class=si>}</span><span class=s2>|</span><span class=si>#{</span><span class=n>file</span><span class=o>[</span><span class=ss>:commits</span><span class=o>]</span><span class=si>}</span><span class=s2>|</span><span class=si>#{</span><span class=n>file</span><span class=o>[</span><span class=ss>:cofile</span><span class=o>]</span><span class=si>}</span><span class=s2>|</span><span class=si>#{</span><span class=p>(</span><span class=n>file</span><span class=o>[</span><span class=ss>:coorelation</span><span class=o>]*</span><span class=mi>100</span><span class=p>)</span><span class=o>.</span><span class=n>to_i</span><span class=si>}</span><span class=s2>%|</span><span class=si>#{</span><span class=n>file</span><span class=o>[</span><span class=ss>:cocount</span><span class=o>]</span><span class=si>}</span><span class=s2>|&#34;</span>
+    <span class=k>end</span>
+  <span class=k>end</span></code></pre></div></div><p>And now we'll create a <code class=verbatim>cochange_by_commit.rb</code> script that does our
+query.</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=nb>require</span> <span class=s1>&#39;./query_and_pivot.rb&#39;</span>
+
+  <span class=n>cochanges</span> <span class=o>=</span> <span class=n>query_and_loop</span> <span class=k>do</span> <span class=o>|</span><span class=n>db</span><span class=o>|</span>
+    <span class=n>db</span><span class=o>.</span><span class=n>execute</span> <span class=s2>&#34;
+</span><span class=s2>      select id, name from commit_files where id in 
+</span><span class=s2>        (select commits.id from commits, commit_files 
+</span><span class=s2>         where commits.id = commit_files.id and author_when &gt;= ?
+</span><span class=s2>        )&#34;</span><span class=p>,</span> <span class=o>[</span><span class=s1>&#39;2011-01-01&#39;</span><span class=o>]</span>
+  <span class=k>end</span>
+
+  <span class=n>print_cochange</span> <span class=n>cochanges</span></code></pre></div></div><pre class=example>
+| file                          | commits | cofile                     | coorelation | count |
+|-------------------------------+---------+----------------------------+-------------+-------|
+| CHANGELOG.md                  |       4 | lib/git/version.rb         |        100% |     4 |
+| lib/git/config.rb             |       4 | tests/units/test_config.rb |        100% |     4 |
+| Gemfile.lock                  |       3 | git.gemspec                |        100% |     3 |
+| tests/units/test_config.rb    |       5 | lib/git/config.rb          |         80% |     4 |
+| lib/git.rb                    |       4 | git.gemspec                |         75% |     3 |
+| tests/units/test_remotes.rb   |       8 | lib/git/lib.rb             |         75% |     6 |
+| tests/units/test_tags.rb      |       4 | lib/git/lib.rb             |         75% |     3 |
+| tests/units/test_index_ops.rb |       8 | lib/git/lib.rb             |         75% |     6 |
+| VERSION                       |       7 | git.gemspec                |         71% |     5 |
+| tests/units/test_logger.rb    |       6 | lib/git/lib.rb             |         66% |     4 |
+| lib/git/diff.rb               |       8 | lib/git/lib.rb             |         62% |     5 |
+| tests/units/test_remotes.rb   |       8 | lib/git/base.rb            |         62% |     5 |
+| lib/git/base.rb               |      31 | lib/git/lib.rb             |         61% |    19 |
+| VERSION                       |       7 | lib/git/version.rb         |         57% |     4 |
+| tests/units/test_init.rb      |       7 | lib/git/lib.rb             |         57% |     4 |
+| tests/units/test_init.rb      |       7 | lib/git/base.rb            |         57% |     4 |
+| tests/units/test_lib.rb       |      12 | lib/git/lib.rb             |         50% |     6 |
+| tests/units/test_index_ops.rb |       8 | lib/git/base.rb            |         50% |     4 |
+| tests/test_helper.rb          |       9 | lib/git/lib.rb             |         44% |     4 |
+| lib/git/version.rb            |      12 | git.gemspec                |         41% |     5 |
+| lib/git/version.rb            |      12 | CHANGELOG.md               |         33% |     4 |
+| lib/git/version.rb            |      12 | VERSION                    |         33% |     4 |
+| tests/test_helper.rb          |       9 | tests/units/test_lib.rb    |         33% |     3 |
+</pre><p>I'm limiting the output to only show files that have changed more that
+2 times, mainly to get the data down to something managable to show on
+this point. The first two columns show the file name and the number
+of commits that it's in (for the selected time period). The next few
+columns show the file that changed at the same time as the first time,
+and the % of times that it was in the commit. So a corolation of 1.0
+is that it change everytime together. for <code class=verbatim>0.75</code> it change 3 out of 4
+times that the main file was changed.</p><p>Most of the things here make sense. Unit tests change at a high
+coupling rate as the files that they appear to test, but you also can
+see that <code class=verbatim>lib/git/lib.rb</code> and <code class=verbatim>lib/git/base.rb</code> change a lot with unit
+tests that are testing other parts of the system. Meaning, the unit
+test code isn't super modular with the classes that it's testing, and
+there's probably a bunch of stuff in these <code class=verbatim>base</code> and <code class=verbatim>lib</code> modules that
+have spread responsibilities.</p><h3 id=headline-9>Why isn't <code class=verbatim>VERSION</code> totally coorelated to <code class=verbatim>lib/git/version.rb</code> ?</h3><p>Looking above we can see that changed to <code class=verbatim>VERSION</code> are coorlated to
+<code class=verbatim>lib/git/version.rb</code> only 57% of the time. Weird. Let's see if we can
+figure out what those other changes are.</p><p>We are going to use the sql <code class=verbatim>EXCEPT</code> keyword to first get a list of all
+of the commit ids that reference <code class=verbatim>VERSION</code>, and substract that from the
+list of ids reference <code class=verbatim>lib/git/version.rb</code> to get the commits where they
+aren't co-ocurring.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>sqlite3 test.db <span class=s2>&#34;select id from commits where author_when &gt;= &#39;2011-01-01&#39; 
+</span><span class=s2>  and id in 
+</span><span class=s2>    (select id from commit_files where name = &#39;VERSION&#39; 
+</span><span class=s2>     EXCEPT
+</span><span class=s2>     select id from commit_files where name = &#39;lib/git/version.rb&#39;)&#34;</span></code></pre></div></div><pre class=example>
+6d5bacd
+6db4fdc
+cc6d6ef
+</pre><p>Now if we do <code class=verbatim>git show 6d5bacd</code> we can see that, in fact, the change was
+that <code class=verbatim>VERSION</code> was removed from the repo since it was restructured. No
+a super interesting finding, but it's an anomoly so its fun to check
+out.</p><h3 id=headline-10>Active days</h3><p>Lets see which days of this project are the most active.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>sqlite3 test.db <span class=s2>&#34;select count(*), date(author_when) from commits 
+</span><span class=s2>group by date(author_when) order by count(*) desc limit 10&#34;</span> -header -column</code></pre></div></div><pre class=example>
+count(*)    date(author_when)
+----------  -----------------
+16          2013-04-11       
+14          2015-01-05       
+12          2007-11-16       
+12          2007-11-19       
+12          2014-01-13       
+11          2015-01-12       
+10          2009-02-12       
+9           2013-08-16       
+8           2009-08-01       
+8           2013-04-29
+</pre><p>Just glancing at this you can see that there's a flurry of activity
+that happened over wide gaps of time. Closing in one of the events
+you can get a sense of what happened – someone tackled a bunch of
+backlog work on the project and merged quite a few pull requests:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>sqlite3 test.db <span class=s2>&#34;select author_name, summary from commits where date(author_when) = &#39;2015-01-05&#39;&#34;</span></code></pre></div></div><pre class=example>
+Roberto Decurnex|Updating checkout tests to cover `-b` option
+Roberto Decurnex|Fixing :new_branch usage on checkout
+Roberto Decurnex|Merge pull request #37 from JangoSteve/ls_remote
+Roberto Decurnex|Merge pull request #161 from xavier-calland/fetch_prune
+Roberto Decurnex|Updating `clone` RDoc Sorting clone options closes #178
+Roberto Decurnex|Merge pull request #132 from arnvald/test-branch-create-does-not-switch-branch
+Roberto Decurnex|Updating clone --b to clone --branch (just to make it a little more verbose)
+Roberto Decurnex|Merge branch 'test_unit_needs_specificity' of https://github.com/kwstannard/ruby-git into kwstannard-test_unit_needs_specificity
+Roberto Decurnex|Merge branch 'diff_fix_current_vs_head' of https://github.com/francisluong/ruby-git into francisluong-diff_fix_current_vs_head
+Roberto Decurnex|Merge branch 'NotDaveLane-master'
+Roberto Decurnex|Adding Git.clone test for :branch option
+Roberto Decurnex|Merge branch 'master' of https://github.com/NotDaveLane/ruby-git into NotDaveLane-master
+Roberto Decurnex|Merge branch 'master' of github.com:schacon/ruby-git
+Roberto Decurnex|Updating ssh_key -> git_ssh
+</pre><p>If you were in charge of testing things, you'd definately want to be a
+bit more thorough than normal.</p><h3 id=headline-11>Change coupling by time</h3><p>Commits aren't necessarily the only unit of work on a team. Depending
+upon the process and work style, commits could be small and frequent
+(I'm sure with comments like <em>argggh</em> and <em>work dammnit</em>) or they could be
+well structured units of work that can be thought of as logically
+discrete units.</p><p>For those repositories that aren't like that, lets group changes by
+time and see if that gives us any interesting insights in to which
+files where modified together.</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=nb>require</span> <span class=s1>&#39;./query_and_pivot.rb&#39;</span>
+
+  <span class=n>cochanges</span> <span class=o>=</span> <span class=n>query_and_loop</span> <span class=k>do</span> <span class=o>|</span><span class=n>db</span><span class=o>|</span>
+    <span class=n>db</span><span class=o>.</span><span class=n>execute</span> <span class=s2>&#34;
+</span><span class=s2>      select date(author_when), name from commits, commit_files 
+</span><span class=s2>      where commits.id = commit_files.id 
+</span><span class=s2>      and author_when &gt;= ?&#34;</span><span class=p>,</span> <span class=o>[</span><span class=s1>&#39;2011-01-01&#39;</span><span class=o>]</span>
+  <span class=k>end</span>
+
+  <span class=n>print_cochange</span> <span class=n>cochanges</span></code></pre></div></div><pre class=example>
+| file                          | commits | cofile                        | coorelation | count |
+|-------------------------------+---------+-------------------------------+-------------+-------|
+| CHANGELOG.md                  |       4 | lib/git/version.rb            |        100% |     4 |
+| lib/git/config.rb             |       4 | tests/units/test_config.rb    |        100% |     4 |
+| tests/units/test_remotes.rb   |       6 | lib/git/lib.rb                |        100% |     6 |
+| tests/units/test_tags.rb      |       3 | lib/git/lib.rb                |        100% |     3 |
+| tests/units/test_init.rb      |       6 | lib/git/lib.rb                |        100% |     6 |
+| lib/git/object.rb             |       4 | lib/git/lib.rb                |        100% |     4 |
+| lib/git/object.rb             |       4 | lib/git/base.rb               |        100% |     4 |
+| tests/units/test_base.rb      |       4 | lib/git/lib.rb                |        100% |     4 |
+| tests/units/test_index_ops.rb |       6 | lib/git/lib.rb                |        100% |     6 |
+| lib/git/path.rb               |       4 | lib/git/base.rb               |        100% |     4 |
+| VERSION                       |       6 | lib/git/lib.rb                |         83% |     5 |
+| tests/units/test_remotes.rb   |       6 | lib/git/base.rb               |         83% |     5 |
+| lib/git/base.rb               |      18 | lib/git/lib.rb                |         83% |    15 |
+| tests/units/test_init.rb      |       6 | lib/git/base.rb               |         83% |     5 |
+| tests/units/test_config.rb    |       5 | lib/git/config.rb             |         80% |     4 |
+| lib/git.rb                    |       4 | git.gemspec                   |         75% |     3 |
+| lib/git/diff.rb               |       8 | lib/git/lib.rb                |         75% |     6 |
+| lib/git/config.rb             |       4 | README.md                     |         75% |     3 |
+| tests/units/test_base.rb      |       4 | .travis.yml                   |         75% |     3 |
+| lib/git/path.rb               |       4 | .travis.yml                   |         75% |     3 |
+| lib/git/path.rb               |       4 | lib/git/lib.rb                |         75% |     3 |
+| lib/git/path.rb               |       4 | tests/units/test_index_ops.rb |         75% |     3 |
+| .travis.yml                   |      14 | lib/git/lib.rb                |         71% |    10 |
+| tests/units/test_logger.rb    |       6 | lib/git/lib.rb                |         66% |     4 |
+| VERSION                       |       6 | git.gemspec                   |         66% |     4 |
+| tests/units/test_index_ops.rb |       6 | .travis.yml                   |         66% |     4 |
+| tests/units/test_index_ops.rb |       6 | lib/git/base.rb               |         66% |     4 |
+| tests/units/test_lib.rb       |      11 | lib/git/lib.rb                |         63% |     7 |
+</pre><p>I truncated the table since there are a lot more things that are
+coorelation now that we've grouped by date. A lot of things make sense
+here, but again it seems like files are changed together a lot which
+could be nothing but makes you wonder about modularity of files.</p><p><code class=verbatim>lib/git/base.rb</code> and <code class=verbatim>lib/git/lib.rb</code> are both changed a lot (<code class=verbatim>18</code> times)
+and frequently changed together <code class=verbatim>83%</code> of the time.</p><p>Perhaps things have been split up prematurely if multiple files always
+change at the same time? Or is this normal in terms of how object
+oriented encapulsation works? Based upon the generic all encompasing
+names (<em>base</em> and <em>lib</em>) I wonder you could guess why something would go
+into one file or another.</p><h2 id=headline-12>Knowledge and maturity</h2><ol><li><p>Knowledge of a file is related to how much someone touched it</p></li><li><p>Knowledge decays over time</p></li><li><p>Active files means that something is changing</p></li><li><p>People come and go on projects</p><h3 id=headline-13>Normalizing names</h3></li></ol><p>One thing to note in this data is that <code class=verbatim>scott Chacon</code> is treated
+differently than <code class=verbatim>Scott Chacon</code>, similar to <code class=verbatim>Roberto Decurnex</code> and
+<code class=verbatim>robertodecurnex</code>. One simple way is to update your index database to
+add the alias and mappings there.</p><p>These need to be identified by hand and retweaked depending upon the
+particular repo you are looking at.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>sqlite3 test.db <span class=s2>&#34;update commits set author_name = &#39;Scott Chacon&#39; where author_name = &#39;scott Chacon&#39;&#34;</span>
+sqlite3 test.db <span class=s2>&#34;update commits set author_name = &#39;Roberto Decurnex&#39; where author_name = &#39;robertodecurnex&#39;&#34;</span></code></pre></div></div><h3 id=headline-14>Authorship of a file</h3><p>Lets look at who "knows" about a file based upon how much they've
+authored it. I'm going to pick on <code class=verbatim>lib/git/base.rb</code> since that seems to
+be an exciting hotspot.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>sqlite3 test.db <span class=s2>&#34;select name, author_name, count(commits.id) as commits, date(max(author_when)) as last_touched
+</span><span class=s2>from commits, commit_files 
+</span><span class=s2>where commits.id = commit_files.id
+</span><span class=s2>and name = &#39;lib/git/base.rb&#39; 
+</span><span class=s2>group by name, author_name order by count(commits.id) desc&#34;</span> -column -header</code></pre></div></div><pre class=example>
+name             author_name   commits     last_touched
+---------------  ------------  ----------  ------------
+lib/git/base.rb  Scott Chacon  30          2008-05-27  
+lib/git/base.rb  Roberto Decu  23          2015-01-12  
+lib/git/base.rb  Jorge Bernal  3           2008-05-06  
+lib/git/base.rb  Joe Moore     2           2013-04-29  
+lib/git/base.rb  Bryan Larsen  1           2009-10-13  
+lib/git/base.rb  Cameron Wals  1           2014-01-28  
+lib/git/base.rb  Daniel Mendl  1           2009-02-10  
+lib/git/base.rb  Harald Sitte  1           2015-01-12  
+lib/git/base.rb  James Rosen   1           2008-12-21  
+lib/git/base.rb  Jonathan Rud  1           2008-12-20  
+lib/git/base.rb  Joshua Peek   1           2008-03-15  
+lib/git/base.rb  Ken Pratt     1           2008-08-13  
+lib/git/base.rb  Michael Mall  1           2013-05-23  
+lib/git/base.rb  TJ Biddle     1           2013-06-14  
+lib/git/base.rb  Tom Potts     1           2018-05-03  
+lib/git/base.rb  Yuya.Nishida  1           2014-07-07
+</pre><p>Looks like <code class=verbatim>Scott Chacon</code> and <code class=verbatim>Jorge Bernal</code> moved on to other things in
+<code class=verbatim>2008</code>, and <code class=verbatim>Roberto</code> did a bunch of work in <code class=verbatim>2015</code> but the file has been
+untouched until <code class=verbatim>Tom Potts</code> did something in <code class=verbatim>2018</code>.</p><p>Note that <code class=verbatim>Roberto</code> last touched the specific file <code class=verbatim>lib/git/base.rb</code> on
+<code class=verbatim>2015-01-12</code> though he was last active in the repo for another year.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>sqlite3 test.db <span class=s2>&#34;select author_name, date(max(author_when)) as last_active 
+</span><span class=s2>from commits where author_name = &#39;Roberto Decurnex&#39;&#34;</span> -column -header</code></pre></div></div><pre class=example>
+author_name       last_active
+----------------  -----------
+Roberto Decurnex  2016-02-25 
+</pre><h3 id=headline-15>Authorship by weight</h3><p>We can also look to see how many lines of code were added by someone,
+to go a little deeper. Maybe they only made 1 commit, but it changed
+every last thing?</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>sqlite3 test.db <span class=s2>&#34;select author_name, date(max(author_when)) as last_touched, sum(added) as added
+</span><span class=s2>from commits, commit_files where commits.id = commit_files.id and name = &#39;lib/git/base.rb&#39;
+</span><span class=s2>group by author_name order by added desc&#34;</span> -column -header</code></pre></div></div><pre class=example>
+author_name   last_touched  added     
+------------  ------------  ----------
+Scott Chacon  2008-05-27    520       
+Roberto Decu  2015-01-12    192       
+Jorge Bernal  2008-05-06    23        
+James Rosen   2008-12-21    18        
+Joe Moore     2013-04-29    13        
+Tom Potts     2018-05-03    11        
+TJ Biddle     2013-06-14    9         
+Daniel Mendl  2009-02-10    6         
+Joshua Peek   2008-03-15    4         
+Bryan Larsen  2009-10-13    2         
+Cameron Wals  2014-01-28    2         
+Jonathan Rud  2008-12-20    2         
+Ken Pratt     2008-08-13    2         
+Michael Mall  2013-05-23    2         
+Yuya.Nishida  2014-07-07    2         
+Harald Sitte  2015-01-12    1
+</pre><p>We do see that <code class=verbatim>Tom Potts</code> moved up a bit in the list.</p><h3 id=headline-16>Who knows about that file?</h3><p>If you had a question about <code class=verbatim>lib/git/base.rb</code> who would you ask? <code class=verbatim>Scott
+Chacon</code> wrote most of it, but he hasn't been around in a while.
+<code class=verbatim>Roberto Decurnex</code> was the last person to make substancial changes to
+it, but that was back in <code class=verbatim>2015</code>. Even if he was still active on the
+project, which he doesn't appear to be, do we think he'd remember any
+of the details? Does the most recently contributor make sense to talk
+to, even though <code class=verbatim>Tom Potts</code> only made a small change in <code class=verbatim>2018</code>?</p><p>We know that the file is signifigant because it used to change a lot
+with a bunch of other files. Maybe the file is super clean and
+looking at it means that all of it's resposibilities are self evident
+– I haven't opened it up yet – but my sense is that it probably has
+a lot of stuff in there, and that knowledge will have to be recreated
+the next time that anyone opens it up to make a change.</p><h3 id=headline-17>Stable or dead?</h3><p>Instead of focusing on the things that have changed, lets take a look
+at the things that haven't. Right now we don't have a good way to see
+if a file is still in latest revision, so we can put that into the
+database as well and join off of it.</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=nb>require</span> <span class=s1>&#39;sqlite3&#39;</span>
+
+  <span class=n>db</span> <span class=o>=</span> <span class=no>SQLite3</span><span class=o>::</span><span class=no>Database</span><span class=o>.</span><span class=n>new</span> <span class=s2>&#34;test.db&#34;</span>
+
+  <span class=n>db</span><span class=o>.</span><span class=n>execute</span> <span class=s>&lt;&lt;-SQL
+</span><span class=s></span>  <span class=n>create</span> <span class=n>table</span> <span class=k>if</span> <span class=ow>not</span> <span class=n>exists</span> <span class=n>current_files</span> <span class=p>(</span>
+  <span class=nb>name</span> <span class=no>TEXT</span> <span class=p>);</span>
+  <span class=no>SQL</span>
+
+  <span class=n>db</span><span class=o>.</span><span class=n>execute</span> <span class=s2>&#34;delete from current_files;&#34;</span>
+
+  <span class=n>count</span> <span class=o>=</span> <span class=mi>0</span>
+  <span class=sb>`cd /tmp/ruby-git;git ls-files`</span><span class=o>.</span><span class=n>each_line</span> <span class=k>do</span> <span class=o>|</span><span class=n>file</span><span class=o>|</span>
+    <span class=n>file</span><span class=o>.</span><span class=n>chomp!</span>
+
+    <span class=n>db</span><span class=o>.</span><span class=n>execute</span> <span class=s2>&#34;insert into current_files (name) VALUES (?)&#34;</span><span class=p>,</span> <span class=o>[</span><span class=n>file</span><span class=o>]</span>
+  
+    <span class=n>count</span> <span class=o>+=</span> <span class=mi>1</span>
+  <span class=k>end</span>
+
+  <span class=nb>puts</span> <span class=s2>&#34;</span><span class=si>#{</span><span class=n>count</span><span class=si>}</span><span class=s2> current files&#34;</span></code></pre></div></div><pre class=example>
+596 current files
+</pre><p>Now that we have that list, we can join off of it to get when things
+were last modified and by whom.</p><p><em>I'm going to filter out the <code class=verbatim>test</code> files since there's a lot of sample
+data there, not that test code isn't important</em>.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>sqlite3 test.db <span class=s2>&#34;select current_files.name, 
+</span><span class=s2>  date(max(author_when)) as last_touched,
+</span><span class=s2>  author_name as author
+</span><span class=s2>  from commits, commit_files, current_files
+</span><span class=s2>  where commits.id = commit_files.id 
+</span><span class=s2>  and commit_files.name = current_files.name
+</span><span class=s2>  and current_files.name not like &#39;test%&#39;
+</span><span class=s2>  group by current_files.name order by max(author_when) asc&#34;</span> -column -header</code></pre></div></div><pre class=example>
+name                          last_touched  author      
+----------------------------  ------------  ------------
+lib/git/working_directory.rb  2007-11-08    Scott Chacon
+lib/git/index.rb              2007-11-16    Scott Chacon
+LICENSE                       2008-05-26    Scott Chacon
+lib/git/stash.rb              2008-12-21    James Rosen 
+lib/git/branches.rb           2013-04-10    Roberto Decu
+lib/git/repository.rb         2013-04-10    Roberto Decu
+.gitignore                    2013-04-11    Roberto Decu
+lib/git/log.rb                2013-08-17    Roberto Decu
+Gemfile                       2014-01-13    Roberto Decu
+lib/git/remote.rb             2014-01-28    Cameron Wals
+lib/git/path.rb               2014-07-07    Yuya.Nishida
+lib/git/author.rb             2015-01-12    Roberto Decu
+lib/git/object.rb             2015-01-12    Roberto Decu
+lib/git/status.rb             2018-03-07    Vern Burton 
+lib/git/base.rb               2018-05-03    Tom Potts   
+Rakefile                      2018-05-16    Per Lundberg
+ISSUE_TEMPLATE.md             2018-06-20    Vern Burton 
+lib/git/stashes.rb            2018-08-01    Vern Burton 
+.travis.yml                   2018-08-22    Vern Burton 
+lib/git/base/factory.rb       2018-10-02    Evgenii Pech
+lib/git/config.rb             2019-09-20    Salim Afiune
+git.gemspec                   2019-12-11    James Coubal
+lib/git/diff.rb               2019-12-11    James Coubal
+.github/stale.yml             2020-01-19    Per Lundberg
+lib/git.rb                    2020-01-22    cyclotron3k 
+lib/git/branch.rb             2020-01-23    James Coubal
+CONTRIBUTING.md               2020-01-25    James Coubal
+MAINTAINERS.md                2020-01-25    James Coubal
+RELEASING.md                  2020-01-25    James Coubal
+PULL_REQUEST_TEMPLATE.md      2020-02-04    Yuta Harima 
+README.md                     2020-04-05    Alex Mayer  
+lib/git/lib.rb                2020-04-05    TIT         
+CHANGELOG.md                  2020-04-25    James Coubal
+lib/git/version.rb            2020-04-25    James Coubal
+</pre><p>So from this we can see which parts of the project are pretty much
+stable from early days, <code class=verbatim>working_directory.rb</code> probably up through
+<code class=verbatim>object.rb</code> and which things have been changing for this stable project.
+In the beginning of the year there was a bunch of work for things
+related to project adminstration, like <code class=verbatim>PULL_REQUEST_TEMPLATE.mb</code> and
+<code class=verbatim>RELEASING.md</code>.</p><h2 id=headline-18>Thoughts</h2><p>Coding creates artifact that change over time, and we have access to
+this data in the repositories that we share. Having everything
+accessable in SQL helps with complicated joins and analysis. I've
+scripted this in ruby and we are looking at a ruby project, but
+nothing that we've done has looked inside of the project itself to
+identify what are areas of note and of interest. It's been purely on
+the shape of how things are changing, what is changing together, and
+meta data analysis.</p><p>Now that we've gotten a taste of what this looked like here – and I'm
+sure there's much more we can look into – there are a couple of other
+sources of meta data that we should look at:</p><ol><li><p>Issues/tickets and how they related to the code</p></li><li><p>Mailing lists? Chat rooms? other discussions around the repository</p></li><li><p>Projects that rely upon this as a dependancy, and how/if those
+users are putting in tickets or bug fixes into the code</p></li><li><p>Looking into the <code class=verbatim>gemspec</code> and <code class=verbatim>Gemfile</code> to examine this project's
+dependancies to see what's going on there.</p></li></ol><p>But this is already long enough.</p><h2 id=headline-19>References</h2><ol><li><p><a href=https://pragprog.com/titles/atcrime/your-code-as-a-crime-scene/>Your Code as a Crime Scene: Use Forensic Techniques to Arrest Defects, Bottlenecks, and Bad Design in Your Programs</a></p></li><li><p><a href=https://pragprog.com/titles/atevol/software-design-x-rays/>Software Design X-Rays: Fix Technical Debt with Behavioral Code Analysis</a></p></li></ol></article></div><div class="bg-light py-5"><div class=container><h2 class=text-center>Read next</h2><div class=row><div class="col-md-6 text-center"></div><div class="col-md-6 text-center">Previous Post:
+<a href=../../../articles/2020/using_askgit/>Using Askgit</a></div></div></div></div><div class="container mt-5"><h2 class=text-center>See also</h2><div class=row><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2020/using_askgit/>Using Askgit</a></p><p class="lead font-italic mb-0">SQL is so nice</p><div class="font-weight-light mt-3"><p>askgit provides a sql interface to your git repository. Let's install it and see what we can figure out about the repo. Installing Following the instructions on the website, we can build the go binary with: go get -v -tags=sqlite_vtable github.com/augmentable-dev/askgit This will download the package, the dependencies, and compile everything into an executable. If you can't figure out where it's installed, check that you have GOPATH set correctly, and it will end up in $GOPATH/bin.</p></div><a href=../../../articles/2020/using_askgit/ class="btn btn-primary">Read more</a></div></div></div><footer class="footer bg-dark text-light mt-3"><div class=container><h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2></div></footer></body></html>
