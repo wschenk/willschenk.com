@@ -1,4 +1,351 @@
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Fri, 28 Aug 2020 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>gitlog in sqlite</title><link>https://willschenk.com/articles/2020/gitlog_in_sqlite/</link><pubDate>Fri, 28 Aug 2020 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2020/gitlog_in_sqlite/</guid><description>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Fri, 04 Sep 2020 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Looking at Gemfiles</title><link>https://willschenk.com/articles/2020/looking_at_gemfiles/</link><pubDate>Fri, 04 Sep 2020 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2020/looking_at_gemfiles/</guid><description>
+&lt;p>
+Bundler is the standard way for ruby projects to specifiy
+dependancies. Lets take a look at how that works, reimplement &lt;code class="verbatim">bundle
+outdated&lt;/code>, and be able to see the changes that took place between the
+build you are using at the latest one.
+&lt;/p>
+&lt;h2 id="headline-1">
+Ruby ecosystem: Rubygems, Bundler, Gemfile, Gemfile.lock
+&lt;/h2>
+&lt;p>
+&lt;code class="verbatim">rubygems&lt;/code> is the overall ecosystem, which includes the main
+&lt;code class="verbatim">rubygems.org&lt;/code> database of shared packages, and how they depend upon
+each other. At the heart of it is a &lt;code class="verbatim">gemspec&lt;/code> file which describes the
+package, files included in it, dependancies and other metadata.
+&lt;/p>
+&lt;p>
+&lt;code class="verbatim">bundler&lt;/code> the tool that helps you download and install specific gems for
+your application. It used a &lt;code class="verbatim">Gemfile&lt;/code> to define what you want, and the
+resolves all the dependancies stores that into a &lt;code class="verbatim">Gemfile.lock&lt;/code> file
+that contains a list of the exact versions that you are developing
+against.
+&lt;/p>
+&lt;h2 id="headline-2">
+Creating a working &lt;code class="verbatim">Gemfile&lt;/code>
+&lt;/h2>
+&lt;p>
+First lets create a project, so we are all working off of the same
+thing. We&amp;#39;ll add &lt;code class="verbatim">bunder&lt;/code> as normal, and then &lt;code class="verbatim">irb&lt;/code> from git directly so
+we can see how that changes the &lt;code class="verbatim">Gemfile.lock&lt;/code>. So, 3 gems, 2 from
+&lt;code class="verbatim">rubygems.org&lt;/code> and one directly from &lt;code class="verbatim">github&lt;/code>.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">bundle init
+bundle add bundler --version &lt;span class="s2">&amp;#34;~&amp;gt;2.1&amp;#34;&lt;/span>
+bundle add irb --git &lt;span class="s2">&amp;#34;https://github.com/ruby/irb&amp;#34;&lt;/span>
+bundle add gems --version &lt;span class="s2">&amp;#34;1.1.1&amp;#34;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Lets also add in a &lt;code class="verbatim">ruby &amp;#34;2.6.6&amp;#34;&lt;/code> line that will tell bundler which
+version of ruby we want to use. This isn&amp;#39;t always used but lets put
+it in to flesh out what is generated in the lock file. Feel free to
+replace this with whatever version is on your local machine.
+&lt;/p>
+&lt;p>
+Which gives us a &lt;code class="verbatim">Gemfile&lt;/code> that looks like this:
+&lt;/p>
+&lt;div class="src src-ruby">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-ruby" data-lang="ruby">&lt;span class="c1"># frozen_string_literal: true&lt;/span>
+&lt;span class="n">source&lt;/span> &lt;span class="s2">&amp;#34;https://rubygems.org&amp;#34;&lt;/span>
+&lt;span class="n">git_source&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="ss">:github&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>&lt;span class="o">|&lt;/span>&lt;span class="n">repo_name&lt;/span>&lt;span class="o">|&lt;/span> &lt;span class="s2">&amp;#34;https://github.com/&lt;/span>&lt;span class="si">#{&lt;/span>&lt;span class="n">repo_name&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="p">}&lt;/span>
+&lt;span class="n">ruby&lt;/span> &lt;span class="s2">&amp;#34;2.6.6&amp;#34;&lt;/span>
+&lt;span class="c1"># gem &amp;#34;rails&amp;#34;&lt;/span>
+&lt;span class="n">gem&lt;/span> &lt;span class="s2">&amp;#34;bundler&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s2">&amp;#34;~&amp;gt; 2.1&amp;#34;&lt;/span>
+&lt;span class="n">gem&lt;/span> &lt;span class="s2">&amp;#34;irb&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="ss">git&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;https://github.com/ruby/irb&amp;#34;&lt;/span>
+&lt;span class="n">gem&lt;/span> &lt;span class="s2">&amp;#34;gems&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s2">&amp;#34;1.1.1&amp;#34;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Doing a &lt;code class="verbatim">bundle add&lt;/code> adds the specification to the &lt;code class="verbatim">Gemfile&lt;/code>, downloads
+the gems and all of it&amp;#39;s dependancies, resolving specific versions and
+downloading those as well. This is specified in the lock file, which
+has the main sections:
+&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>
+&lt;code class="verbatim">GIT&lt;/code> which is the first remote source on the list, here telling
+which commit that we are depending upon specifically.
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;code class="verbatim">GEM&lt;/code> which list out the the gems that are installed, with versions
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;code class="verbatim">PLATFORMS&lt;/code> which is for platform information (for native builds)
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;code class="verbatim">DEPENDENCIES&lt;/code> which is what comes out of the &lt;code class="verbatim">Gemfile&lt;/code>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;code class="verbatim">RUBY VERSION&lt;/code> the version of ruby, including the patch level, that
+this was bundled with.
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;code class="verbatim">BUNDLED WITH&lt;/code> version information about bundler.
+&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;div class="src src-ruby">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-ruby" data-lang="ruby">&lt;span class="no">GIT&lt;/span>
+&lt;span class="ss">remote&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="ss">https&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="sr">//&lt;/span>&lt;span class="n">github&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">com&lt;/span>&lt;span class="o">/&lt;/span>&lt;span class="n">ruby&lt;/span>&lt;span class="o">/&lt;/span>&lt;span class="n">irb&lt;/span>
+&lt;span class="ss">revision&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="mi">9&lt;/span>&lt;span class="n">bb6562d0d841fd294e95bbb690e812cbd5090ce&lt;/span>
+&lt;span class="ss">specs&lt;/span>&lt;span class="p">:&lt;/span>
+&lt;span class="n">irb&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="mi">2&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="mi">4&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="n">reline&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="o">&amp;gt;=&lt;/span> &lt;span class="mi">0&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="mi">0&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="no">GEM&lt;/span>
+&lt;span class="ss">remote&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="ss">https&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="sr">//&lt;/span>&lt;span class="n">rubygems&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">org&lt;/span>&lt;span class="o">/&lt;/span>
+&lt;span class="ss">specs&lt;/span>&lt;span class="p">:&lt;/span>
+&lt;span class="n">gems&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="n">json&lt;/span>
+&lt;span class="n">io&lt;/span>&lt;span class="o">-&lt;/span>&lt;span class="n">console&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="mi">0&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="mi">5&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="mi">6&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="n">json&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="mi">2&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="mi">3&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="n">reline&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="mi">0&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="mi">4&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="n">io&lt;/span>&lt;span class="o">-&lt;/span>&lt;span class="n">console&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="o">~&amp;gt;&lt;/span> &lt;span class="mi">0&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="mi">5&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="no">PLATFORMS&lt;/span>
+&lt;span class="n">ruby&lt;/span>
+&lt;span class="no">DEPENDENCIES&lt;/span>
+&lt;span class="n">bundler&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="o">~&amp;gt;&lt;/span> &lt;span class="mi">2&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="n">gems&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="o">=&lt;/span> &lt;span class="mi">1&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="n">irb!&lt;/span>
+&lt;span class="no">RUBY&lt;/span> &lt;span class="no">VERSION&lt;/span>
+&lt;span class="n">ruby&lt;/span> &lt;span class="mi">2&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="mi">6&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="mi">6&lt;/span>&lt;span class="n">p146&lt;/span>
+&lt;span class="no">BUNDLED&lt;/span> &lt;span class="no">WITH&lt;/span>
+&lt;span class="mi">2&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="mi">4&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-3">
+Parsing &lt;code class="verbatim">Gemfile&lt;/code> and &lt;code class="verbatim">Gemfile.lock&lt;/code> together
+&lt;/h2>
+&lt;p>
+In normal usage you would have both a &lt;code class="verbatim">Gemfile&lt;/code> and a &lt;code class="verbatim">Gemfile.lock&lt;/code>.
+You&amp;#39;d start up your program using &lt;code class="verbatim">bundle exec&lt;/code> which would validate
+that the right things were installed, load the gems into the ruby
+environment, and you&amp;#39;d be good to go.
+&lt;/p>
+&lt;div class="src src-ruby">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-ruby" data-lang="ruby"> &lt;span class="c1">#!/usr/bin/env ruby&lt;/span>
+&lt;span class="nb">require&lt;/span> &lt;span class="s1">&amp;#39;bundler&amp;#39;&lt;/span>
+&lt;span class="n">context&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="no">Bundler&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">load&lt;/span>
+&lt;span class="nb">puts&lt;/span> &lt;span class="s2">&amp;#34;Dependencies&amp;#34;&lt;/span>
+&lt;span class="n">context&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">dependencies&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">each&lt;/span> &lt;span class="k">do&lt;/span> &lt;span class="o">|&lt;/span>&lt;span class="n">x&lt;/span>&lt;span class="o">|&lt;/span>
+&lt;span class="nb">printf&lt;/span> &lt;span class="s2">&amp;#34;%-20s %s&lt;/span>&lt;span class="se">\n&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">x&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">name&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">x&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">requirements_list&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">to_s&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="nb">puts&lt;/span>
+&lt;span class="n">context&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">specs&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">each&lt;/span> &lt;span class="k">do&lt;/span> &lt;span class="o">|&lt;/span>&lt;span class="n">s&lt;/span>&lt;span class="o">|&lt;/span>
+&lt;span class="n">code&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">s&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">metadata&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="s1">&amp;#39;source_code_url&amp;#39;&lt;/span>&lt;span class="o">]&lt;/span> &lt;span class="o">||&lt;/span> &lt;span class="n">s&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">metadata&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="s1">&amp;#39;source_code_uri&amp;#39;&lt;/span>&lt;span class="o">]&lt;/span>
+&lt;span class="nb">puts&lt;/span> &lt;span class="s2">&amp;#34;Gem from &lt;/span>&lt;span class="si">#{&lt;/span>&lt;span class="n">s&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">source&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">to_s&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="nb">printf&lt;/span> &lt;span class="s2">&amp;#34;%-20s %-10s %-40s %s&lt;/span>&lt;span class="se">\n&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">s&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">name&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">s&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">version&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">to_s&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">code&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">s&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">homepage&lt;/span>
+&lt;span class="k">end&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Which yields:
+&lt;/p>
+&lt;pre class="example">
+Dependencies
+irb [&amp;#34;&amp;gt;= 0&amp;#34;]
+bundler [&amp;#34;~&amp;gt; 2.1&amp;#34;]
+Gem from the local ruby installation
+bundler 2.1.4 https://github.com/bundler/bundler/ https://bundler.io
+Gem from rubygems repository https://rubygems.org/ or installed locally
+gems 1.2.0 https://github.com/rubygems/gems
+Gem from rubygems repository https://rubygems.org/ or installed locally
+io-console 0.5.6 https://github.com/ruby/io-console https://github.com/ruby/io-console
+Gem from rubygems repository https://rubygems.org/ or installed locally
+reline 0.1.4 https://github.com/ruby/reline
+Gem from https://github.com/ruby/irb (at master@9bb6562)
+irb 1.2.4 https://github.com/ruby/irb
+&lt;/pre>
+&lt;p>
+So some gems have &lt;code class="verbatim">source_code_uri&lt;/code> or &lt;code class="verbatim">source_code_url&lt;/code> set, and some
+don&amp;#39;t have it at all though they point to a &lt;code class="verbatim">github&lt;/code> page where
+presumably we can figure out where the code is loaded.
+&lt;/p>
+&lt;p>
+For the case of &lt;code class="verbatim">irb&lt;/code> the repo is listed in the remote &lt;code class="verbatim">source&lt;/code> itself.
+&lt;/p>
+&lt;p>
+The metadata, homepage, etc are from the &lt;code class="verbatim">gemspec&lt;/code> files.
+&lt;/p>
+&lt;h2 id="headline-4">
+Parsing a &lt;code class="verbatim">Gemfile.lock&lt;/code> directly
+&lt;/h2>
+&lt;p>
+Let&amp;#39;s now look at how to parse a &lt;code class="verbatim">Gemfile.lock&lt;/code> of a different project,
+where we don&amp;#39;t have the original &lt;code class="verbatim">Gemfile&lt;/code> handy.
+&lt;/p>
+&lt;p>
+When we load in the lockfile using &lt;code class="verbatim">Bundler::LockfileParser&lt;/code> we only
+have the gem name, version, and the source from which to get it. We
+may or may not have the gemspec on our local machine, and so
+additional metadata like the homepage, summary, codeurl, etc haven&amp;#39;t
+been loaded yet. Lets first print out what we have and then figure
+out how to get gem information from the source, name, and version.
+&lt;/p>
+&lt;div class="src src-ruby">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-ruby" data-lang="ruby">&lt;span class="ch">#!/usr/bin/env ruby&lt;/span>
+&lt;span class="nb">require&lt;/span> &lt;span class="s1">&amp;#39;bundler&amp;#39;&lt;/span>
+&lt;span class="k">def&lt;/span> &lt;span class="nf">describe_lockfile&lt;/span> &lt;span class="n">file&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="no">Bundler&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">default_lockfile&lt;/span>
+&lt;span class="n">context&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="no">Bundler&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="no">LockfileParser&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">new&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="no">Bundler&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">read_file&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="n">file&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="nb">puts&lt;/span> &lt;span class="s2">&amp;#34;Bundler version&amp;#34;&lt;/span>
+&lt;span class="nb">puts&lt;/span> &lt;span class="n">context&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">bundler_version&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">to_s&lt;/span>
+&lt;span class="nb">puts&lt;/span>
+&lt;span class="nb">puts&lt;/span> &lt;span class="s2">&amp;#34;Dependencies&amp;#34;&lt;/span>
+&lt;span class="n">context&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">dependencies&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">each&lt;/span> &lt;span class="k">do&lt;/span> &lt;span class="o">|&lt;/span>&lt;span class="nb">name&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="n">x&lt;/span>&lt;span class="o">|&lt;/span>
+&lt;span class="nb">printf&lt;/span> &lt;span class="s2">&amp;#34;%-20s %s&lt;/span>&lt;span class="se">\n&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">x&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">name&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">x&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">requirements_list&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">to_s&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="nb">puts&lt;/span>
+&lt;span class="nb">puts&lt;/span> &lt;span class="s2">&amp;#34;Gems&amp;#34;&lt;/span>
+&lt;span class="n">context&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">specs&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">each&lt;/span> &lt;span class="k">do&lt;/span> &lt;span class="o">|&lt;/span>&lt;span class="n">s&lt;/span>&lt;span class="o">|&lt;/span>
+&lt;span class="nb">printf&lt;/span> &lt;span class="s2">&amp;#34;%-20s %-10s&lt;/span>&lt;span class="se">\n&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">s&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">name&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">s&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">version&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">to_s&lt;/span>
+&lt;span class="nb">printf&lt;/span> &lt;span class="s2">&amp;#34;%-10s %s&lt;/span>&lt;span class="se">\n&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">s&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">source&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">class&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">s&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">source&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">to_s&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="n">describe_lockfile&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Bundler version
+2.1.4
+Dependencies
+bundler [&amp;#34;~&amp;gt; 2.1&amp;#34;]
+gems [&amp;#34;~&amp;gt; 1.2&amp;#34;]
+irb [&amp;#34;&amp;gt;= 0&amp;#34;]
+Gems
+gems 1.2.0
+Bundler::Source::Rubygems rubygems repository https://rubygems.org/ or installed locally
+io-console 0.5.6
+Bundler::Source::Rubygems rubygems repository https://rubygems.org/ or installed locally
+irb 1.2.4
+Bundler::Source::Git https://github.com/ruby/irb (at master@9bb6562)
+reline 0.1.4
+Bundler::Source::Rubygems rubygems repository https://rubygems.org/ or installed locally
+&lt;/pre>
+&lt;p>
+Another thing that&amp;#39;s interesting to node is that the version of
+&lt;code class="verbatim">bundler&lt;/code> itself doesn&amp;#39;t show up in the specified gems, though it is
+available from the &lt;code class="verbatim">bundler_version&lt;/code> method.
+&lt;/p>
+&lt;h2 id="headline-5">
+Finding outdated gem versions
+&lt;/h2>
+&lt;p>
+If you are working with a matching set of &lt;code class="verbatim">Gemfile&lt;/code> and &lt;code class="verbatim">Gemfile.lock&lt;/code>
+files, which most people are, there&amp;#39;s a nifty command &lt;code class="verbatim">bundle outdated&lt;/code>.
+This looks though the gems that you have to see if there&amp;#39;s a later
+version released.
+&lt;/p>
+&lt;p>
+Lets recreate this using our &lt;code class="verbatim">Gemfile.lock&lt;/code> only method so we can look
+at lock files and see which gems have updated code.
+&lt;/p>
+&lt;p>
+First we will pull the specs out of the lockfile. Then we will loop
+over them pulling in the infomation from &lt;code class="verbatim">rubygems&lt;/code> or wherever the
+remote was specified. We aren&amp;#39;t doing anything special with git
+sourced gems.
+&lt;/p>
+&lt;div class="src src-ruby">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-ruby" data-lang="ruby"> &lt;span class="c1">#!/usr/bin/env ruby&lt;/span>
+&lt;span class="nb">require&lt;/span> &lt;span class="s1">&amp;#39;bundler&amp;#39;&lt;/span>
+&lt;span class="nb">require&lt;/span> &lt;span class="s1">&amp;#39;gems&amp;#39;&lt;/span>
+&lt;span class="k">def&lt;/span> &lt;span class="nf">specs_from_lockfile&lt;/span> &lt;span class="n">file&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="no">Bundler&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">default_lockfile&lt;/span>
+&lt;span class="n">gems&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="p">{}&lt;/span>
+&lt;span class="n">context&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="no">Bundler&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="no">LockfileParser&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">new&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="no">Bundler&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">read_file&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">file&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="n">context&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">specs&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">each&lt;/span> &lt;span class="k">do&lt;/span> &lt;span class="o">|&lt;/span>&lt;span class="n">info&lt;/span>&lt;span class="o">|&lt;/span>
+&lt;span class="n">gems&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="n">info&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">name&lt;/span>&lt;span class="o">]&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="p">{&lt;/span>&lt;span class="ss">version&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="n">info&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">version&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">to_s&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="ss">source&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="n">info&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">source&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">class&lt;/span> &lt;span class="p">}&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="n">info&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">source&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">is_a?&lt;/span> &lt;span class="no">Bundler&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="no">Source&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="no">Rubygems&lt;/span>
+&lt;span class="n">gems&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="n">info&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">name&lt;/span>&lt;span class="o">][&lt;/span>&lt;span class="ss">:remote&lt;/span>&lt;span class="o">]&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">info&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">source&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">remotes&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">first&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">to_s&lt;/span>
+&lt;span class="k">elsif&lt;/span> &lt;span class="n">info&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">source&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">is_a?&lt;/span> &lt;span class="no">Bundler&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="no">Source&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="no">Git&lt;/span>
+&lt;span class="n">gems&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="n">info&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">name&lt;/span>&lt;span class="o">][&lt;/span>&lt;span class="ss">:remote&lt;/span>&lt;span class="o">]&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">info&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">source&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">uri&lt;/span>
+&lt;span class="n">gems&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="n">info&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">name&lt;/span>&lt;span class="o">][&lt;/span>&lt;span class="ss">:ref&lt;/span>&lt;span class="o">]&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">info&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">source&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">ref&lt;/span>
+&lt;span class="n">gems&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="n">info&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">name&lt;/span>&lt;span class="o">][&lt;/span>&lt;span class="ss">:revision&lt;/span>&lt;span class="o">]&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">info&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">source&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">revision&lt;/span>
+&lt;span class="k">else&lt;/span>
+&lt;span class="nb">puts&lt;/span> &lt;span class="s2">&amp;#34;Not sure how to process &lt;/span>&lt;span class="si">#{&lt;/span>&lt;span class="n">info&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">source&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">class&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="n">gems&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="k">def&lt;/span> &lt;span class="nf">add_rubygems_versions&lt;/span> &lt;span class="n">info&lt;/span>
+&lt;span class="n">info&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">each&lt;/span> &lt;span class="k">do&lt;/span> &lt;span class="o">|&lt;/span>&lt;span class="nb">name&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">spec&lt;/span>&lt;span class="o">|&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="n">spec&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="ss">:source&lt;/span>&lt;span class="o">]&lt;/span> &lt;span class="o">==&lt;/span> &lt;span class="no">Bundler&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="no">Source&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="no">Rubygems&lt;/span>
+&lt;span class="n">gems_client&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="no">Gems&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="no">Client&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">new&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="p">{&lt;/span> &lt;span class="ss">host&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="n">spec&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="ss">:remote&lt;/span>&lt;span class="o">]&lt;/span> &lt;span class="p">}&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="n">spec&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="ss">:info&lt;/span>&lt;span class="o">]&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">gems_client&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">info&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nb">name&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="k">elsif&lt;/span> &lt;span class="n">spec&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="ss">:source&lt;/span>&lt;span class="o">]&lt;/span> &lt;span class="o">==&lt;/span> &lt;span class="no">Bundler&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="no">Source&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="no">Git&lt;/span>
+&lt;span class="n">spec&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="ss">:info&lt;/span>&lt;span class="o">]&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="no">Gems&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">info&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nb">name&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="k">else&lt;/span>
+&lt;span class="nb">puts&lt;/span> &lt;span class="s2">&amp;#34;Not sure of the source of &lt;/span>&lt;span class="si">#{&lt;/span>&lt;span class="nb">name&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="n">specs&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">specs_from_lockfile&lt;/span> &lt;span class="no">ARGV&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="mi">0&lt;/span>&lt;span class="o">]&lt;/span> &lt;span class="o">||&lt;/span> &lt;span class="no">Bundler&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">default_lockfile&lt;/span>
+&lt;span class="n">add_rubygems_versions&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="n">specs&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="nb">printf&lt;/span> &lt;span class="s2">&amp;#34;%15s %-8s %-8s %3s %s&lt;/span>&lt;span class="se">\n&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s2">&amp;#34;Name&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s2">&amp;#34;Current&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s2">&amp;#34;Latest&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s2">&amp;#34;Old&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s2">&amp;#34;Info&amp;#34;&lt;/span>
+&lt;span class="n">specs&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">each&lt;/span> &lt;span class="k">do&lt;/span> &lt;span class="o">|&lt;/span>&lt;span class="nb">name&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="n">info&lt;/span>&lt;span class="o">|&lt;/span>
+&lt;span class="n">info&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="ss">:info&lt;/span>&lt;span class="o">]&lt;/span> &lt;span class="o">||=&lt;/span> &lt;span class="p">{}&lt;/span>
+&lt;span class="n">current_version&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">info&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="ss">:version&lt;/span>&lt;span class="o">]&lt;/span>
+&lt;span class="n">new_version&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">info&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="ss">:info&lt;/span>&lt;span class="o">][&lt;/span>&lt;span class="s2">&amp;#34;version&amp;#34;&lt;/span>&lt;span class="o">]&lt;/span>
+&lt;span class="nb">printf&lt;/span> &lt;span class="s2">&amp;#34;%15s %-8s %-8s %-3s %s&lt;/span>&lt;span class="se">\n&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nb">name&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="n">current_version&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="n">new_version&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="n">current_version&lt;/span> &lt;span class="o">==&lt;/span> &lt;span class="n">new_version&lt;/span> &lt;span class="p">?&lt;/span> &lt;span class="s2">&amp;#34;&amp;#34;&lt;/span> &lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;Y&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="n">info&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="ss">:info&lt;/span>&lt;span class="o">][&lt;/span>&lt;span class="s2">&amp;#34;info&amp;#34;&lt;/span>&lt;span class="o">][&lt;/span>&lt;span class="mi">0&lt;/span>&lt;span class="o">..&lt;/span>&lt;span class="mi">50&lt;/span>&lt;span class="o">]&lt;/span>
+&lt;span class="k">end&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Name Current Latest Old Info
+gems 1.1.1 1.2.0 Y Ruby wrapper for the RubyGems.org API
+io-console 0.5.6 0.5.6 add console capabilities to IO instances.
+irb 1.2.4 1.2.4 Interactive Ruby command-line tool for REPL (Read E
+json 2.3.1 2.3.1 This is a JSON implementation as a Ruby extension i
+reline 0.1.4 0.1.4 Alternative GNU Readline or Editline implementation
+&lt;/pre>
+&lt;p>
+This is a very simple project, but we can see that the one gem that we
+held back to &lt;code class="verbatim">1.1.1&lt;/code> instead of the (current) latst of &lt;code class="verbatim">1.2.0&lt;/code> is
+outdated.
+&lt;/p>
+&lt;h2 id="headline-6">
+Future thoughts
+&lt;/h2>
+&lt;p>
+Looking at the &lt;code class="verbatim">Gemfile.lock&lt;/code> file we&amp;#39;re able to see which versions of
+the gems are installed, and we can pull down the git repos of most of
+them using the metadata. (Or homepage, for a lot of them.) The
+standard bundling tools will create a git tag for each of the
+releases, so in our next installment we will start looking seeing the
+code different between the versions, both the commit messages as well
+as overall activity in these projects. This should help us understand
+how risky the upgrades are, and if we believe in semvar.
+&lt;/p>
+&lt;h2 id="headline-7">
+References
+&lt;/h2>
+&lt;ol>
+&lt;li>
+&lt;p>
+&lt;a href="https://stackoverflow.com/questions/38800129/parsing-a-gemfile-lock-with-bundl">https://stackoverflow.com/questions/38800129/parsing-a-gemfile-lock-with-bundl&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://rdoc.info/github/bundler/bundler/Bundler/LazySpecification">https://rdoc.info/github/bundler/bundler/Bundler/LazySpecification&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://rdoc.info/github/rubygems/rubygems/Gem/Specification">https://rdoc.info/github/rubygems/rubygems/Gem/Specification&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;/ol></description></item><item><title>gitlog in sqlite</title><link>https://willschenk.com/articles/2020/gitlog_in_sqlite/</link><pubDate>Fri, 28 Aug 2020 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2020/gitlog_in_sqlite/</guid><description>
 &lt;p>
 &lt;a href="https://willschenk.com/articles/2020/using_askgit/">askgit&lt;/a> is a great way to look at information inside of a repository.
 However it currently doesn&amp;#39;t support looking at the files inside of
