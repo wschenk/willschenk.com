@@ -7,7 +7,7 @@ tags:
 date: "2020-04-28"
 ---
 
-[HappyFunCorp](https://happyfuncorp.com/) helped build [Bookshop.org](https://bookshop.org/) which is an online bookstore that distributes 30% of the book profits to independant bookstores in your area.  Basically it's a place that people can link to that isn't Amazon, and that will kick some money to your local community.
+[HappyFunCorp](https://happyfuncorp.com/) helped build [Bookshop.org](https://bookshop.org/) which is an online bookstore that distributes 30% of the book profits to independent bookstores in your area.  Basically it's a place that people can link to that isn't Amazon, and that will kick some money to your local community.
 
 I wanted to find a way to easily create links to these product pages, and show images if needed.  There's no API to access bookshop (I asked on our internal dev channel) but I know how to write a script so I cobbled something together and made a `hugo` shortcode to render stuff on my blog.
 
