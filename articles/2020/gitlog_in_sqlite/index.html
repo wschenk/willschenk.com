@@ -1,4 +1,4 @@
-<!doctype html><html><head><title>gitlog in sqlite</title><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><link rel=stylesheet href=../../../css/theme.css><link rel=stylesheet href=../../../css/syntax.css><script type=application/javascript>var doNotTrack=false;if(!doNotTrack){window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;ga('create','UA-56296045-1','auto');ga('send','pageview');}</script><script async src=https://www.google-analytics.com/analytics.js></script><script async defer data-domain=willschenk.com src=https://plausible.io/js/plausible.js></script><meta property="og:title" content="gitlog in sqlite"><meta property="og:description" content="askgit is a great way to look at information inside of a repository. However it currently doesn't support looking at the files inside of the commit itself – it gives you a view of the repository at the time of the commit, but not the patch itself. Since I don't know enough about golang and sqlite virtual tables, lets just create a sqlite3 database from the logfile. Get the gitlog   We are going to use our favorite test repo, ruby-git because it's so deliciously meta."><meta property="og:type" content="article"><meta property="og:url" content="https://willschenk.com/articles/2020/gitlog_in_sqlite/"><meta property="article:published_time" content="2020-08-28T00:00:00+00:00"><meta property="article:modified_time" content="2020-08-28T00:00:00+00:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="gitlog in sqlite"><meta name=twitter:description content="askgit is a great way to look at information inside of a repository. However it currently doesn't support looking at the files inside of the commit itself – it gives you a view of the repository at the time of the commit, but not the patch itself. Since I don't know enough about golang and sqlite virtual tables, lets just create a sqlite3 database from the logfile. Get the gitlog   We are going to use our favorite test repo, ruby-git because it's so deliciously meta."><meta name=twitter:site content="@wschenk"><style>.article p,.article ul,.article ol,.article table{max-width:45em}.article pre p{max-width:none;margin-top:-1.5rem}article.article p:first-child,.article blockquote{font-size:1.25em;font-weight:300;max-width:36em}.half-height-scroll{max-height:32em;overflow:scroll}</style></head><body><nav class="container my-5"><h1 class="pt-md-5 display-3"><a class=text-dark href=../../../>Will Schenk</a></h1><p><a class="text-dark h4 mr-3 font-weight-light" href=../../../articles/>Articles</a>
+<!doctype html><html><head><title>gitlog in sqlite</title><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><link rel=stylesheet href=../../../css/theme.css><link rel=stylesheet href=../../../css/syntax.css><script type=application/javascript>var doNotTrack=false;if(!doNotTrack){window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;ga('create','UA-56296045-1','auto');ga('send','pageview');}</script><script async src=https://www.google-analytics.com/analytics.js></script><script async defer data-domain=willschenk.com src=https://plausible.io/js/plausible.js></script><meta property="og:title" content="gitlog in sqlite"><meta property="og:description" content="askgit is a great way to look at information inside of a repository. However it currently doesn't support looking at the files inside of the commit itself – it gives you a view of the repository at the time of the commit, but not the patch itself. Since I don't know enough about golang and sqlite virtual tables, let's just create a sqlite3 database from the logfile. Get the gitlog   We are going to use our favorite test repo, ruby-git because it's so deliciously meta."><meta property="og:type" content="article"><meta property="og:url" content="https://willschenk.com/articles/2020/gitlog_in_sqlite/"><meta property="article:published_time" content="2020-08-28T00:00:00+00:00"><meta property="article:modified_time" content="2020-08-28T00:00:00+00:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="gitlog in sqlite"><meta name=twitter:description content="askgit is a great way to look at information inside of a repository. However it currently doesn't support looking at the files inside of the commit itself – it gives you a view of the repository at the time of the commit, but not the patch itself. Since I don't know enough about golang and sqlite virtual tables, let's just create a sqlite3 database from the logfile. Get the gitlog   We are going to use our favorite test repo, ruby-git because it's so deliciously meta."><meta name=twitter:site content="@wschenk"><style>.article p,.article ul,.article ol,.article table{max-width:45em}.article pre p{max-width:none;margin-top:-1.5rem}article.article p:first-child,.article blockquote{font-size:1.25em;font-weight:300;max-width:36em}.half-height-scroll{max-height:32em;overflow:scroll}</style></head><body><nav class="container my-5"><h1 class="pt-md-5 display-3"><a class=text-dark href=../../../>Will Schenk</a></h1><p><a class="text-dark h4 mr-3 font-weight-light" href=../../../articles/>Articles</a>
 <a class="text-dark h4 mr-3 font-weight-light" href=../../../contact>Contact</a>
 <a class="text-dark h4 mr-3 font-weight-light" href=../../../tags/>Tags</a>
 <a href=../../../feed.xml class="mr-3 h4 text-light"><img src=../../../img/rss.svg alt=rss height=20 width=20></a>
@@ -11,11 +11,11 @@
 However it currently doesn't support looking at the files inside of
 the commit itself – it gives you a view of the repository at the time
 of the commit, but not the patch itself. Since I don't know enough
-about golang and sqlite virtual tables, lets just create a sqlite3
+about golang and sqlite virtual tables, let's just create a sqlite3
 database from the logfile.</p><h2 id=headline-1>Get the gitlog</h2><p>We are going to use our favorite test repo, <a href=https://github.com/ruby-git/ruby-git>ruby-git</a> because it's so
 deliciously meta.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash><span class=nb>cd</span> /tmp
 git clone https://github.com/ruby-git/ruby-git
-<span class=nb>cd</span> /tmp/ruby-git</code></pre></div></div><p>And then, lets pull out a list of commits, that includes</p><table><tbody><tr><td><code class=verbatim>%h</code></td><td>The hash</td></tr><tr><td><code class=verbatim>%ae</code></td><td>Author email</td></tr><tr><td><code class=verbatim>%aI</code></td><td>Author date</td></tr><tr><td><code class=verbatim>%s</code></td><td>Summary</td></tr><tr><td><code class=verbatim>--numstat</code></td><td>Files with changes in the commit</td></tr></tbody></table><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>git log --pretty<span class=o>=</span>format:<span class=s1>&#39;|%h|%ae|%an|%aI|%s&#39;</span> --numstat &gt; /tmp/commits.log</code></pre></div></div><p>We are going to load this file into a sqlite database that we'll use
+<span class=nb>cd</span> /tmp/ruby-git</code></pre></div></div><p>And then, let's pull out a list of commits, that includes</p><table><tbody><tr><td><code class=verbatim>%h</code></td><td>The hash</td></tr><tr><td><code class=verbatim>%ae</code></td><td>Author email</td></tr><tr><td><code class=verbatim>%aI</code></td><td>Author date</td></tr><tr><td><code class=verbatim>%s</code></td><td>Summary</td></tr><tr><td><code class=verbatim>--numstat</code></td><td>Files with changes in the commit</td></tr></tbody></table><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>git log --pretty<span class=o>=</span>format:<span class=s1>&#39;|%h|%ae|%an|%aI|%s&#39;</span> --numstat &gt; /tmp/commits.log</code></pre></div></div><p>We are going to load this file into a sqlite database that we'll use
 to do some analysis.</p><h2 id=headline-2>Parse and load</h2><p>First we need a <code class=verbatim>Gemfile</code> for the <code class=verbatim>sqlite3</code> gem:</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=n>source</span> <span class=s1>&#39;https://rubygems.org&#39;</span>
 
 <span class=n>gem</span> <span class=s1>&#39;sqlite3&#39;</span></code></pre></div></div><p>And then we can write a script that loads everything up.</p><ol><li><p>Create the database and tables</p></li><li><p>Go through commits.log file one line at a time</p></li><li><p>If the line starts with <code class=verbatim>|</code> parse out the fields and add them to the
@@ -92,8 +92,8 @@ sqlite3 test.db <span class=s2>&#34;select * from commits where author_when = (s
 402
 2007-11-07T12:54:26-08:00
 f5baa11,&#34;beginning of Ruby/Git project&#34;,&#34;scott Chacon&#34;,schacon@agadorsparticus.corp.reactrix.com,2007-11-07T12:54:26-08:00
-</pre><p>We can also look to see who has contributed the must number of commits
-since a certain time frame, like say after 2015.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>sqlite3 test.db <span class=s2>&#34;select count(*), author_name from commits 
+</pre><p>We can also look to see who has contributed the most commits
+in a certain time frame, like say after 2015.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>sqlite3 test.db <span class=s2>&#34;select count(*), author_name from commits 
 </span><span class=s2>where author_when &gt;= &#39;2015-01-01&#39; 
 </span><span class=s2>group by author_name 
 </span><span class=s2>having count(*) &gt; 1 
@@ -195,8 +195,8 @@ Fix UTF-8 message errors (#327)                      Alexander M  2018-04-30T14:
 Fix ls-files for git 2.16 (#350)                     Rafael Regg  2018-03-28T08:44:59-03:00
 Updating String#encode usage to prevent silly type   Roberto Dec  2016-02-25T12:31:33-03:00
 Fix the encoding issue - 'split': invalid byte sequ  David Varta  2016-02-16T15:42:14+00:00
-</pre><h3 id=headline-8>Change coupling by commit</h3><p>Lets look to see which files are changed together, which will give us
-a sense of which files are coupled together.</p><p>First we're create <code class=verbatim>query_and_pivot.rb</code> that we'll use to do our query
+</pre><h3 id=headline-8>Change coupling by commit</h3><p>Let's look to see which files are changed together, which will give us
+a sense of which files are coupled together.</p><p>First we'll create <code class=verbatim>query_and_pivot.rb</code> that we'll use to do our query
 and do the count pivot stuff to parse the output.</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=nb>require</span> <span class=s1>&#39;sqlite3&#39;</span>
 
   <span class=c1># Query the database and pivot the second result (filename) around the</span>
@@ -307,25 +307,25 @@ query.</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code
 | lib/git/version.rb            |      12 | CHANGELOG.md               |         33% |     4 |
 | lib/git/version.rb            |      12 | VERSION                    |         33% |     4 |
 | tests/test_helper.rb          |       9 | tests/units/test_lib.rb    |         33% |     3 |
-</pre><p>I'm limiting the output to only show files that have changed more that
-2 times, mainly to get the data down to something managable to show on
+</pre><p>I'm limiting the output to only show files that have changed more than
+2 times, mainly to get the data down to something manageable to show on
 this point. The first two columns show the file name and the number
 of commits that it's in (for the selected time period). The next few
 columns show the file that changed at the same time as the first time,
-and the % of times that it was in the commit. So a corolation of 1.0
-is that it change everytime together. for <code class=verbatim>0.75</code> it change 3 out of 4
-times that the main file was changed.</p><p>Most of the things here make sense. Unit tests change at a high
+and the % of times that it was in the commit. So a correlation of 1.0
+indicates they change everytime together. For <code class=verbatim>0.75</code> it changes 3 out of 4
+times that the main file changes.</p><p>Most of the things here make sense. Unit tests change at a high
 coupling rate as the files that they appear to test, but you also can
 see that <code class=verbatim>lib/git/lib.rb</code> and <code class=verbatim>lib/git/base.rb</code> change a lot with unit
 tests that are testing other parts of the system. Meaning, the unit
 test code isn't super modular with the classes that it's testing, and
 there's probably a bunch of stuff in these <code class=verbatim>base</code> and <code class=verbatim>lib</code> modules that
-have spread responsibilities.</p><h3 id=headline-9>Why isn't <code class=verbatim>VERSION</code> totally coorelated to <code class=verbatim>lib/git/version.rb</code> ?</h3><p>Looking above we can see that changed to <code class=verbatim>VERSION</code> are coorlated to
+have spread responsibilities.</p><h3 id=headline-9>Why isn't <code class=verbatim>VERSION</code> totally correlated to <code class=verbatim>lib/git/version.rb</code> ?</h3><p>Looking above we can see that changes to <code class=verbatim>VERSION</code> are correlated to
 <code class=verbatim>lib/git/version.rb</code> only 57% of the time. Weird. Let's see if we can
 figure out what those other changes are.</p><p>We are going to use the sql <code class=verbatim>EXCEPT</code> keyword to first get a list of all
 of the commit ids that reference <code class=verbatim>VERSION</code>, and substract that from the
-list of ids reference <code class=verbatim>lib/git/version.rb</code> to get the commits where they
-aren't co-ocurring.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>sqlite3 test.db <span class=s2>&#34;select id from commits where author_when &gt;= &#39;2011-01-01&#39; 
+list of ids that reference <code class=verbatim>lib/git/version.rb</code> to get the commits where they
+aren't co-occurring.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>sqlite3 test.db <span class=s2>&#34;select id from commits where author_when &gt;= &#39;2011-01-01&#39; 
 </span><span class=s2>  and id in 
 </span><span class=s2>    (select id from commit_files where name = &#39;VERSION&#39; 
 </span><span class=s2>     EXCEPT
@@ -334,9 +334,9 @@ aren't co-ocurring.</p><div class="src src-bash"><div class=highlight><pre class
 6db4fdc
 cc6d6ef
 </pre><p>Now if we do <code class=verbatim>git show 6d5bacd</code> we can see that, in fact, the change was
-that <code class=verbatim>VERSION</code> was removed from the repo since it was restructured. No
-a super interesting finding, but it's an anomoly so its fun to check
-out.</p><h3 id=headline-10>Active days</h3><p>Lets see which days of this project are the most active.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>sqlite3 test.db <span class=s2>&#34;select count(*), date(author_when) from commits 
+that <code class=verbatim>VERSION</code> was removed from the repo since it was restructured. Not
+a super interesting finding, but it's an anomaly so it's fun to check
+out.</p><h3 id=headline-10>Active days</h3><p>Let's see which days of this project were the most active.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>sqlite3 test.db <span class=s2>&#34;select count(*), date(author_when) from commits 
 </span><span class=s2>group by date(author_when) order by count(*) desc limit 10&#34;</span> -header -column</code></pre></div></div><pre class=example>
 count(*)    date(author_when)
 ----------  -----------------
@@ -373,7 +373,7 @@ bit more thorough than normal.</p><h3 id=headline-11>Change coupling by time</h3
 upon the process and work style, commits could be small and frequent
 (I'm sure with comments like <em>argggh</em> and <em>work dammnit</em>) or they could be
 well structured units of work that can be thought of as logically
-discrete units.</p><p>For those repositories that aren't like that, lets group changes by
+discrete units.</p><p>For those repositories that aren't like that, let's group changes by
 time and see if that gives us any interesting insights in to which
 files where modified together.</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=nb>require</span> <span class=s1>&#39;./query_and_pivot.rb&#39;</span>
 
@@ -416,19 +416,19 @@ files where modified together.</p><div class="src src-ruby"><div class=highlight
 | tests/units/test_index_ops.rb |       6 | lib/git/base.rb               |         66% |     4 |
 | tests/units/test_lib.rb       |      11 | lib/git/lib.rb                |         63% |     7 |
 </pre><p>I truncated the table since there are a lot more things that are
-coorelation now that we've grouped by date. A lot of things make sense
-here, but again it seems like files are changed together a lot which
+correlated now that we've grouped by date. A lot of things make sense
+here, but again it seems like files are changed together – a lot which
 could be nothing but makes you wonder about modularity of files.</p><p><code class=verbatim>lib/git/base.rb</code> and <code class=verbatim>lib/git/lib.rb</code> are both changed a lot (<code class=verbatim>18</code> times)
 and frequently changed together <code class=verbatim>83%</code> of the time.</p><p>Perhaps things have been split up prematurely if multiple files always
 change at the same time? Or is this normal in terms of how object
 oriented encapulsation works? Based upon the generic all encompasing
-names (<em>base</em> and <em>lib</em>) I wonder you could guess why something would go
+names (<em>base</em> and <em>lib</em>) I wonder if you could guess why something would go
 into one file or another.</p><h2 id=headline-12>Knowledge and maturity</h2><ol><li><p>Knowledge of a file is related to how much someone touched it</p></li><li><p>Knowledge decays over time</p></li><li><p>Active files means that something is changing</p></li><li><p>People come and go on projects</p><h3 id=headline-13>Normalizing names</h3></li></ol><p>One thing to note in this data is that <code class=verbatim>scott Chacon</code> is treated
 differently than <code class=verbatim>Scott Chacon</code>, similar to <code class=verbatim>Roberto Decurnex</code> and
-<code class=verbatim>robertodecurnex</code>. One simple way is to update your index database to
+<code class=verbatim>robertodecurnex</code>. One simple way to normalize this is to update your index database to
 add the alias and mappings there.</p><p>These need to be identified by hand and retweaked depending upon the
 particular repo you are looking at.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>sqlite3 test.db <span class=s2>&#34;update commits set author_name = &#39;Scott Chacon&#39; where author_name = &#39;scott Chacon&#39;&#34;</span>
-sqlite3 test.db <span class=s2>&#34;update commits set author_name = &#39;Roberto Decurnex&#39; where author_name = &#39;robertodecurnex&#39;&#34;</span></code></pre></div></div><h3 id=headline-14>Authorship of a file</h3><p>Lets look at who "knows" about a file based upon how much they've
+sqlite3 test.db <span class=s2>&#34;update commits set author_name = &#39;Roberto Decurnex&#39; where author_name = &#39;robertodecurnex&#39;&#34;</span></code></pre></div></div><h3 id=headline-14>Authorship of a file</h3><p>Let's look at who "knows" about a file based upon how much they've
 authored it. I'm going to pick on <code class=verbatim>lib/git/base.rb</code> since that seems to
 be an exciting hotspot.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>sqlite3 test.db <span class=s2>&#34;select name, author_name, count(commits.id) as commits, date(max(author_when)) as last_touched
 </span><span class=s2>from commits, commit_files 
@@ -486,13 +486,13 @@ Yuya.Nishida  2014-07-07    2
 Harald Sitte  2015-01-12    1
 </pre><p>We do see that <code class=verbatim>Tom Potts</code> moved up a bit in the list.</p><h3 id=headline-16>Who knows about that file?</h3><p>If you had a question about <code class=verbatim>lib/git/base.rb</code> who would you ask? <code class=verbatim>Scott
 Chacon</code> wrote most of it, but he hasn't been around in a while.
-<code class=verbatim>Roberto Decurnex</code> was the last person to make substancial changes to
+<code class=verbatim>Roberto Decurnex</code> was the last person to make substantial changes to
 it, but that was back in <code class=verbatim>2015</code>. Even if he was still active on the
 project, which he doesn't appear to be, do we think he'd remember any
-of the details? Does the most recently contributor make sense to talk
+of the details? Does the most recent contributor make sense to talk
 to, even though <code class=verbatim>Tom Potts</code> only made a small change in <code class=verbatim>2018</code>?</p><p>We know that the file is signifigant because it used to change a lot
 with a bunch of other files. Maybe the file is super clean and
-looking at it means that all of it's resposibilities are self evident
+looking at it means that all of its resposibilities are self-evident
 – I haven't opened it up yet – but my sense is that it probably has
 a lot of stuff in there, and that knowledge will have to be recreated
 the next time that anyone opens it up to make a change.</p><h3 id=headline-17>Stable or dead?</h3><p>Instead of focusing on the things that have changed, lets take a look
@@ -571,17 +571,17 @@ stable from early days, <code class=verbatim>working_directory.rb</code> probabl
 <code class=verbatim>object.rb</code> and which things have been changing for this stable project.
 In the beginning of the year there was a bunch of work for things
 related to project adminstration, like <code class=verbatim>PULL_REQUEST_TEMPLATE.mb</code> and
-<code class=verbatim>RELEASING.md</code>.</p><h2 id=headline-18>Thoughts</h2><p>Coding creates artifact that change over time, and we have access to
+<code class=verbatim>RELEASING.md</code>.</p><h2 id=headline-18>Thoughts</h2><p>Coding creates artifacts that change over time, and we have access to
 this data in the repositories that we share. Having everything
 accessable in SQL helps with complicated joins and analysis. I've
-scripted this in ruby and we are looking at a ruby project, but
+scripted this in Ruby and we are looking at a Ruby project, but
 nothing that we've done has looked inside of the project itself to
 identify what are areas of note and of interest. It's been purely on
 the shape of how things are changing, what is changing together, and
 meta data analysis.</p><p>Now that we've gotten a taste of what this looked like here – and I'm
-sure there's much more we can look into – there are a couple of other
-sources of meta data that we should look at:</p><ol><li><p>Issues/tickets and how they related to the code</p></li><li><p>Mailing lists? Chat rooms? other discussions around the repository</p></li><li><p>Projects that rely upon this as a dependancy, and how/if those
+sure there's much more we can look into – there are a few other
+sources of meta data that we should look at:</p><ol><li><p>Issues/tickets and how they related to the code</p></li><li><p>Mailing lists? Chat rooms? other discussions around the repository</p></li><li><p>Projects that rely upon this as a dependency, and how/if those
 users are putting in tickets or bug fixes into the code</p></li><li><p>Looking into the <code class=verbatim>gemspec</code> and <code class=verbatim>Gemfile</code> to examine this project's
-dependancies to see what's going on there.</p></li></ol><p>But this is already long enough.</p><h2 id=headline-19>References</h2><ol><li><p><a href=https://pragprog.com/titles/atcrime/your-code-as-a-crime-scene/>Your Code as a Crime Scene: Use Forensic Techniques to Arrest Defects, Bottlenecks, and Bad Design in Your Programs</a></p></li><li><p><a href=https://pragprog.com/titles/atevol/software-design-x-rays/>Software Design X-Rays: Fix Technical Debt with Behavioral Code Analysis</a></p></li></ol></article></div><div class="bg-light py-5"><div class=container><h2 class=text-center>Read next</h2><div class=row><div class="col-md-6 text-center">Next Post:
+dependencies to see what's going on there.</p></li></ol><p>But this is already long enough.</p><h2 id=headline-19>References</h2><ol><li><p><a href=https://pragprog.com/titles/atcrime/your-code-as-a-crime-scene/>Your Code as a Crime Scene: Use Forensic Techniques to Arrest Defects, Bottlenecks, and Bad Design in Your Programs</a></p></li><li><p><a href=https://pragprog.com/titles/atevol/software-design-x-rays/>Software Design X-Rays: Fix Technical Debt with Behavioral Code Analysis</a></p></li></ol></article></div><div class="bg-light py-5"><div class=container><h2 class=text-center>Read next</h2><div class=row><div class="col-md-6 text-center">Next Post:
 <a href=../../../articles/2020/looking_at_gemfiles/>Looking at Gemfiles</a></div><div class="col-md-6 text-center">Previous Post:
 <a href=../../../articles/2020/using_askgit/>Using Askgit</a></div></div></div></div><div class="container mt-5"><h2 class=text-center>See also</h2><div class=row><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2020/using_askgit/>Using Askgit</a></p><p class="lead font-italic mb-0">SQL is so nice</p><div class="font-weight-light mt-3"><p>askgit provides a sql interface to your git repository. Let's install it and see what we can figure out about the repo. Installing Following the instructions on the website, we can build the go binary with: go get -v -tags=sqlite_vtable github.com/augmentable-dev/askgit This will download the package, the dependencies, and compile everything into an executable. If you can't figure out where it's installed, check that you have GOPATH set correctly, and it will end up in $GOPATH/bin.</p></div><a href=../../../articles/2020/using_askgit/ class="btn btn-primary">Read more</a></div></div></div><footer class="footer bg-dark text-light mt-3"><div class=container><h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2></div></footer></body></html>
