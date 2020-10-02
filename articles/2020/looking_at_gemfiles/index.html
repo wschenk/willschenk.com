@@ -1,4 +1,4 @@
-<!doctype html><html><head><title>Looking at Gemfiles</title><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><link rel=stylesheet href=../../../css/theme.css><link rel=stylesheet href=../../../css/syntax.css><script type=application/javascript>var doNotTrack=false;if(!doNotTrack){window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;ga('create','UA-56296045-1','auto');ga('send','pageview');}</script><script async src=https://www.google-analytics.com/analytics.js></script><script async defer data-domain=willschenk.com src=https://plausible.io/js/plausible.js></script><meta property="og:title" content="Looking at Gemfiles"><meta property="og:description" content="Bundler is the standard way for ruby projects to specifiy dependancies. Lets take a look at how that works, reimplement bundle outdated, and be able to see the changes that took place between the build you are using at the latest one. Ruby ecosystem: Rubygems, Bundler, Gemfile, Gemfile.lock   rubygems is the overall ecosystem, which includes the main rubygems.org database of shared packages, and how they depend upon each other."><meta property="og:type" content="article"><meta property="og:url" content="https://willschenk.com/articles/2020/looking_at_gemfiles/"><meta property="article:published_time" content="2020-09-04T00:00:00+00:00"><meta property="article:modified_time" content="2020-09-04T00:00:00+00:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Looking at Gemfiles"><meta name=twitter:description content="Bundler is the standard way for ruby projects to specifiy dependancies. Lets take a look at how that works, reimplement bundle outdated, and be able to see the changes that took place between the build you are using at the latest one. Ruby ecosystem: Rubygems, Bundler, Gemfile, Gemfile.lock   rubygems is the overall ecosystem, which includes the main rubygems.org database of shared packages, and how they depend upon each other."><meta name=twitter:site content="@wschenk"><style>.article p,.article ul,.article ol,.article table{max-width:45em}.article pre p{max-width:none;margin-top:-1.5rem}article.article p:first-child,.article blockquote{font-size:1.25em;font-weight:300;max-width:36em}.half-height-scroll{max-height:32em;overflow:scroll}</style></head><body><nav class="container my-5"><h1 class="pt-md-5 display-3"><a class=text-dark href=../../../>Will Schenk</a></h1><p><a class="text-dark h4 mr-3 font-weight-light" href=../../../articles/>Articles</a>
+<!doctype html><html><head><title>Looking at Gemfiles</title><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><link rel=stylesheet href=../../../css/theme.css><link rel=stylesheet href=../../../css/syntax.css><script type=application/javascript>var doNotTrack=false;if(!doNotTrack){window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;ga('create','UA-56296045-1','auto');ga('send','pageview');}</script><script async src=https://www.google-analytics.com/analytics.js></script><script async defer data-domain=willschenk.com src=https://plausible.io/js/plausible.js></script><meta property="og:title" content="Looking at Gemfiles"><meta property="og:description" content="Bundler is the standard way for Ruby projects to specifiy dependencies. Let's take a look at how that works, reimplement bundle outdated, and be able to see the changes that took place between the build you are using and the latest one. Ruby ecosystem: Rubygems, Bundler, Gemfile, Gemfile.lock   rubygems is the overall ecosystem, which includes the main rubygems.org database of shared packages, and how they depend upon each other."><meta property="og:type" content="article"><meta property="og:url" content="https://willschenk.com/articles/2020/looking_at_gemfiles/"><meta property="article:published_time" content="2020-09-04T00:00:00+00:00"><meta property="article:modified_time" content="2020-09-04T00:00:00+00:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Looking at Gemfiles"><meta name=twitter:description content="Bundler is the standard way for Ruby projects to specifiy dependencies. Let's take a look at how that works, reimplement bundle outdated, and be able to see the changes that took place between the build you are using and the latest one. Ruby ecosystem: Rubygems, Bundler, Gemfile, Gemfile.lock   rubygems is the overall ecosystem, which includes the main rubygems.org database of shared packages, and how they depend upon each other."><meta name=twitter:site content="@wschenk"><style>.article p,.article ul,.article ol,.article table{max-width:45em}.article pre p{max-width:none;margin-top:-1.5rem}article.article p:first-child,.article blockquote{font-size:1.25em;font-weight:300;max-width:36em}.half-height-scroll{max-height:32em;overflow:scroll}</style></head><body><nav class="container my-5"><h1 class="pt-md-5 display-3"><a class=text-dark href=../../../>Will Schenk</a></h1><p><a class="text-dark h4 mr-3 font-weight-light" href=../../../articles/>Articles</a>
 <a class="text-dark h4 mr-3 font-weight-light" href=../../../contact>Contact</a>
 <a class="text-dark h4 mr-3 font-weight-light" href=../../../tags/>Tags</a>
 <a href=../../../feed.xml class="mr-3 h4 text-light"><img src=../../../img/rss.svg alt=rss height=20 width=20></a>
@@ -9,26 +9,26 @@
 <a class=text-muted href=../../../tags/ruby>#ruby,</a>
 <a class=text-muted href=../../../tags/bundler>#bundler,</a>
 <a class=text-muted href=../../../tags/packagemanagers>#packagemanagers,</a>
-<a class=text-muted href=../../../tags/git>#git</a></p><article class="article mt-5"><p>Bundler is the standard way for ruby projects to specifiy
-dependancies. Lets take a look at how that works, reimplement <code class=verbatim>bundle
+<a class=text-muted href=../../../tags/git>#git</a></p><article class="article mt-5"><p>Bundler is the standard way for Ruby projects to specifiy
+dependencies. Let's take a look at how that works, reimplement <code class=verbatim>bundle
 outdated</code>, and be able to see the changes that took place between the
-build you are using at the latest one.</p><h2 id=headline-1>Ruby ecosystem: Rubygems, Bundler, Gemfile, Gemfile.lock</h2><p><code class=verbatim>rubygems</code> is the overall ecosystem, which includes the main
+build you are using and the latest one.</p><h2 id=headline-1>Ruby ecosystem: Rubygems, Bundler, Gemfile, Gemfile.lock</h2><p><code class=verbatim>rubygems</code> is the overall ecosystem, which includes the main
 <code class=verbatim>rubygems.org</code> database of shared packages, and how they depend upon
 each other. At the heart of it is a <code class=verbatim>gemspec</code> file which describes the
-package, files included in it, dependancies and other metadata.</p><p><code class=verbatim>bundler</code> the tool that helps you download and install specific gems for
-your application. It used a <code class=verbatim>Gemfile</code> to define what you want, and the
-resolves all the dependancies stores that into a <code class=verbatim>Gemfile.lock</code> file
+package, files included in it, dependencies, and other metadata.</p><p><code class=verbatim>bundler</code> is the tool that helps you download and install specific gems for
+your application. It uses a <code class=verbatim>Gemfile</code> to define what you want, and then
+resolves all the dependencies and stores that into a <code class=verbatim>Gemfile.lock</code> file
 that contains a list of the exact versions that you are developing
-against.</p><h2 id=headline-2>Creating a working <code class=verbatim>Gemfile</code></h2><p>First lets create a project, so we are all working off of the same
-thing. We'll add <code class=verbatim>bunder</code> as normal, and then <code class=verbatim>irb</code> from git directly so
+against.</p><h2 id=headline-2>Creating a working <code class=verbatim>Gemfile</code></h2><p>First, let's create a project, so we are all working off of the same
+thing. We'll add <code class=verbatim>bundler</code> as normal, and then <code class=verbatim>irb</code> from git directly, so
 we can see how that changes the <code class=verbatim>Gemfile.lock</code>. So, 3 gems, 2 from
-<code class=verbatim>rubygems.org</code> and one directly from <code class=verbatim>github</code>.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>bundle init
+<code class=verbatim>rubygems.org</code>, and one directly from <code class=verbatim>github</code>.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>bundle init
 bundle add bundler --version <span class=s2>&#34;~&gt;2.1&#34;</span>
 bundle add irb --git <span class=s2>&#34;https://github.com/ruby/irb&#34;</span>
 bundle add gems --version <span class=s2>&#34;1.1.1&#34;</span></code></pre></div></div><p>Lets also add in a <code class=verbatim>ruby "2.6.6"</code> line that will tell bundler which
-version of ruby we want to use. This isn't always used but lets put
+version of Ruby we want to use. This isn't always used, but let's put
 it in to flesh out what is generated in the lock file. Feel free to
-replace this with whatever version is on your local machine.</p><p>Which gives us a <code class=verbatim>Gemfile</code> that looks like this:</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=c1># frozen_string_literal: true</span>
+replace this with whatever version is on your local machine.</p><p>This gives us a <code class=verbatim>Gemfile</code> that looks like this:</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=c1># frozen_string_literal: true</span>
 
 <span class=n>source</span> <span class=s2>&#34;https://rubygems.org&#34;</span>
 
@@ -42,11 +42,11 @@ replace this with whatever version is on your local machine.</p><p>Which gives u
 <span class=n>gem</span> <span class=s2>&#34;irb&#34;</span><span class=p>,</span> <span class=ss>git</span><span class=p>:</span> <span class=s2>&#34;https://github.com/ruby/irb&#34;</span>
 
 <span class=n>gem</span> <span class=s2>&#34;gems&#34;</span><span class=p>,</span> <span class=s2>&#34;1.1.1&#34;</span></code></pre></div></div><p>Doing a <code class=verbatim>bundle add</code> adds the specification to the <code class=verbatim>Gemfile</code>, downloads
-the gems and all of it's dependancies, resolving specific versions and
+the gems and all of their dependencies, resolving specific versions and
 downloading those as well. This is specified in the lock file, which
 has the main sections:</p><ol><li><p><code class=verbatim>GIT</code> which is the first remote source on the list, here telling
-which commit that we are depending upon specifically.</p></li><li><p><code class=verbatim>GEM</code> which list out the the gems that are installed, with versions</p></li><li><p><code class=verbatim>PLATFORMS</code> which is for platform information (for native builds)</p></li><li><p><code class=verbatim>DEPENDENCIES</code> which is what comes out of the <code class=verbatim>Gemfile</code></p></li><li><p><code class=verbatim>RUBY VERSION</code> the version of ruby, including the patch level, that
-this was bundled with.</p></li><li><p><code class=verbatim>BUNDLED WITH</code> version information about bundler.</p></li></ol><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=no>GIT</span>
+which commit that we are depending upon specifically</p></li><li><p><code class=verbatim>GEM</code> which list out the the gems that are installed, with versions</p></li><li><p><code class=verbatim>PLATFORMS</code> which is for platform information (for native builds)</p></li><li><p><code class=verbatim>DEPENDENCIES</code> which is what comes out of the <code class=verbatim>Gemfile</code></p></li><li><p><code class=verbatim>RUBY VERSION</code> the version of Ruby, including the patch level, that
+this was bundled with</p></li><li><p><code class=verbatim>BUNDLED WITH</code> version information about bundler</p></li></ol><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=no>GIT</span>
   <span class=ss>remote</span><span class=p>:</span> <span class=ss>https</span><span class=p>:</span><span class=sr>//</span><span class=n>github</span><span class=o>.</span><span class=n>com</span><span class=o>/</span><span class=n>ruby</span><span class=o>/</span><span class=n>irb</span>
   <span class=ss>revision</span><span class=p>:</span> <span class=mi>9</span><span class=n>bb6562d0d841fd294e95bbb690e812cbd5090ce</span>
   <span class=ss>specs</span><span class=p>:</span>
@@ -77,7 +77,7 @@ this was bundled with.</p></li><li><p><code class=verbatim>BUNDLED WITH</code> v
 <span class=no>BUNDLED</span> <span class=no>WITH</span>
    <span class=mi>2</span><span class=o>.</span><span class=mi>1</span><span class=o>.</span><span class=mi>4</span></code></pre></div></div><h2 id=headline-3>Parsing <code class=verbatim>Gemfile</code> and <code class=verbatim>Gemfile.lock</code> together</h2><p>In normal usage you would have both a <code class=verbatim>Gemfile</code> and a <code class=verbatim>Gemfile.lock</code>.
 You'd start up your program using <code class=verbatim>bundle exec</code> which would validate
-that the right things were installed, load the gems into the ruby
+that the right things were installed, load the gems into the Ruby
 environment, and you'd be good to go.</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=c1>#!/usr/bin/env ruby</span>
   <span class=nb>require</span> <span class=s1>&#39;bundler&#39;</span>
 
@@ -110,12 +110,12 @@ Gem from https://github.com/ruby/irb (at master@9bb6562)
 irb                  1.2.4                                               https://github.com/ruby/irb
 </pre><p>So some gems have <code class=verbatim>source_code_uri</code> or <code class=verbatim>source_code_url</code> set, and some
 don't have it at all though they point to a <code class=verbatim>github</code> page where
-presumably we can figure out where the code is loaded.</p><p>For the case of <code class=verbatim>irb</code> the repo is listed in the remote <code class=verbatim>source</code> itself.</p><p>The metadata, homepage, etc are from the <code class=verbatim>gemspec</code> files.</p><h2 id=headline-4>Parsing a <code class=verbatim>Gemfile.lock</code> directly</h2><p>Let's now look at how to parse a <code class=verbatim>Gemfile.lock</code> of a different project,
+presumably we can figure out where the code is loaded.</p><p>For the case of <code class=verbatim>irb</code> the repo is listed in the remote <code class=verbatim>source</code> itself.</p><p>The metadata, homepage, etc, are from the <code class=verbatim>gemspec</code> files.</p><h2 id=headline-4>Parsing a <code class=verbatim>Gemfile.lock</code> directly</h2><p>Let's now look at how to parse a <code class=verbatim>Gemfile.lock</code> of a different project,
 where we don't have the original <code class=verbatim>Gemfile</code> handy.</p><p>When we load in the lockfile using <code class=verbatim>Bundler::LockfileParser</code> we only
 have the gem name, version, and the source from which to get it. We
 may or may not have the gemspec on our local machine, and so
 additional metadata like the homepage, summary, codeurl, etc haven't
-been loaded yet. Lets first print out what we have and then figure
+been loaded yet. Let's first print out what we have and then figure
 out how to get gem information from the source, name, and version.</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=ch>#!/usr/bin/env ruby</span>
 <span class=nb>require</span> <span class=s1>&#39;bundler&#39;</span>
 
@@ -156,14 +156,14 @@ irb                  1.2.4
 Bundler::Source::Git https://github.com/ruby/irb (at master@9bb6562)
 reline               0.1.4     
 Bundler::Source::Rubygems rubygems repository https://rubygems.org/ or installed locally
-</pre><p>Another thing that's interesting to node is that the version of
+</pre><p>Another thing that's interesting to note is that the version of
 <code class=verbatim>bundler</code> itself doesn't show up in the specified gems, though it is
 available from the <code class=verbatim>bundler_version</code> method.</p><h2 id=headline-5>Finding outdated gem versions</h2><p>If you are working with a matching set of <code class=verbatim>Gemfile</code> and <code class=verbatim>Gemfile.lock</code>
 files, which most people are, there's a nifty command <code class=verbatim>bundle outdated</code>.
 This looks though the gems that you have to see if there's a later
-version released.</p><p>Lets recreate this using our <code class=verbatim>Gemfile.lock</code> only method so we can look
+version released.</p><p>Let's recreate this using our <code class=verbatim>Gemfile.lock</code> only method so we can look
 at lock files and see which gems have updated code.</p><p>First we will pull the specs out of the lockfile. Then we will loop
-over them pulling in the infomation from <code class=verbatim>rubygems</code> or wherever the
+over them, pulling in the infomation from <code class=verbatim>rubygems</code> or wherever the
 remote was specified. We aren't doing anything special with git
 sourced gems.</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=c1>#!/usr/bin/env ruby</span>
   <span class=nb>require</span> <span class=s1>&#39;bundler&#39;</span>
@@ -223,14 +223,14 @@ sourced gems.</p><div class="src src-ruby"><div class=highlight><pre class=chrom
            json  2.3.1    2.3.1        This is a JSON implementation as a Ruby extension i
          reline  0.1.4    0.1.4        Alternative GNU Readline or Editline implementation
 </pre><p>This is a very simple project, but we can see that the one gem that we
-held back to <code class=verbatim>1.1.1</code> instead of the (current) latst of <code class=verbatim>1.2.0</code> is
+held back to <code class=verbatim>1.1.1</code> instead of the (current) latest of <code class=verbatim>1.2.0</code> is
 outdated.</p><h2 id=headline-6>Future thoughts</h2><p>Looking at the <code class=verbatim>Gemfile.lock</code> file we're able to see which versions of
 the gems are installed, and we can pull down the git repos of most of
 them using the metadata. (Or homepage, for a lot of them.) The
 standard bundling tools will create a git tag for each of the
-releases, so in our next installment we will start looking seeing the
-code different between the versions, both the commit messages as well
+releases, so in our next installment we will start looking at the
+code differences between versions, both the commit messages as well
 as overall activity in these projects. This should help us understand
-how risky the upgrades are, and if we believe in semvar.</p><h2 id=headline-7>References</h2><ol><li><p><a href=https://stackoverflow.com/questions/38800129/parsing-a-gemfile-lock-with-bundl>https://stackoverflow.com/questions/38800129/parsing-a-gemfile-lock-with-bundl</a></p></li><li><p><a href=https://rdoc.info/github/bundler/bundler/Bundler/LazySpecification>https://rdoc.info/github/bundler/bundler/Bundler/LazySpecification</a></p></li><li><p><a href=https://rdoc.info/github/rubygems/rubygems/Gem/Specification>https://rdoc.info/github/rubygems/rubygems/Gem/Specification</a></p></li></ol></article></div><div class="bg-light py-5"><div class=container><h2 class=text-center>Read next</h2><div class=row><div class="col-md-6 text-center"></div><div class="col-md-6 text-center">Previous Post:
+how risky the upgrades are, and if we believe in semver.</p><h2 id=headline-7>References</h2><ol><li><p><a href=https://stackoverflow.com/questions/38800129/parsing-a-gemfile-lock-with-bundl>https://stackoverflow.com/questions/38800129/parsing-a-gemfile-lock-with-bundl</a></p></li><li><p><a href=https://rdoc.info/github/bundler/bundler/Bundler/LazySpecification>https://rdoc.info/github/bundler/bundler/Bundler/LazySpecification</a></p></li><li><p><a href=https://rdoc.info/github/rubygems/rubygems/Gem/Specification>https://rdoc.info/github/rubygems/rubygems/Gem/Specification</a></p></li></ol></article></div><div class="bg-light py-5"><div class=container><h2 class=text-center>Read next</h2><div class=row><div class="col-md-6 text-center"></div><div class="col-md-6 text-center">Previous Post:
 <a href=../../../articles/2020/gitlog_in_sqlite/>gitlog in sqlite</a></div></div></div></div><div class="container mt-5"><h2 class=text-center>See also</h2><div class=row><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2020/checking_rss_health/>Checking health of RSS feeds</a></p><p class="lead font-italic mb-0">Lets clean out the old stuff</p><div class="font-weight-light mt-3"><p>I still use RSS feeds as my main way of consuming stuff on the internet. Old school. I was looking at the list of things that I've subscribed to which has been imported back from the Google Reader days, and figured I'd do some exploration of ye old OPML file. Setup the Gemfile We'll need to pull in a few gems here: source 'https://rubygems.org' gem 'httparty' # To pull stuff from the network gem 'feedjira' # To parse RSS feeds gem 'nokogiri' # To parse XML gem 'domainator' # To figured out the domain from the hostname gem 'whois' # To see how old the domain is gem 'whois-parser' # To actually make sense of the result And install everything bundle Look at domains First, lets see what we can find out about the machine that hosts the feed.</p></div><a href=../../../articles/2020/checking_rss_health/ class="btn btn-primary">Read more</a></div><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2019/splitting_git_repos_and_workdirectories/>Splitting Git Repos and Work Directories</a></p><p class="lead font-italic mb-0">all the fun things git can do</p><div class="font-weight-light mt-3"><p>I found a tutorial on how to manage your dotfiles, that works by splitting up the git repository (normally the .git directory) from the work directory. Since I have a lot of code that I put in my tutorials, I adapted the technique to have individual article directories mirrored in their own github repository.
 Repositories and Work Directories The normal usage of git is to type git clone &lt;remote> to get a copy of the local directory, mess with stuff, and then add and commit your changes.</p></div><a href=../../../articles/2019/splitting_git_repos_and_workdirectories/ class="btn btn-primary">Read more</a></div></div></div><footer class="footer bg-dark text-light mt-3"><div class=container><h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2></div></footer></body></html>
