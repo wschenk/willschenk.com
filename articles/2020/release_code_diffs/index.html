@@ -1,0 +1,324 @@
+<!doctype html><html><head><title>Release code diffs</title><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><link rel=stylesheet href=../../../css/theme.css><link rel=stylesheet href=../../../css/syntax.css><script type=application/javascript>var doNotTrack=false;if(!doNotTrack){window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;ga('create','UA-56296045-1','auto');ga('send','pageview');}</script><script async src=https://www.google-analytics.com/analytics.js></script><script async defer data-domain=willschenk.com src=https://plausible.io/js/plausible.js></script><meta property="og:title" content="Release code diffs"><meta property="og:description" content="When tracking and upgrading software you want to have an idea of what changed. Looking at the readme is helpful, and projects that keep a changelog are polite and friendly, but it's nice to actually get down to it and see what the changes actually are. Loading the repo and finding the tags   We first need to look at where the code is from. In looking at gemfiles we found how to see what gem you are currently working with, and in looking and package."><meta property="og:type" content="article"><meta property="og:url" content="https://willschenk.com/articles/2020/release_code_diffs/"><meta property="article:published_time" content="2020-10-26T00:00:00+00:00"><meta property="article:modified_time" content="2020-10-26T00:00:00+00:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Release code diffs"><meta name=twitter:description content="When tracking and upgrading software you want to have an idea of what changed. Looking at the readme is helpful, and projects that keep a changelog are polite and friendly, but it's nice to actually get down to it and see what the changes actually are. Loading the repo and finding the tags   We first need to look at where the code is from. In looking at gemfiles we found how to see what gem you are currently working with, and in looking and package."><meta name=twitter:site content="@wschenk"><style>.article p,.article ul,.article ol,.article table{max-width:45em}.article pre p{max-width:none;margin-top:-1.5rem}article.article p:first-child,.article blockquote{font-size:1.25em;font-weight:300;max-width:36em}.half-height-scroll{max-height:32em;overflow:scroll}</style></head><body><nav class="container my-5"><h1 class="pt-md-5 display-3"><a class=text-dark href=../../../>Will Schenk</a></h1><p><a class="text-dark h4 mr-3 font-weight-light" href=../../../articles/>Articles</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../contact>Contact</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../tags/>Tags</a>
+<a href=../../../feed.xml class="mr-3 h4 text-light"><img src=../../../img/rss.svg alt=rss height=20 width=20></a>
+<a href=https://twitter.com/@wschenk class="mr-3 h4 text-light"><img src=../../../img/twitter.svg alt=twitter height=20 width=20></a>
+<a href=https://instagram.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/instagram.svg alt=instagram height=20 width=20></a>
+<a href=https://github.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/github.svg alt=github height=20 width=20></a>
+<a href=https://linkedin.com/in/will-schenk-420266 class="mr-3 h4 text-light"><img src=../../../img/linkedin.svg alt=linkedin height=20 width=20></a></p></nav><div class=container><h1 class=mt-5>Release code diffs</h1><h2 class="font-weight-light font-italic mb-3">What changes between releases</h2><p class="text-muted mt-3"><a class=text-muted href=https://willschenk.com/articles/2020/release_code_diffs/>Published October 26, 2020</a>
+<a class=text-muted href=../../../tags/packagemangers>#packagemangers,</a>
+<a class=text-muted href=../../../tags/npm>#npm,</a>
+<a class=text-muted href=../../../tags/bundler>#bundler,</a>
+<a class=text-muted href=../../../tags/git>#git</a></p><article class="article mt-5"><p>When tracking and upgrading software you want to have an idea of what
+changed. Looking at the readme is helpful, and projects that <a href=https://keepachangelog.com/en/1.0.0/>keep a
+changelog</a> are polite and friendly, but it's nice to actually get down
+to it and see what the changes actually are.</p><h2 id=headline-1>Loading the repo and finding the tags</h2><p>We first need to look at where the code is from. In <a href=https://willschenk.com/articles/2020/looking_at_gemfiles/>looking at
+gemfiles</a> we found how to see what gem you are currently working with,
+and in <a href=https://willschenk.com/articles/2020/looking_at_packagejson/>looking and package.json</a> we did the same for <code class=verbatim>npm</code>. The logic in
+the same once we have</p><ol><li><p>Repo</p></li><li><p>Original tag</p></li><li><p>New tag</p></li></ol><p>For testing purposes, we are assuming that you've pulled this
+information out from your package manager and we know that</p><table class="table table-striped"><tbody><tr><td>Package</td><td>middleman</td></tr><tr><td>Repository</td><td><a href=https://github.com/middleman/middleman>https://github.com/middleman/middleman</a></td></tr><tr><td>Original Version</td><td>4.3.3</td></tr><tr><td>New version</td><td>4.3.9</td></tr></tbody></table><p>We'll start by cloning or updating the repo into a directory. In this
+case, the repo will go into <code class=verbatim>/tmp/middleman/repo</code>. Our analysis will go
+in <code class=verbatim>/tmp/middleman</code>.</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=nb>require</span> <span class=s1>&#39;pp&#39;</span>
+
+  <span class=no>WORKDIR</span><span class=o>=</span><span class=s1>&#39;/tmp&#39;</span>
+
+  <span class=n>repo</span><span class=o>=</span><span class=s1>&#39;https://github.com/middleman/middleman&#39;</span>
+  <span class=n>current_version</span><span class=o>=</span><span class=s1>&#39;4.3.3&#39;</span>
+  <span class=n>new_version</span><span class=o>=</span><span class=s1>&#39;4.3.9&#39;</span>
+
+  <span class=k>def</span> <span class=nf>load_repo</span> <span class=n>repo</span>
+    <span class=n>dir</span> <span class=o>=</span> <span class=n>repo</span><span class=o>.</span><span class=n>gsub</span><span class=p>(</span> <span class=sr>/.*\//</span><span class=p>,</span> <span class=s2>&#34;&#34;</span> <span class=p>)</span>
+    <span class=n>repo_dir</span> <span class=o>=</span> <span class=s2>&#34;</span><span class=si>#{</span><span class=no>WORKDIR</span><span class=si>}</span><span class=s2>/</span><span class=si>#{</span><span class=n>dir</span><span class=si>}</span><span class=s2>/repo&#34;</span>
+
+    <span class=k>if</span> <span class=no>File</span><span class=o>.</span><span class=n>exists?</span> <span class=n>repo_dir</span>
+      <span class=nb>system</span><span class=p>(</span> <span class=s2>&#34;cd </span><span class=si>#{</span><span class=n>repo_dir</span><span class=si>}</span><span class=s2>;git pull origin master&#34;</span> <span class=p>)</span>
+    <span class=k>else</span>
+      <span class=nb>system</span><span class=p>(</span> <span class=s2>&#34;mkdir -p </span><span class=si>#{</span><span class=no>WORKDIR</span><span class=si>}</span><span class=s2>/</span><span class=si>#{</span><span class=n>dir</span><span class=si>}</span><span class=s2>&#34;</span> <span class=p>)</span>
+      <span class=nb>system</span><span class=p>(</span> <span class=s2>&#34;cd </span><span class=si>#{</span><span class=no>WORKDIR</span><span class=si>}</span><span class=s2>/</span><span class=si>#{</span><span class=n>dir</span><span class=si>}</span><span class=s2>;git clone </span><span class=si>#{</span><span class=n>repo</span><span class=si>}</span><span class=s2> repo&#34;</span> <span class=p>)</span>
+    <span class=k>end</span>
+
+    <span class=n>repo_dir</span>
+  <span class=k>end</span>
+
+  <span class=n>repo_dir</span> <span class=o>=</span> <span class=n>load_repo</span><span class=p>(</span> <span class=n>repo</span> <span class=p>)</span>
+
+  <span class=nb>puts</span> <span class=s2>&#34;Repo directory: </span><span class=si>#{</span><span class=n>repo_dir</span><span class=si>}</span><span class=s2>&#34;</span></code></pre></div></div><pre class=example>
+Repo directory: /tmp/middleman/repo
+</pre><h2 id=headline-2>Tags</h2><p>Now that we have the repo, we need to find the tags in the project.
+We'll pull down a list of all the tags in the project.</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=n>latest_tags</span> <span class=o>=</span> <span class=sb>`cd </span><span class=si>#{</span><span class=n>repo_dir</span><span class=si>}</span><span class=sb>;git tag --sort=-v:refname`</span><span class=o>.</span><span class=n>lines</span><span class=o>.</span><span class=n>collect</span> <span class=p>{</span> <span class=o>|</span><span class=n>x</span><span class=o>|</span> <span class=n>x</span><span class=o>.</span><span class=n>chomp</span> <span class=p>}</span>
+
+  <span class=nb>puts</span> <span class=s2>&#34;latest_tag : </span><span class=si>#{</span><span class=n>latest_tags</span><span class=o>.</span><span class=n>first</span><span class=si>}</span><span class=s2>&#34;</span></code></pre></div></div><pre class=example>
+latest_tag : v5.0.0.rc.1
+</pre><h3 id=headline-3>Semver</h3><p>Lets parse the tags to see if they are version numbers, if they are
+prereleases, and be able to tell if there is a high patch version that
+matches our criteria.</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=nb>require</span> <span class=s1>&#39;bundler/inline&#39;</span>
+
+  <span class=n>gemfile</span> <span class=k>do</span>
+    <span class=n>source</span> <span class=s1>&#39;https://rubygems.org&#39;</span>
+    <span class=n>gem</span> <span class=s1>&#39;semver2&#39;</span><span class=p>,</span> <span class=s1>&#39;3.4.2&#39;</span><span class=p>,</span> <span class=nb>require</span><span class=p>:</span> <span class=s1>&#39;semver&#39;</span>
+  <span class=k>end</span>
+
+  <span class=n>tag_info</span> <span class=o>=</span> <span class=n>latest_tags</span><span class=o>.</span><span class=n>collect</span> <span class=p>{</span> <span class=o>|</span><span class=n>tag</span><span class=o>|</span> <span class=no>SemVer</span><span class=o>.</span><span class=n>parse_rubygems</span> <span class=n>tag</span> <span class=p>}</span></code></pre></div></div><p>We can filter through the versions to find only those without any
+prerelease info (like <code class=verbatim>.rc.1</code> or <code class=verbatim>.beta-2</code> that are canditidate releases)
+and print out what the current latest is:</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=n>releases</span> <span class=o>=</span> <span class=n>tag_info</span><span class=o>.</span><span class=n>select</span> <span class=p>{</span> <span class=o>|</span><span class=n>x</span><span class=o>|</span> <span class=n>x</span><span class=o>.</span><span class=n>prerelease</span> <span class=o>==</span> <span class=s2>&#34;&#34;</span> <span class=p>}</span>
+  <span class=nb>puts</span> <span class=s2>&#34;latest_release : </span><span class=si>#{</span><span class=n>releases</span><span class=o>.</span><span class=n>first</span><span class=si>}</span><span class=s2>&#34;</span></code></pre></div></div><pre class=example>
+latest_release : v4.3.10
+</pre><p>Now we can write some methods to match our versions to tags:</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=k>def</span> <span class=nf>find_tag</span> <span class=n>tag_info</span><span class=p>,</span> <span class=n>latest_tags</span><span class=p>,</span> <span class=n>version_string</span>
+    <span class=n>version</span> <span class=o>=</span> <span class=no>SemVer</span><span class=o>.</span><span class=n>parse_rubygems</span> <span class=n>version_string</span>
+  
+    <span class=n>tag_info</span><span class=o>.</span><span class=n>each_with_index</span> <span class=k>do</span> <span class=o>|</span><span class=n>tag</span><span class=p>,</span> <span class=n>idx</span><span class=o>|</span>
+      <span class=k>if</span> <span class=n>tag</span> <span class=o>==</span> <span class=n>version</span>
+        <span class=k>return</span> <span class=n>latest_tags</span><span class=o>[</span><span class=n>idx</span><span class=o>]</span>
+      <span class=k>end</span>
+    <span class=k>end</span>
+
+    <span class=kp>nil</span>
+  <span class=k>end</span>
+
+  <span class=n>current_tag</span> <span class=o>=</span> <span class=n>find_tag</span> <span class=n>tag_info</span><span class=p>,</span> <span class=n>latest_tags</span><span class=p>,</span> <span class=n>current_version</span>
+  <span class=n>new_tag</span> <span class=o>=</span> <span class=n>find_tag</span> <span class=n>tag_info</span><span class=p>,</span> <span class=n>latest_tags</span><span class=p>,</span> <span class=n>new_version</span>
+
+  <span class=k>if</span> <span class=n>current_tag</span><span class=o>.</span><span class=n>nil?</span>
+    <span class=nb>puts</span> <span class=s2>&#34;Couldn&#39;t find current_version </span><span class=si>#{</span><span class=n>current_version</span><span class=si>}</span><span class=s2>&#34;</span>
+  <span class=k>end</span>
+
+  <span class=k>if</span> <span class=n>new_tag</span><span class=o>.</span><span class=n>nil?</span>
+    <span class=nb>puts</span> <span class=s2>&#34;Couldn&#39;t find new_version </span><span class=si>#{</span><span class=n>new_version</span><span class=si>}</span><span class=s2>&#34;</span>
+  <span class=k>end</span>
+
+  <span class=k>if</span> <span class=n>current_tag</span><span class=o>.</span><span class=n>nil?</span> <span class=o>||</span> <span class=n>new_tag</span><span class=o>.</span><span class=n>nil?</span>
+    <span class=nb>exit</span> <span class=mi>1</span>
+  <span class=k>end</span>
+
+  <span class=nb>puts</span> <span class=s2>&#34;current_tag: </span><span class=si>#{</span><span class=n>current_tag</span><span class=si>}</span><span class=s2>&#34;</span>
+  <span class=nb>puts</span> <span class=s2>&#34;new_tag    : </span><span class=si>#{</span><span class=n>new_tag</span><span class=si>}</span><span class=s2>&#34;</span></code></pre></div></div><pre class=example>
+current_tag: v4.3.3
+new_tag    : v4.3.9
+</pre><p>We can also look to see what is the latest patch release for the same
+major and minor version that we're running. According to <code class=verbatim>semver</code>
+standards – and it's not totally clear how strictly these are
+followed or even if they make sense – patch releases should be bug
+fixes only and totally compatible.</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=k>def</span> <span class=nf>find_latest_patch</span> <span class=n>tag_info</span><span class=p>,</span> <span class=n>version_string</span>
+    <span class=n>version</span> <span class=o>=</span> <span class=no>SemVer</span><span class=o>.</span><span class=n>parse_rubygems</span> <span class=n>version_string</span>
+
+    <span class=n>tag_info</span><span class=o>.</span><span class=n>each</span> <span class=k>do</span> <span class=o>|</span><span class=n>tag</span><span class=o>|</span>
+      <span class=k>return</span> <span class=n>tag</span> <span class=k>if</span> <span class=n>tag</span><span class=o>.</span><span class=n>major</span> <span class=o>==</span> <span class=n>version</span><span class=o>.</span><span class=n>major</span> <span class=o>&amp;&amp;</span> <span class=n>tag</span><span class=o>.</span><span class=n>minor</span> <span class=o>=</span> <span class=n>version</span><span class=o>.</span><span class=n>minor</span>
+    <span class=k>end</span>
+
+    <span class=kp>nil</span>
+  <span class=k>end</span>
+
+  <span class=n>highest_patch</span> <span class=o>=</span> <span class=n>find_latest_patch</span> <span class=n>tag_info</span><span class=p>,</span> <span class=n>new_tag</span>
+  <span class=nb>puts</span> <span class=s2>&#34;most compatible patch: </span><span class=si>#{</span><span class=n>highest_patch</span><span class=si>}</span><span class=s2>&#34;</span></code></pre></div></div><pre class=example>
+most compatible patch: v4.3.10
+</pre><h2 id=headline-4>Change information</h2><p>Now that we have identified the tags, we can start to ask questions
+about what happened between those two results. We'll use the <code class=verbatim>git log</code>
+command, which is amazingly powerful and super cool.</p><p><em>Super cool</em>. You heard me.</p><p>These are the formatting options that we'll be using:</p><table class="table table-striped"><tbody><tr><td>Option</td><td>Description</td></tr><tr><td><code class=verbatim>%aI</code></td><td>Commit time</td></tr><tr><td><code class=verbatim>%h</code></td><td>Hash</td></tr><tr><td><code class=verbatim>%ae</code></td><td>Author email</td></tr><tr><td><code class=verbatim>%an</code></td><td>Author name</td></tr><tr><td><code class=verbatim>%s</code></td><td>Summary</td></tr></tbody></table><p>We're going to output a log of the changes that happened between the
+tags. We'll have to do some crazy <code class=verbatim>regex</code> to pull out the fields.</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=n>git_cmd</span> <span class=o>=</span> <span class=s2>&#34;git log --reverse --pretty=&#39;format:%aI|%h|%ae|%an|%s&#39; </span><span class=si>#{</span><span class=n>current_tag</span><span class=si>}</span><span class=s2>..</span><span class=si>#{</span><span class=n>new_tag</span><span class=si>}</span><span class=s2>&#34;</span>
+
+  <span class=n>commits</span> <span class=o>=</span> <span class=sb>`cd </span><span class=si>#{</span><span class=n>repo_dir</span><span class=si>}</span><span class=sb>;</span><span class=si>#{</span><span class=n>git_cmd</span><span class=si>}</span><span class=sb>`</span><span class=o>.</span><span class=n>lines</span><span class=o>.</span><span class=n>collect</span> <span class=k>do</span> <span class=o>|</span><span class=n>x</span><span class=o>|</span>
+    <span class=n>x</span><span class=o>.</span><span class=n>chomp</span>
+    <span class=n>md</span> <span class=o>=</span> <span class=sr>/(.*?)\|(.*?)\|(.*?)\|(.*?)\|(.*)/</span><span class=o>.</span><span class=n>match</span><span class=p>(</span> <span class=n>x</span> <span class=p>)</span>
+    <span class=p>{</span> <span class=ss>date</span><span class=p>:</span> <span class=n>md</span><span class=o>[</span><span class=mi>1</span><span class=o>]</span><span class=p>,</span> <span class=nb>hash</span><span class=p>:</span> <span class=n>md</span><span class=o>[</span><span class=mi>2</span><span class=o>]</span><span class=p>,</span> <span class=ss>email</span><span class=p>:</span> <span class=n>md</span><span class=o>[</span><span class=mi>3</span><span class=o>]</span><span class=p>,</span> <span class=nb>name</span><span class=p>:</span> <span class=n>md</span><span class=o>[</span><span class=mi>4</span><span class=o>]</span><span class=p>,</span> <span class=ss>summary</span><span class=p>:</span> <span class=n>md</span><span class=o>[</span><span class=mi>5</span><span class=o>]</span> <span class=p>}</span>
+  <span class=k>end</span>
+
+  <span class=nb>puts</span> <span class=s2>&#34;Most recent change: </span><span class=si>#{</span><span class=n>commits</span><span class=o>.</span><span class=n>first</span><span class=o>[</span><span class=ss>:date</span><span class=o>]</span><span class=si>}</span><span class=s2>&#34;</span>
+  <span class=nb>puts</span> <span class=s2>&#34;Oldest change     : </span><span class=si>#{</span><span class=n>commits</span><span class=o>.</span><span class=n>last</span><span class=o>[</span><span class=ss>:date</span><span class=o>]</span><span class=si>}</span><span class=s2>&#34;</span></code></pre></div></div><pre class=example>
+Most recent change: 2018-01-20T08:26:10+09:00
+Oldest change     : 2020-09-09T14:06:57-07:00
+</pre><p>We can can calculate how many days have passed bewteen the releases like so</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>
+<span class=nb>require</span> <span class=s1>&#39;time&#39;</span>
+<span class=n>oldest</span> <span class=o>=</span> <span class=no>Time</span><span class=o>.</span><span class=n>parse</span><span class=p>(</span> <span class=n>commits</span><span class=o>.</span><span class=n>first</span><span class=o>[</span><span class=ss>:date</span><span class=o>]</span> <span class=p>)</span>
+<span class=n>newest</span> <span class=o>=</span> <span class=no>Time</span><span class=o>.</span><span class=n>parse</span><span class=p>(</span> <span class=n>commits</span><span class=o>.</span><span class=n>last</span><span class=o>[</span><span class=ss>:date</span><span class=o>]</span> <span class=p>)</span>
+<span class=n>days_passed</span> <span class=o>=</span> <span class=p>(</span><span class=n>newest</span> <span class=o>-</span> <span class=n>oldest</span><span class=p>)</span> <span class=o>/</span> <span class=p>(</span><span class=mi>60</span> <span class=o>*</span> <span class=mi>60</span> <span class=o>*</span> <span class=mi>24</span><span class=p>)</span> <span class=c1># Seconds in a day</span>
+
+<span class=nb>puts</span> <span class=s2>&#34;Days passed : </span><span class=si>#{</span><span class=n>days_passed</span><span class=si>}</span><span class=s2>&#34;</span></code></pre></div></div><pre class=example>
+Days passed : 963.9033217592593
+</pre><p>Which is a bit unnecessarily precise but gives you a sense of all the
+years that have gone by.</p><h3 id=headline-5>Tickets</h3><p>A lot of projects put a ticket number in the commit, in the format of
+<code class=verbatim>#nnn</code> where <code class=verbatim>n</code> is an integer. For projects that use Jira, these are
+generally three letters, a dash, and a number, but either way they
+start with a <code class=verbatim>#</code>. So lets print out those issues that we find in the
+commit summary messages.</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=n>issues</span> <span class=o>=</span> <span class=n>commits</span><span class=o>.</span><span class=n>collect</span> <span class=k>do</span> <span class=o>|</span><span class=n>commit</span><span class=o>|</span>
+  <span class=n>md</span> <span class=o>=</span> <span class=sr>/\#([^\s\)\]]*)/</span><span class=o>.</span><span class=n>match</span><span class=p>(</span> <span class=n>commit</span><span class=o>[</span><span class=ss>:summary</span><span class=o>]</span> <span class=p>)</span>
+  <span class=n>md</span> <span class=p>?</span> <span class=n>md</span><span class=o>[</span><span class=mi>1</span><span class=o>]</span> <span class=p>:</span> <span class=kp>nil</span>
+<span class=k>end</span><span class=o>.</span><span class=n>select</span> <span class=p>{</span> <span class=o>|</span><span class=n>x</span><span class=o>|</span> <span class=n>x</span> <span class=p>}</span><span class=o>.</span><span class=n>sort</span>
+
+<span class=n>pp</span> <span class=n>issues</span></code></pre></div></div><p>Which gives us:</p><pre class=example>
+[&#34;2083&#34;, &#34;2143&#34;, &#34;2287&#34;, &#34;2316&#34;, &#34;2323&#34;, &#34;2327&#34;, &#34;2348&#34;]
+</pre><p>From here we could try and figure out what issue tracker this
+repository is using, and then cross reference that to see what has
+been going on.</p><p>In the case of this repository we see in <code class=verbatim>.github/CONTRIBUTING.md</code> that
+it uses <a href=https://github.com/middleman/middleman/issues>GitHub Issues</a> which is pretty common and popular for GitHub
+hosted projects, and not like <em>shocking</em> or anything.</p><h3 id=headline-6>A brief excursion into the <code class=verbatim>CHANGELOG</code></h3><p>The commit messages are semi automated, and if you look at the <a href=https://keepachangelog.com/en/1.0.0/>keeping
+a changelog site</a> they recommend against dumping in commit messages
+directly. Lets try and parse out the changelog in the repo to see if
+we are missing any other issues or interesting things.</p><p>This is a fairly straightforward way to "parse" this file, but since
+it's freeform we don't know if many projects support it. This works
+as a quick scaffold now though.</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>
+  <span class=n>changes</span> <span class=o>=</span> <span class=p>{}</span>
+
+  <span class=k>if</span> <span class=no>File</span><span class=o>.</span><span class=n>exists?</span> <span class=s2>&#34;</span><span class=si>#{</span><span class=n>repo_dir</span><span class=si>}</span><span class=s2>/CHANGELOG.md&#34;</span>
+    <span class=n>scan_version</span> <span class=o>=</span> <span class=kp>nil</span>
+    <span class=n>entries</span> <span class=o>=</span> <span class=o>[]</span>
+    <span class=n>headline_re</span> <span class=o>=</span> <span class=sr>/\</span><span class=si>#{</span><span class=mi>1</span><span class=p>,</span><span class=mi>3</span><span class=si>}</span><span class=sr> (.*)/</span>
+
+    <span class=no>File</span><span class=o>.</span><span class=n>read</span><span class=p>(</span> <span class=s2>&#34;</span><span class=si>#{</span><span class=n>repo_dir</span><span class=si>}</span><span class=s2>/CHANGELOG.md&#34;</span> <span class=p>)</span><span class=o>.</span><span class=n>each_line</span> <span class=k>do</span> <span class=o>|</span><span class=n>line</span><span class=o>|</span>
+      <span class=n>line</span><span class=o>.</span><span class=n>chomp!</span>
+      <span class=n>md</span> <span class=o>=</span> <span class=n>headline_re</span><span class=o>.</span><span class=n>match</span><span class=p>(</span> <span class=n>line</span> <span class=p>)</span>
+      <span class=k>if</span> <span class=n>md</span>
+        <span class=k>if</span> <span class=n>current_version</span> <span class=o>&amp;&amp;</span> <span class=n>entries</span><span class=o>.</span><span class=n>length</span> <span class=o>&gt;</span> <span class=mi>0</span>
+          <span class=n>changes</span><span class=o>[</span><span class=n>scan_version</span><span class=o>]</span> <span class=o>=</span> <span class=n>entries</span>
+          <span class=n>entries</span> <span class=o>=</span> <span class=o>[]</span>
+        <span class=k>end</span>
+        <span class=n>scan_version</span> <span class=o>=</span> <span class=n>md</span><span class=o>[</span><span class=mi>1</span><span class=o>]</span>
+      <span class=k>elsif</span> <span class=n>line</span> <span class=o>!=</span> <span class=s2>&#34;&#34;</span>
+        <span class=n>entries</span> <span class=o>&lt;&lt;</span> <span class=n>line</span>
+      <span class=k>end</span>
+    <span class=k>end</span>
+
+    <span class=k>if</span> <span class=n>current_version</span> <span class=o>&amp;&amp;</span> <span class=n>entries</span><span class=o>.</span><span class=n>length</span> <span class=o>&gt;</span> <span class=mi>0</span>
+      <span class=n>changes</span><span class=o>[</span><span class=n>scan_version</span><span class=o>]</span> <span class=o>=</span> <span class=n>entries</span>
+    <span class=k>end</span>
+  <span class=k>end</span>
+
+  <span class=k>if</span> <span class=n>changes</span><span class=o>[</span><span class=n>new_version</span><span class=o>]</span>
+    <span class=nb>puts</span> <span class=s2>&#34;Found change log for </span><span class=si>#{</span><span class=n>new_version</span><span class=si>}</span><span class=s2>&#34;</span>
+  <span class=k>else</span>
+     <span class=nb>puts</span> <span class=s2>&#34;No entry for </span><span class=si>#{</span><span class=n>new_version</span><span class=si>}</span><span class=s2>&#34;</span>
+  <span class=k>end</span>
+
+  <span class=k>if</span> <span class=n>changes</span><span class=o>[</span><span class=n>current_version</span><span class=o>]</span>
+    <span class=nb>puts</span> <span class=s2>&#34;Found change log for </span><span class=si>#{</span><span class=n>current_version</span><span class=si>}</span><span class=s2>&#34;</span>
+  <span class=k>else</span>
+   <span class=nb>puts</span> <span class=s2>&#34;No entry for </span><span class=si>#{</span><span class=n>current_version</span><span class=si>}</span><span class=s2>&#34;</span>
+  <span class=k>end</span></code></pre></div></div><p>Which yields:</p><pre class=example>
+No entry for 4.3.9
+Found change log for 4.3.3
+</pre><p>So not that useful in this case.</p><h3 id=headline-7>Seeing the authors</h3><h4 id=headline-8>Using the CLI</h4><p>One thing you can do with regular (<em>awesome</em>) git cli is something
+called <a href=https://git-scm.com/docs/git-shortlog>git shortlog</a> which shows you a rolled up version of commits by
+authors. Here I'm using <code class=verbatim>-n</code> which sorts by author commits.</p><div class="src src-sh"><div class=highlight><pre class=chroma><code class=language-sh data-lang=sh><span class=nb>cd</span> /tmp/middleman/repo
+git shortlog -n v4.3.3..v4.3.9</code></pre></div></div><p>And we can see that <code class=verbatim>Thomas Reynolds</code> seems to have done most of the
+maintence work.</p><pre class=example>
+Thomas Reynolds (13):
+      Bump minor
+      Lock old bundler
+      Disable bind test on travis
+      Update changelog [ci skip]
+      Prep
+      Add Ruby 2.7.0 to CI
+      Prepare 4.3.6
+      Disable therubyracer
+      Bump
+      Prep release
+      Update changelog
+      Fix #2083
+      Prep 4.3.9
+
+Alexey Vasiliev (1):
+      Update kramdown to avoid CVE-2020-14001 in v4 (#2348)
+
+Johnny Shields (1):
+      Fix ignore of I18n files (#2143)
+
+Julik Tarkhanov (1):
+      Reset Content-Length header when rewriting (#2316)
+
+Leigh McCulloch (1):
+      Loosen activesupport dependence (#2327)
+
+Maarten (1):
+      Fix i18n with anchor v4 (#2287)
+
+bravegrape (1):
+      Add empty image alt tag if alt text not specified (#2323)
+</pre><p>We can also include <code class=verbatim>-s</code> to show the summary only, in other words
+doesn't include the commit one liner.</p><div class="src src-sh"><div class=highlight><pre class=chroma><code class=language-sh data-lang=sh><span class=nb>cd</span> /tmp/middleman/repo
+git shortlog -n -s v4.3.3..v4.3.9</code></pre></div></div><pre class=example>
+    13	Thomas Reynolds
+     1	Alexey Vasiliev
+     1	Johnny Shields
+     1	Julik Tarkhanov
+     1	Leigh McCulloch
+     1	Maarten
+     1	bravegrape
+</pre><h3 id=headline-9>Using code to summarize authors</h3><p>We can recreate this view pretty simply:</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=n>authors</span> <span class=o>=</span> <span class=p>{}</span>
+<span class=n>commits</span><span class=o>.</span><span class=n>each</span> <span class=k>do</span> <span class=o>|</span><span class=n>c</span><span class=o>|</span>
+  <span class=n>authors</span><span class=o>[</span><span class=n>c</span><span class=o>[</span><span class=ss>:name</span><span class=o>]]</span> <span class=o>||=</span> <span class=mi>0</span>
+  <span class=n>authors</span><span class=o>[</span><span class=n>c</span><span class=o>[</span><span class=ss>:name</span><span class=o>]]</span> <span class=o>+=</span> <span class=mi>1</span>
+<span class=k>end</span>
+
+<span class=n>authors</span><span class=o>.</span><span class=n>keys</span><span class=o>.</span><span class=n>sort</span> <span class=p>{</span> <span class=o>|</span><span class=n>a</span><span class=p>,</span><span class=n>b</span><span class=o>|</span> <span class=n>authors</span><span class=o>[</span><span class=n>b</span><span class=o>]</span> <span class=o>&lt;=&gt;</span> <span class=n>authors</span><span class=o>[</span><span class=n>a</span><span class=o>]</span> <span class=p>}</span><span class=o>.</span><span class=n>each</span> <span class=k>do</span> <span class=o>|</span><span class=n>author</span><span class=o>|</span>
+  <span class=nb>printf</span> <span class=s2>&#34;%10d %s</span><span class=se>\n</span><span class=s2>&#34;</span><span class=p>,</span> <span class=n>authors</span><span class=o>[</span><span class=n>author</span><span class=o>]</span><span class=p>,</span> <span class=n>author</span>
+<span class=k>end</span></code></pre></div></div><pre class=example>
+       13 Thomas Reynolds
+        1 Johnny Shields
+        1 Maarten
+        1 Julik Tarkhanov
+        1 bravegrape
+        1 Leigh McCulloch
+        1 Alexey Vasiliev
+</pre><p>The sort order is slight different, but <code class=verbatim>1</code> is <code class=verbatim>1</code>…</p><h2 id=headline-10>Listing the files changed</h2><p>Between the two versions we want to see everything that changed. We
+can do this using the <code class=verbatim>git diff</code> command, and pass in <code class=verbatim>--numstat</code> to see
+the files that changed.</p><div class="src src-sh"><div class=highlight><pre class=chroma><code class=language-sh data-lang=sh><span class=nb>cd</span> /tmp/middleman/repo
+git diff --numstat v4.3.3..v4.3.9</code></pre></div></div><pre class=example>
+18	0	.devcontainer/Dockerfile
+37	0	.devcontainer/devcontainer.json
+4	0	.travis.yml
+29	0	CHANGELOG.md
+2	2	Gemfile
+17	24	Gemfile.lock
+316	315	middleman-cli/features/preview_server.feature
+11	0	middleman-core/features/default_alt_tag.feature
+4	0	middleman-core/features/i18n_link_to.feature
+67	11	middleman-core/features/ignore.feature
+5	2	middleman-core/features/liquid.feature
+17	0	middleman-core/features/markdown_kramdown.feature
+1	1	middleman-core/features/relative_assets.feature
+1	1	middleman-core/features/relative_assets_helpers_only.feature
+0	0	middleman-core/fixtures/default-alt-tags-app/config.rb
+1	0	middleman-core/fixtures/default-alt-tags-app/source/empty-alt-tag.html.erb
+-	-	middleman-core/fixtures/default-alt-tags-app/source/images/blank.gif
+1	0	middleman-core/fixtures/default-alt-tags-app/source/meaningful-alt-tag.html.erb
+2	0	middleman-core/lib/middleman-core/core_extensions/default_helpers.rb
+9	0	middleman-core/lib/middleman-core/core_extensions/i18n.rb
+5	0	middleman-core/lib/middleman-core/core_extensions/inline_url_rewriter.rb
+4	0	middleman-core/lib/middleman-core/renderers/kramdown.rb
+1	1	middleman-core/lib/middleman-core/template_renderer.rb
+1	1	middleman-core/lib/middleman-core/version.rb
+1	1	middleman-core/middleman-core.gemspec
+1	1	middleman/middleman.gemspec
+</pre><p><code class=verbatim>--numstat</code> shows you the lines of code added and deleted, and from this
+it looks like most of the work on the repo was in the test directory
+for a feature named <code class=verbatim>preview server</code>. The actual number of changes to
+the main source code seems pretty small, but if we want to take a look
+at what those changes are:</p><div class="src src-sh"><div class=highlight><pre class=chroma><code class=language-sh data-lang=sh><span class=nb>cd</span> /tmp/middleman/repo
+git diff v4.3.3..v4.3.9 <span class=s1>&#39;*.rb&#39;</span></code></pre></div></div><p>Which shows a huge output of the diffs of all the code files from the
+one tag to the other. I'll spare you from scrolling through, but if we
+look just at the <code class=verbatim>version.rb</code> file you can see that it shows the diffs
+from where you start to where you end up – in this case, from version
+<code class=verbatim>4.3.3</code> to =4.3.9.</p><div class="src src-sh"><div class=highlight><pre class=chroma><code class=language-sh data-lang=sh><span class=nb>cd</span> /tmp/middleman/repo
+git diff v4.3.3..v4.3.9 <span class=s1>&#39;*version.rb&#39;</span></code></pre></div></div><pre class=example>
+diff --git a/middleman-core/lib/middleman-core/version.rb b/middleman-core/lib/middleman-core/version.rb
+index 42bc84bc..753d3c87 100644
+--- a/middleman-core/lib/middleman-core/version.rb
++++ b/middleman-core/lib/middleman-core/version.rb
+@@ -1,5 +1,5 @@
+ module Middleman
+   # Current Version
+   # @return [String]
+-  VERSION = '4.3.3'.freeze unless const_defined?(:VERSION)
++  VERSION = '4.3.9'.freeze unless const_defined?(:VERSION)
+ end
+</pre><h2 id=headline-11>In summary</h2><p>Given a <a href=https://willschenk.com/articles/2020/looking_at_gemfiles/>Gemfile.lock</a> or a <a href=https://willschenk.com/articles/2020/looking_at_packagejson/>package-lock.json</a> we can see which version
+of a module you are currently running, where the code is hosted, and
+which is the latest version. From here we can pull down the repo,
+look for the tags that marked each specific version, and see who
+worked on it and what the overall diffs are to see <em>exactly what code
+has changed</em>. This works if the code is hosted on github, or any other
+giy repository.</p><p>In addition to looking at the repositories between the tags, we can
+also also pull in static analysis for other parts of the project. We
+can <a href=https://willschenk.com/articles/2020/gitlog_in_sqlite/>put the gitlog in SQLite</a> and do further analysis.</p><p>Each of these steps needs further refinement but we've got all of the
+major pieces together.</p><h2 id=headline-12>References</h2><ol><li><p><a href=https://semver.org/>Semantic Versioning 2.0.0</a></p></li><li><p><a href=https://keepachangelog.com/en/1.0.0/>Keep a changelong</a></p></li><li><p><a href=https://git-scm.com/docs/git-shortlog>git shortlog</a></p></li></ol></article></div><div class="bg-light py-5"><div class=container><h2 class=text-center>Read next</h2><div class=row><div class="col-md-6 text-center"></div><div class="col-md-6 text-center">Previous Post:
+<a href=../../../articles/2020/looking_at_packagejson/>Looking at package.json</a></div></div></div></div><div class="container mt-5"><h2 class=text-center>See also</h2><div class=row><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2020/looking_at_packagejson/>Looking at package.json</a></p><p class="lead font-italic mb-0">making sense of package-lock.json</p><div class="font-weight-light mt-3"><p>Look at the dependencies First lets create a simple project and add a single module, in this case npm-api which will we use to access the main repository. npm init -y npm add npm-api And lets see what's been installed in node_modules: ls -l node_modules | wc -l du -sh node_modules 68 12M node_modules 68 directories with 12M of code!</p></div><a href=../../../articles/2020/looking_at_packagejson/ class="btn btn-primary">Read more</a></div><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2020/looking_at_gemfiles/>Looking at Gemfiles</a></p><p class="lead font-italic mb-0">making sense of Gemfile.lock</p><div class="font-weight-light mt-3"><p>Bundler is the standard way for Ruby projects to specifiy dependencies. Let's take a look at how that works, reimplement bundle outdated, and be able to see the changes that took place between the build you are using and the latest one. Ruby ecosystem: Rubygems, Bundler, Gemfile, Gemfile.lock rubygems is the overall ecosystem, which includes the main rubygems.org database of shared packages, and how they depend upon each other.</p></div><a href=../../../articles/2020/looking_at_gemfiles/ class="btn btn-primary">Read more</a></div><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2019/splitting_git_repos_and_workdirectories/>Splitting Git Repos and Work Directories</a></p><p class="lead font-italic mb-0">all the fun things git can do</p><div class="font-weight-light mt-3"><p>I found a tutorial on how to manage your dotfiles, that works by splitting up the git repository (normally the .git directory) from the work directory. Since I have a lot of code that I put in my tutorials, I adapted the technique to have individual article directories mirrored in their own github repository.
+Repositories and Work Directories The normal usage of git is to type git clone &lt;remote> to get a copy of the local directory, mess with stuff, and then add and commit your changes.</p></div><a href=../../../articles/2019/splitting_git_repos_and_workdirectories/ class="btn btn-primary">Read more</a></div></div></div><footer class="footer bg-dark text-light mt-3"><div class=container><h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2></div></footer></body></html>
