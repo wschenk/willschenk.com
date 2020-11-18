@@ -1,0 +1,275 @@
+<!doctype html><html><head><title>Rails in Docker</title><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><link rel=stylesheet href=../../../css/theme.css><link rel=stylesheet href=../../../css/syntax.css><script type=application/javascript>var doNotTrack=false;if(!doNotTrack){window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;ga('create','UA-56296045-1','auto');ga('send','pageview');}</script><script async src=https://www.google-analytics.com/analytics.js></script><script async defer data-domain=willschenk.com src=https://plausible.io/js/plausible.js></script><meta property="og:title" content="Rails in Docker"><meta property="og:description" content="In leveraging disposability for exploration we looked at how to build software without having it installed on your local computer. Lets go through how to setup and develop a rails application with this process. docker-compose.yml all the way down   We're going to create our app by adding things to a docker-compose.yml file as needed. Lets create the first one, which will contain our rails container as well as a volume for keeping track of all the gems."><meta property="og:type" content="article"><meta property="og:url" content="https://willschenk.com/articles/2020/rails_in_docker/"><meta property="article:published_time" content="2020-11-17T00:00:00+00:00"><meta property="article:modified_time" content="2020-11-17T00:00:00+00:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Rails in Docker"><meta name=twitter:description content="In leveraging disposability for exploration we looked at how to build software without having it installed on your local computer. Lets go through how to setup and develop a rails application with this process. docker-compose.yml all the way down   We're going to create our app by adding things to a docker-compose.yml file as needed. Lets create the first one, which will contain our rails container as well as a volume for keeping track of all the gems."><meta name=twitter:site content="@wschenk"><style>.article p,.article ul,.article ol,.article table{max-width:45em}.article pre p{max-width:none;margin-top:-1.5rem}article.article p:first-child,.article blockquote{font-size:1.25em;font-weight:300;max-width:36em}.half-height-scroll{max-height:32em;overflow:scroll}</style></head><body><nav class="container my-5"><h1 class="pt-md-5 display-3"><a class=text-dark href=../../../>Will Schenk</a></h1><p><a class="text-dark h4 mr-3 font-weight-light" href=../../../articles/>Articles</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../contact>Contact</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../tags/>Tags</a>
+<a href=../../../feed.xml class="mr-3 h4 text-light"><img src=../../../img/rss.svg alt=rss height=20 width=20></a>
+<a href=https://twitter.com/@wschenk class="mr-3 h4 text-light"><img src=../../../img/twitter.svg alt=twitter height=20 width=20></a>
+<a href=https://instagram.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/instagram.svg alt=instagram height=20 width=20></a>
+<a href=https://github.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/github.svg alt=github height=20 width=20></a>
+<a href=https://linkedin.com/in/will-schenk-420266 class="mr-3 h4 text-light"><img src=../../../img/linkedin.svg alt=linkedin height=20 width=20></a></p></nav><div class=container><h1 class=mt-5>Rails in Docker</h1><h2 class="font-weight-light font-italic mb-3">Why install ruby locally?</h2><p class="text-muted mt-3"><a class=text-muted href=https://willschenk.com/articles/2020/rails_in_docker/>Published November 17, 2020</a>
+<a class=text-muted href=../../../tags/rails>#rails,</a>
+<a class=text-muted href=../../../tags/docker>#docker,</a>
+<a class=text-muted href=../../../tags/transient>#transient</a></p><article class="article mt-5"><p>In <a href=https://willschenk.com/articles/2020/leveraging_disposability_for_exploration/>leveraging disposability for exploration</a> we looked at how to build
+software without having it installed on your local computer. Lets go
+through how to setup and develop a rails application with this
+process.</p><h2 id=headline-1><code class=verbatim>docker-compose.yml</code> all the way down</h2><p>We're going to create our app by adding things to a <code class=verbatim>docker-compose.yml</code>
+file as needed. Lets create the first one, which will contain our
+rails container as well as a volume for keeping track of all the gems.</p><p>We are going to have a few sections:</p><ol><li><p><code class=verbatim>args</code> where we pass in the user_id and group_id of the user that the
+docker container is going to use. This should be the same as the
+user id in the host operation system, so files that are created by
+in the container in the bound volume have the right owners.</p></li><li><p><code class=verbatim>volumes</code> where we mount the <code class=verbatim>gratitude</code> directory into the container,
+and a <code class=verbatim>gratitude-gems</code> volume that we use to cache the bundled gems
+outside of the container. This makes upgrading gems that much
+faster when you are rebuilding the docker container so you don't
+need to download them everytime.</p></li><li><p><code class=verbatim>ports</code> to expose the rails server.</p></li></ol><p><code class=verbatim>docker-compose.yml</code>:</p><div class="src src-yaml"><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=k>version</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;3.7&#34;</span><span class=w>
+</span><span class=w>
+</span><span class=w></span><span class=k>services</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=k>gratitude</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=k>build</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=k>context</span><span class=p>:</span><span class=w> </span>.<span class=w>
+</span><span class=w>      </span><span class=k>args</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span><span class=k>USER_ID</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;${USER_ID:-1000}&#34;</span><span class=w>
+</span><span class=w>        </span><span class=k>GROUP_ID</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;${GROUP_ID:-1000}&#34;</span><span class=w>
+</span><span class=w>    </span><span class=k>volumes</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- <span class=k>type</span><span class=p>:</span><span class=w> </span>bind<span class=w>
+</span><span class=w>        </span><span class=k>source</span><span class=p>:</span><span class=w> </span>./gratitude<span class=w>
+</span><span class=w>        </span><span class=k>target</span><span class=p>:</span><span class=w> </span>/app/gratitude<span class=w>
+</span><span class=w>      </span>- <span class=k>type</span><span class=p>:</span><span class=w> </span>volume<span class=w>
+</span><span class=w>        </span><span class=k>source</span><span class=p>:</span><span class=w> </span>gratitude-gems<span class=w>
+</span><span class=w>        </span><span class=k>target</span><span class=p>:</span><span class=w> </span>/usr/local/bundle<span class=w>
+</span><span class=w>    </span><span class=k>ports</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- <span class=s2>&#34;3000:3000&#34;</span><span class=w>
+</span><span class=w>
+</span><span class=w></span><span class=k>volumes</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span>gratitude-gems<span class=p>:</span></code></pre></div></div><p>Now we build a <code class=verbatim>Dockerfile</code> to run the rails app. We base it off of the
+<code class=verbatim>ruby:2.7</code> image, add the user id, install node, and then install <code class=verbatim>rails</code>
+and <code class=verbatim>bundler</code>. All other dependancies will be specified with the
+<code class=verbatim>Gemfile</code> inside of the project once we create it.</p><div class="src src-dockerfile"><div class=highlight><pre class=chroma><code class=language-dockerfile data-lang=dockerfile><span class=err>
+</span><span class=err></span><span class=k>FROM</span><span class=s> ruby:2.7</span><span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>ARG</span> USER_ID<span class=err>
+</span><span class=err></span><span class=k>ARG</span> GROUP_ID<span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>RUN</span> addgroup --gid <span class=nv>$GROUP_ID</span> user <span class=o>&amp;&amp;</span> adduser --disabled-password --gecos <span class=s1>&#39;&#39;</span> --uid <span class=nv>$USER_ID</span> --gid <span class=nv>$GROUP_ID</span> user<span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>WORKDIR</span><span class=s> /app/gratitude</span><span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=c># nodejs</span><span class=err>
+</span><span class=err></span><span class=k>RUN</span> curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg -o /root/yarn-pubkey.gpg <span class=o>&amp;&amp;</span> apt-key add /root/yarn-pubkey.gpg<span class=err>
+</span><span class=err></span><span class=k>RUN</span> <span class=nb>echo</span> <span class=s2>&#34;deb https://dl.yarnpkg.com/debian/ stable main&#34;</span> &gt; /etc/apt/sources.list.d/yarn.list<span class=err>
+</span><span class=err></span><span class=k>RUN</span> apt-get update <span class=o>&amp;&amp;</span> apt-get install -y --no-install-recommends nodejs yarn<span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=c># install rails</span><span class=err>
+</span><span class=err></span><span class=k>RUN</span> gem install rails bundler<span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>EXPOSE</span><span class=s> 3000</span><span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>RUN</span> chown -R <span class=nv>$USER_ID</span> /usr/local/bundle<span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>USER</span><span class=s> $USER_ID</span><span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>CMD</span> bundle <span class=nb>exec</span> rails server -b 0.0.0.0</code></pre></div></div><p>Now we can bring all this up by doing:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>mkdir -p gratitude <span class=o>&amp;&amp;</span> docker-compose up --build</code></pre></div></div><p>This will give the error that <code class=verbatim>Could not locate Gemfile or .bundle/
+directory</code> which makes sense since there's no source code. So lets
+make it:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>docker-compose run gratitude
+<span class=nb>cd</span> /app
+rails new gratitude</code></pre></div></div><p>This will take a bit of time to build all of the native versions.
+Once this is done though, <code class=verbatim>ctrl-d</code> to exit out of the shell and try
+<code class=verbatim>docker-compose up</code> again.</p><p>Go to <a href=http://localhost:3000>http://localhost:3000</a></p><p>"Yay!", it says, "You're on Rails!"</p><p><code class=verbatim>ctrl-c</code> to exit out.</p><h2 id=headline-2>Add a environment file</h2><p>The next thing that we'll want to do is to add an environment file of
+somekind. Right now we're only going to use it to store the
+<code class=verbatim>RAILS_MASTER_KEY</code>, which is what is used to decrypt
+<code class=verbatim>config/credentials.yml.enc</code>. We will then remove the <code class=verbatim>config/master.key</code>
+file from the repo.</p><p><em>Look into <code class=verbatim>config/master.key</code> to find your value!</em></p><p>Create a file called <code class=verbatim>.env</code>:</p><div class="src src-env"><pre><code class=language-env data-lang=env>RAILS_MASTER_KEY=a43a4d582cd7d044bed9297c9e6fb797</code></pre></div><p>Keep this save! You should them make sure that you don't accidently
+check this file into the repository. Keep it safe in a password
+manager.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash><span class=nb>echo</span> .env &gt;&gt; .gitignore</code></pre></div></div><p>Now we need to adjust the <code class=verbatim>docker-compose.yml</code> file to include this
+environment variable:</p><div class="src src-yaml"><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=k>version</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;3.7&#34;</span><span class=w>
+</span><span class=w>
+</span><span class=w></span><span class=k>services</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=k>gratitude</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=k>build</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=k>context</span><span class=p>:</span><span class=w> </span>.<span class=w>
+</span><span class=w>      </span><span class=k>args</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span><span class=k>USER_ID</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;${USER_ID:-1000}&#34;</span><span class=w>
+</span><span class=w>        </span><span class=k>GROUP_ID</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;${GROUP_ID:-1000}&#34;</span><span class=w>
+</span><span class=w>    </span><span class=k>volumes</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- <span class=k>type</span><span class=p>:</span><span class=w> </span>bind<span class=w>
+</span><span class=w>        </span><span class=k>source</span><span class=p>:</span><span class=w> </span>./gratitude<span class=w>
+</span><span class=w>        </span><span class=k>target</span><span class=p>:</span><span class=w> </span>/app/gratitude<span class=w>
+</span><span class=w>      </span>- <span class=k>type</span><span class=p>:</span><span class=w> </span>volume<span class=w>
+</span><span class=w>        </span><span class=k>source</span><span class=p>:</span><span class=w> </span>gratitude-gems<span class=w>
+</span><span class=w>        </span><span class=k>target</span><span class=p>:</span><span class=w> </span>/usr/local/bundle<span class=w>
+</span><span class=w>    </span><span class=k>ports</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- <span class=s2>&#34;3000:3000&#34;</span><span class=w>
+</span><span class=w>    </span><span class=k>env_file</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- .env<span class=w>
+</span><span class=w>
+</span><span class=w></span><span class=k>volumes</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span>gratitude-gems<span class=p>:</span></code></pre></div></div><p>You can then delete the file <code class=verbatim>gratitude/config/master.key</code>.</p><h2 id=headline-3>Changing that landing page</h2><p>Running commands with <code class=verbatim>docker-compose run gratitude</code> is a bit wordy, so
+lets create a small bash script that will do it for us. Call it <code class=verbatim>r</code> or
+something.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash><span class=cp>#!/bin/bash
+</span><span class=cp></span>docker-compose run --rm gratitude <span class=s2>&#34;</span><span class=nv>$@</span><span class=s2>&#34;</span></code></pre></div></div><p>And then a quick <code class=verbatim>chmod +x r</code> and you should be good to go.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>./r rails generate controller index home</code></pre></div></div><p>And then we can update the <code class=verbatim>config/routes.rb</code> file to use this:</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=no>Rails</span><span class=o>.</span><span class=n>application</span><span class=o>.</span><span class=n>routes</span><span class=o>.</span><span class=n>draw</span> <span class=k>do</span>
+  <span class=n>root</span> <span class=s1>&#39;index#home&#39;</span>
+<span class=k>end</span></code></pre></div></div><h2 id=headline-4>Adding <code class=verbatim>postgres</code> and <code class=verbatim>pgadmin</code></h2><p>Let's write up <code class=verbatim>postgres</code> into the system and create out first model.
+First we need to add a couple of sections to the <code class=verbatim>docker-compose.yml</code>
+file.</p><ol><li><p>Add a <code class=verbatim>postgres</code> service.</p></li><li><p>Add a <code class=verbatim>pgadmin</code> service.</p></li><li><p>Make the <code class=verbatim>gratitude</code> service depend upon <code class=verbatim>postgres</code></p></li><li><p>Add a volume to keep the database around and the <code class=verbatim>pgadmin</code> stuff around.</p></li></ol><div class="src src-yaml"><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=k>version</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;3.7&#34;</span><span class=w>
+</span><span class=w>
+</span><span class=w></span><span class=k>services</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=k>postgres</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=k>image</span><span class=p>:</span><span class=w> </span>postgres<span class=p>:</span><span class=m>13.1</span><span class=w>
+</span><span class=w>    </span><span class=k>environment</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=k>POSTGRES_PASSWORD</span><span class=p>:</span><span class=w> </span>awesome_password<span class=w>
+</span><span class=w>    </span><span class=k>ports</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- <span class=s2>&#34;5432:5432&#34;</span><span class=w>
+</span><span class=w>    </span><span class=k>volumes</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- gratitude-postgres<span class=p>:</span>/var/lib/postgresql/data<span class=w>
+</span><span class=w>
+</span><span class=w>  </span><span class=k>pgadmin</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=k>image</span><span class=p>:</span><span class=w> </span>dpage/pgadmin4<span class=p>:</span><span class=m>4.28</span><span class=w>
+</span><span class=w>    </span><span class=k>environment</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=k>PGADMIN_DEFAULT_EMAIL</span><span class=p>:</span><span class=w> </span>admin@example.com<span class=w>
+</span><span class=w>      </span><span class=k>PGADMIN_DEFAULT_PASSWORD</span><span class=p>:</span><span class=w> </span>SuperSecret<span class=w>
+</span><span class=w>      </span><span class=k>GUNICORN_ACCESS_LOGFILE</span><span class=p>:</span><span class=w> </span>/dev/<span class=kc>null</span><span class=w>
+</span><span class=w>    </span><span class=k>ports</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- <span class=s2>&#34;4000:80&#34;</span><span class=w>
+</span><span class=w>    </span><span class=k>depends_on</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- postgres<span class=w>
+</span><span class=w>    </span><span class=k>volumes</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- gratitude-pgadmin<span class=p>:</span>/var/lib/pgadmin<span class=w>
+</span><span class=w>
+</span><span class=w>  </span><span class=k>gratitude</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=k>build</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=k>context</span><span class=p>:</span><span class=w> </span>.<span class=w>
+</span><span class=w>      </span><span class=k>args</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span><span class=k>USER_ID</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;${USER_ID:-1000}&#34;</span><span class=w>
+</span><span class=w>        </span><span class=k>GROUP_ID</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;${GROUP_ID:-1000}&#34;</span><span class=w>
+</span><span class=w>    </span><span class=k>depends_on</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- postgres<span class=w>
+</span><span class=w>    </span><span class=k>volumes</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- <span class=k>type</span><span class=p>:</span><span class=w> </span>bind<span class=w>
+</span><span class=w>        </span><span class=k>source</span><span class=p>:</span><span class=w> </span>./gratitude<span class=w>
+</span><span class=w>        </span><span class=k>target</span><span class=p>:</span><span class=w> </span>/app/gratitude<span class=w>
+</span><span class=w>      </span>- <span class=k>type</span><span class=p>:</span><span class=w> </span>volume<span class=w>
+</span><span class=w>        </span><span class=k>source</span><span class=p>:</span><span class=w> </span>gratitude-gems<span class=w>
+</span><span class=w>        </span><span class=k>target</span><span class=p>:</span><span class=w> </span>/usr/local/bundle<span class=w>
+</span><span class=w>    </span><span class=k>ports</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- <span class=s2>&#34;3000:3000&#34;</span><span class=w>
+</span><span class=w>    </span><span class=k>env_file</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- .env<span class=w>
+</span><span class=w>
+</span><span class=w></span><span class=k>volumes</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=k>gratitude-gems</span><span class=p>:</span><span class=w> 
+</span><span class=w>  </span><span class=k>gratitude-postgres</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span>gratitude-pgadmin<span class=p>:</span></code></pre></div></div><p>Add the <code class=verbatim>pg</code> gem:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>./r bundle add pg</code></pre></div></div><p>And finally we need to tell rails where to find that database. First
+we add to our <code class=verbatim>.env</code> file:</p><div class="src src-.env"><pre><code class=language-.env data-lang=.env>DATABASE_URL=postgresql://postgres:awesome_password@postgres:5432/gratitude?encoding=utf8&amp;pool=5&amp;timeout=5000</code></pre></div><p>Now we can create a simple model</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>./r rails g scaffold project name:string repo:string</code></pre></div></div><p>And then we can set it up and start it up:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>./r rake db:reset
+./r rake db:migrate
+docker-compose up</code></pre></div></div><p>And see the glory that is <a href=http://localhost:3000/projects>http://localhost:3000/projects</a></p><h2 id=headline-5>Adding in <code class=verbatim>redis</code> and <code class=verbatim>sidekiq</code></h2><p>Another common set of things in the environment is <code class=verbatim>redis</code> and <code class=verbatim>sidekiq</code>.
+These are both additions to the <code class=verbatim>docker-compose.yml</code> file. One is an
+entry for the <code class=verbatim>redis</code> service (and it's added volume) and the other is a
+another container, with the same <code class=verbatim>Dockerfile</code> as the rails app, but with
+a slightly different command. Lets look at adding that now.</p><p>First we need to add some gems</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>./r bundle add sidekiq
+./r bundle add redis-rails</code></pre></div></div><p>Lets configure sidekiq and the redis cache in <code class=verbatim>config/initializers/sidekiq.rb</code>:</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=no>Rails</span><span class=o>.</span><span class=n>application</span><span class=o>.</span><span class=n>config</span><span class=o>.</span><span class=n>cache_store</span> <span class=o>=</span> <span class=ss>:redis_store</span><span class=p>,</span> <span class=no>ENV</span><span class=o>[</span><span class=s1>&#39;CACHE_URL&#39;</span><span class=o>]</span><span class=p>,</span>
+                         <span class=p>{</span> <span class=ss>namespace</span><span class=p>:</span> <span class=s1>&#39;gratitude::cache&#39;</span> <span class=p>}</span>
+<span class=no>Rails</span><span class=o>.</span><span class=n>application</span><span class=o>.</span><span class=n>config</span><span class=o>.</span><span class=n>active_job</span><span class=o>.</span><span class=n>queue_adapter</span> <span class=o>=</span> <span class=ss>:sidekiq</span>
+<span class=no>Sidekiq</span><span class=o>.</span><span class=n>configure_server</span> <span class=k>do</span> <span class=o>|</span><span class=n>config</span><span class=o>|</span>
+  <span class=n>config</span><span class=o>.</span><span class=n>redis</span> <span class=o>=</span> <span class=p>{</span><span class=ss>url</span><span class=p>:</span> <span class=no>ENV</span><span class=o>[</span><span class=s1>&#39;JOB_WORKER_URL&#39;</span><span class=o>]</span><span class=p>}</span>
+<span class=k>end</span></code></pre></div></div><p>And in our good old <code class=verbatim>.env</code>, point to our new fancy redis server:</p><div class="src src-env"><pre><code class=language-env data-lang=env>REDIS_URL=redis://redis:6379/0
+CACHE_URL=redis://redis:6379/0
+JOB_WORKER_URL=redis://redis:6379/0</code></pre></div><p>And the add everything to <code class=verbatim>docker-compose.yml</code>:</p><div class="src src-yaml"><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=k>version</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;3.7&#34;</span><span class=w>
+</span><span class=w>
+</span><span class=w></span><span class=k>services</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=k>postgres</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=k>image</span><span class=p>:</span><span class=w> </span>postgres<span class=p>:</span><span class=m>13.1</span><span class=w>
+</span><span class=w>    </span><span class=k>environment</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=k>POSTGRES_PASSWORD</span><span class=p>:</span><span class=w> </span>awesome_password<span class=w>
+</span><span class=w>    </span><span class=k>ports</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- <span class=s2>&#34;5432:5432&#34;</span><span class=w>
+</span><span class=w>    </span><span class=k>volumes</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- gratitude-postgres<span class=p>:</span>/var/lib/postgresql/data<span class=w>
+</span><span class=w>
+</span><span class=w>  </span><span class=k>pgadmin</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=k>image</span><span class=p>:</span><span class=w> </span>dpage/pgadmin4<span class=p>:</span><span class=m>4.28</span><span class=w>
+</span><span class=w>    </span><span class=k>environment</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=k>PGADMIN_DEFAULT_EMAIL</span><span class=p>:</span><span class=w> </span>admin@example.com<span class=w>
+</span><span class=w>      </span><span class=k>PGADMIN_DEFAULT_PASSWORD</span><span class=p>:</span><span class=w> </span>SuperSecret<span class=w>
+</span><span class=w>      </span><span class=k>GUNICORN_ACCESS_LOGFILE</span><span class=p>:</span><span class=w> </span>/dev/<span class=kc>null</span><span class=w>
+</span><span class=w>    </span><span class=k>ports</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- <span class=s2>&#34;4000:80&#34;</span><span class=w>
+</span><span class=w>    </span><span class=k>depends_on</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- postgres<span class=w>
+</span><span class=w>    </span><span class=k>volumes</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- gratitude-pgadmin<span class=p>:</span>/var/lib/pgadmin<span class=w>
+</span><span class=w>
+</span><span class=w>  </span><span class=k>redis</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=k>image</span><span class=p>:</span><span class=w> 
+</span><span class=w>  </span><span class=k>redis</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=k>image</span><span class=p>:</span><span class=w> </span>redis<span class=p>:</span><span class=m>6.0.9</span><span class=w>
+</span><span class=w>    </span><span class=k>ports</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- <span class=s1>&#39;6379:6379&#39;</span><span class=w>
+</span><span class=w>    </span><span class=k>volumes</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- gratitude-redis<span class=p>:</span>/var/lib/redis/data<span class=w>
+</span><span class=w>
+</span><span class=w>  </span><span class=k>gratitude</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=k>build</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=k>context</span><span class=p>:</span><span class=w> </span>.<span class=w>
+</span><span class=w>      </span><span class=k>args</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span><span class=k>USER_ID</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;${USER_ID:-1000}&#34;</span><span class=w>
+</span><span class=w>        </span><span class=k>GROUP_ID</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;${GROUP_ID:-1000}&#34;</span><span class=w>
+</span><span class=w>    </span><span class=k>depends_on</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- postgres<span class=w>
+</span><span class=w>      </span>- redis<span class=w>
+</span><span class=w>    </span><span class=k>volumes</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- <span class=k>type</span><span class=p>:</span><span class=w> </span>bind<span class=w>
+</span><span class=w>        </span><span class=k>source</span><span class=p>:</span><span class=w> </span>./gratitude<span class=w>
+</span><span class=w>        </span><span class=k>target</span><span class=p>:</span><span class=w> </span>/app/gratitude<span class=w>
+</span><span class=w>      </span>- <span class=k>type</span><span class=p>:</span><span class=w> </span>volume<span class=w>
+</span><span class=w>        </span><span class=k>source</span><span class=p>:</span><span class=w> </span>gratitude-gems<span class=w>
+</span><span class=w>        </span><span class=k>target</span><span class=p>:</span><span class=w> </span>/usr/local/bundle<span class=w>
+</span><span class=w>    </span><span class=k>ports</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- <span class=s2>&#34;3000:3000&#34;</span><span class=w>
+</span><span class=w>    </span><span class=k>env_file</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- .env<span class=w>
+</span><span class=w>
+</span><span class=w>  </span><span class=k>sidekiq</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=k>build</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=k>context</span><span class=p>:</span><span class=w> </span>.<span class=w>
+</span><span class=w>      </span><span class=k>args</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span><span class=k>USER_ID</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;${USER_ID:-1000}&#34;</span><span class=w>
+</span><span class=w>        </span><span class=k>GROUP_ID</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;${GROUP_ID:-1000}&#34;</span><span class=w>
+</span><span class=w>    </span><span class=k>command</span><span class=p>:</span><span class=w> </span>bundle<span class=w> </span>exec<span class=w> </span>sidekiq<span class=w>
+</span><span class=w>    </span><span class=k>depends_on</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- postgres<span class=w>
+</span><span class=w>      </span>- redis<span class=w>
+</span><span class=w>    </span><span class=k>volumes</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- <span class=k>type</span><span class=p>:</span><span class=w> </span>bind<span class=w>
+</span><span class=w>        </span><span class=k>source</span><span class=p>:</span><span class=w> </span>./gratitude<span class=w>
+</span><span class=w>        </span><span class=k>target</span><span class=p>:</span><span class=w> </span>/app/gratitude<span class=w>
+</span><span class=w>      </span>- <span class=k>type</span><span class=p>:</span><span class=w> </span>volume<span class=w>
+</span><span class=w>        </span><span class=k>source</span><span class=p>:</span><span class=w> </span>gratitude-gems<span class=w>
+</span><span class=w>        </span><span class=k>target</span><span class=p>:</span><span class=w> </span>/usr/local/bundle<span class=w>
+</span><span class=w>    </span><span class=k>env_file</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- .env<span class=w>
+</span><span class=w>
+</span><span class=w></span><span class=k>volumes</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=k>gratitude-gems</span><span class=p>:</span><span class=w> 
+</span><span class=w>  </span><span class=k>gratitude-postgres</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span><span class=k>gratitude-pgadmin</span><span class=p>:</span><span class=w>
+</span><span class=w>  </span>gratitude-redis<span class=p>:</span></code></pre></div></div><p>And if you want to have a nice <code class=verbatim>sidekiq</code> admin, add the following to your <code class=verbatim>config/routes.rb</code> file:</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=nb>require</span> <span class=s1>&#39;sidekiq/web&#39;</span>
+<span class=n>mount</span> <span class=no>Sidekiq</span><span class=o>::</span><span class=no>Web</span> <span class=o>=&gt;</span> <span class=s1>&#39;/sidekiq&#39;</span></code></pre></div></div><h2 id=headline-6>Finally</h2><p>And when you are done with whatever you are doing:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>$ docker-compose down
+Stopping rails_in_docker_gratitude_1 ... <span class=k>done</span>
+Stopping rails_in_docker_sidekiq_1   ... <span class=k>done</span>
+Stopping rails_in_docker_redis_1     ... <span class=k>done</span>
+Stopping rails_in_docker_pgadmin_1   ... <span class=k>done</span>
+Stopping rails_in_docker_postgres_1  ... <span class=k>done</span>
+Removing rails_in_docker_gratitude_1 ... <span class=k>done</span>
+Removing rails_in_docker_sidekiq_1   ... <span class=k>done</span>
+Removing rails_in_docker_redis_1     ... <span class=k>done</span>
+Removing rails_in_docker_pgadmin_1   ... <span class=k>done</span>
+Removing rails_in_docker_postgres_1  ... <span class=k>done</span>
+Removing network rails_in_docker_default</code></pre></div></div><p>Everything but the volumes are removed. If you really want to get
+aggressive you can <code class=verbatim>docker system df -v</code> which will show you everything
+that's on your system, and you can blow everything away (less the
+volumes) but using <code class=verbatim>docker system prune --all</code> – be sure to <a href=https://docs.docker.com/engine/reference/commandline/system_prune/>read the
+documentation first!</a>.</p><h2 id=headline-7>References</h2><ol><li><p><a href=https://willschenk.com/articles/2020/leveraging_disposability_for_exploration/>https://willschenk.com/articles/2020/leveraging_disposability_for_exploration/</a></p></li><li><p><a href=https://semaphoreci.com/community/tutorials/dockerizing-a-ruby-on-rails-application>https://semaphoreci.com/community/tutorials/dockerizing-a-ruby-on-rails-application</a></p></li><li><p><a href=https://guides.rubyonrails.org/getting_started.html>Rails Getting Started</a></p></li><li><p><a href=https://docs.docker.com/engine/reference/commandline/system_prune/>https://docs.docker.com/engine/reference/commandline/system_prune/</a></p></li></ol><p>con</p></article></div><div class="bg-light py-5"><div class=container><h2 class=text-center>Read next</h2><div class=row><div class="col-md-6 text-center"></div><div class="col-md-6 text-center">Previous Post:
+<a href=../../../articles/2020/release_code_diffs/>Release code diffs</a></div></div></div></div><div class="container mt-5"><h2 class=text-center>See also</h2><div class=row><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2020/developing_react_inside_docker/>Developing React Inside Docker</a></p><p class="lead font-italic mb-0">Clean up after your mess</p><div class="font-weight-light mt-3"><p>Can we build a node application without installing node locally? We sure can! Lets walk through the process.
+First make sure that docker is installed. This is handy if you are working on a remote server for example.
+Bootstrap Then lets start building out the Dockerfile that we will use.
+mkdir testapp cd testapp Create a Dockerfile.initial that has node:14 in it. Start up the container with Dockerfile.initial FROMnode:14WORKDIR/appCMD bash</p></div><a href=../../../articles/2020/developing_react_inside_docker/ class="btn btn-primary">Read more</a></div><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2020/leveraging_disposability_for_exploration/>Leveraging disposability for exploration</a></p><p class="lead font-italic mb-0">how to play around without leaving a mess</p><div class="font-weight-light mt-3"><p>I play around with a lot of technology to see what&rsquo;s out there and keep myself current, especially trying to find simpler ways to do our work. One of the issues is that this can leave lots of stuff laying which can be messy. Here are some techniques I use to keep things under control.
+There are two complementary principle&rsquo;s that I focus on. One is reproducibility, and the other is disposibility.</p></div><a href=../../../articles/2020/leveraging_disposability_for_exploration/ class="btn btn-primary">Read more</a></div><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2019/setting_up_an_ipfs_node/>Setting up an IPFS Node</a></p><p class="lead font-italic mb-0">using docker-compose and certbot</p><div class="font-weight-light mt-3"><p>IPFS nodes that run in the broswer communicate over websockets to the main network. Lets walk through how to setup a IPFS server that your browser code can connect to in addition to the public gateways. Strategy Wire everything up with docker-compose Create and configure an ipfs container Setup nginx with dummy certificate Replace that certificate with certbot Setup certbot to auto renew the certificates Requirements You will need: A server with a domain or subdomain to use certbot to get a certificate A working docker-compose install I'm using a prebuilt docker image on Digital Ocean but the key part is to get the domain name.</p></div><a href=../../../articles/2019/setting_up_an_ipfs_node/ class="btn btn-primary">Read more</a></div></div></div><footer class="footer bg-dark text-light mt-3"><div class=container><h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2></div></footer></body></html>

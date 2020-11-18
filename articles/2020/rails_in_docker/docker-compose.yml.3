@@ -1,0 +1,49 @@
+version: "3.7"
+
+services:
+  postgres:
+    image: postgres:13.1
+    environment:
+      POSTGRES_PASSWORD: awesome_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - gratitude-postgres:/var/lib/postgresql/data
+
+  pgadmin:
+    image: dpage/pgadmin4:4.28
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: SuperSecret
+      GUNICORN_ACCESS_LOGFILE: /dev/null
+    ports:
+      - "4000:80"
+    depends_on:
+      - postgres
+    volumes:
+      - gratitude-pgadmin:/var/lib/pgadmin
+
+  gratitude:
+    build:
+      context: .
+      args:
+        USER_ID: "${USER_ID:-1000}"
+        GROUP_ID: "${GROUP_ID:-1000}"
+    depends_on:
+      - postgres
+    volumes:
+      - type: bind
+        source: ./gratitude
+        target: /app/gratitude
+      - type: volume
+        source: gratitude-gems
+        target: /usr/local/bundle
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+
+volumes:
+  gratitude-gems: 
+  gratitude-postgres:
+  gratitude-pgadmin:

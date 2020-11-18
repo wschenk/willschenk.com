@@ -1,4 +1,513 @@
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Mon, 26 Oct 2020 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Release code diffs</title><link>https://willschenk.com/articles/2020/release_code_diffs/</link><pubDate>Mon, 26 Oct 2020 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2020/release_code_diffs/</guid><description>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Tue, 17 Nov 2020 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Rails in Docker</title><link>https://willschenk.com/articles/2020/rails_in_docker/</link><pubDate>Tue, 17 Nov 2020 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2020/rails_in_docker/</guid><description>
+&lt;p>
+In &lt;a href="https://willschenk.com/articles/2020/leveraging_disposability_for_exploration/">leveraging disposability for exploration&lt;/a> we looked at how to build
+software without having it installed on your local computer. Lets go
+through how to setup and develop a rails application with this
+process.
+&lt;/p>
+&lt;h2 id="headline-1">
+&lt;code class="verbatim">docker-compose.yml&lt;/code> all the way down
+&lt;/h2>
+&lt;p>
+We&amp;#39;re going to create our app by adding things to a &lt;code class="verbatim">docker-compose.yml&lt;/code>
+file as needed. Lets create the first one, which will contain our
+rails container as well as a volume for keeping track of all the gems.
+&lt;/p>
+&lt;p>
+We are going to have a few sections:
+&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>
+&lt;code class="verbatim">args&lt;/code> where we pass in the user_id and group_id of the user that the
+docker container is going to use. This should be the same as the
+user id in the host operation system, so files that are created by
+in the container in the bound volume have the right owners.
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;code class="verbatim">volumes&lt;/code> where we mount the &lt;code class="verbatim">gratitude&lt;/code> directory into the container,
+and a &lt;code class="verbatim">gratitude-gems&lt;/code> volume that we use to cache the bundled gems
+outside of the container. This makes upgrading gems that much
+faster when you are rebuilding the docker container so you don&amp;#39;t
+need to download them everytime.
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;code class="verbatim">ports&lt;/code> to expose the rails server.
+&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;p>
+&lt;code class="verbatim">docker-compose.yml&lt;/code>:
+&lt;/p>
+&lt;div class="src src-yaml">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="k">version&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;3.7&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="k">services&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">gratitude&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">build&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">context&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>.&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">args&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">USER_ID&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;${USER_ID:-1000}&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">GROUP_ID&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;${GROUP_ID:-1000}&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">volumes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="k">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>bind&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">source&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>./gratitude&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">target&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>/app/gratitude&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="k">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>volume&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">source&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>gratitude-gems&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">target&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>/usr/local/bundle&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">ports&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="s2">&amp;#34;3000:3000&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="k">volumes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>gratitude-gems&lt;span class="p">:&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Now we build a &lt;code class="verbatim">Dockerfile&lt;/code> to run the rails app. We base it off of the
+&lt;code class="verbatim">ruby:2.7&lt;/code> image, add the user id, install node, and then install &lt;code class="verbatim">rails&lt;/code>
+and &lt;code class="verbatim">bundler&lt;/code>. All other dependancies will be specified with the
+&lt;code class="verbatim">Gemfile&lt;/code> inside of the project once we create it.
+&lt;/p>
+&lt;div class="src src-dockerfile">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-dockerfile" data-lang="dockerfile">&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">FROM&lt;/span>&lt;span class="s"> ruby:2.7&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">ARG&lt;/span> USER_ID&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">ARG&lt;/span> GROUP_ID&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> addgroup --gid &lt;span class="nv">$GROUP_ID&lt;/span> user &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> adduser --disabled-password --gecos &lt;span class="s1">&amp;#39;&amp;#39;&lt;/span> --uid &lt;span class="nv">$USER_ID&lt;/span> --gid &lt;span class="nv">$GROUP_ID&lt;/span> user&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">WORKDIR&lt;/span>&lt;span class="s"> /app/gratitude&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="c"># nodejs&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg -o /root/yarn-pubkey.gpg &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> apt-key add /root/yarn-pubkey.gpg&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> &lt;span class="nb">echo&lt;/span> &lt;span class="s2">&amp;#34;deb https://dl.yarnpkg.com/debian/ stable main&amp;#34;&lt;/span> &amp;gt; /etc/apt/sources.list.d/yarn.list&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> apt-get update &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> apt-get install -y --no-install-recommends nodejs yarn&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="c"># install rails&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> gem install rails bundler&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">EXPOSE&lt;/span>&lt;span class="s"> 3000&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> chown -R &lt;span class="nv">$USER_ID&lt;/span> /usr/local/bundle&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">USER&lt;/span>&lt;span class="s"> $USER_ID&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">CMD&lt;/span> bundle &lt;span class="nb">exec&lt;/span> rails server -b 0.0.0.0&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Now we can bring all this up by doing:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">mkdir -p gratitude &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> docker-compose up --build&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+This will give the error that &lt;code class="verbatim">Could not locate Gemfile or .bundle/
+directory&lt;/code> which makes sense since there&amp;#39;s no source code. So lets
+make it:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">docker-compose run gratitude
+&lt;span class="nb">cd&lt;/span> /app
+rails new gratitude&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+This will take a bit of time to build all of the native versions.
+Once this is done though, &lt;code class="verbatim">ctrl-d&lt;/code> to exit out of the shell and try
+&lt;code class="verbatim">docker-compose up&lt;/code> again.
+&lt;/p>
+&lt;p>
+Go to &lt;a href="http://localhost:3000">http://localhost:3000&lt;/a>
+&lt;/p>
+&lt;p>
+&amp;#34;Yay!&amp;#34;, it says, &amp;#34;You&amp;#39;re on Rails!&amp;#34;
+&lt;/p>
+&lt;p>
+&lt;code class="verbatim">ctrl-c&lt;/code> to exit out.
+&lt;/p>
+&lt;h2 id="headline-2">
+Add a environment file
+&lt;/h2>
+&lt;p>
+The next thing that we&amp;#39;ll want to do is to add an environment file of
+somekind. Right now we&amp;#39;re only going to use it to store the
+&lt;code class="verbatim">RAILS_MASTER_KEY&lt;/code>, which is what is used to decrypt
+&lt;code class="verbatim">config/credentials.yml.enc&lt;/code>. We will then remove the &lt;code class="verbatim">config/master.key&lt;/code>
+file from the repo.
+&lt;/p>
+&lt;p>
+&lt;em>Look into &lt;code class="verbatim">config/master.key&lt;/code> to find your value!&lt;/em>
+&lt;/p>
+&lt;p>
+Create a file called &lt;code class="verbatim">.env&lt;/code>:
+&lt;/p>
+&lt;div class="src src-env">
+&lt;pre>&lt;code class="language-env" data-lang="env">RAILS_MASTER_KEY=a43a4d582cd7d044bed9297c9e6fb797&lt;/code>&lt;/pre>
+&lt;/div>
+&lt;p>
+Keep this save! You should them make sure that you don&amp;#39;t accidently
+check this file into the repository. Keep it safe in a password
+manager.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="nb">echo&lt;/span> .env &amp;gt;&amp;gt; .gitignore&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Now we need to adjust the &lt;code class="verbatim">docker-compose.yml&lt;/code> file to include this
+environment variable:
+&lt;/p>
+&lt;div class="src src-yaml">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="k">version&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;3.7&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="k">services&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">gratitude&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">build&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">context&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>.&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">args&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">USER_ID&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;${USER_ID:-1000}&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">GROUP_ID&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;${GROUP_ID:-1000}&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">volumes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="k">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>bind&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">source&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>./gratitude&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">target&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>/app/gratitude&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="k">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>volume&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">source&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>gratitude-gems&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">target&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>/usr/local/bundle&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">ports&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="s2">&amp;#34;3000:3000&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">env_file&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- .env&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="k">volumes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>gratitude-gems&lt;span class="p">:&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+You can then delete the file &lt;code class="verbatim">gratitude/config/master.key&lt;/code>.
+&lt;/p>
+&lt;h2 id="headline-3">
+Changing that landing page
+&lt;/h2>
+&lt;p>
+Running commands with &lt;code class="verbatim">docker-compose run gratitude&lt;/code> is a bit wordy, so
+lets create a small bash script that will do it for us. Call it &lt;code class="verbatim">r&lt;/code> or
+something.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="cp">#!/bin/bash
+&lt;/span>&lt;span class="cp">&lt;/span>docker-compose run --rm gratitude &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="nv">$@&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+And then a quick &lt;code class="verbatim">chmod +x r&lt;/code> and you should be good to go.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">./r rails generate controller index home&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+And then we can update the &lt;code class="verbatim">config/routes.rb&lt;/code> file to use this:
+&lt;/p>
+&lt;div class="src src-ruby">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-ruby" data-lang="ruby">&lt;span class="no">Rails&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">application&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">routes&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">draw&lt;/span> &lt;span class="k">do&lt;/span>
+&lt;span class="n">root&lt;/span> &lt;span class="s1">&amp;#39;index#home&amp;#39;&lt;/span>
+&lt;span class="k">end&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-4">
+Adding &lt;code class="verbatim">postgres&lt;/code> and &lt;code class="verbatim">pgadmin&lt;/code>
+&lt;/h2>
+&lt;p>
+Let&amp;#39;s write up &lt;code class="verbatim">postgres&lt;/code> into the system and create out first model.
+First we need to add a couple of sections to the &lt;code class="verbatim">docker-compose.yml&lt;/code>
+file.
+&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>
+Add a &lt;code class="verbatim">postgres&lt;/code> service.
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+Add a &lt;code class="verbatim">pgadmin&lt;/code> service.
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+Make the &lt;code class="verbatim">gratitude&lt;/code> service depend upon &lt;code class="verbatim">postgres&lt;/code>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+Add a volume to keep the database around and the &lt;code class="verbatim">pgadmin&lt;/code> stuff around.
+&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;div class="src src-yaml">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="k">version&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;3.7&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="k">services&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">postgres&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">image&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>postgres&lt;span class="p">:&lt;/span>&lt;span class="m">13.1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">environment&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">POSTGRES_PASSWORD&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>awesome_password&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">ports&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="s2">&amp;#34;5432:5432&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">volumes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- gratitude-postgres&lt;span class="p">:&lt;/span>/var/lib/postgresql/data&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">pgadmin&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">image&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>dpage/pgadmin4&lt;span class="p">:&lt;/span>&lt;span class="m">4.28&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">environment&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">PGADMIN_DEFAULT_EMAIL&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>admin@example.com&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">PGADMIN_DEFAULT_PASSWORD&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>SuperSecret&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">GUNICORN_ACCESS_LOGFILE&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>/dev/&lt;span class="kc">null&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">ports&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="s2">&amp;#34;4000:80&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">depends_on&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- postgres&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">volumes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- gratitude-pgadmin&lt;span class="p">:&lt;/span>/var/lib/pgadmin&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">gratitude&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">build&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">context&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>.&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">args&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">USER_ID&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;${USER_ID:-1000}&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">GROUP_ID&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;${GROUP_ID:-1000}&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">depends_on&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- postgres&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">volumes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="k">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>bind&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">source&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>./gratitude&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">target&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>/app/gratitude&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="k">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>volume&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">source&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>gratitude-gems&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">target&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>/usr/local/bundle&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">ports&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="s2">&amp;#34;3000:3000&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">env_file&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- .env&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="k">volumes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">gratitude-gems&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">gratitude-postgres&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>gratitude-pgadmin&lt;span class="p">:&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Add the &lt;code class="verbatim">pg&lt;/code> gem:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">./r bundle add pg&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+And finally we need to tell rails where to find that database. First
+we add to our &lt;code class="verbatim">.env&lt;/code> file:
+&lt;/p>
+&lt;div class="src src-.env">
+&lt;pre>&lt;code class="language-.env" data-lang=".env">DATABASE_URL=postgresql://postgres:awesome_password@postgres:5432/gratitude?encoding=utf8&amp;amp;pool=5&amp;amp;timeout=5000&lt;/code>&lt;/pre>
+&lt;/div>
+&lt;p>
+Now we can create a simple model
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">./r rails g scaffold project name:string repo:string&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+And then we can set it up and start it up:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">./r rake db:reset
+./r rake db:migrate
+docker-compose up&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+And see the glory that is &lt;a href="http://localhost:3000/projects">http://localhost:3000/projects&lt;/a>
+&lt;/p>
+&lt;h2 id="headline-5">
+Adding in &lt;code class="verbatim">redis&lt;/code> and &lt;code class="verbatim">sidekiq&lt;/code>
+&lt;/h2>
+&lt;p>
+Another common set of things in the environment is &lt;code class="verbatim">redis&lt;/code> and &lt;code class="verbatim">sidekiq&lt;/code>.
+These are both additions to the &lt;code class="verbatim">docker-compose.yml&lt;/code> file. One is an
+entry for the &lt;code class="verbatim">redis&lt;/code> service (and it&amp;#39;s added volume) and the other is a
+another container, with the same &lt;code class="verbatim">Dockerfile&lt;/code> as the rails app, but with
+a slightly different command. Lets look at adding that now.
+&lt;/p>
+&lt;p>
+First we need to add some gems
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">./r bundle add sidekiq
+./r bundle add redis-rails&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Lets configure sidekiq and the redis cache in &lt;code class="verbatim">config/initializers/sidekiq.rb&lt;/code>:
+&lt;/p>
+&lt;div class="src src-ruby">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-ruby" data-lang="ruby">&lt;span class="no">Rails&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">application&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">config&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">cache_store&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="ss">:redis_store&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="no">ENV&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="s1">&amp;#39;CACHE_URL&amp;#39;&lt;/span>&lt;span class="o">]&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="p">{&lt;/span> &lt;span class="ss">namespace&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s1">&amp;#39;gratitude::cache&amp;#39;&lt;/span> &lt;span class="p">}&lt;/span>
+&lt;span class="no">Rails&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">application&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">config&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">active_job&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">queue_adapter&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="ss">:sidekiq&lt;/span>
+&lt;span class="no">Sidekiq&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">configure_server&lt;/span> &lt;span class="k">do&lt;/span> &lt;span class="o">|&lt;/span>&lt;span class="n">config&lt;/span>&lt;span class="o">|&lt;/span>
+&lt;span class="n">config&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">redis&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="p">{&lt;/span>&lt;span class="ss">url&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="no">ENV&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="s1">&amp;#39;JOB_WORKER_URL&amp;#39;&lt;/span>&lt;span class="o">]&lt;/span>&lt;span class="p">}&lt;/span>
+&lt;span class="k">end&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+And in our good old &lt;code class="verbatim">.env&lt;/code>, point to our new fancy redis server:
+&lt;/p>
+&lt;div class="src src-env">
+&lt;pre>&lt;code class="language-env" data-lang="env">REDIS_URL=redis://redis:6379/0
+CACHE_URL=redis://redis:6379/0
+JOB_WORKER_URL=redis://redis:6379/0&lt;/code>&lt;/pre>
+&lt;/div>
+&lt;p>
+And the add everything to &lt;code class="verbatim">docker-compose.yml&lt;/code>:
+&lt;/p>
+&lt;div class="src src-yaml">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="k">version&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;3.7&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="k">services&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">postgres&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">image&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>postgres&lt;span class="p">:&lt;/span>&lt;span class="m">13.1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">environment&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">POSTGRES_PASSWORD&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>awesome_password&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">ports&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="s2">&amp;#34;5432:5432&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">volumes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- gratitude-postgres&lt;span class="p">:&lt;/span>/var/lib/postgresql/data&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">pgadmin&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">image&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>dpage/pgadmin4&lt;span class="p">:&lt;/span>&lt;span class="m">4.28&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">environment&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">PGADMIN_DEFAULT_EMAIL&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>admin@example.com&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">PGADMIN_DEFAULT_PASSWORD&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>SuperSecret&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">GUNICORN_ACCESS_LOGFILE&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>/dev/&lt;span class="kc">null&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">ports&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="s2">&amp;#34;4000:80&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">depends_on&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- postgres&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">volumes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- gratitude-pgadmin&lt;span class="p">:&lt;/span>/var/lib/pgadmin&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">redis&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">image&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">redis&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">image&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>redis&lt;span class="p">:&lt;/span>&lt;span class="m">6.0.9&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">ports&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="s1">&amp;#39;6379:6379&amp;#39;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">volumes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- gratitude-redis&lt;span class="p">:&lt;/span>/var/lib/redis/data&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">gratitude&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">build&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">context&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>.&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">args&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">USER_ID&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;${USER_ID:-1000}&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">GROUP_ID&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;${GROUP_ID:-1000}&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">depends_on&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- postgres&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- redis&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">volumes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="k">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>bind&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">source&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>./gratitude&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">target&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>/app/gratitude&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="k">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>volume&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">source&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>gratitude-gems&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">target&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>/usr/local/bundle&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">ports&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="s2">&amp;#34;3000:3000&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">env_file&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- .env&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">sidekiq&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">build&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">context&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>.&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">args&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">USER_ID&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;${USER_ID:-1000}&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">GROUP_ID&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;${GROUP_ID:-1000}&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">command&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>bundle&lt;span class="w"> &lt;/span>exec&lt;span class="w"> &lt;/span>sidekiq&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">depends_on&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- postgres&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- redis&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">volumes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="k">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>bind&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">source&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>./gratitude&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">target&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>/app/gratitude&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="k">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>volume&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">source&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>gratitude-gems&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">target&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>/usr/local/bundle&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">env_file&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- .env&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="k">volumes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">gratitude-gems&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">gratitude-postgres&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">gratitude-pgadmin&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>gratitude-redis&lt;span class="p">:&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+And if you want to have a nice &lt;code class="verbatim">sidekiq&lt;/code> admin, add the following to your &lt;code class="verbatim">config/routes.rb&lt;/code> file:
+&lt;/p>
+&lt;div class="src src-ruby">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-ruby" data-lang="ruby">&lt;span class="nb">require&lt;/span> &lt;span class="s1">&amp;#39;sidekiq/web&amp;#39;&lt;/span>
+&lt;span class="n">mount&lt;/span> &lt;span class="no">Sidekiq&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="no">Web&lt;/span> &lt;span class="o">=&amp;gt;&lt;/span> &lt;span class="s1">&amp;#39;/sidekiq&amp;#39;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-6">
+Finally
+&lt;/h2>
+&lt;p>
+And when you are done with whatever you are doing:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">$ docker-compose down
+Stopping rails_in_docker_gratitude_1 ... &lt;span class="k">done&lt;/span>
+Stopping rails_in_docker_sidekiq_1 ... &lt;span class="k">done&lt;/span>
+Stopping rails_in_docker_redis_1 ... &lt;span class="k">done&lt;/span>
+Stopping rails_in_docker_pgadmin_1 ... &lt;span class="k">done&lt;/span>
+Stopping rails_in_docker_postgres_1 ... &lt;span class="k">done&lt;/span>
+Removing rails_in_docker_gratitude_1 ... &lt;span class="k">done&lt;/span>
+Removing rails_in_docker_sidekiq_1 ... &lt;span class="k">done&lt;/span>
+Removing rails_in_docker_redis_1 ... &lt;span class="k">done&lt;/span>
+Removing rails_in_docker_pgadmin_1 ... &lt;span class="k">done&lt;/span>
+Removing rails_in_docker_postgres_1 ... &lt;span class="k">done&lt;/span>
+Removing network rails_in_docker_default&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Everything but the volumes are removed. If you really want to get
+aggressive you can &lt;code class="verbatim">docker system df -v&lt;/code> which will show you everything
+that&amp;#39;s on your system, and you can blow everything away (less the
+volumes) but using &lt;code class="verbatim">docker system prune --all&lt;/code> – be sure to &lt;a href="https://docs.docker.com/engine/reference/commandline/system_prune/">read the
+documentation first!&lt;/a>.
+&lt;/p>
+&lt;h2 id="headline-7">
+References
+&lt;/h2>
+&lt;ol>
+&lt;li>
+&lt;p>
+&lt;a href="https://willschenk.com/articles/2020/leveraging_disposability_for_exploration/">https://willschenk.com/articles/2020/leveraging_disposability_for_exploration/&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://semaphoreci.com/community/tutorials/dockerizing-a-ruby-on-rails-application">https://semaphoreci.com/community/tutorials/dockerizing-a-ruby-on-rails-application&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://guides.rubyonrails.org/getting_started.html">Rails Getting Started&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://docs.docker.com/engine/reference/commandline/system_prune/">https://docs.docker.com/engine/reference/commandline/system_prune/&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;p>
+con
+&lt;/p></description></item><item><title>Release code diffs</title><link>https://willschenk.com/articles/2020/release_code_diffs/</link><pubDate>Mon, 26 Oct 2020 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2020/release_code_diffs/</guid><description>
 &lt;p>
 When tracking and upgrading software you want to have an idea of what
 changed. Looking at the readme is helpful, and projects that &lt;a href="https://keepachangelog.com/en/1.0.0/">keep a
@@ -17265,16 +17774,4 @@ content area
 &lt;li>This would allow you to map multiple device names to a person. For example, I know that &lt;code>willschiphone5s.home&lt;/code> is my phone and &lt;code>combray.home&lt;/code> is my computer, but how do you keep a mapping of those names to people?&lt;/li>
 &lt;li>&lt;code>MAC addresses&lt;/code> should be stable for devices once they may contact to the site. We can get this from the &lt;code>arp&lt;/code> tables, and those can&amp;rsquo;t be changed like the computer names can.&lt;/li>
 &lt;/ol>
-&lt;p>Remember, information can bleed and there&amp;rsquo;s a whole lot you can do to see about the people around you.&lt;/p></description></item><item><title/><link>https://willschenk.com/articles/2020/inq_to_check_github_stats/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2020/inq_to_check_github_stats/</guid><description>&lt;ol>
-&lt;li>Go to &lt;a href="https://github.com/settings/tokens/new">https://github.com/settings/tokens/new&lt;/a>&lt;/li>
-&lt;li>Add repo:public_repo&lt;/li>
-&lt;li>Create a file in ~/.config/inq/config.yml:&lt;/li>
-&lt;/ol>
-&lt;p>sources/github:
-username: &lt;USERNAME>
-token: &lt;TOKEN>&lt;/p>
-&lt;pre>&lt;code>source 'https://rubygems.org'
-gem 'inq'
-&lt;/code>&lt;/pre>
-&lt;p>bundle&lt;/p>
-&lt;p>bundle exec&lt;/p></description></item></channel></rss>
+&lt;p>Remember, information can bleed and there&amp;rsquo;s a whole lot you can do to see about the people around you.&lt;/p></description></item></channel></rss>
