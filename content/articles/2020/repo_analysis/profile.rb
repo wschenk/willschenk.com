@@ -12,6 +12,7 @@ Fingerprint = Struct.new :dir,
                          :packagelockjson,
                          :dockerfile,
                          :changelog,
+                         :funding,
                          :maintainers,
                          :issue_template,
                          :pull_request_template,
@@ -24,8 +25,10 @@ def patterncheck dir, pattern
 end
 
 def exactcheck dir, pattern
-  Dir.entries( dir ).select do |f|
-    f == pattern
+  if Dir.exist? dir
+    Dir.entries( dir ).select do |f|
+      f == pattern
+    end
   end
 end
 
@@ -44,6 +47,7 @@ def repo_checker dir
   i.changelog = patterncheck dir, "changelog"
   i.maintainers = patterncheck dir, "maintainers"
   i.issue_template = patterncheck dir, "issue_template"
+  i.funding = exactcheck "#{dir}/.github", "FUNDING.yml"
   i.pull_request_template = patterncheck dir, "pull_request_template"
 
   i
@@ -53,5 +57,10 @@ end
   dir.chomp!
   info = repo_checker dir
 
+  if info.changelog
+    puts "#{dir} changelog"
+  end
   File.open( "#{dir}/../profile.json", "w" ) { |out| out.puts info.to_h.to_json }
+
+
 end
