@@ -1,0 +1,134 @@
+#+title: /rails uuid primary kys/
+#+subtitle: Slightly more obscure
+#+tags: rails, uuids
+#+date: 2020-11-22
+
+Exposing primary keys externally just sort of invites people to poke around in your system.  Lets configure rails to use =uuid= instead.
+
+* Create a postgres rails app
+
+We are going to be relying upon the =pgcrypto= postgres extension, so
+lets go ahead a create a postgres based rails application.
+
+#+begin_src bash
+rails new testapp -d=postgresql
+cd testapp
+#+end_src
+
+Now we tell our generators that we want our primary key type to be =:uuid=:
+
+#+begin_src ruby :tangle testapp/config/initializers/generator.rb
+# config/initializers/generators.rb
+Rails.application.config.generators do |g|
+  g.orm :active_record, primary_key_type: :uuid
+end
+#+end_src
+
+And we need to change the sort order, since when using integer id's
+for the primary key rails uses that.  We'll tell it to use =created_at=
+instead:
+
+#+begin_src ruby :tangle testapp/app/models/application_record.rb
+# app/models/application_record.rb
+class ApplicationRecord < ActiveRecord::Base
+  self.abstract_class = true
+  # Sort records by date of creation instead of primary key
+  self.implicit_order_column = :created_at
+end
+
+#+end_src
+
+Create your first migration
+
+#+begin_src bash
+rails g model post title content:text
+#+end_src
+
+
+And make sure that we add to the =change= method of the migration!
+
+#+begin_src ruby
+enable_extension 'pgcrypto' unless extension_enabled?('pgcrypto')
+#+end_src
+
+* Start postgres and test it out
+
+Lets create a throwaway postgres container to see how things are working
+
+#+begin_src bash
+docker run -it --rm -p 5432:5432 -e POSTGRES_PASSWORD=password postgres:13.1
+#+end_src
+
+This will delete itself when you close out of it.
+
+We'll need to create a simple =config/database.yml= file to connect to it:
+
+#+begin_src ruby :tangle testapp/config/database.yml
+default: &default
+  adapter: postgresql
+  encoding: unicode
+  host: localhost
+  username: postgres
+  password: password
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+
+development:
+  <<: *default
+  database: testapp_development
+
+test:
+  <<: *default
+  database: testapp_test
+
+production:
+  <<: *default
+  database: testapp_production
+#+end_src
+
+And then we create and migrate:
+
+#+begin_src 
+rake db:create:all
+rake db:migrate
+#+end_src
+
+And now we can test it out:
+
+#+begin_src ruby
+$ rails c
+Running via Spring preloader in process 3134
+Loading development environment (Rails 6.0.3.4)
+irb(main):001:0> Post.create title: "First post"
+   (0.5ms)  BEGIN
+  Post Create (3.5ms)  INSERT INTO "posts" ("title", "created_at", "updated_at") VALUES ($1, $2, $3) RETURNING "id"  [["title", "First post"], ["created_at", "2020-11-22 16:36:20.826249"], ["updated_at", "2020-11-22 16:36:20.826249"]]
+   (8.7ms)  COMMIT
+=> #<Post id: "4c3f20d0-a17b-473d-99f1-9824ba5207c2", title: "First post", content: nil, created_at: "2020-11-22 16:36:20", updated_at: "2020-11-22 16:36:20">
+irb(main):002:0> Post.create title: "Second post"
+   (3.1ms)  BEGIN
+  Post Create (13.0ms)  INSERT INTO "posts" ("title", "created_at", "updated_at") VALUES ($1, $2, $3) RETURNING "id"  [["title", "Second post"], ["created_at", "2020-11-22 16:36:27.499092"], ["updated_at", "2020-11-22 16:36:27.499092"]]
+   (26.5ms)  COMMIT
+=> #<Post id: "2c1da815-dfe4-48e5-bdb7-13a573035825", title: "Second post", content: nil, created_at: "2020-11-22 16:36:27", updated_at: "2020-11-22 16:36:27">
+irb(main):003:0> Post.last
+  Post Load (0.7ms)  SELECT "posts".* FROM "posts" ORDER BY "posts"."created_at" DESC LIMIT $1  [["LIMIT", 1]]
+=> #<Post id: "2c1da815-dfe4-48e5-bdb7-13a573035825", title: "Second post", content: nil, created_at: "2020-11-22 16:36:27", updated_at: "2020-11-22 16:36:27">
+#+end_src
+
+The sql for the =Post.last= command is =SELECT "posts".* FROM "posts"
+ORDER BY "posts"."created_at" DESC LIMIT $1= which is using the
+=created_at= column.
+
+* But this doesn't support sqlite
+
+The =uuid= column type isn't supported by sqlite.  I think it's better
+to test on the same database type as production, and with docker it's
+easy to throw things up and tear them down, etc. but caveat.
+
+* References
+
+1. [[https://pawelurbanek.com/uuid-order-rails][UUID Primary Key in Rails 6 with PostgreSQL and Active Record]]
+2. [[https://itnext.io/using-uuids-to-your-rails-6-application-6438f4eeafdf][Using UUIDs to your new Rails 6 application]]
+
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
+
