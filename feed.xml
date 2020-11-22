@@ -1,4 +1,141 @@
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Wed, 18 Nov 2020 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Tailwind and Rails</title><link>https://willschenk.com/articles/2020/tailwind_and_rails/</link><pubDate>Wed, 18 Nov 2020 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2020/tailwind_and_rails/</guid><description>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Sun, 22 Nov 2020 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>/rails uuid primary kys/</title><link>https://willschenk.com/articles/2020/rails_uuid_primary_keys/</link><pubDate>Sun, 22 Nov 2020 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2020/rails_uuid_primary_keys/</guid><description>
+&lt;p>
+Exposing primary keys externally just sort of invites people to poke around in your system. Lets configure rails to use &lt;code class="verbatim">uuid&lt;/code> instead.
+&lt;/p>
+&lt;h2 id="headline-1">
+Create a postgres rails app
+&lt;/h2>
+&lt;p>
+We are going to be relying upon the &lt;code class="verbatim">pgcrypto&lt;/code> postgres extension, so
+lets go ahead a create a postgres based rails application.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">rails new testapp -d&lt;span class="o">=&lt;/span>postgresql
+&lt;span class="nb">cd&lt;/span> testapp&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Now we tell our generators that we want our primary key type to be &lt;code class="verbatim">:uuid&lt;/code>:
+&lt;/p>
+&lt;div class="src src-ruby">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-ruby" data-lang="ruby">&lt;span class="c1"># config/initializers/generators.rb&lt;/span>
+&lt;span class="no">Rails&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">application&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">config&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">generators&lt;/span> &lt;span class="k">do&lt;/span> &lt;span class="o">|&lt;/span>&lt;span class="n">g&lt;/span>&lt;span class="o">|&lt;/span>
+&lt;span class="n">g&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">orm&lt;/span> &lt;span class="ss">:active_record&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="ss">primary_key_type&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="ss">:uuid&lt;/span>
+&lt;span class="k">end&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+And we need to change the sort order, since when using integer id&amp;#39;s
+for the primary key rails uses that. We&amp;#39;ll tell it to use &lt;code class="verbatim">created_at&lt;/code>
+instead:
+&lt;/p>
+&lt;div class="src src-ruby">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-ruby" data-lang="ruby">&lt;span class="c1"># app/models/application_record.rb&lt;/span>
+&lt;span class="k">class&lt;/span> &lt;span class="nc">ApplicationRecord&lt;/span> &lt;span class="o">&amp;lt;&lt;/span> &lt;span class="no">ActiveRecord&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="no">Base&lt;/span>
+&lt;span class="nb">self&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">abstract_class&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="kp">true&lt;/span>
+&lt;span class="c1"># Sort records by date of creation instead of primary key&lt;/span>
+&lt;span class="nb">self&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">implicit_order_column&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="ss">:created_at&lt;/span>
+&lt;span class="k">end&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Create your first migration
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">rails g model post title content:text&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+And make sure that we add to the &lt;code class="verbatim">change&lt;/code> method of the migration!
+&lt;/p>
+&lt;div class="src src-ruby">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-ruby" data-lang="ruby">&lt;span class="n">enable_extension&lt;/span> &lt;span class="s1">&amp;#39;pgcrypto&amp;#39;&lt;/span> &lt;span class="k">unless&lt;/span> &lt;span class="n">extension_enabled?&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s1">&amp;#39;pgcrypto&amp;#39;&lt;/span>&lt;span class="p">)&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-2">
+Start postgres and test it out
+&lt;/h2>
+&lt;p>
+Lets create a throwaway postgres container to see how things are working
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">docker run -it --rm -p 5432:5432 -e &lt;span class="nv">POSTGRES_PASSWORD&lt;/span>&lt;span class="o">=&lt;/span>password postgres:13.1&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+This will delete itself when you close out of it.
+&lt;/p>
+&lt;p>
+We&amp;#39;ll need to create a simple &lt;code class="verbatim">config/database.yml&lt;/code> file to connect to it:
+&lt;/p>
+&lt;div class="src src-ruby">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-ruby" data-lang="ruby">&lt;span class="ss">default&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="o">&amp;amp;&lt;/span>&lt;span class="n">default&lt;/span>
+&lt;span class="ss">adapter&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="n">postgresql&lt;/span>
+&lt;span class="ss">encoding&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="n">unicode&lt;/span>
+&lt;span class="ss">host&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="n">localhost&lt;/span>
+&lt;span class="ss">username&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="n">postgres&lt;/span>
+&lt;span class="ss">password&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="n">password&lt;/span>
+&lt;span class="ss">pool&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="o">&amp;lt;%=&lt;/span> &lt;span class="no">ENV&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">fetch&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s2">&amp;#34;RAILS_MAX_THREADS&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span> &lt;span class="mi">5&lt;/span> &lt;span class="p">}&lt;/span> &lt;span class="o">%&amp;gt;&lt;/span>
+&lt;span class="ss">development&lt;/span>&lt;span class="p">:&lt;/span>
+&lt;span class="o">&amp;lt;&amp;lt;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="o">*&lt;/span>&lt;span class="n">default&lt;/span>
+&lt;span class="ss">database&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="n">testapp_development&lt;/span>
+&lt;span class="nb">test&lt;/span>&lt;span class="p">:&lt;/span>
+&lt;span class="o">&amp;lt;&amp;lt;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="o">*&lt;/span>&lt;span class="n">default&lt;/span>
+&lt;span class="ss">database&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="n">testapp_test&lt;/span>
+&lt;span class="ss">production&lt;/span>&lt;span class="p">:&lt;/span>
+&lt;span class="o">&amp;lt;&amp;lt;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="o">*&lt;/span>&lt;span class="n">default&lt;/span>
+&lt;span class="ss">database&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="n">testapp_production&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+And then we create and migrate:
+&lt;/p>
+&lt;div class="src src-text">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-text" data-lang="text">rake db:create:all
+rake db:migrate&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+And now we can test it out:
+&lt;/p>
+&lt;div class="src src-ruby">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-ruby" data-lang="ruby">&lt;span class="err">$&lt;/span> &lt;span class="n">rails&lt;/span> &lt;span class="n">c&lt;/span>
+&lt;span class="no">Running&lt;/span> &lt;span class="n">via&lt;/span> &lt;span class="no">Spring&lt;/span> &lt;span class="n">preloader&lt;/span> &lt;span class="k">in&lt;/span> &lt;span class="n">process&lt;/span> &lt;span class="mi">3134&lt;/span>
+&lt;span class="no">Loading&lt;/span> &lt;span class="n">development&lt;/span> &lt;span class="n">environment&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="no">Rails&lt;/span> &lt;span class="mi">6&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="mi">0&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="mi">3&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="mi">4&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="n">irb&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">main&lt;/span>&lt;span class="p">):&lt;/span>&lt;span class="mo">001&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="mi">0&lt;/span>&lt;span class="o">&amp;gt;&lt;/span> &lt;span class="no">Post&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">create&lt;/span> &lt;span class="ss">title&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;First post&amp;#34;&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="mi">0&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="mi">5&lt;/span>&lt;span class="n">ms&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="k">BEGIN&lt;/span>
+&lt;span class="no">Post&lt;/span> &lt;span class="no">Create&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="mi">3&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="mi">5&lt;/span>&lt;span class="n">ms&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="no">INSERT&lt;/span> &lt;span class="no">INTO&lt;/span> &lt;span class="s2">&amp;#34;posts&amp;#34;&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="s2">&amp;#34;title&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s2">&amp;#34;created_at&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s2">&amp;#34;updated_at&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="no">VALUES&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="vg">$1&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="vg">$2&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="vg">$3&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="no">RETURNING&lt;/span> &lt;span class="s2">&amp;#34;id&amp;#34;&lt;/span> &lt;span class="o">[[&lt;/span>&lt;span class="s2">&amp;#34;title&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s2">&amp;#34;First post&amp;#34;&lt;/span>&lt;span class="o">]&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="o">[&lt;/span>&lt;span class="s2">&amp;#34;created_at&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s2">&amp;#34;2020-11-22 16:36:20.826249&amp;#34;&lt;/span>&lt;span class="o">]&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="o">[&lt;/span>&lt;span class="s2">&amp;#34;updated_at&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s2">&amp;#34;2020-11-22 16:36:20.826249&amp;#34;&lt;/span>&lt;span class="o">]]&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="mi">8&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="mi">7&lt;/span>&lt;span class="n">ms&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="no">COMMIT&lt;/span>
+&lt;span class="o">=&amp;gt;&lt;/span> &lt;span class="c1">#&amp;lt;Post id: &amp;#34;4c3f20d0-a17b-473d-99f1-9824ba5207c2&amp;#34;, title: &amp;#34;First post&amp;#34;, content: nil, created_at: &amp;#34;2020-11-22 16:36:20&amp;#34;, updated_at: &amp;#34;2020-11-22 16:36:20&amp;#34;&amp;gt;&lt;/span>
+&lt;span class="n">irb&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">main&lt;/span>&lt;span class="p">):&lt;/span>&lt;span class="mo">002&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="mi">0&lt;/span>&lt;span class="o">&amp;gt;&lt;/span> &lt;span class="no">Post&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">create&lt;/span> &lt;span class="ss">title&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;Second post&amp;#34;&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="mi">3&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="n">ms&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="k">BEGIN&lt;/span>
+&lt;span class="no">Post&lt;/span> &lt;span class="no">Create&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="mi">13&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="mi">0&lt;/span>&lt;span class="n">ms&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="no">INSERT&lt;/span> &lt;span class="no">INTO&lt;/span> &lt;span class="s2">&amp;#34;posts&amp;#34;&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="s2">&amp;#34;title&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s2">&amp;#34;created_at&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s2">&amp;#34;updated_at&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="no">VALUES&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="vg">$1&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="vg">$2&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="vg">$3&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="no">RETURNING&lt;/span> &lt;span class="s2">&amp;#34;id&amp;#34;&lt;/span> &lt;span class="o">[[&lt;/span>&lt;span class="s2">&amp;#34;title&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s2">&amp;#34;Second post&amp;#34;&lt;/span>&lt;span class="o">]&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="o">[&lt;/span>&lt;span class="s2">&amp;#34;created_at&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s2">&amp;#34;2020-11-22 16:36:27.499092&amp;#34;&lt;/span>&lt;span class="o">]&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="o">[&lt;/span>&lt;span class="s2">&amp;#34;updated_at&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s2">&amp;#34;2020-11-22 16:36:27.499092&amp;#34;&lt;/span>&lt;span class="o">]]&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="mi">26&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="mi">5&lt;/span>&lt;span class="n">ms&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="no">COMMIT&lt;/span>
+&lt;span class="o">=&amp;gt;&lt;/span> &lt;span class="c1">#&amp;lt;Post id: &amp;#34;2c1da815-dfe4-48e5-bdb7-13a573035825&amp;#34;, title: &amp;#34;Second post&amp;#34;, content: nil, created_at: &amp;#34;2020-11-22 16:36:27&amp;#34;, updated_at: &amp;#34;2020-11-22 16:36:27&amp;#34;&amp;gt;&lt;/span>
+&lt;span class="n">irb&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">main&lt;/span>&lt;span class="p">):&lt;/span>&lt;span class="mo">003&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="mi">0&lt;/span>&lt;span class="o">&amp;gt;&lt;/span> &lt;span class="no">Post&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">last&lt;/span>
+&lt;span class="no">Post&lt;/span> &lt;span class="no">Load&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="mi">0&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="mi">7&lt;/span>&lt;span class="n">ms&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="no">SELECT&lt;/span> &lt;span class="s2">&amp;#34;posts&amp;#34;&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">*&lt;/span> &lt;span class="no">FROM&lt;/span> &lt;span class="s2">&amp;#34;posts&amp;#34;&lt;/span> &lt;span class="no">ORDER&lt;/span> &lt;span class="no">BY&lt;/span> &lt;span class="s2">&amp;#34;posts&amp;#34;&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="s2">&amp;#34;created_at&amp;#34;&lt;/span> &lt;span class="no">DESC&lt;/span> &lt;span class="no">LIMIT&lt;/span> &lt;span class="vg">$1&lt;/span> &lt;span class="o">[[&lt;/span>&lt;span class="s2">&amp;#34;LIMIT&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">1&lt;/span>&lt;span class="o">]]&lt;/span>
+&lt;span class="o">=&amp;gt;&lt;/span> &lt;span class="c1">#&amp;lt;Post id: &amp;#34;2c1da815-dfe4-48e5-bdb7-13a573035825&amp;#34;, title: &amp;#34;Second post&amp;#34;, content: nil, created_at: &amp;#34;2020-11-22 16:36:27&amp;#34;, updated_at: &amp;#34;2020-11-22 16:36:27&amp;#34;&amp;gt;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+The sql for the &lt;code class="verbatim">Post.last&lt;/code> command is &lt;code class="verbatim">SELECT &amp;#34;posts&amp;#34;.* FROM &amp;#34;posts&amp;#34;
+ORDER BY &amp;#34;posts&amp;#34;.&amp;#34;created_at&amp;#34; DESC LIMIT $1&lt;/code> which is using the
+&lt;code class="verbatim">created_at&lt;/code> column.
+&lt;/p>
+&lt;h2 id="headline-3">
+But this doesn&amp;#39;t support sqlite
+&lt;/h2>
+&lt;p>
+The &lt;code class="verbatim">uuid&lt;/code> column type isn&amp;#39;t supported by sqlite. I think it&amp;#39;s better
+to test on the same database type as production, and with docker it&amp;#39;s
+easy to throw things up and tear them down, etc. but caveat.
+&lt;/p>
+&lt;h2 id="headline-4">
+References
+&lt;/h2>
+&lt;ol>
+&lt;li>
+&lt;p>
+&lt;a href="https://pawelurbanek.com/uuid-order-rails">UUID Primary Key in Rails 6 with PostgreSQL and Active Record&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://itnext.io/using-uuids-to-your-rails-6-application-6438f4eeafdf">Using UUIDs to your new Rails 6 application&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;/ol></description></item><item><title>Tailwind and Rails</title><link>https://willschenk.com/articles/2020/tailwind_and_rails/</link><pubDate>Wed, 18 Nov 2020 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2020/tailwind_and_rails/</guid><description>
 &lt;p>
 Tailwind is a really nice set of CSS utility classes that let you
 style up a page staying largely in one file at a time. Rails has it&amp;#39;s
