@@ -1,0 +1,104 @@
+#+title: NNTCPChan
+#+date: 2021-01-13
+#+draft: true
+
+#+begin_src yml :tangle docker-compose.yml
+version: "3.7"
+
+services:
+  postgres:
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres
+    environment:
+      POSTGRES_PASSWORD: awesome_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - nntpchan-postgres:/var/lib/postgresql/data
+
+  pgadmin:
+    image: dpage/pgadmin4:4.29
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: SuperSecret
+      GUNICORN_ACCESS_LOGFILE: /dev/null
+    ports:
+      - "4000:80"
+    depends_on:
+      - postgres
+    volumes:
+      - nntpchan-pgadmin:/var/lib/pgadmin
+
+  nntpchan:
+    build:
+      context: .
+      dockerfile: Dockerfile.nntpchan
+    depends_on:
+      - postgres
+    ports:
+      - "18000:18000"
+
+volumes:
+  nntpchan-postgres:
+  nntpchan-pgadmin:
+  nntpchan-config:
+#+end_src
+
+    volumes:
+      - nntpchan-config:/app/nntcpchat
+
+#+begin_src Dockerfile :tangle Dockerfile.postgres
+FROM postgres:13.1
+
+WORKDIR /var/lib/postgresql
+
+RUN openssl req -new -text -passout pass:abcd -subj /CN=localhost -out server.req -keyout privkey.pem
+RUN openssl rsa -in privkey.pem -passin pass:abcd -out server.key
+RUN openssl req -x509 -in server.req -text -key server.key -out server.crt
+RUN chown postgres /var/lib/postgresql/* && chmod 600 server.key
+RUN ls -l /var/lib/postgresql
+CMD docker-entrypoint.sh -c ssl=on -c ssl_cert_file=/var/lib/postgresql/server.crt -c ssl_key_file=/var/lib/postgresql/server.key
+#+end_src
+
+#+begin_src Dockerfile :tangle Dockerfile.nntpchan
+FROM golang:1.15.6-buster as build
+
+ENV GOPATH=/go
+WORKDIR /app
+
+RUN git clone https://github.com/majestrate/nntpchan --depth=1
+WORKDIR /app/nntpchan
+RUN make
+
+RUN apt-get update
+RUN apt-get -y --no-install-recommends install imagemagick ffmpeg sox ca-certificates
+#build-essential git ca-certificates
+
+#WORKDIR /app
+
+CMD ./srndv2 run
+#+end_src
+
+* Initial setup
+#+begin_src bash
+  docker-compose build
+  docker-compose run --rm -p18000:18000 nntpchan srndv2 setup
+#+end_src
+
+Open up http://localhost:18000
+
+
+* Then
+#+begin_src bash
+docker-compose up
+#+end_src
+
+* References
+
+1. https://github.com/majestrate/nntpchan/blob/master/doc/building.md
+
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

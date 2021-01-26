@@ -1,0 +1,41 @@
+version: "3.7"
+
+services:
+  postgres:
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres
+    environment:
+      POSTGRES_PASSWORD: awesome_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - nntpchan-postgres:/var/lib/postgresql/data
+
+  pgadmin:
+    image: dpage/pgadmin4:4.29
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: SuperSecret
+      GUNICORN_ACCESS_LOGFILE: /dev/null
+    ports:
+      - "4000:80"
+    depends_on:
+      - postgres
+    volumes:
+      - nntpchan-pgadmin:/var/lib/pgadmin
+
+  nntpchan:
+    build:
+      context: .
+      dockerfile: Dockerfile.nntpchan
+    depends_on:
+      - postgres
+    ports:
+      - "18000:18000"
+
+volumes:
+  nntpchan-postgres:
+  nntpchan-pgadmin:
+  nntpchan-config:
