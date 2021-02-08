@@ -120,12 +120,44 @@ just unroll it all by hand.
 
 #+end_src
 
+* Getting package information
+
+The [[https://docs.npmjs.com/cli/v6][NPM API]] uses couchdb under the hood, and we aren't going to do
+anything super exciting with it other than to query the package info.
+So lets write a simple ruby "client" for it.
+
+
+#+begin_src ruby :tangle package_info.rb
+  require 'bundler/inline'
+
+  gemfile do
+    source 'https://rubygems.org'
+    gem 'faraday'
+    gem 'json'
+  end
+
+  def package_info name
+    response = Faraday.get "https://registry.npmjs.org/#{name}"
+
+    if response.status == 200
+      data = JSON.parse response.body
+
+      data
+    else
+      :unknown
+    end
+  end
+
+  pp package_info( "@yarnpkg/lockfile" )
+
+#+end_src
 
 * References
 
 1. https://github.com/hiromi2424/ruby-yarnlock
 2. https://stackoverflow.com/questions/54875055/multiple-versions-of-the-same-package-in-the-yarn-lock-file
 3. https://medium.com/@scinos/de-duplicating-yarn-lock-ae30be4aa41a
+4. https://docs.npmjs.com/cli/v6
 
 # Local Variables:
 # eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
