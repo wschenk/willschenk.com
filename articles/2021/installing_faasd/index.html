@@ -1,0 +1,150 @@
+<!doctype html><html><head><title>Installing faasd</title><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><link rel=stylesheet href=../../../css/theme.css><link rel=stylesheet href=../../../css/syntax.css><script type=application/javascript>var doNotTrack=false;if(!doNotTrack){window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;ga('create','UA-56296045-1','auto');ga('send','pageview');}</script><script async src=https://www.google-analytics.com/analytics.js></script><script async defer data-domain=willschenk.com src=https://plausible.io/js/plausible.js></script><meta property="og:title" content="Installing faasd"><meta property="og:description" content="Recently I came across an article on faasd, and I thought I'd give it a try and see how easy it is to use. Server templating is an easy way to create a server with DNS, and following the whole disposability principals, we'll whip something up and see how it goes. What is faasd?   Functions as a service are a way to easily package up simple functions as an API, with a minimal amount of overhead."><meta property="og:type" content="article"><meta property="og:url" content="https://willschenk.com/articles/2021/installing_faasd/"><meta property="article:published_time" content="2021-02-08T00:00:00+00:00"><meta property="article:modified_time" content="2021-02-08T00:00:00+00:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Installing faasd"><meta name=twitter:description content="Recently I came across an article on faasd, and I thought I'd give it a try and see how easy it is to use. Server templating is an easy way to create a server with DNS, and following the whole disposability principals, we'll whip something up and see how it goes. What is faasd?   Functions as a service are a way to easily package up simple functions as an API, with a minimal amount of overhead."><meta name=twitter:site content="@wschenk"><style>.article p,.article ul,.article ol,.article table{max-width:45em}.article pre p{max-width:none;margin-top:-1.5rem}article.article p:first-child,.article blockquote{font-size:1.25em;font-weight:300;max-width:36em}.half-height-scroll{max-height:32em;overflow:scroll}</style></head><body><nav class="container my-5"><h1 class="pt-md-5 display-3"><a class=text-dark href=../../../>Will Schenk</a></h1><p><a class="text-dark h4 mr-3 font-weight-light" href=../../../articles/>Articles</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../contact>Contact</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../tags/>Tags</a>
+<a href=../../../feed.xml class="mr-3 h4 text-light"><img src=../../../img/rss.svg alt=rss height=20 width=20></a>
+<a href=https://twitter.com/@wschenk class="mr-3 h4 text-light"><img src=../../../img/twitter.svg alt=twitter height=20 width=20></a>
+<a href=https://instagram.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/instagram.svg alt=instagram height=20 width=20></a>
+<a href=https://github.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/github.svg alt=github height=20 width=20></a>
+<a href=https://linkedin.com/in/will-schenk-420266 class="mr-3 h4 text-light"><img src=../../../img/linkedin.svg alt=linkedin height=20 width=20></a></p></nav><div class=container><h1 class=mt-5>Installing faasd</h1><h2 class="font-weight-light font-italic mb-3">cgi was good, serverless is better</h2><p class="text-muted mt-3"><a class=text-muted href=https://willschenk.com/articles/2021/installing_faasd/>Published February 8, 2021</a>
+<a class=text-muted href=../../../tags/faasd>#faasd,</a>
+<a class=text-muted href=../../../tags/serverless>#serverless,</a>
+<a class=text-muted href=../../../tags/cloud>#cloud,</a>
+<a class=text-muted href=../../../tags/openfaas>#openfaas</a></p><article class="article mt-5"><p>Recently I came across <a href=https://releasecandidate.dev/posts/2021/discovery-faasd-and-openfaas/>an article</a> on faasd, and I thought I'd give it
+a try and see how easy it is to use. <a href=https://willschenk.com/articles/2020/server_templating_with_terraform/>Server templating</a> is an easy way
+to create a server with DNS, and following the whole <a href=https://willschenk.com/articles/2020/leveraging_disposability_for_exploration/>disposability</a>
+principals, we'll whip something up and see how it goes.</p><h2 id=headline-1>What is <a href=https://github.com/openfaas/faasd>faasd</a>?</h2><p>Functions as a service are a way to easily package up simple functions
+as an API, with a minimal amount of overhead. Firing up a whole rails
+project, configuring a server or spinning up a heroku instance,
+kubernetes cluster, etc may be overkill for a simple proof of concept,
+and that proof of concept may be enough to last you a long time. AWS
+Lambda is the more common form of serverless functions, but that means
+you have to sign up for the whole AWS console, which I can barely
+understand. faasd is a very stripped down platform that you can run
+on your VPS or even a RaspberryPI, which will let you throw up
+something simple without having to, you know, deploy kubernetes.</p><h2 id=headline-2>Set up the server</h2><p>We first need to setup a clean server. I'm going to use debian since I
+always do, but the installation instructions say to use Ubuntu.</p><div class="src src-terraform"><div class=highlight><pre class=chroma><code class=language-terraform data-lang=terraform><span class=kr>resource</span> <span class=s>&#34;dnsimple_record&#34; &#34;faas&#34;</span> {
+<span class=na>  domain</span> <span class=o>=</span> <span class=err>var</span><span class=p>.</span><span class=err>dnsimple_domain</span>
+<span class=na>  name</span>   <span class=o>=</span> <span class=s2>&#34;faas&#34;</span>
+<span class=na>  value</span>  <span class=o>=</span> <span class=err>digitalocean_droplet</span><span class=p>.</span><span class=err>faas</span><span class=p>.</span><span class=err>ipv</span><span class=m>4</span><span class=err>_address</span>
+<span class=na>  type</span>   <span class=o>=</span> <span class=s2>&#34;A&#34;</span>
+<span class=na>  ttl</span>    <span class=o>=</span> <span class=m>3600</span>
+}
+
+<span class=kr>resource</span> <span class=s>&#34;digitalocean_droplet&#34; &#34;faas&#34;</span> {
+<span class=na>  name</span>     <span class=o>=</span> <span class=s2>&#34;faas&#34;</span><span class=c1>
+</span><span class=c1>#  image    = &#34;ubuntu-18-04-x64&#34;
+</span><span class=c1></span><span class=na>  image</span>    <span class=o>=</span> <span class=s2>&#34;debian-10-x64&#34;</span>
+<span class=na>  size</span>     <span class=o>=</span> <span class=s2>&#34;s-2vcpu-2gb&#34;</span>
+<span class=na>  monitoring</span> <span class=o>=</span> <span class=kt>true</span>
+<span class=na>  region</span>   <span class=o>=</span> <span class=err>var</span><span class=p>.</span><span class=err>do_region</span>
+<span class=na>  ssh_keys</span> <span class=o>=</span> <span class=p>[</span>
+      <span class=err>var</span><span class=p>.</span><span class=err>ssh_fingerprint</span>
+  <span class=p>]</span>
+}</code></pre></div></div><p>Then <code class=verbatim>terraform apply</code> to create it.</p><h2 id=headline-3>Install <code class=verbatim>faasd</code></h2><p>Ssh into your server as root and run the following commands:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  <span class=nb>export</span> <span class=nv>LETSENCRYPT_EMAIL</span><span class=o>=</span>wschenk@gmail.com <span class=c1># Change to yours</span>
+  <span class=nb>export</span> <span class=nv>FAASD_DOMAIN</span><span class=o>=</span>faas.willschenk.com    <span class=c1># Change to yours</span>
+
+  apt-get install -y git
+  <span class=nb>cd</span> /tmp
+  git clone https://github.com/openfaas/faasd --depth<span class=o>=</span><span class=m>1</span>
+  <span class=nb>cd</span> faasd
+
+  ./hack/install.sh
+
+  cat /var/lib/faasd/secrets/basic-auth-password
+  echo</code></pre></div></div><p>The last line will print out the auth password which you will need for
+the ui and to use the cli.</p><p>We can run this on the remote server using:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>ssh root@faas.willschenk.com &lt; install.sh</code></pre></div></div><p>Just visit your domain to see the UI. The username is <code class=verbatim>admin</code> and the
+password was printed out by the previous command.</p><h2 id=headline-4>Install <code class=verbatim>faas-cli</code></h2><p>My server is <code class=verbatim>faas.willschenk.com</code> so lets first install the cli tool,
+and then point it to it.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  curl -sSL https://cli.openfaas.com <span class=p>|</span> sudo sh
+  <span class=nb>export</span> <span class=nv>OPENFAAS_URL</span><span class=o>=</span>https://faas.willschenk.com
+  ssh root@faas.willschenk.com cat /var/lib/faasd/secrets/basic-auth-password <span class=p>|</span> faas-cli login --username admin --password-stdin</code></pre></div></div><p>We can then deploy our first function by</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  faas-cli store deploy nodeinfo</code></pre></div></div><p>And run it with:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  curl https://faas.willschenk.com/function/nodeinfo</code></pre></div></div><pre class=example>
+Hostname: localhost
+
+Arch: x64
+CPUs: 2
+Total mem: 1998MB
+Platform: linux
+Uptime: 269013
+</pre><p>Nice and easy. A list of functions available from the store can be found with</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  faas-cli store list</code></pre></div></div><h2 id=headline-5>Templates and registries</h2><p>The basic idea is that we pull down one of the templates, code it up,
+and then push it up to our server. The way that it works is that we
+build the container, push it to a registry, and then tell our <code class=verbatim>faasd</code>
+server to pull that container from a registry and deploy it.</p><p>To get a list of available templates:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  faas-cli template store list</code></pre></div></div><h2 id=headline-6>Writing a node12 function</h2><p>We'll ceate a new one (I'm taking this code from the <a href=https://gumroad.com/l/serverless-for-everyone-else>serverless for
+everyone else</a> book) and we are doing to push it to docker hub. I'm
+already logged in as <code class=verbatim>wschenk</code> so that's what I'm setting the
+<code class=verbatim>OPENFAAS_PREFIX</code> to.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  <span class=nb>export</span> <span class=nv>OPENFAAS_PREFIX</span><span class=o>=</span>wschenk
+
+  faas-cli new --lang node12 starbot</code></pre></div></div><p>Lets install the <code class=verbatim>axios</code> package.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  <span class=nb>cd</span> starbot
+  npm install --save axios</code></pre></div></div><p>Then lets change the <code class=verbatim>starbot/handler.js</code> to</p><div class="src src-javascript"><div class=highlight><pre class=chroma><code class=language-javascript data-lang=javascript><span class=kr>const</span> <span class=nx>axios</span> <span class=o>=</span> <span class=nx>require</span><span class=p>(</span><span class=s2>&#34;axios&#34;</span><span class=p>)</span>
+
+<span class=nx>module</span><span class=p>.</span><span class=nx>exports</span> <span class=o>=</span> <span class=nx>async</span> <span class=p>(</span><span class=nx>event</span><span class=p>,</span> <span class=nx>context</span><span class=p>)</span> <span class=p>=&gt;</span> <span class=p>{</span>
+    <span class=kd>let</span> <span class=nx>res</span> <span class=o>=</span> <span class=nx>await</span> <span class=nx>axios</span><span class=p>.</span><span class=nx>get</span><span class=p>(</span><span class=s2>&#34;http://api.open-notify.org/astros.json&#34;</span><span class=p>)</span>
+    <span class=kd>let</span> <span class=nx>body</span> <span class=o>=</span> <span class=sb>`There are currently </span><span class=si>${</span><span class=nx>res</span><span class=p>.</span><span class=nx>data</span><span class=p>.</span><span class=nx>number</span><span class=si>}</span><span class=sb> astronauts in space.`</span>
+    <span class=k>return</span> <span class=nx>context</span>
+        <span class=p>.</span><span class=nx>status</span><span class=p>(</span><span class=mi>200</span><span class=p>)</span>
+        <span class=p>.</span><span class=nx>headers</span><span class=p>({</span><span class=s2>&#34;Content-type&#34;</span><span class=o>:</span> <span class=s2>&#34;application/json&#34;</span><span class=p>})</span>
+        <span class=p>.</span><span class=nx>succeed</span><span class=p>(</span><span class=nx>body</span><span class=p>)</span>
+<span class=p>}</span>
+</code></pre></div></div><p>Then we deploy the function</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  faas-cli up -f starbot.yml</code></pre></div></div><p>And we can run it with:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>curl https://faas.willschenk.com/function/starbot</code></pre></div></div><pre class=example>
+There are currently 7 astronauts in space.
+</pre><p>Nice!</p><h2 id=headline-7>Command as a cloud function</h2><p>Lets look at how to package up a command as a function.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>faas-cli new --lang dockerfile fortune</code></pre></div></div><p>Then we edit the <code class=verbatim>fortune/Dockerfile</code>. Add we are adding here is <code class=verbatim>RUN
+apk add fortune</code> and setting the <code class=verbatim>fprocess</code> to <code class=verbatim>fortune</code>.</p><div class="src src-dockerfile"><div class=highlight><pre class=chroma><code class=language-dockerfile data-lang=dockerfile><span class=k>FROM</span><span class=s> ghcr.io/openfaas/classic-watchdog:0.1.4 as watchdog</span><span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>FROM</span><span class=s> alpine:3.12</span><span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>RUN</span> mkdir -p /home/app<span class=err>
+</span><span class=err></span><span class=k>RUN</span> apk add fortune<span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>COPY</span> --from<span class=o>=</span>watchdog /fwatchdog /usr/bin/fwatchdog<span class=err>
+</span><span class=err></span><span class=k>RUN</span> chmod +x /usr/bin/fwatchdog<span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=c># Add non root user</span><span class=err>
+</span><span class=err></span><span class=k>RUN</span> addgroup -S app <span class=o>&amp;&amp;</span> adduser app -S -G app<span class=err>
+</span><span class=err></span><span class=k>RUN</span> chown app /home/app<span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>WORKDIR</span><span class=s> /home/app</span><span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>USER</span><span class=s> app</span><span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=c># Populate example here - i.e. &#34;cat&#34;, &#34;sha512sum&#34; or &#34;node index.js&#34;</span><span class=err>
+</span><span class=err></span><span class=k>ENV</span> <span class=nv>fprocess</span><span class=o>=</span><span class=s2>&#34;fortune&#34;</span><span class=err>
+</span><span class=err></span><span class=c># Set to true to see request in function logs</span><span class=err>
+</span><span class=err></span><span class=k>ENV</span> <span class=nv>write_debug</span><span class=o>=</span><span class=s2>&#34;false&#34;</span><span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>EXPOSE</span><span class=s> 8080</span><span class=err>
+</span><span class=err>
+</span><span class=err>HEALTHCHECK --interval=3s </span><span class=k>CMD</span> <span class=p>[</span> <span class=err>-e</span> <span class=err>/tmp/.lock</span> <span class=p>]</span> <span class=o>||</span> <span class=nb>exit</span> <span class=m>1</span><span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>CMD</span> <span class=p>[</span><span class=s2>&#34;fwatchdog&#34;</span><span class=p>]</span></code></pre></div></div><p>Then you can build and deploy with</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>faas-cli up -f fortune.yml</code></pre></div></div><p>Which now is available as:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>curl https://faas.willschenk.com/function/fortune</code></pre></div></div><pre class=example>
+When I get real bored, I like to drive downtown and get a great
+parking spot, then sit in my car and count how many people ask me if
+I&#39;m leaving.
+		-- Steven Wright
+</pre><p>The whole process took me under a minute for the first time that I did
+it, so that's super cool.</p><h2 id=headline-8>Monitoring</h2><p><code class=verbatim>OpenFaas</code> uses what they call the <a href=https://docs.openfaas.com/deployment/#plonk-stack>PLONK Stack</a>, which is a goofy but fun
+name, but the <code class=verbatim>P</code> stands for <a href=https://prometheus.io/>Prometheus</a>. Lets see how that works.</p><p>First we setup a ssh tunnel so we can connect to the local prometheus
+instance.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  ssh -L 9090:127.0.0.1:9090 root@faas.willschenk.com</code></pre></div></div><p>Once this tunnel is up, we can connect to <a href=https://localhost:9090>Prometheus locally</a>.</p><h3 id=headline-9>Grafana</h3><p>Now on your faas server, edit <code class=verbatim>/var/lib/faasd/docker-compose.yaml</code> to
+add the grafana service.</p><div class="src src-yml"><div class=highlight><pre class=chroma><code class=language-yml data-lang=yml><span class=w>  </span><span class=k>grafana</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=k>image</span><span class=p>:</span><span class=w> </span>docker.io/grafana/grafana<span class=p>:</span>latest<span class=w>
+</span><span class=w>    </span><span class=k>environment</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- GF_AUTH_ANONYMOUS_ORG_ROLE=Admin<span class=w>
+</span><span class=w>      </span>- GF_AUTH_ANONYMOUS_ENABLED=<span class=kc>true</span><span class=w>
+</span><span class=w>      </span>- GF_AUTH_BASIC_ENABLED=<span class=kc>false</span><span class=w>
+</span><span class=w>    </span><span class=k>volumes</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=c># we assume cwd == /var/lib/faasd</span><span class=w>
+</span><span class=w>      </span>- <span class=k>type</span><span class=p>:</span><span class=w> </span>bind<span class=w>
+</span><span class=w>        </span><span class=k>source</span><span class=p>:</span><span class=w> </span>./grafana/<span class=w>
+</span><span class=w>        </span><span class=k>target</span><span class=p>:</span><span class=w> </span>/etc/grafana/provisioning/<span class=w>
+</span><span class=w>    </span><span class=k>cap_add</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- CAP_NET_RAW<span class=w>
+</span><span class=w>    </span><span class=k>depends_on</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- prometheus<span class=w>
+</span><span class=w>    </span><span class=k>ports</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- <span class=s2>&#34;127.0.0.1:3000:3000&#34;</span></code></pre></div></div><p>We need to create the <code class=verbatim>grafana</code> directory and restart everything:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  mkdir -p /var/lib/faasd/grafana/
+  systemctl daemon-reload <span class=o>&amp;&amp;</span> systemctl restart faasd</code></pre></div></div><p>Finally on our local machine we need to open up an ssh tunnel to
+grafana so we can access. In my case:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  ssh -L 3000:127.0.0.1:3000 root@faas.willschenk.com</code></pre></div></div><p>Add your prometheus datasource, pointing to <code class=verbatim>http://prometheus:9090</code> and
+you are good to start adding panels.</p><h2 id=headline-10>In closing</h2><p>This makes it really easy to quickly spin something up. Getting
+logging and monitoring built in "for free" is a huge leg up on
+spinning up your own solutions. I've haven't jumped too much into the
+kubernetes bandwagon, but this makes it so simple to expose a tiny bit
+of functionality in a way that seems so easy to maintain.</p><p>If you usecase is about gluing a couple of things together this is
+really pretty fascinating!</p><h2 id=headline-11>References</h2><ol><li><p><a href=https://releasecandidate.dev/posts/2021/discovery-faasd-and-openfaas/>https://releasecandidate.dev/posts/2021/discovery-faasd-and-openfaas/</a></p></li><li><p><a href=https://gumroad.com/l/serverless-for-everyone-else>https://gumroad.com/l/serverless-for-everyone-else</a></p></li><li><p><a href=https://github.com/openfaas/faas-cli>https://github.com/openfaas/faas-cli</a></p></li><li><p><a href=https://github.com/openfaas/faas>https://github.com/openfaas/faas</a></p></li><li><p><a href="https://www.youtube.com/watch?v=ZnZJXI377ak">https://www.youtube.com/watch?v=ZnZJXI377ak</a></p></li></ol></article></div><div class="bg-light py-5"><div class=container><h2 class=text-center>Read next</h2><div class=row><div class="col-md-6 text-center"></div><div class="col-md-6 text-center">Previous Post:
+<a href=../../../articles/2021/logging_with_an_http_proxy/>Logging with an HTTP Proxy</a></div></div></div></div><div class="container mt-5"><h2 class=text-center>See also</h2><div class=row><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2020/effigy_social_data_layer/>Effigy, a distributed social data layer</a></p><p class="lead font-italic mb-0">Scuttlebutt is awesome, let&rsquo;s run with it</p><div class="font-weight-light mt-3"><p>I grew up in the world of BBSes, Usenet, and, to some extent, UUCP before that. This was fun – a world wide network all built up by volunteers sharing. Since we are all carrying supercomputers around now with massive idle storage and bandwidth, let's think about how we can recreate some of that fun, independent data sharing with modern web technologies, specifically Websockets and WebRTC. All you need is the computer that you already have with you.</p></div><a href=../../../articles/2020/effigy_social_data_layer/ class="btn btn-primary">Read more</a></div></div></div><footer class="footer bg-dark text-light mt-3"><div class=container><h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2></div></footer></body></html>
