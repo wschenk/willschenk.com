@@ -1,4 +1,208 @@
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Mon, 08 Feb 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Installing faasd</title><link>https://willschenk.com/articles/2021/installing_faasd/</link><pubDate>Mon, 08 Feb 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/installing_faasd/</guid><description>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Thu, 11 Feb 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Interacting With Git via HTTP</title><link>https://willschenk.com/articles/2021/interacting_with_git_via_http/</link><pubDate>Thu, 11 Feb 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/interacting_with_git_via_http/</guid><description>
+&lt;p>
+Git continually impresses me. I&amp;#39;ve gone down a bit of a rabbit hole
+with how it works, and it&amp;#39;s just a delight. I want to find a good way
+to see if a git repo changed, and I wonder if there&amp;#39;s a way to do this
+using http directly, and there is.
+&lt;/p>
+&lt;h2 id="headline-1">
+Investgation
+&lt;/h2>
+&lt;p>
+First thing I did was to setup a proxy and run a git clone through it
+so I could see what the url is.
+&lt;/p>
+&lt;h3 id="headline-2">
+First setup a proxy
+&lt;/h3>
+&lt;p>
+This will create a web proxy on &lt;code class="verbatim">localhost:8080&lt;/code> with a ui on
+&lt;code class="verbatim">localhost:8081&lt;/code>. Once you kill this container everything cleans up.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> docker run --rm -it -p 8080:8080 -p 8081:8081 mitmproxy/mitmproxy mitmweb --web-host 0.0.0.0&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Open up &lt;a href="http://localhost:8081">http://localhost:8081&lt;/a> to check it out.
+&lt;/p>
+&lt;h3 id="headline-3">
+Setup the test environment
+&lt;/h3>
+&lt;p>
+Since I&amp;#39;m going to be messing with my git config global state, lets
+just spin up a throw away container so I don&amp;#39;t need to worry about it
+after. Also, install &lt;code class="verbatim">git&lt;/code> in the environment.
+&lt;/p>
+&lt;p>
+We&amp;#39;ll also set the &lt;code class="verbatim">-global&lt;/code> config variables for &lt;code class="verbatim">http.proxy&lt;/code> and
+&lt;code class="verbatim">http.sslVerify&lt;/code> to allow the mitm proxy to be accepted.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> docker run --rm -it --network host debian:10
+&lt;span class="c1"># You should be in the container now&lt;/span>
+apt-get update &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> apt-get install -y git
+git config --global http.proxy http://localhost:8080
+git config --global http.sslVerify false&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-4">
+Then clone
+&lt;/h3>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">git clone https://github.com/wschenk/willschenk.com/&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Now we can see that
+&lt;/p>
+&lt;table class="table table-striped">
+&lt;tbody>
+&lt;tr>
+&lt;td>request url&lt;/td>
+&lt;td>GET &lt;a href="https://github.com/wschenk/willschenk.com/info/refs?service=git-upload-pack">https://github.com/wschenk/willschenk.com/info/refs?service=git-upload-pack&lt;/a> HTTP/2.0&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>user agent&lt;/td>
+&lt;td>git/2.20.1&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>accepts&lt;/td>
+&lt;td>&lt;strong>&lt;strong>/&lt;/strong>&lt;/strong>&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;p>
+And it returns a binary file format of type
+&lt;code class="verbatim">application/x-git-upload-pack-advertisement&lt;/code>
+&lt;/p>
+&lt;p>
+We can kill our docker containers, and save the file to start parsing!
+&lt;/p>
+&lt;p>
+Note that github anyway looks at the user agent to determine what to
+serve, not the &lt;code class="verbatim">Accept&lt;/code> header:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">curl -H &lt;span class="s2">&amp;#34;Accept: */*&amp;#34;&lt;/span> https://github.com/wschenk/willschenk.com/info/refs?service&lt;span class="o">=&lt;/span>git-upload-pack&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Not Found
+&lt;/pre>
+&lt;p>
+So use &lt;code class="verbatim">-A&lt;/code> to download the data.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> curl -A &lt;span class="s2">&amp;#34;git/2.20.1&amp;#34;&lt;/span> --output ref.bin https://github.com/wschenk/willschenk.com/info/refs?service&lt;span class="o">=&lt;/span>git-upload-pack
+ls -l ref.bin&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+-rw-r--r-- 1 wschenk wschenk 2223 Feb 11 16:55 ref.bin
+&lt;/pre>
+&lt;h2 id="headline-5">
+Parsing the file
+&lt;/h2>
+&lt;p>
+Now that we have this binary file, we need to figure out how to read
+it. Basically, file contains records with 4 byte headers telling how
+long the each message is. We read the header, then those number of
+bytes afterwards (hex count).
+&lt;/p>
+&lt;p>
+The first record also contains a null byte, which is a list of
+capabitilities that the git server supports. One thing that&amp;#39;s
+interesting here is &lt;code class="verbatim">symref=HEAD:refs/head/master&lt;/code> which is what tells
+you what &lt;code class="verbatim">HEAD&lt;/code> is pointing to. We&amp;#39;ll look for that and seperate out
+and print that line if needed.
+&lt;/p>
+&lt;div class="src src-ruby">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-ruby" data-lang="ruby"> &lt;span class="c1"># Adapted from page 543 of Building Git&lt;/span>
+&lt;span class="k">def&lt;/span> &lt;span class="nf">recv_packet&lt;/span> &lt;span class="n">input&lt;/span>
+&lt;span class="n">head&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">input&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">read&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="mi">4&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="n">head&lt;/span> &lt;span class="k">unless&lt;/span> &lt;span class="sr">/[0-9a-f]{4}/&lt;/span> &lt;span class="o">=~&lt;/span> &lt;span class="n">head&lt;/span>
+&lt;span class="n">size&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">head&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">to_i&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="mi">16&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="kp">nil&lt;/span> &lt;span class="k">if&lt;/span> &lt;span class="n">size&lt;/span> &lt;span class="o">==&lt;/span> &lt;span class="mi">0&lt;/span>
+&lt;span class="n">input&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">read&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">size&lt;/span> &lt;span class="o">-&lt;/span> &lt;span class="mi">4&lt;/span>&lt;span class="p">)&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">sub&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="sr">/\n$/&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s2">&amp;#34;&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="no">File&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">open&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s2">&amp;#34;ref.bin&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s2">&amp;#34;rb&amp;#34;&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="k">do&lt;/span> &lt;span class="o">|&lt;/span>&lt;span class="n">input&lt;/span>&lt;span class="o">|&lt;/span>
+&lt;span class="k">while&lt;/span> &lt;span class="o">!&lt;/span>&lt;span class="n">input&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">eof?&lt;/span>
+&lt;span class="n">packet&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">recv_packet&lt;/span> &lt;span class="n">input&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="n">packet&lt;/span>
+&lt;span class="n">line&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">options&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">packet&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">split&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="se">\0&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">2&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="nb">puts&lt;/span> &lt;span class="n">options&lt;/span> &lt;span class="k">if&lt;/span> &lt;span class="n">options&lt;/span>
+&lt;span class="nb">puts&lt;/span> &lt;span class="n">line&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="k">end&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Which returns
+&lt;/p>
+&lt;pre class="example half-height-scroll"># service=git-upload-pack
+multi_ack thin-pack side-band side-band-64k ofs-delta shallow deepen-since deepen-not deepen-relative no-progress include-tag multi_ack_detailed allow-tip-sha1-in-want allow-reachable-sha1-in-want no-done symref=HEAD:refs/heads/master filter object-format=sha1 agent=git/github-g2ff1cad44179
+847ea6126ee5f8ec5c4ad24e51b527face7a2979 HEAD
+8fa8f73e7afa4564d6fb9d3788b71d06b705a98a refs/heads/askgit
+e6a7c3f659b0da619ca3a9093084c57bd75705ca refs/heads/edit-effigy
+614fa2058304444b2bcbbc963829c99252ecbb8e refs/heads/gh-pages
+aaeb84f5c985786ed5905356325f37f5a7f136f2 refs/heads/hugo
+b8dfbe29de07d79f115f5814df0981c592046e78 refs/heads/look-gemfiles
+847ea6126ee5f8ec5c4ad24e51b527face7a2979 refs/heads/master
+514bd4d82776edbb973576315fe5a479821a8fd7 refs/heads/tailwindedit
+3c2ca082e7b8331a127afae2dec968d7cebc2ddf refs/meta/_netlify_cms
+041b7a90c63d744418df2634d85d6f2d8974a9c8 refs/pull/1/head
+03cee5d1d11a75e03b374c6d7600095332d4d178 refs/pull/10/head
+e710ce9b944db4d418638ccaac4ade28b6f05bf8 refs/pull/11/head
+d30312612ecdda3f46bc617c7167254ed6adcd6a refs/pull/12/head
+25be0d44efb3cd2d890c5cbd151a84fb302efb16 refs/pull/13/head
+5e8f6760d36c9a2cb6be656b68d82dc63ce91b61 refs/pull/14/head
+e6a7c3f659b0da619ca3a9093084c57bd75705ca refs/pull/15/head
+52b9dd7146cee391519307f64fa3b7039e54a2dc refs/pull/16/head
+b93d017621b4324a5267b58cbd52a2b9ae2e2c0f refs/pull/17/head
+8fa8f73e7afa4564d6fb9d3788b71d06b705a98a refs/pull/18/head
+b8dfbe29de07d79f115f5814df0981c592046e78 refs/pull/19/head
+a6bac7782c04514fe084449b27ec8eba9c794f7e refs/pull/2/head
+d265bda5243b1ee0991cd241f52f7f9e908d1c72 refs/pull/20/head
+dd032eab146ab1a8d15a406806f35da9a14f4842 refs/pull/3/head
+54297948071e5531b1c0550b7e80f7af2b310db4 refs/pull/4/head
+a3d591c21779b5ff9ecf5ee75f1e88ba37f9f11e refs/pull/5/head
+4ff3703c2166bd4d7f5b123f90bb22da526dd3bc refs/pull/6/head
+514bd4d82776edbb973576315fe5a479821a8fd7 refs/pull/7/head
+2bbb09950d485304907850438cb381ddedc68aeb refs/pull/8/head
+9eae9ff2e6f708ba605813ed4bb7bd6f3b8fbf23 refs/pull/9/head
+9a843f070f3f11e09c689ba5c159fb261236029d refs/tags/middleman
+&lt;/pre>
+&lt;h2 id="headline-6">
+Next steps
+&lt;/h2>
+&lt;p>
+This solves my use case because I can now compare the references to
+the previously seen versions, and if they&amp;#39;ve changed do something
+else. I would really recommend looking in deeper to see how the
+object transfer protocol is implemented, it&amp;#39;s pretty amazing how git
+is put together.
+&lt;/p>
+&lt;h2 id="headline-7">
+References
+&lt;/h2>
+&lt;ol>
+&lt;li>
+&lt;p>
+&lt;a href="https://git-scm.com/book/en/v2/Git-Internals-Transfer-Protocols">https://git-scm.com/book/en/v2/Git-Internals-Transfer-Protocols&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://git-scm.com/docs/protocol-common">https://git-scm.com/docs/protocol-common&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://shop.jcoglan.com/building-git/">https://shop.jcoglan.com/building-git/&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://gist.github.com/evantoli/f8c23a37eb3558ab8765">https://gist.github.com/evantoli/f8c23a37eb3558ab8765&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;/ol></description></item><item><title>Installing faasd</title><link>https://willschenk.com/articles/2021/installing_faasd/</link><pubDate>Mon, 08 Feb 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/installing_faasd/</guid><description>
 &lt;p>
 Recently I came across &lt;a href="https://releasecandidate.dev/posts/2021/discovery-faasd-and-openfaas/">an article&lt;/a> on faasd, and I thought I&amp;#39;d give it
 a try and see how easy it is to use. &lt;a href="https://willschenk.com/articles/2020/server_templating_with_terraform/">Server templating&lt;/a> is an easy way
