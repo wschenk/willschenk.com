@@ -1,0 +1,221 @@
+#+title: Building an OpenFaas template
+#+subtitle: Packaging up the packager
+#+tags: openfaas, react, static_sites
+#+date: 2021-02-12
+#+draft: true
+
+I've been playing with OpenFaaS recently and it's a very accessable
+way to starting building cloud first services.  I wanted to see what I
+could cram in there, so I built a few templates that would let me host
+a static site.  One that is just html, and another than can be built
+with something like =create-react-app=.
+
+* Static
+
+Create the =template= directory:
+
+#+begin_src bash
+mkdir -p template/static
+#+end_src
+
+#+RESULTS:
+
+Then add a =template/static/template.yml= file:
+
+#+begin_src yml :tangle template/static/template.yml
+language: static
+handler_folder: public
+#+end_src
+
+Then add a =template/static/Dockerfile= to do the build:
+
+#+begin_src Dockerfile :tangle template/static/Dockerfile
+FROM --platform=${TARGETPLATFORM:-linux/amd64} openfaas/of-watchdog:0.7.2 as watchdog
+FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine:3.10 AS runtime
+
+WORKDIR /home/app
+
+COPY --from=watchdog /fwatchdog .
+COPY . .
+
+ENV mode="static"
+ENV static_path="/home/app/public"
+
+HEALTHCHECK --interval=3s CMD [ -e /tmp/.lock ] || exit 1
+
+CMD ["./fwatchdog"]
+#+end_src
+
+* Serving at root
+
+Setting up the =Caddyfile=:
+
+#+begin_src Caddyfile :tangle Caddyfile
+{
+  email "email@example.com"
+}
+
+hostname.example.com {
+  @proxy path /ui/* /system/* /function/*
+  handle @proxy {
+    reverse_proxy localhost:8080
+  }
+
+  handle {
+    uri replace / /function/static/ 1
+    reverse_proxy localhost:8080
+  }
+}
+#+end_src
+
+This will proxy =/ui/*=, =/system/*=, and =/function/*= to the OpenFaaS
+gateway, and everything else it will (internally) rewrite to
+=/function/static/=, which will get forwarded our static handler.  So
+when you deploy the function make sure you name it that!
+
+* React
+
+First we need to create our =template= directory:
+
+#+begin_src bash
+mkdir -p template/react
+#+end_src
+
+#+RESULTS:
+
+First we need to create a =template/react/template.yml= file
+
+#+begin_src yml :tangle template/react/template.yml
+language: react
+handler_folder: react
+#+end_src
+
+=node_modules=, my least favorite thing in the world, needs to get
+excluded, so lets create =template/react/.dockerignore=.  The =react= here
+must be the same as the =handler_folder= above.
+
+#+begin_src yml :tangle template/react/.dockerignore
+react/node_modules
+react/build
+#+end_src
+
+Then we add the =Dockerfile= to build everything:
+
+#+begin_src Dockerfile :tangle template/react/Dockerfile
+FROM --platform=${TARGETPLATFORM:-linux/amd64} node:12-alpine as build
+
+ARG TARGETPLATFORM
+ARG BUILDPLATFORM
+
+RUN apk --no-cache add curl ca-certificates \
+    && addgroup -S app && adduser -S -g app app
+
+# Turn down the verbosity to default level.
+ENV NPM_CONFIG_LOGLEVEL warn
+
+RUN mkdir -p /home/app
+
+# Build the react production build
+
+WORKDIR /home/app
+
+COPY react/package.json react/yarn.lock ./
+
+# This ordering means the yarn installation is cached for the outer
+# react handler.
+
+RUN yarn
+
+COPY react .
+
+RUN yarn build
+
+FROM --platform=${TARGETPLATFORM:-linux/amd64} openfaas/of-watchdog:0.7.2 as watchdog
+FROM alpine:3.10 AS runtime
+
+WORKDIR /home/app
+
+COPY --from=build /home/app/build public
+
+COPY --from=watchdog /fwatchdog .
+
+ENV mode="static"
+ENV static_path="/home/app/public"
+
+HEALTHCHECK --interval=3s CMD [ -e /tmp/.lock ] || exit 1
+
+CMD ["./fwatchdog"]
+#+end_src
+
+** Testing React
+
+First we will create the function itself, and then populate it using
+=npx create-react-app testappreact=.  This will write it into the "handler"
+directory.
+
+We will also remove the =.git= repo that =create-react-app= sets up.
+
+#+begin_src bash
+  faas-cli new --lang react testappreact
+  npx create-react-app testappreact
+  rm -rf testappreact/.git
+#+end_src
+
+I recommend using relative links, by adding ="homepage": "./"= in the
+generated =package.json= file.
+
+Then we can build and deploy using
+
+#+begin_src bash
+faas-cli up -f testappreact.yml
+#+end_src
+
+And visit your server to see what you see!
+
+** Testing Vue app
+
+Just for fun, lets make it build a vue app.
+
+#+begin_src bash
+  faas-cli new --lang react testappvue
+  vue create testappvue
+  rm -rf testappvue/.git
+#+end_src
+
+In order to get vue apps to have relative paths, you need to create a
+=vue.config.js= file to set it:
+
+#+begin_src js
+  module.exports = {
+      publicPath: ''
+  };
+#+end_src
+
+And since =vue= builds in the =dist= directory, we need to modify the
+build script inside of =package.json= to rename the file after it's
+built:
+
+#+begin_src js
+    "build": "vue-cli-service build && mv dist build",
+#+end_src
+
+Then, we can build and deploy:
+
+#+begin_src bash
+  faas-cli up -f testappvue.yml
+#+end_src
+
+It's a little hacky but it seems to work alright!
+
+
+* References
+
+1. https://github.com/openfaas/faas-cli/blob/master/guide/TEMPLATE.md
+1. https://docs.openfaas.com/reference/yaml/#yaml-template-stack-configuration
+1. https://medium.com/js-dojo/how-to-solve-vue-js-prod-build-assets-relative-path-problem-71f91138dd79
+1. https://github.com/matipan/openfaas-hugo-template
+
+
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
