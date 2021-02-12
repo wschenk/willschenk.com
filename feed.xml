@@ -1,4 +1,239 @@
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Fri, 12 Feb 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Docker One Liners</title><link>https://willschenk.com/articles/2021/docker_one_liners/</link><pubDate>Fri, 12 Feb 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/docker_one_liners/</guid><description>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Fri, 12 Feb 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Building static OpenFaas templates</title><link>https://willschenk.com/articles/2021/building_an_openfaas_template/</link><pubDate>Fri, 12 Feb 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/building_an_openfaas_template/</guid><description>
+&lt;p>
+I&amp;#39;ve been playing with OpenFaaS recently and it&amp;#39;s a very accessable
+way to starting building cloud first services. I wanted to see what I
+could cram in there, so I built a few templates that would let me host
+a static site. One that is just html, and another than can be built
+with something like &lt;code class="verbatim">create-react-app&lt;/code>.
+&lt;/p>
+&lt;h2 id="headline-1">
+Static
+&lt;/h2>
+&lt;p>
+Create the &lt;code class="verbatim">template&lt;/code> directory:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">mkdir -p template/static&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Then add a &lt;code class="verbatim">template/static/template.yml&lt;/code> file:
+&lt;/p>
+&lt;div class="src src-yml">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yml" data-lang="yml">&lt;span class="k">language&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>static&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="k">handler_folder&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>public&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Then add a &lt;code class="verbatim">template/static/Dockerfile&lt;/code> to do the build:
+&lt;/p>
+&lt;div class="src src-dockerfile">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-dockerfile" data-lang="dockerfile">&lt;span class="k">FROM&lt;/span>&lt;span class="s"> --platform=${TARGETPLATFORM:-linux/amd64} openfaas/of-watchdog:0.7.2 as watchdog&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">FROM&lt;/span>&lt;span class="s"> --platform=${TARGETPLATFORM:-linux/amd64} alpine:3.10 AS runtime&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">WORKDIR&lt;/span>&lt;span class="s"> /home/app&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">COPY&lt;/span> --from&lt;span class="o">=&lt;/span>watchdog /fwatchdog .&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">COPY&lt;/span> . .&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">ENV&lt;/span> &lt;span class="nv">mode&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;static&amp;#34;&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">ENV&lt;/span> &lt;span class="nv">static_path&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;/home/app/public&amp;#34;&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">HEALTHCHECK --interval=3s &lt;/span>&lt;span class="k">CMD&lt;/span> &lt;span class="p">[&lt;/span> &lt;span class="err">-e&lt;/span> &lt;span class="err">/tmp/.lock&lt;/span> &lt;span class="p">]&lt;/span> &lt;span class="o">||&lt;/span> &lt;span class="nb">exit&lt;/span> &lt;span class="m">1&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">CMD&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;./fwatchdog&amp;#34;&lt;/span>&lt;span class="p">]&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-2">
+Serving at root
+&lt;/h2>
+&lt;p>
+Setting up the &lt;code class="verbatim">Caddyfile&lt;/code>:
+&lt;/p>
+&lt;div class="src src-caddyfile">
+&lt;pre>&lt;code class="language-caddyfile" data-lang="caddyfile">{
+email &amp;#34;email@example.com&amp;#34;
+}
+hostname.example.com {
+@proxy path /ui/* /system/* /function/*
+handle @proxy {
+reverse_proxy localhost:8080
+}
+handle {
+uri replace / /function/static/ 1
+reverse_proxy localhost:8080
+}
+}&lt;/code>&lt;/pre>
+&lt;/div>
+&lt;p>
+This will proxy &lt;code class="verbatim">/ui/*&lt;/code>, &lt;code class="verbatim">/system/*&lt;/code>, and &lt;code class="verbatim">/function/*&lt;/code> to the OpenFaaS
+gateway, and everything else it will (internally) rewrite to
+&lt;code class="verbatim">/function/static/&lt;/code>, which will get forwarded our static handler. So
+when you deploy the function make sure you name it that!
+&lt;/p>
+&lt;h2 id="headline-3">
+React
+&lt;/h2>
+&lt;p>
+First we need to create our &lt;code class="verbatim">template&lt;/code> directory:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">mkdir -p template/react&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+First we need to create a &lt;code class="verbatim">template/react/template.yml&lt;/code> file
+&lt;/p>
+&lt;div class="src src-yml">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yml" data-lang="yml">&lt;span class="k">language&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>react&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="k">handler_folder&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>react&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+&lt;code class="verbatim">node_modules&lt;/code>, my least favorite thing in the world, needs to get
+excluded, so lets create &lt;code class="verbatim">template/react/.dockerignore&lt;/code>. The &lt;code class="verbatim">react&lt;/code> here
+must be the same as the &lt;code class="verbatim">handler_folder&lt;/code> above.
+&lt;/p>
+&lt;div class="src src-yml">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yml" data-lang="yml">react/node_modules&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>react/build&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Then we add the &lt;code class="verbatim">Dockerfile&lt;/code> to build everything:
+&lt;/p>
+&lt;div class="src src-dockerfile">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-dockerfile" data-lang="dockerfile">&lt;span class="k">FROM&lt;/span>&lt;span class="s"> --platform=${TARGETPLATFORM:-linux/amd64} node:12-alpine as build&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">ARG&lt;/span> TARGETPLATFORM&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">ARG&lt;/span> BUILDPLATFORM&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> apk --no-cache add curl ca-certificates &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> addgroup -S app &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> adduser -S -g app app&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="c"># Turn down the verbosity to default level.&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">ENV&lt;/span> NPM_CONFIG_LOGLEVEL warn&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> mkdir -p /home/app&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="c"># Build the react production build&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">WORKDIR&lt;/span>&lt;span class="s"> /home/app&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">COPY&lt;/span> react/package.json react/yarn.lock ./&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="c"># This ordering means the yarn installation is cached for the outer&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="c"># react handler.&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> yarn&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">COPY&lt;/span> react .&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> yarn build&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">FROM&lt;/span>&lt;span class="s"> --platform=${TARGETPLATFORM:-linux/amd64} openfaas/of-watchdog:0.7.2 as watchdog&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">FROM&lt;/span>&lt;span class="s"> alpine:3.10 AS runtime&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">WORKDIR&lt;/span>&lt;span class="s"> /home/app&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">COPY&lt;/span> --from&lt;span class="o">=&lt;/span>build /home/app/build public&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">COPY&lt;/span> --from&lt;span class="o">=&lt;/span>watchdog /fwatchdog .&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">ENV&lt;/span> &lt;span class="nv">mode&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;static&amp;#34;&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">ENV&lt;/span> &lt;span class="nv">static_path&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;/home/app/public&amp;#34;&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">HEALTHCHECK --interval=3s &lt;/span>&lt;span class="k">CMD&lt;/span> &lt;span class="p">[&lt;/span> &lt;span class="err">-e&lt;/span> &lt;span class="err">/tmp/.lock&lt;/span> &lt;span class="p">]&lt;/span> &lt;span class="o">||&lt;/span> &lt;span class="nb">exit&lt;/span> &lt;span class="m">1&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">CMD&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;./fwatchdog&amp;#34;&lt;/span>&lt;span class="p">]&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-4">
+Testing React
+&lt;/h3>
+&lt;p>
+First we will create the function itself, and then populate it using
+&lt;code class="verbatim">npx create-react-app testappreact&lt;/code>. This will write it into the &amp;#34;handler&amp;#34;
+directory.
+&lt;/p>
+&lt;p>
+We will also remove the &lt;code class="verbatim">.git&lt;/code> repo that &lt;code class="verbatim">create-react-app&lt;/code> sets up.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> faas-cli new --lang react testappreact
+npx create-react-app testappreact
+rm -rf testappreact/.git&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+I recommend using relative links, by adding &lt;code class="verbatim">&amp;#34;homepage&amp;#34;: &amp;#34;./&amp;#34;&lt;/code> in the
+generated &lt;code class="verbatim">package.json&lt;/code> file.
+&lt;/p>
+&lt;p>
+Then we can build and deploy using
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">faas-cli up -f testappreact.yml&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+And visit your server to see what you see!
+&lt;/p>
+&lt;h3 id="headline-5">
+Testing Vue app
+&lt;/h3>
+&lt;p>
+Just for fun, lets make it build a vue app.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> faas-cli new --lang react testappvue
+vue create testappvue
+rm -rf testappvue/.git&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+In order to get vue apps to have relative paths, you need to create a
+&lt;code class="verbatim">vue.config.js&lt;/code> file to set it:
+&lt;/p>
+&lt;div class="src src-js">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-js" data-lang="js"> &lt;span class="nx">module&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">exports&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">publicPath&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="s1">&amp;#39;&amp;#39;&lt;/span>
+&lt;span class="p">};&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+And since &lt;code class="verbatim">vue&lt;/code> builds in the &lt;code class="verbatim">dist&lt;/code> directory, we need to modify the
+build script inside of &lt;code class="verbatim">package.json&lt;/code> to rename the file after it&amp;#39;s
+built:
+&lt;/p>
+&lt;div class="src src-js">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-js" data-lang="js"> &lt;span class="s2">&amp;#34;build&amp;#34;&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="s2">&amp;#34;vue-cli-service build &amp;amp;&amp;amp; mv dist build&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Then, we can build and deploy:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> faas-cli up -f testappvue.yml&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+It&amp;#39;s a little hacky but it seems to work alright!
+&lt;/p>
+&lt;h2 id="headline-6">
+References
+&lt;/h2>
+&lt;ol>
+&lt;li>
+&lt;p>
+&lt;a href="https://github.com/openfaas/faas-cli/blob/master/guide/TEMPLATE.md">https://github.com/openfaas/faas-cli/blob/master/guide/TEMPLATE.md&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://docs.openfaas.com/reference/yaml/#yaml-template-stack-configuration">https://docs.openfaas.com/reference/yaml/#yaml-template-stack-configuration&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://medium.com/js-dojo/how-to-solve-vue-js-prod-build-assets-relative-path-problem-71f91138dd79">https://medium.com/js-dojo/how-to-solve-vue-js-prod-build-assets-relative-path-problem-71f91138dd79&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://github.com/matipan/openfaas-hugo-template">https://github.com/matipan/openfaas-hugo-template&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;/ol></description></item><item><title>Docker One Liners</title><link>https://willschenk.com/articles/2021/docker_one_liners/</link><pubDate>Fri, 12 Feb 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/docker_one_liners/</guid><description>
 &lt;p>
 I use docker in my workflow as an application and environment manager.
 I switch between multiple physical computers a lot, and like to have
