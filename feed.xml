@@ -1,4 +1,180 @@
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Thu, 11 Feb 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Interacting With Git via HTTP</title><link>https://willschenk.com/articles/2021/interacting_with_git_via_http/</link><pubDate>Thu, 11 Feb 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/interacting_with_git_via_http/</guid><description>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Fri, 12 Feb 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Docker One Liners</title><link>https://willschenk.com/articles/2021/docker_one_liners/</link><pubDate>Fri, 12 Feb 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/docker_one_liners/</guid><description>
+&lt;p>
+I use docker in my workflow as an application and environment manager.
+I switch between multiple physical computers a lot, and like to have
+things self contained within work spaces that I can move from one
+computer to another easily, normally using `git`. Here are a few
+tricks that I use to have the lightest touch on my local installation
+as possible.
+&lt;/p>
+&lt;h2 id="headline-1">
+Orientation
+&lt;/h2>
+&lt;p>
+If you want to install a specific set of software, you use a
+`Dockerfile` to create an `image`. If the `image` is already on
+docker hub, you don&amp;#39;t need to write a Dockerfile.
+&lt;/p>
+&lt;p>
+Images are used to create containers, which are images that have
+started up. They could then be stopped and restarted if you need to,
+but they have long running state. Starting a container with `–rm`
+means that it cleans itself up after it ends, which is often what I
+want; go away after my attention wanders off.
+&lt;/p>
+&lt;p>
+Volumes – either docker managed or a directory exposed on the local
+file system – is a way for the storage that a container uses to be
+more durable. If you are running something &amp;#34;for real&amp;#34; you probably
+want to keep the data somewhere &amp;#34;outside&amp;#34; of the container so that if
+it goes away, or you update to a different image, you still have the
+data. I don&amp;#39;t really use this feature.
+&lt;/p>
+&lt;h2 id="headline-2">
+Transient vs Semi-permanent vs Permanent
+&lt;/h2>
+&lt;p>
+My usage of Docker can either be to poke at a piece of software, play
+around with it for a bit longer, or use it more seriously. One gets a
+transient container that deletes on shutdown, the next gets a name and
+sticks around, and the final one has long term storage outside of the
+container.
+&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>Idea&lt;/th>
+&lt;th>Pattern&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>Poke&lt;/td>
+&lt;td>`docker run -it –rm`&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>Play&lt;/td>
+&lt;td>`docker run -it –name something`&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>Use&lt;/td>
+&lt;td>`docker run -d –name something -v storage:storage`&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;h2 id="headline-3">
+Bash template for semi-permanent
+&lt;/h2>
+&lt;p>
+In my projects I have a file called `LOCALSERVERS` that I run to make
+sure that the right containers are installed and started up when I
+start developing. The pattern is to create one if it doesn&amp;#39;t exist,
+and then start it if it&amp;#39;s not started. These containers are meant to
+stick around at least until I move on to other projects.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="k">if&lt;/span> &lt;span class="o">[&lt;/span> &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="k">$(&lt;/span>docker container ls -a &lt;span class="p">|&lt;/span> grep pg-postgis &lt;span class="p">|&lt;/span> wc -l&lt;span class="k">)&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="o">==&lt;/span> &lt;span class="s2">&amp;#34;0&amp;#34;&lt;/span> &lt;span class="o">]&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="k">then&lt;/span>
+&lt;span class="nb">echo&lt;/span> Creating pg-postgis container
+docker run --name pg-postgis -d -p 5432:5432 mdillon/postgis
+&lt;span class="k">fi&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="o">[&lt;/span> &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="k">$(&lt;/span>docker ps &lt;span class="p">|&lt;/span> grep pg-postgis &lt;span class="p">|&lt;/span> wc -l&lt;span class="k">)&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="o">==&lt;/span> &lt;span class="s2">&amp;#34;0&amp;#34;&lt;/span> &lt;span class="o">]&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="k">then&lt;/span>
+&lt;span class="nb">echo&lt;/span> Starting pg-postgis container
+docker start pg-postgis
+&lt;span class="k">fi&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-4">
+Docker-compose
+&lt;/h2>
+&lt;p>
+When you have a bunch of interelated services, using
+&lt;code class="verbatim">docker-compose.yml&lt;/code> is a great way to set things up. Especially if you
+have volumes to attach and keep around. It&amp;#39;s worth mentioning that
+this is super useful, even if it doesn&amp;#39;t fit into the &amp;#39;one-liner&amp;#39;
+limitation.
+&lt;/p>
+&lt;h2 id="headline-5">
+Postgis
+&lt;/h2>
+&lt;p>
+Lets startup a postgres container that has postgis extensions
+installed:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> docker run --name postgis -d -p 5432:5432 mdillon/postgis&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-6">
+Pgadmin
+&lt;/h2>
+&lt;p>
+Need a web interface to run SQL commands?
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">docker run -p 4000:80 &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --name pgadmin &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> -e &lt;span class="s1">&amp;#39;PGADMIN_DEFAULT_EMAIL=wschenk@gmail.com&amp;#39;&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> -e &lt;span class="s1">&amp;#39;PGADMIN_DEFAULT_PASSWORD=SuperSecret&amp;#39;&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> -d dpage/pgadmin4&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-7">
+Dive
+&lt;/h2>
+&lt;p>
+Explore your built images:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">docker run --rm -it &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> -v /var/run/docker.sock:/var/run/docker.sock &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> wagoodman/dive:latest &amp;lt;image&amp;gt;&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-8">
+Redis
+&lt;/h2>
+&lt;p>
+Easy temporary redis instance.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">docker run --rm -it redis&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-9">
+Web Proxy
+&lt;/h2>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> docker run --rm -it -p 8080:8080 -p 8081:8081 mitmproxy/mitmproxy mitmweb --web-host 0.0.0.0&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-10">
+References
+&lt;/h2>
+&lt;ol>
+&lt;li>
+&lt;p>
+&lt;a href="https://docs.docker.com/get-docker/">Installing Docker&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://hub.docker.com/r/mdillon/postgis/">mdillon/postgis&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://www.pgadmin.org/download/pgadmin-4-container/">PgAdmin Container&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://github.com/wagoodman/dive">Dive&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://redis.io/">Redis&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;h2 id="headline-11">
+&lt;span class="todo">TODO&lt;/span>
+Fix this up!
+&lt;/h2></description></item><item><title>Interacting With Git via HTTP</title><link>https://willschenk.com/articles/2021/interacting_with_git_via_http/</link><pubDate>Thu, 11 Feb 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/interacting_with_git_via_http/</guid><description>
 &lt;p>
 Git continually impresses me. I&amp;#39;ve gone down a bit of a rabbit hole
 with how it works, and it&amp;#39;s just a delight. I want to find a good way
