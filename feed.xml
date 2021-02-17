@@ -1,4 +1,1027 @@
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Fri, 12 Feb 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Building static OpenFaas templates</title><link>https://willschenk.com/articles/2021/building_an_openfaas_template/</link><pubDate>Fri, 12 Feb 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/building_an_openfaas_template/</guid><description>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Wed, 17 Feb 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Uploading Blobs</title><link>https://willschenk.com/articles/2021/uploading_blobs/</link><pubDate>Wed, 17 Feb 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/uploading_blobs/</guid><description>
+&lt;p>
+I want a simple service I can deploy that lets me store blobs. I want
+it to return the hash of the stored object which I will use to load it
+again.
+&lt;/p>
+&lt;p>
+First we will write a simple go service that will do everything in
+memory, and then we will build a nginx config that has the webserver
+stream it to disk, so we don&amp;#39;t have a lot of memory being used.
+&lt;/p>
+&lt;h2 id="headline-1">
+Simple go service
+&lt;/h2>
+&lt;p>
+This is a simple http server that
+&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>
+Creates a &lt;code class="verbatim">blobs&lt;/code> directory
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+Serves &lt;code class="verbatim">/get&lt;/code> requests out of that directory
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+Receives a file paramater named &lt;code class="verbatim">file&lt;/code> on &lt;code class="verbatim">/put&lt;/code> and stores it as it&amp;#39;s
+md5 hash. It returns that hash.
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+Or it gets a body and just stores it.
+&lt;/p>
+&lt;h3 id="headline-2">
+Server code
+&lt;/h3>
+&lt;/li>
+&lt;/ol>
+&lt;div class="src src-go">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-go" data-lang="go"> &lt;span class="kn">package&lt;/span> &lt;span class="nx">main&lt;/span>
+&lt;span class="kn">import&lt;/span> &lt;span class="p">(&lt;/span>
+&lt;span class="s">&amp;#34;crypto/md5&amp;#34;&lt;/span>
+&lt;span class="s">&amp;#34;fmt&amp;#34;&lt;/span>
+&lt;span class="s">&amp;#34;io/ioutil&amp;#34;&lt;/span>
+&lt;span class="s">&amp;#34;log&amp;#34;&lt;/span>
+&lt;span class="s">&amp;#34;net/http&amp;#34;&lt;/span>
+&lt;span class="s">&amp;#34;os&amp;#34;&lt;/span>
+&lt;span class="s">&amp;#34;strings&amp;#34;&lt;/span>
+&lt;span class="p">)&lt;/span>
+&lt;span class="kd">func&lt;/span> &lt;span class="nf">putHandler&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">w&lt;/span> &lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">ResponseWriter&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">r&lt;/span> &lt;span class="o">*&lt;/span>&lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Request&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Print&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;Proccessing file upload&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">contentType&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">r&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Header&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Get&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s">&amp;#34;Content-Type&amp;#34;&lt;/span> &lt;span class="p">);&lt;/span>
+&lt;span class="k">if&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nx">strings&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">HasPrefix&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s">&amp;#34;multipart/form-data&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">contentType&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nf">uploadFile&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nx">w&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">r&lt;/span> &lt;span class="p">);&lt;/span>
+&lt;span class="p">}&lt;/span> &lt;span class="k">else&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nf">handlePost&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nx">w&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">r&lt;/span> &lt;span class="p">);&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="kd">func&lt;/span> &lt;span class="nf">uploadFile&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">w&lt;/span> &lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">ResponseWriter&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">r&lt;/span> &lt;span class="o">*&lt;/span>&lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Request&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Print&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s">&amp;#34;Processing file upload&amp;#34;&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="c1">// Set upload limit
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="nx">r&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">ParseMultipartForm&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="mi">10&lt;/span> &lt;span class="o">&amp;lt;&amp;lt;&lt;/span> &lt;span class="mi">20&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">file&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">handler&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">r&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">FormFile&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;file&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">!=&lt;/span> &lt;span class="kc">nil&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">fmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Println&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;Error Retrieving the File&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">fmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Println&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">err&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">return&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="k">defer&lt;/span> &lt;span class="nx">file&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Close&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Printf&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;Uploaded File: %+v\n&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">handler&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Filename&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Printf&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;Content type : %+v\n&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">handler&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Header&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Get&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;Content-Type&amp;#34;&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Printf&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;File Size : %+v\n&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">handler&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Size&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Printf&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;MIME Header : %+v\n&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">handler&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Header&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="c1">// read all of the contents of our uploaded file into a
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="c1">// byte array
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="nx">fileBytes&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">ioutil&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">ReadAll&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">file&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">!=&lt;/span> &lt;span class="kc">nil&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Print&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">err&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">fmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Println&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">err&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">return&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="nx">md5string&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">fmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Sprintf&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;%x&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">md5&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Sum&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">fileBytes&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="nx">ioutil&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">WriteFile&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">fmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Sprintf&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;blobs/%s&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">md5string&lt;/span>&lt;span class="p">),&lt;/span> &lt;span class="nx">fileBytes&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mo">0666&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="c1">// Return the key
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="nx">fmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Fprintf&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">w&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s">&amp;#34;%s&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">md5string&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="kd">func&lt;/span> &lt;span class="nf">handlePost&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">w&lt;/span> &lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">ResponseWriter&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">r&lt;/span> &lt;span class="o">*&lt;/span>&lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Request&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Print&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s">&amp;#34;Storing raw post&amp;#34;&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="nx">body&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">_&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">ioutil&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">ReadAll&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nx">r&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Body&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="k">defer&lt;/span> &lt;span class="nx">r&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Body&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Close&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;span class="nx">md5string&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">fmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Sprintf&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;%x&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">md5&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Sum&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">body&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="nx">ioutil&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">WriteFile&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">fmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Sprintf&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;blobs/%s&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">md5string&lt;/span>&lt;span class="p">),&lt;/span> &lt;span class="nx">body&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mo">0666&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="c1">// Return the key
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="nx">fmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Fprintf&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">w&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s">&amp;#34;%s&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">md5string&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="kd">func&lt;/span> &lt;span class="nf">mkdir_p&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">dir&lt;/span> &lt;span class="kt">string&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">_&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">os&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Stat&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">dir&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="nx">os&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">IsNotExist&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">err&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Print&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;Creating &amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">dir&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">errDir&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">os&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">MkdirAll&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">dir&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mo">0755&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="nx">errDir&lt;/span> &lt;span class="o">!=&lt;/span> &lt;span class="kc">nil&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Fatal&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">err&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="kd">func&lt;/span> &lt;span class="nf">main&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nf">mkdir_p&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;blobs&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">fs&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">FileServer&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Dir&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;./blobs&amp;#34;&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Handle&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;/get/&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">StripPrefix&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;/get/&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">fs&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">HandleFunc&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;/put&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">putHandler&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Print&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;Starting server on port 8080&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">ListenAndServe&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;:8080&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="kc">nil&lt;/span>&lt;span class="p">);&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">!=&lt;/span> &lt;span class="kc">nil&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Fatal&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">err&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">}&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-3">
+Server code orig
+&lt;/h3>
+&lt;p>
+In &lt;code class="verbatim">simple/server.go&lt;/code>:
+&lt;/p>
+&lt;div class="src src-go">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-go" data-lang="go"> &lt;span class="kn">package&lt;/span> &lt;span class="nx">main&lt;/span>
+&lt;span class="kn">import&lt;/span> &lt;span class="p">(&lt;/span>
+&lt;span class="s">&amp;#34;crypto/md5&amp;#34;&lt;/span>
+&lt;span class="s">&amp;#34;fmt&amp;#34;&lt;/span>
+&lt;span class="s">&amp;#34;io/ioutil&amp;#34;&lt;/span>
+&lt;span class="s">&amp;#34;log&amp;#34;&lt;/span>
+&lt;span class="s">&amp;#34;net/http&amp;#34;&lt;/span>
+&lt;span class="s">&amp;#34;os&amp;#34;&lt;/span>
+&lt;span class="p">)&lt;/span>
+&lt;span class="kd">func&lt;/span> &lt;span class="nf">uploadFile&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">w&lt;/span> &lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">ResponseWriter&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">r&lt;/span> &lt;span class="o">*&lt;/span>&lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Request&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Print&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;Proccessing file upload&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="c1">// Set upload limit
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="nx">r&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">ParseMultipartForm&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="mi">10&lt;/span> &lt;span class="o">&amp;lt;&amp;lt;&lt;/span> &lt;span class="mi">20&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">file&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">handler&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">r&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">FormFile&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;file&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">!=&lt;/span> &lt;span class="kc">nil&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">fmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Println&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;Error Retrieving the File&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">fmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Println&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">err&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">return&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="k">defer&lt;/span> &lt;span class="nx">file&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Close&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Printf&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;Uploaded File: %+v\n&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">handler&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Filename&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Printf&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;Content type : %+v\n&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">handler&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Header&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Get&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;Content-Type&amp;#34;&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Printf&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;File Size : %+v\n&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">handler&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Size&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Printf&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;MIME Header : %+v\n&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">handler&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Header&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="c1">// read all of the contents of our uploaded file into a
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="c1">// byte array
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="nx">fileBytes&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">ioutil&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">ReadAll&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">file&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">!=&lt;/span> &lt;span class="kc">nil&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Print&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">err&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">fmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Println&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">err&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">return&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="nx">md5string&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">fmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Sprintf&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;%x&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">md5&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Sum&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">fileBytes&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="nx">ioutil&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">WriteFile&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">fmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Sprintf&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;blobs/%s&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">md5string&lt;/span>&lt;span class="p">),&lt;/span> &lt;span class="nx">fileBytes&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mo">0666&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="c1">// Return the key
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="nx">fmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Fprintf&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">w&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s">&amp;#34;%s&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">md5string&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="kd">func&lt;/span> &lt;span class="nf">mkdir_p&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">dir&lt;/span> &lt;span class="kt">string&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">_&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">os&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Stat&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">dir&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="nx">os&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">IsNotExist&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">err&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Print&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;Creating &amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">dir&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">errDir&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">os&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">MkdirAll&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">dir&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mo">0755&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="nx">errDir&lt;/span> &lt;span class="o">!=&lt;/span> &lt;span class="kc">nil&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Fatal&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">err&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="kd">func&lt;/span> &lt;span class="nf">main&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nf">mkdir_p&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;blobs&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">fs&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">FileServer&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Dir&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;./blobs&amp;#34;&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Handle&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;/get/&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">StripPrefix&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;/get/&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">fs&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">HandleFunc&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;/put&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">uploadFile&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Print&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;Starting server on port 8080&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">ListenAndServe&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;:8080&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="kc">nil&lt;/span>&lt;span class="p">);&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">!=&lt;/span> &lt;span class="kc">nil&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Fatal&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">err&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">}&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-4">
+Testing
+&lt;/h3>
+&lt;p>
+First start it up:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">go run server.go&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Then upload the file using curl &lt;code class="verbatim">-F&lt;/code>. We need to name the parameter
+&lt;code class="verbatim">file&lt;/code> and use the &lt;code class="verbatim">@&lt;/code> syntax to push the file contents.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">curl -F &lt;span class="nv">file&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;@/home/wschenk/mobiledownloads/talk.pdf&amp;#34;&lt;/span> http://localhost:8080/put&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+a03a16aa4ed93c7194c03bb3d759ba23
+&lt;/pre>
+&lt;p>
+Which returns the has, then we can download it
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="nb">echo&lt;/span> KEY is &lt;span class="si">${&lt;/span>&lt;span class="nv">KEY&lt;/span>&lt;span class="si">}&lt;/span>
+curl -o /tmp/talk.pdf http://localhost:8080/get/&lt;span class="si">${&lt;/span>&lt;span class="nv">KEY&lt;/span>&lt;span class="si">}&lt;/span>
+ls -l /tmp/talk.pdf
+md5sum /tmp/talk.pdf&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+KEY is a03a16aa4ed93c7194c03bb3d759ba23
+-rw-r--r-- 1 wschenk wschenk 2227748 Feb 16 09:19 /tmp/talk.pdf
+a03a16aa4ed93c7194c03bb3d759ba23 /tmp/talk.pdf
+&lt;/pre>
+&lt;h3 id="headline-5">
+Dockerizing
+&lt;/h3>
+&lt;p>
+First we don&amp;#39;t want to put the blobs into our docker image, so create
+a &lt;code class="verbatim">.dockerignore&lt;/code>:
+&lt;/p>
+&lt;div class="src src-.dockerignore">
+&lt;pre>&lt;code class="language-.dockerignore" data-lang=".dockerignore">blobs/&lt;/code>&lt;/pre>
+&lt;/div>
+&lt;p>
+Then a simple &lt;code class="verbatim">Dockerfile&lt;/code>:
+&lt;/p>
+&lt;div class="src src-dockerfile">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-dockerfile" data-lang="dockerfile">&lt;span class="k">FROM&lt;/span>&lt;span class="s"> golang:1.15.8-alpine3.13 as builder&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">COPY&lt;/span> server.go .&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> go build server.go&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">FROM&lt;/span>&lt;span class="s"> alpine:3.13&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">WORKDIR&lt;/span>&lt;span class="s"> /app&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">COPY&lt;/span> --from&lt;span class="o">=&lt;/span>builder /go/server .&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">EXPOSE&lt;/span>&lt;span class="s"> 8080&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">CMD&lt;/span> &lt;span class="p">[&lt;/span> &lt;span class="s2">&amp;#34;./server&amp;#34;&lt;/span> &lt;span class="p">]&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+And then build it:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">docker build . -t simpleblobserver&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+And run it
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">docker run -it --rm -p 8080:8080 simpleblobserver&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-6">
+NGINX uploader
+&lt;/h2>
+&lt;p>
+This works fine, but it also requires loading everything into memory.
+&lt;/p>
+&lt;p>
+We can use nginx and the &lt;code class="verbatim">nginx-upload-module&lt;/code> to have the webserver
+stream it directly to disk, and once this is done it will call our
+handler which will move it over to the &lt;code class="verbatim">blobs&lt;/code> directory. This module
+also computes the &lt;code class="verbatim">md5&lt;/code> for us, so that&amp;#39;s nice an easy. But setting it
+up is more complicated, and we&amp;#39;ll need to use &lt;code class="verbatim">docker-compose.yml&lt;/code> to
+wire everything together.
+&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>
+&lt;code class="verbatim">docker-compose.yml&lt;/code> to wire it all together
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+nginx &lt;code class="verbatim">Dockerfile&lt;/code>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;code class="verbatim">default.conf&lt;/code> to configure the module
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+go mover &lt;code class="verbatim">Dockerfile&lt;/code>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+mover code
+&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;p>
+Let go!
+&lt;/p>
+&lt;h3 id="headline-7">
+&lt;code class="verbatim">docker-compose.yml&lt;/code>
+&lt;/h3>
+&lt;p>
+We&amp;#39;ll define two services, which share a file system at &lt;code class="verbatim">/blobs&lt;/code>
+&lt;/p>
+&lt;div class="src src-yaml">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="w"> &lt;/span>&lt;span class="k">version&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;3.7&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">services&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">nginx&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">build&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">context&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>.&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">dockerfile&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>Dockerfile.nginx&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">volumes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="k">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>bind&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">source&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>./blobs&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">target&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>/blobs&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">ports&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="s2">&amp;#34;8080:80&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">mover&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">build&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">context&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>.&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">dockerfile&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>Dockerfile.mover&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">volumes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="k">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>bind&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">source&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>./blobs&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">target&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>/blobs&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">ports&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="s2">&amp;#34;9090:8080&amp;#34;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-8">
+nginx Dockerfile
+&lt;/h3>
+&lt;p>
+First we create a &lt;code class="verbatim">Dockerfile.nginx&lt;/code> to download the source for both
+&lt;code class="verbatim">nginx&lt;/code> and &lt;code class="verbatim">nginx-upload-module&lt;/code>, build then, add it to the main
+&lt;code class="verbatim">nginx.conf&lt;/code> file:
+&lt;/p>
+&lt;div class="src src-dockerfile">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-dockerfile" data-lang="dockerfile">&lt;span class="k">FROM&lt;/span>&lt;span class="s"> nginx:1.19.6-alpine AS builder&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">WORKDIR&lt;/span>&lt;span class="s"> /usr/src&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="c"># For latest build deps, see https://github.com/nginxinc/docker-nginx/blob/master/mainline/alpine/Dockerfile&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> apk add --no-cache --virtual .build-deps &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> gcc &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> libc-dev &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> make &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> openssl-dev &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> pcre-dev &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> zlib-dev &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> linux-headers &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> curl &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> gnupg &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> libxslt-dev &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> gd-dev &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> geoip-dev &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> git&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="c"># Download sources&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> wget &lt;span class="s2">&amp;#34;http://nginx.org/download/nginx-&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">NGINX_VERSION&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">.tar.gz&amp;#34;&lt;/span> -O nginx.tar.gz&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> git clone --depth &lt;span class="m">1&lt;/span> https://github.com/vkholodkov/nginx-upload-module&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="c"># Reuse same cli arguments as the nginx:alpine image used to build&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> &lt;span class="nv">CONFARGS&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="k">$(&lt;/span>nginx -V 2&amp;gt;&lt;span class="p">&amp;amp;&lt;/span>&lt;span class="m">1&lt;/span> &lt;span class="p">|&lt;/span> sed -n -e &lt;span class="s1">&amp;#39;s/^.*arguments: //p&amp;#39;&lt;/span>&lt;span class="k">)&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> tar -zxC /usr/src -f nginx.tar.gz &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> &lt;span class="nv">MODDIR&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="k">$(&lt;/span>&lt;span class="nb">pwd&lt;/span>&lt;span class="k">)&lt;/span>&lt;span class="s2">/nginx-upload-module&amp;#34;&lt;/span> &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> &lt;span class="nb">cd&lt;/span> /usr/src/nginx-&lt;span class="nv">$NGINX_VERSION&lt;/span> &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> ./configure --with-compat &lt;span class="nv">$CONFARGS&lt;/span> --add-dynamic-module&lt;span class="o">=&lt;/span>&lt;span class="nv">$MODDIR&lt;/span> &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> make &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> make install&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">FROM&lt;/span>&lt;span class="s"> nginx:1.19.6-alpine&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="c"># Add the module to the main nginx configuration&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">COPY&lt;/span> --from&lt;span class="o">=&lt;/span>builder /usr/local/nginx/modules/ngx_http_upload_module.so /usr/local/nginx/modules/ngx_http_upload_module.so&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> &lt;span class="nb">echo&lt;/span> -e &lt;span class="s2">&amp;#34;load_module /usr/local/nginx/modules/ngx_http_upload_module.so;\n&lt;/span>&lt;span class="k">$(&lt;/span>cat /etc/nginx/nginx.conf&lt;span class="k">)&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &amp;gt; /etc/nginx/nginx.conf&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">COPY&lt;/span> default.conf /etc/nginx/conf.d/default.conf&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">EXPOSE&lt;/span>&lt;span class="s"> 80&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">STOPSIGNAL&lt;/span>&lt;span class="s"> SIGTERM&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">CMD&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;nginx&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s2">&amp;#34;-g&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s2">&amp;#34;daemon off;&amp;#34;&lt;/span>&lt;span class="p">]&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-9">
+nginx &lt;code class="verbatim">default.config&lt;/code>
+&lt;/h3>
+&lt;p>
+Couple of things of note in this &lt;code class="verbatim">default.conf&lt;/code> file:
+&lt;/p>
+&lt;table class="table table-striped">
+&lt;tbody>
+&lt;tr>
+&lt;td>&lt;code class="verbatim">client_max_body_size&lt;/code>&lt;/td>
+&lt;td>set to 2 gigs&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code class="verbatim">/get&lt;/code>&lt;/td>
+&lt;td>serves from &lt;code class="verbatim">/blobs&lt;/code> directly&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code class="verbatim">/put&lt;/code>&lt;/td>
+&lt;td>Stores stuff into &lt;code class="verbatim">/blobs/upload&lt;/code> and calls &lt;code class="verbatim">/mover&lt;/code> on success&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>error 415&lt;/td>
+&lt;td>just post to /mover&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>nginx&lt;/td>
+&lt;td>computes the mp5 hash&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;div class="src src-text">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-text" data-lang="text"> server {
+listen 80;
+server_name localhost;
+client_max_body_size 2000m;
+#charset koi8-r;
+#access_log /var/log/nginx/host.access.log main;
+location / {
+root /usr/share/nginx/html;
+index index.html index.htm;
+}
+#error_page 404 /404.html;
+# redirect server error pages to the static page /50x.html
+#
+error_page 500 502 503 504 /50x.html;
+location = /50x.html {
+root /usr/share/nginx/html;
+}
+location /get {
+rewrite /get/(.*) /$1 break;
+root /blobs;
+}
+location /put {
+error_page 415 = /mover;
+# Pass altered request body to this location
+upload_pass /mover;
+# Store files to this directory
+# The directory is hashed, subdirectories 0 1 2 3 4 5 6 7 8 9 should exist
+upload_store /blobs/upload 1;
+# Allow uploaded files to be read only by user
+upload_store_access user:r;
+# Set specified fields in request body
+upload_set_form_field &amp;#34;${upload_field_name}_name&amp;#34; $upload_file_name;
+upload_set_form_field &amp;#34;${upload_field_name}_content_type&amp;#34; $upload_content_type;
+upload_set_form_field &amp;#34;${upload_field_name}_path&amp;#34; $upload_tmp_path;
+# Inform backend about hash and size of a file
+upload_aggregate_form_field &amp;#34;${upload_field_name}_md5&amp;#34; $upload_file_md5;
+upload_aggregate_form_field &amp;#34;${upload_field_name}_size&amp;#34; $upload_file_size;
+upload_pass_form_field &amp;#34;^submit$|^description$&amp;#34;;
+}
+location /mover {
+proxy_pass http://mover:8080;
+}
+}&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-10">
+mover &lt;code class="verbatim">Dockerfile.mover&lt;/code>
+&lt;/h3>
+&lt;p>
+This is a simple dockerfile that builds our go binary, and then just
+copies it over.
+&lt;/p>
+&lt;div class="src src-dockerfile">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-dockerfile" data-lang="dockerfile"> FROM golang:1.15.8-alpine3.13 as builder&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> COPY mover.go .&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> RUN go build mover.go&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> FROM alpine:3.13&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> WORKDIR /app&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> COPY --from&lt;span class="o">=&lt;/span>builder /go/mover .&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> EXPOSE &lt;span class="m">8080&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> CMD &lt;span class="o">[&lt;/span> &lt;span class="s2">&amp;#34;./mover&amp;#34;&lt;/span> &lt;span class="o">]&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-11">
+mover go code
+&lt;/h3>
+&lt;p>
+All this really is doing is to look at the header and move the file
+around to the right path.
+&lt;/p>
+&lt;div class="src src-go">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-go" data-lang="go"> &lt;span class="kn">package&lt;/span> &lt;span class="nx">main&lt;/span>
+&lt;span class="kn">import&lt;/span> &lt;span class="p">(&lt;/span>
+&lt;span class="s">&amp;#34;crypto/md5&amp;#34;&lt;/span>
+&lt;span class="s">&amp;#34;fmt&amp;#34;&lt;/span>
+&lt;span class="s">&amp;#34;io/ioutil&amp;#34;&lt;/span>
+&lt;span class="s">&amp;#34;log&amp;#34;&lt;/span>
+&lt;span class="s">&amp;#34;net/http&amp;#34;&lt;/span>
+&lt;span class="s">&amp;#34;net/http/httputil&amp;#34;&lt;/span>
+&lt;span class="s">&amp;#34;os&amp;#34;&lt;/span>
+&lt;span class="s">&amp;#34;strings&amp;#34;&lt;/span>
+&lt;span class="p">)&lt;/span>
+&lt;span class="kd">func&lt;/span> &lt;span class="nf">formHandler&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">w&lt;/span> &lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">ResponseWriter&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">r&lt;/span> &lt;span class="o">*&lt;/span>&lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Request&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">contentType&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">r&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Header&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Get&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;Content-Type&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Printf&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s">&amp;#34;Content-Type %s\n&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">contentType&lt;/span> &lt;span class="p">);&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="nx">strings&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">HasPrefix&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">contentType&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="s">&amp;#34;multipart/form-data&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nf">moveFile&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">w&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">r&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">}&lt;/span> &lt;span class="k">else&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nf">saveFile&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">w&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">r&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="kd">func&lt;/span> &lt;span class="nf">moveFile&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">w&lt;/span> &lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">ResponseWriter&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">r&lt;/span> &lt;span class="o">*&lt;/span>&lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Request&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">r&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">ParseMultipartForm&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="mi">10&lt;/span> &lt;span class="o">&amp;lt;&amp;lt;&lt;/span> &lt;span class="mi">20&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="c1">// Save a copy of this request for debugging.
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="nx">requestDump&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">httputil&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">DumpRequest&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">r&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="kc">true&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">!=&lt;/span> &lt;span class="kc">nil&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">fmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Println&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">err&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="nx">fmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Println&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nb">string&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">requestDump&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">r&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">ParseForm&lt;/span>&lt;span class="p">();&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">!=&lt;/span> &lt;span class="kc">nil&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">fmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Fprintf&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">w&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s">&amp;#34;ParseForm() err: %v&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">return&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Print&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;POST request successful&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Printf&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;Filename : %s\n&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">r&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">FormValue&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;file_name&amp;#34;&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Printf&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;Content Type : %s\n&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">r&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">FormValue&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;file_content_type&amp;#34;&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Printf&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;MD5 : %s\n&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">r&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">FormValue&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;file_md5&amp;#34;&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Printf&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;Size : %s\n&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">r&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">FormValue&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;file_size&amp;#34;&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Printf&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;Path : %s\n&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">r&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">FormValue&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;file_path&amp;#34;&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="nx">md5&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">r&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">FormValue&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;file_md5&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">err&lt;/span> &lt;span class="p">=&lt;/span> &lt;span class="nx">os&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Rename&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">r&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">FormValue&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;file_path&amp;#34;&lt;/span>&lt;span class="p">),&lt;/span> &lt;span class="nx">fmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Sprintf&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;/blobs/%s&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">md5&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">!=&lt;/span> &lt;span class="kc">nil&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">fmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Print&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">err&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">}&lt;/span> &lt;span class="k">else&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">fmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Fprintf&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">w&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s">&amp;#34;%s&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">md5&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="kd">func&lt;/span> &lt;span class="nf">saveFile&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">w&lt;/span> &lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">ResponseWriter&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">r&lt;/span> &lt;span class="o">*&lt;/span>&lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Request&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Print&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;Storing raw post&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">body&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">_&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">ioutil&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">ReadAll&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">r&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Body&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">defer&lt;/span> &lt;span class="nx">r&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Body&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Close&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;span class="nx">md5string&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">fmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Sprintf&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;%x&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">md5&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Sum&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">body&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="nx">ioutil&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">WriteFile&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">fmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Sprintf&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;blobs/%s&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">md5string&lt;/span>&lt;span class="p">),&lt;/span> &lt;span class="nx">body&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mo">0666&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="c1">// Return the key
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="nx">fmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Fprintf&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">w&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s">&amp;#34;%s&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">md5string&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="kd">func&lt;/span> &lt;span class="nf">main&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">HandleFunc&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;/&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">formHandler&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">HandleFunc&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;/mover&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">formHandler&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Print&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;Starting server at port 8080&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">ListenAndServe&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;:8080&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="kc">nil&lt;/span>&lt;span class="p">);&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">!=&lt;/span> &lt;span class="kc">nil&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">log&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Fatal&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">err&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">}&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-12">
+Setup
+&lt;/h3>
+&lt;p>
+We don&amp;#39;t really need this, but it&amp;#39;s a good idea to make sure that the
+blobs don&amp;#39;t go over as part of the build.
+&lt;/p>
+&lt;p>
+&lt;code class="verbatim">.dockerignore&lt;/code>:
+&lt;/p>
+&lt;div class="src src-dockerignore">
+&lt;pre>&lt;code class="language-dockerignore" data-lang="dockerignore">blobs/&lt;/code>&lt;/pre>
+&lt;/div>
+&lt;p>
+Lets create the &lt;code class="verbatim">blobs&lt;/code> folder, the &lt;code class="verbatim">upload&lt;/code> subdirectories, and make sure
+that docker and read and write them:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">mkdir -p blobs/upload/&lt;span class="o">{&lt;/span>0..9&lt;span class="o">}&lt;/span>
+chmod -R &lt;span class="m">777&lt;/span> blobs&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Then start it all up with:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">docker-compose up&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-13">
+Testing
+&lt;/h3>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">curl -F &lt;span class="nv">file&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;@/home/wschenk/mobiledownloads/talk.pdf&amp;#34;&lt;/span> http://localhost:8080/put&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+a03a16aa4ed93c7194c03bb3d759ba23
+&lt;/pre>
+&lt;p>
+Which returns the has, then we can download it
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="nb">echo&lt;/span> KEY is &lt;span class="si">${&lt;/span>&lt;span class="nv">KEY&lt;/span>&lt;span class="si">}&lt;/span>
+curl -o /tmp/talk.pdf http://localhost:8080/get/&lt;span class="si">${&lt;/span>&lt;span class="nv">KEY&lt;/span>&lt;span class="si">}&lt;/span>
+ls -l /tmp/talk.pdf
+md5sum /tmp/talk.pdf&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+KEY is a03a16aa4ed93c7194c03bb3d759ba23
+-rw-r--r-- 1 wschenk wschenk 2227748 Feb 16 11:31 /tmp/talk.pdf
+a03a16aa4ed93c7194c03bb3d759ba23 /tmp/talk.pdf
+&lt;/pre>
+&lt;h2 id="headline-14">
+Client examples
+&lt;/h2>
+&lt;h3 id="headline-15">
+Bash posting data
+&lt;/h3>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">curl -d &lt;span class="s2">&amp;#34;This is my string&amp;#34;&lt;/span> http://localhost:8080/put&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+c2a9ce57e8df081b4baad80d81868bbb
+&lt;/pre>
+&lt;h3 id="headline-16">
+Bash posting file
+&lt;/h3>
+&lt;p>
+We&amp;#39;ve already seen this:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">curl -F &lt;span class="nv">file&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;@/home/wschenk/mobiledownloads/talk.pdf&amp;#34;&lt;/span> http://localhost:8080/put&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+a03a16aa4ed93c7194c03bb3d759ba23
+&lt;/pre>
+&lt;h3 id="headline-17">
+Ruby posting data
+&lt;/h3>
+&lt;p>
+&lt;code class="verbatim">client/ruby_data.rb&lt;/code>:
+&lt;/p>
+&lt;div class="src src-ruby">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-ruby" data-lang="ruby"> &lt;span class="nb">require&lt;/span> &lt;span class="s1">&amp;#39;net/http&amp;#39;&lt;/span>
+&lt;span class="n">res&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="no">Net&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="no">HTTP&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">post&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="no">URI&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s1">&amp;#39;http://localhost:8080/put&amp;#39;&lt;/span> &lt;span class="p">),&lt;/span> &lt;span class="s1">&amp;#39;This is my string&amp;#39;&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="nb">puts&lt;/span> &lt;span class="n">res&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">body&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+c2a9ce57e8df081b4baad80d81868bbb
+&lt;/pre>
+&lt;h3 id="headline-18">
+Ruby posting data as a file
+&lt;/h3>
+&lt;p>
+&lt;code class="verbatim">client/ruby_data_as_file.rb&lt;/code>:
+&lt;/p>
+&lt;div class="src src-ruby">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-ruby" data-lang="ruby"> &lt;span class="nb">require&lt;/span> &lt;span class="s1">&amp;#39;net/http&amp;#39;&lt;/span>
+&lt;span class="k">def&lt;/span> &lt;span class="nf">write_string_blob&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="n">host&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">data&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="n">uri&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="no">URI&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">host&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="n">req&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="no">Net&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="no">HTTP&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="no">Post&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">new&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="n">uri&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">path&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="n">req&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">set_form&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="o">[[&lt;/span>&lt;span class="s1">&amp;#39;file&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s1">&amp;#39;This is my string&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="p">{&lt;/span>&lt;span class="ss">filename&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s1">&amp;#39;test&amp;#39;&lt;/span>&lt;span class="p">}&lt;/span>&lt;span class="o">]]&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s1">&amp;#39;multipart/form-data&amp;#39;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="n">res&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="no">Net&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="no">HTTP&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">start&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">uri&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">hostname&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">uri&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">port&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="k">do&lt;/span> &lt;span class="o">|&lt;/span>&lt;span class="n">http&lt;/span>&lt;span class="o">|&lt;/span>
+&lt;span class="n">http&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">request&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">req&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="n">res&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">body&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="nb">puts&lt;/span> &lt;span class="n">write_string_blob&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s1">&amp;#39;http://localhost:8080/put&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s1">&amp;#39;this is my data&amp;#39;&lt;/span> &lt;span class="p">)&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+c2a9ce57e8df081b4baad80d81868bbb
+&lt;/pre>
+&lt;h3 id="headline-19">
+Ruby posting file
+&lt;/h3>
+&lt;p>
+&lt;code class="verbatim">client/ruby_file.rb&lt;/code>:
+&lt;/p>
+&lt;div class="src src-ruby">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-ruby" data-lang="ruby"> &lt;span class="nb">require&lt;/span> &lt;span class="s1">&amp;#39;net/http&amp;#39;&lt;/span>
+&lt;span class="k">def&lt;/span> &lt;span class="nf">write_file_blob&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="n">host&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">file&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="n">uri&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="no">URI&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">host&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="n">req&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="no">Net&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="no">HTTP&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="no">Post&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">new&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="n">uri&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">path&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="n">req&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">set_form&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="o">[[&lt;/span>&lt;span class="s1">&amp;#39;file&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="no">File&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">open&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="n">file&lt;/span> &lt;span class="p">)&lt;/span>&lt;span class="o">]]&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s1">&amp;#39;multipart/form-data&amp;#39;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="n">res&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="no">Net&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="no">HTTP&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">start&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">uri&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">hostname&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">uri&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">port&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="k">do&lt;/span> &lt;span class="o">|&lt;/span>&lt;span class="n">http&lt;/span>&lt;span class="o">|&lt;/span>
+&lt;span class="n">http&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">request&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">req&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="n">res&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">body&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="nb">puts&lt;/span> &lt;span class="n">write_file_blob&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s1">&amp;#39;http://localhost:8080/put&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s1">&amp;#39;/home/wschenk/mobiledownloads/talk.pdf&amp;#39;&lt;/span> &lt;span class="p">)&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+a03a16aa4ed93c7194c03bb3d759ba23
+&lt;/pre>
+&lt;h3 id="headline-20">
+node posting data
+&lt;/h3>
+&lt;p>
+Requires &lt;code class="verbatim">node-fetch&lt;/code> npm package.
+&lt;/p>
+&lt;p>
+&lt;code class="verbatim">client/node_string.js&lt;/code>:
+&lt;/p>
+&lt;div class="src src-javascript">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-javascript" data-lang="javascript"> &lt;span class="kr">const&lt;/span> &lt;span class="nx">fetch&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">require&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s1">&amp;#39;node-fetch&amp;#39;&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="nx">fetch&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s1">&amp;#39;http://localhost:8080/put&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="p">{&lt;/span>&lt;span class="nx">method&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="s1">&amp;#39;POST&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">body&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="s1">&amp;#39;This is my string&amp;#39;&lt;/span>&lt;span class="p">}&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="p">.&lt;/span>&lt;span class="nx">then&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nx">res&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">=&amp;gt;&lt;/span> &lt;span class="nx">res&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">text&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="p">.&lt;/span>&lt;span class="nx">then&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nx">res&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">=&amp;gt;&lt;/span> &lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nx">res&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-21">
+node posting string as file
+&lt;/h3>
+&lt;p>
+Requires &lt;code class="verbatim">node-fetch&lt;/code> and &lt;code class="verbatim">form-data&lt;/code> packages:
+&lt;/p>
+&lt;p>
+&lt;code class="verbatim">client/node_string_as_file.js&lt;/code>:
+&lt;/p>
+&lt;div class="src src-javascript">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-javascript" data-lang="javascript"> &lt;span class="kr">const&lt;/span> &lt;span class="nx">fetch&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">require&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s1">&amp;#39;node-fetch&amp;#39;&lt;/span> &lt;span class="p">);&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">FormData&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">require&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s1">&amp;#39;form-data&amp;#39;&lt;/span> &lt;span class="p">);&lt;/span>
+&lt;span class="kd">function&lt;/span> &lt;span class="nx">write_string_blob&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nx">url&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">string&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">form&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="k">new&lt;/span> &lt;span class="nx">FormData&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;span class="nx">form&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">append&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s1">&amp;#39;file&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">string&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="p">{&lt;/span>&lt;span class="nx">filename&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="s1">&amp;#39;test&amp;#39;&lt;/span>&lt;span class="p">}&lt;/span> &lt;span class="p">);&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">options&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">method&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="s1">&amp;#39;POST&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nx">credentials&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="s1">&amp;#39;include&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nx">body&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">form&lt;/span>
+&lt;span class="p">};&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="nx">fetch&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">url&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="p">{&lt;/span> &lt;span class="p">...&lt;/span>&lt;span class="nx">options&lt;/span> &lt;span class="p">})&lt;/span>
+&lt;span class="p">.&lt;/span>&lt;span class="nx">then&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">res&lt;/span> &lt;span class="p">=&amp;gt;&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nx">res&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">ok&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="k">return&lt;/span> &lt;span class="nx">res&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">text&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;span class="k">throw&lt;/span> &lt;span class="nx">res&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="p">});&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="nx">write_string_blob&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s1">&amp;#39;http://localhost:8080/put&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s1">&amp;#39;This is my string&amp;#39;&lt;/span>&lt;span class="p">).&lt;/span>
+&lt;span class="nx">then&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nx">res&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">=&amp;gt;&lt;/span> &lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nx">res&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-22">
+node posting file
+&lt;/h3>
+&lt;p>
+First we need to install some libraries:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">npm init -y
+npm add node-fetch form-data&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Then:
+&lt;/p>
+&lt;div class="src src-javascript">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-javascript" data-lang="javascript"> &lt;span class="kr">const&lt;/span> &lt;span class="nx">fetch&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">require&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s1">&amp;#39;node-fetch&amp;#39;&lt;/span> &lt;span class="p">);&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">FormData&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">require&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s1">&amp;#39;form-data&amp;#39;&lt;/span> &lt;span class="p">);&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">fs&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">require&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s1">&amp;#39;fs&amp;#39;&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">path&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">require&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s1">&amp;#39;path&amp;#39;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="kd">function&lt;/span> &lt;span class="nx">write_file_blob&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nx">url&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">filename&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">form&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="k">new&lt;/span> &lt;span class="nx">FormData&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">buffer&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">fs&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">readFileSync&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">filename&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="nx">form&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">append&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s1">&amp;#39;file&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">buffer&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="p">{&lt;/span>&lt;span class="nx">filename&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">path&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">basename&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nx">filename&lt;/span> &lt;span class="p">)}&lt;/span> &lt;span class="p">);&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">options&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">method&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="s1">&amp;#39;POST&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nx">credentials&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="s1">&amp;#39;include&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nx">body&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">form&lt;/span>
+&lt;span class="p">};&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="nx">fetch&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">url&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="p">{&lt;/span> &lt;span class="p">...&lt;/span>&lt;span class="nx">options&lt;/span> &lt;span class="p">})&lt;/span>
+&lt;span class="p">.&lt;/span>&lt;span class="nx">then&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">res&lt;/span> &lt;span class="p">=&amp;gt;&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nx">res&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">ok&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="k">return&lt;/span> &lt;span class="nx">res&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">text&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;span class="k">throw&lt;/span> &lt;span class="nx">res&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="p">});&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="nx">write_file_blob&lt;/span>&lt;span class="p">(&lt;/span>
+&lt;span class="s1">&amp;#39;http://localhost:8080/put&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="s1">&amp;#39;/home/wschenk/mobiledownloads/talk.pdf&amp;#39;&lt;/span>
+&lt;span class="p">).&lt;/span>
+&lt;span class="nx">then&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nx">res&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">=&amp;gt;&lt;/span> &lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nx">res&lt;/span> &lt;span class="p">),&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nx">rej&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">=&amp;gt;&lt;/span> &lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nx">rej&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-23">
+Deno posting string
+&lt;/h3>
+&lt;p>
+&lt;code class="verbatim">client/deno_string.ts&lt;/code>:
+&lt;/p>
+&lt;div class="src src-typescript">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-typescript" data-lang="typescript"> &lt;span class="nx">fetch&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s1">&amp;#39;http://localhost:8080/put&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="p">{&lt;/span>&lt;span class="nx">method&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="s1">&amp;#39;POST&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">body&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="s1">&amp;#39;This is my string&amp;#39;&lt;/span>&lt;span class="p">}&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="p">.&lt;/span>&lt;span class="nx">then&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nx">res&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="o">=&amp;gt;&lt;/span> &lt;span class="nx">res&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">text&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="p">.&lt;/span>&lt;span class="nx">then&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nx">res&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="o">=&amp;gt;&lt;/span> &lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nx">res&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-24">
+Deno posting string as file
+&lt;/h3>
+&lt;p>
+&lt;code class="verbatim">client/deno_string_as_file.ts&lt;/code>:
+&lt;/p>
+&lt;div class="src src-typescript">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-typescript" data-lang="typescript"> &lt;span class="kr">const&lt;/span> &lt;span class="nx">form&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="k">new&lt;/span> &lt;span class="nx">FormData&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">blob&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="k">new&lt;/span> &lt;span class="nx">Blob&lt;/span>&lt;span class="p">([&lt;/span>&lt;span class="s1">&amp;#39;This is my string&amp;#39;&lt;/span>&lt;span class="p">])&lt;/span>
+&lt;span class="nx">form&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">append&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s1">&amp;#39;file&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">blob&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s1">&amp;#39;testfilename&amp;#39;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">options&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">method&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="s1">&amp;#39;POST&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nx">body&lt;/span>: &lt;span class="kt">form&lt;/span> &lt;span class="p">}&lt;/span>
+&lt;span class="nx">fetch&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s1">&amp;#39;http://localhost:8080/put&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="p">{...&lt;/span>&lt;span class="nx">options&lt;/span>&lt;span class="p">})&lt;/span>
+&lt;span class="p">.&lt;/span>&lt;span class="nx">then&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nx">res&lt;/span> &lt;span class="o">=&amp;gt;&lt;/span> &lt;span class="nx">res&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">text&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="p">.&lt;/span>&lt;span class="nx">then&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nx">res&lt;/span> &lt;span class="o">=&amp;gt;&lt;/span> &lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nx">res&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="p">);&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-25">
+Deno posting file
+&lt;/h3>
+&lt;div class="src src-typescript">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-typescript" data-lang="typescript"> &lt;span class="kr">const&lt;/span> &lt;span class="nx">form&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="k">new&lt;/span> &lt;span class="nx">FormData&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">file&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">await&lt;/span> &lt;span class="nx">Deno&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">readFile&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s1">&amp;#39;/home/wschenk/mobiledownloads/talk.pdf&amp;#39;&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">blob&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="k">new&lt;/span> &lt;span class="nx">Blob&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="nx">file&lt;/span>&lt;span class="p">]&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="nx">form&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">append&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s1">&amp;#39;file&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">blob&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s1">&amp;#39;testfilename&amp;#39;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">options&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">method&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="s1">&amp;#39;POST&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nx">body&lt;/span>: &lt;span class="kt">form&lt;/span> &lt;span class="p">}&lt;/span>
+&lt;span class="nx">fetch&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s1">&amp;#39;http://localhost:8080/put&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="p">{...&lt;/span>&lt;span class="nx">options&lt;/span>&lt;span class="p">})&lt;/span>
+&lt;span class="p">.&lt;/span>&lt;span class="nx">then&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nx">res&lt;/span> &lt;span class="o">=&amp;gt;&lt;/span> &lt;span class="nx">res&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">text&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="p">.&lt;/span>&lt;span class="nx">then&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nx">res&lt;/span> &lt;span class="o">=&amp;gt;&lt;/span> &lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nx">res&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="p">);&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-26">
+go posting string
+&lt;/h3>
+&lt;p>
+&lt;code class="verbatim">client/go_string.go&lt;/code>:
+&lt;/p>
+&lt;div class="src src-go">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-go" data-lang="go"> &lt;span class="kn">package&lt;/span> &lt;span class="nx">main&lt;/span>
+&lt;span class="kn">import&lt;/span> &lt;span class="p">(&lt;/span>
+&lt;span class="s">&amp;#34;fmt&amp;#34;&lt;/span>
+&lt;span class="s">&amp;#34;io/ioutil&amp;#34;&lt;/span>
+&lt;span class="s">&amp;#34;net/http&amp;#34;&lt;/span>
+&lt;span class="s">&amp;#34;strings&amp;#34;&lt;/span>
+&lt;span class="p">)&lt;/span>
+&lt;span class="kd">func&lt;/span> &lt;span class="nf">write_string_blob&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">uri&lt;/span> &lt;span class="kt">string&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">message&lt;/span> &lt;span class="kt">string&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="kt">string&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="kt">error&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">body&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">strings&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">NewReader&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">message&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">client&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="o">&amp;amp;&lt;/span>&lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Client&lt;/span>&lt;span class="p">{}&lt;/span>
+&lt;span class="nx">req&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">NewRequest&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;POST&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">uri&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">body&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">req&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Header&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Add&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;Content-Type&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s">&amp;#34;application/octet-stream&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">!=&lt;/span> &lt;span class="kc">nil&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="s">&amp;#34;&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="nx">resp&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">client&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Do&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">req&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">!=&lt;/span> &lt;span class="kc">nil&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="s">&amp;#34;&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span>
+&lt;span class="p">}&lt;/span> &lt;span class="k">else&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">body&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">_&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">ioutil&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">ReadAll&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">resp&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Body&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">resp&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Body&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Close&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="nb">string&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">body&lt;/span>&lt;span class="p">),&lt;/span> &lt;span class="kc">nil&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="kd">func&lt;/span> &lt;span class="nf">main&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">md5&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nf">write_string_blob&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;http://localhost:8080/put&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s">&amp;#34;This is my string&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">!=&lt;/span> &lt;span class="kc">nil&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nb">panic&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">err&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="nx">fmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Print&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">md5&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">}&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-27">
+go posting string as file
+&lt;/h3>
+&lt;p>
+&lt;code class="verbatim">client/go_string_as_file.go&lt;/code>:
+&lt;/p>
+&lt;div class="src src-go">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-go" data-lang="go"> &lt;span class="kn">package&lt;/span> &lt;span class="nx">main&lt;/span>
+&lt;span class="kn">import&lt;/span> &lt;span class="p">(&lt;/span>
+&lt;span class="s">&amp;#34;bytes&amp;#34;&lt;/span>
+&lt;span class="s">&amp;#34;fmt&amp;#34;&lt;/span>
+&lt;span class="s">&amp;#34;io/ioutil&amp;#34;&lt;/span>
+&lt;span class="s">&amp;#34;mime/multipart&amp;#34;&lt;/span>
+&lt;span class="s">&amp;#34;net/http&amp;#34;&lt;/span>
+&lt;span class="p">)&lt;/span>
+&lt;span class="kd">func&lt;/span> &lt;span class="nf">write_string_as_file&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">uri&lt;/span> &lt;span class="kt">string&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">message&lt;/span> &lt;span class="kt">string&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="kt">string&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="kt">error&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">body&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nb">new&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">bytes&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Buffer&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">writer&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">multipart&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">NewWriter&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">body&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">part&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">writer&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">CreateFormFile&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;file&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s">&amp;#34;filename&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">!=&lt;/span> &lt;span class="kc">nil&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="s">&amp;#34;&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="nx">part&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Write&lt;/span>&lt;span class="p">([]&lt;/span>&lt;span class="nb">byte&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">message&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="nx">err&lt;/span> &lt;span class="p">=&lt;/span> &lt;span class="nx">writer&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Close&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">!=&lt;/span> &lt;span class="kc">nil&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="s">&amp;#34;&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="nx">client&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="o">&amp;amp;&lt;/span>&lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Client&lt;/span>&lt;span class="p">{}&lt;/span>
+&lt;span class="nx">req&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">NewRequest&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;POST&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">uri&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">body&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">req&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Header&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Add&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;Content-Type&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">writer&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">FormDataContentType&lt;/span>&lt;span class="p">())&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">!=&lt;/span> &lt;span class="kc">nil&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="s">&amp;#34;&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="nx">resp&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">client&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Do&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">req&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">!=&lt;/span> &lt;span class="kc">nil&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="s">&amp;#34;&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span>
+&lt;span class="p">}&lt;/span> &lt;span class="k">else&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">body&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">_&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">ioutil&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">ReadAll&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">resp&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Body&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">resp&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Body&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Close&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="nb">string&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">body&lt;/span>&lt;span class="p">),&lt;/span> &lt;span class="kc">nil&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="kd">func&lt;/span> &lt;span class="nf">main&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">md5&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nf">write_string_as_file&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;http://localhost:8080/put&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s">&amp;#34;This is my string&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">!=&lt;/span> &lt;span class="kc">nil&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nb">panic&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">err&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="nx">fmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Print&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">md5&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">}&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-28">
+go posting file
+&lt;/h3>
+&lt;p>
+&lt;code class="verbatim">client/go_string_as_file.go&lt;/code>:
+&lt;/p>
+&lt;div class="src src-go">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-go" data-lang="go"> &lt;span class="kn">package&lt;/span> &lt;span class="nx">main&lt;/span>
+&lt;span class="kn">import&lt;/span> &lt;span class="p">(&lt;/span>
+&lt;span class="s">&amp;#34;bytes&amp;#34;&lt;/span>
+&lt;span class="s">&amp;#34;fmt&amp;#34;&lt;/span>
+&lt;span class="s">&amp;#34;io/ioutil&amp;#34;&lt;/span>
+&lt;span class="s">&amp;#34;mime/multipart&amp;#34;&lt;/span>
+&lt;span class="s">&amp;#34;net/http&amp;#34;&lt;/span>
+&lt;span class="s">&amp;#34;os&amp;#34;&lt;/span>
+&lt;span class="p">)&lt;/span>
+&lt;span class="kd">func&lt;/span> &lt;span class="nf">write_file_blob&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">uri&lt;/span> &lt;span class="kt">string&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">path&lt;/span> &lt;span class="kt">string&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="kt">string&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="kt">error&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">body&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nb">new&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">bytes&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Buffer&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">file&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">os&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Open&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">path&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">!=&lt;/span> &lt;span class="kc">nil&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="s">&amp;#34;&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="nx">fileContents&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">ioutil&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">ReadAll&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">file&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">!=&lt;/span> &lt;span class="kc">nil&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="s">&amp;#34;&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="nx">fi&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">file&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Stat&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">!=&lt;/span> &lt;span class="kc">nil&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="s">&amp;#34;&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="nx">file&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Close&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;span class="nx">writer&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">multipart&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">NewWriter&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">body&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">part&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">writer&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">CreateFormFile&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;file&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">fi&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Name&lt;/span>&lt;span class="p">())&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">!=&lt;/span> &lt;span class="kc">nil&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="s">&amp;#34;&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="nx">part&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Write&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">fileContents&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">err&lt;/span> &lt;span class="p">=&lt;/span> &lt;span class="nx">writer&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Close&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">!=&lt;/span> &lt;span class="kc">nil&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="s">&amp;#34;&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="nx">client&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="o">&amp;amp;&lt;/span>&lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Client&lt;/span>&lt;span class="p">{}&lt;/span>
+&lt;span class="nx">req&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">http&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">NewRequest&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;POST&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">uri&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">body&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">req&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Header&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Add&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;Content-Type&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">writer&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">FormDataContentType&lt;/span>&lt;span class="p">())&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">!=&lt;/span> &lt;span class="kc">nil&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="s">&amp;#34;&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="nx">resp&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">client&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Do&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">req&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">!=&lt;/span> &lt;span class="kc">nil&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="s">&amp;#34;&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span>
+&lt;span class="p">}&lt;/span> &lt;span class="k">else&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">body&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">_&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">ioutil&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">ReadAll&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">resp&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Body&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">resp&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Body&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Close&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="nb">string&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">body&lt;/span>&lt;span class="p">),&lt;/span> &lt;span class="kc">nil&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="kd">func&lt;/span> &lt;span class="nf">main&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">md5&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nf">write_file_blob&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;http://localhost:8080/put&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s">&amp;#34;/home/wschenk/mobiledownloads/talk.pdf&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">!=&lt;/span> &lt;span class="kc">nil&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nb">panic&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">err&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="nx">fmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Print&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">md5&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">}&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-29">
+Final thoughts
+&lt;/h2>
+&lt;p>
+The reason that I wrote this is so that I could easily share large
+blobs of data between cloud functions without the overhead of
+installing a S3 clone or trying to jam stuff into Redis.
+&lt;/p>
+&lt;h2 id="headline-30">
+References
+&lt;/h2>
+&lt;ol>
+&lt;li>
+&lt;p>
+&lt;a href="https://gist.github.com/hermanbanken/96f0ff298c162a522ddbba44cad31081">https://gist.github.com/hermanbanken/96f0ff298c162a522ddbba44cad31081&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://vsoch.github.io/2018/django-nginx-upload/">https://vsoch.github.io/2018/django-nginx-upload/&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://www.yanxurui.cc/posts/server/2017-03-21-NGINX-as-a-file-server/">https://www.yanxurui.cc/posts/server/2017-03-21-NGINX-as-a-file-server/&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://golang.org/pkg/net/http/httputil/">https://golang.org/pkg/net/http/httputil/&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://gist.github.com/pinkhominid/e6f53706e0dd8cf34f2bd94c3aa357c5">https://gist.github.com/pinkhominid/e6f53706e0dd8cf34f2bd94c3aa357c5&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://gist.github.com/mattetti/5914158/f4d1393d83ebedc682a3c8e7bdc6b49670083b84">https://gist.github.com/mattetti/5914158/f4d1393d83ebedc682a3c8e7bdc6b49670083b84&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;/ol></description></item><item><title>Building static OpenFaas templates</title><link>https://willschenk.com/articles/2021/building_an_openfaas_template/</link><pubDate>Fri, 12 Feb 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/building_an_openfaas_template/</guid><description>
 &lt;p>
 I&amp;#39;ve been playing with OpenFaaS recently and it&amp;#39;s a very accessable
 way to starting building cloud first services. I wanted to see what I
@@ -11806,9 +12829,13 @@ cat &amp;gt; .gitignore &lt;span class="s">&amp;lt;&amp;lt; ENDIGNORE
 &lt;span class="k">fi&lt;/span>
 &lt;span class="c1"># Look inside of our post to load up where the remote&lt;/span>
 &lt;span class="c1"># is configured, bail if not set&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="o">[&lt;/span> -f index.md &lt;span class="o">]&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="k">then&lt;/span>
 &lt;span class="nv">REMOTE&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="k">$(&lt;/span>awk &lt;span class="s1">&amp;#39;/^remote:/ {print $2}&amp;#39;&lt;/span> index.md &lt;span class="p">|&lt;/span>head -n 1&lt;span class="k">)&lt;/span>
+&lt;span class="k">else&lt;/span>
+&lt;span class="nv">REMOTE&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="k">$(&lt;/span>awk &lt;span class="s1">&amp;#39;/^\#\+remote:/ {print $2}&amp;#39;&lt;/span> index.org &lt;span class="p">|&lt;/span>head -n 1&lt;span class="k">)&lt;/span>
+&lt;span class="k">fi&lt;/span>
 &lt;span class="k">if&lt;/span> &lt;span class="o">[&lt;/span> -z &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">REMOTE&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="o">]&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="k">then&lt;/span>
-&lt;span class="nb">echo&lt;/span> remote is not defined in the front matter of index.md
+&lt;span class="nb">echo&lt;/span> remote is not defined in the front matter of index.md or index.org
 &lt;span class="nb">exit&lt;/span> &lt;span class="m">1&lt;/span>
 &lt;span class="k">fi&lt;/span>
 &lt;span class="nv">LOCAL_GIT&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="k">$(&lt;/span>cat .local_git 2&amp;gt; /dev/null&lt;span class="k">)&lt;/span>

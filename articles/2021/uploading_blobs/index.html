@@ -1,0 +1,735 @@
+<!doctype html><html><head><title>Uploading Blobs</title><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><link rel=stylesheet href=../../../css/theme.css><link rel=stylesheet href=../../../css/syntax.css><script type=application/javascript>var doNotTrack=false;if(!doNotTrack){window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;ga('create','UA-56296045-1','auto');ga('send','pageview');}</script><script async src=https://www.google-analytics.com/analytics.js></script><script async defer data-domain=willschenk.com src=https://plausible.io/js/plausible.js></script><meta property="og:title" content="Uploading Blobs"><meta property="og:description" content="I want a simple service I can deploy that lets me store blobs. I want it to return the hash of the stored object which I will use to load it again.  First we will write a simple go service that will do everything in memory, and then we will build a nginx config that has the webserver stream it to disk, so we don't have a lot of memory being used."><meta property="og:type" content="article"><meta property="og:url" content="https://willschenk.com/articles/2021/uploading_blobs/"><meta property="article:published_time" content="2021-02-17T00:00:00+00:00"><meta property="article:modified_time" content="2021-02-17T00:00:00+00:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Uploading Blobs"><meta name=twitter:description content="I want a simple service I can deploy that lets me store blobs. I want it to return the hash of the stored object which I will use to load it again.  First we will write a simple go service that will do everything in memory, and then we will build a nginx config that has the webserver stream it to disk, so we don't have a lot of memory being used."><meta name=twitter:site content="@wschenk"><style>.article p,.article ul,.article ol,.article table{max-width:45em}.article pre p{max-width:none;margin-top:-1.5rem}article.article p:first-child,.article blockquote{font-size:1.25em;font-weight:300;max-width:36em}.half-height-scroll{max-height:32em;overflow:scroll}</style></head><body><nav class="container my-5"><h1 class="pt-md-5 display-3"><a class=text-dark href=../../../>Will Schenk</a></h1><p><a class="text-dark h4 mr-3 font-weight-light" href=../../../articles/>Articles</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../contact>Contact</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../tags/>Tags</a>
+<a href=../../../feed.xml class="mr-3 h4 text-light"><img src=../../../img/rss.svg alt=rss height=20 width=20></a>
+<a href=https://twitter.com/@wschenk class="mr-3 h4 text-light"><img src=../../../img/twitter.svg alt=twitter height=20 width=20></a>
+<a href=https://instagram.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/instagram.svg alt=instagram height=20 width=20></a>
+<a href=https://github.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/github.svg alt=github height=20 width=20></a>
+<a href=https://linkedin.com/in/will-schenk-420266 class="mr-3 h4 text-light"><img src=../../../img/linkedin.svg alt=linkedin height=20 width=20></a></p></nav><div class=container><h1 class=mt-5>Uploading Blobs</h1><h2 class="font-weight-light font-italic mb-3">Simple datastore</h2><p class="text-muted mt-3"><a class=text-muted href=https://willschenk.com/articles/2021/uploading_blobs/>Published February 17, 2021</a>
+<a class=text-muted href=../../../tags/docker>#docker,</a>
+<a class=text-muted href=../../../tags/go>#go,</a>
+<a class=text-muted href=../../../tags/nginx>#nginx,</a>
+<a class=text-muted href=../../../tags/effigy>#effigy</a></p><div class="alert alert-secondary">The code from this article can be found at <a href=https://github.com/wschenk/blob_server>https://github.com/wschenk/blob_server</a></div><article class="article mt-5"><p>I want a simple service I can deploy that lets me store blobs. I want
+it to return the hash of the stored object which I will use to load it
+again.</p><p>First we will write a simple go service that will do everything in
+memory, and then we will build a nginx config that has the webserver
+stream it to disk, so we don't have a lot of memory being used.</p><h2 id=headline-1>Simple go service</h2><p>This is a simple http server that</p><ol><li><p>Creates a <code class=verbatim>blobs</code> directory</p></li><li><p>Serves <code class=verbatim>/get</code> requests out of that directory</p></li><li><p>Receives a file paramater named <code class=verbatim>file</code> on <code class=verbatim>/put</code> and stores it as it's
+md5 hash. It returns that hash.</p></li><li><p>Or it gets a body and just stores it.</p><h3 id=headline-2>Server code</h3></li></ol><div class="src src-go"><div class=highlight><pre class=chroma><code class=language-go data-lang=go>  <span class=kn>package</span> <span class=nx>main</span>
+
+  <span class=kn>import</span> <span class=p>(</span>
+          <span class=s>&#34;crypto/md5&#34;</span>
+          <span class=s>&#34;fmt&#34;</span>
+          <span class=s>&#34;io/ioutil&#34;</span>
+          <span class=s>&#34;log&#34;</span>
+          <span class=s>&#34;net/http&#34;</span>
+          <span class=s>&#34;os&#34;</span>
+          <span class=s>&#34;strings&#34;</span>
+  <span class=p>)</span>
+
+  <span class=kd>func</span> <span class=nf>putHandler</span><span class=p>(</span><span class=nx>w</span> <span class=nx>http</span><span class=p>.</span><span class=nx>ResponseWriter</span><span class=p>,</span> <span class=nx>r</span> <span class=o>*</span><span class=nx>http</span><span class=p>.</span><span class=nx>Request</span><span class=p>)</span> <span class=p>{</span>
+          <span class=nx>log</span><span class=p>.</span><span class=nf>Print</span><span class=p>(</span><span class=s>&#34;Proccessing file upload&#34;</span><span class=p>)</span>
+
+          <span class=nx>contentType</span> <span class=o>:=</span> <span class=nx>r</span><span class=p>.</span><span class=nx>Header</span><span class=p>.</span><span class=nf>Get</span><span class=p>(</span> <span class=s>&#34;Content-Type&#34;</span> <span class=p>);</span>
+
+          <span class=k>if</span><span class=p>(</span> <span class=nx>strings</span><span class=p>.</span><span class=nf>HasPrefix</span><span class=p>(</span> <span class=s>&#34;multipart/form-data&#34;</span><span class=p>,</span> <span class=nx>contentType</span> <span class=p>)</span> <span class=p>)</span> <span class=p>{</span>
+                  <span class=nf>uploadFile</span><span class=p>(</span> <span class=nx>w</span><span class=p>,</span> <span class=nx>r</span> <span class=p>);</span>
+          <span class=p>}</span> <span class=k>else</span> <span class=p>{</span>
+                  <span class=nf>handlePost</span><span class=p>(</span> <span class=nx>w</span><span class=p>,</span> <span class=nx>r</span> <span class=p>);</span>
+          <span class=p>}</span>
+  <span class=p>}</span>
+
+  <span class=kd>func</span> <span class=nf>uploadFile</span><span class=p>(</span><span class=nx>w</span> <span class=nx>http</span><span class=p>.</span><span class=nx>ResponseWriter</span><span class=p>,</span> <span class=nx>r</span> <span class=o>*</span><span class=nx>http</span><span class=p>.</span><span class=nx>Request</span><span class=p>)</span> <span class=p>{</span>
+          <span class=nx>log</span><span class=p>.</span><span class=nf>Print</span><span class=p>(</span> <span class=s>&#34;Processing file upload&#34;</span> <span class=p>)</span>
+          <span class=c1>// Set upload limit
+</span><span class=c1></span>          <span class=nx>r</span><span class=p>.</span><span class=nf>ParseMultipartForm</span><span class=p>(</span><span class=mi>10</span> <span class=o>&lt;&lt;</span> <span class=mi>20</span><span class=p>)</span>
+
+          <span class=nx>file</span><span class=p>,</span> <span class=nx>handler</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>r</span><span class=p>.</span><span class=nf>FormFile</span><span class=p>(</span><span class=s>&#34;file&#34;</span><span class=p>)</span>
+          <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+                  <span class=nx>fmt</span><span class=p>.</span><span class=nf>Println</span><span class=p>(</span><span class=s>&#34;Error Retrieving the File&#34;</span><span class=p>)</span>
+                  <span class=nx>fmt</span><span class=p>.</span><span class=nf>Println</span><span class=p>(</span><span class=nx>err</span><span class=p>)</span>
+                  <span class=k>return</span>
+          <span class=p>}</span>
+          <span class=k>defer</span> <span class=nx>file</span><span class=p>.</span><span class=nf>Close</span><span class=p>()</span>
+          <span class=nx>log</span><span class=p>.</span><span class=nf>Printf</span><span class=p>(</span><span class=s>&#34;Uploaded File: %+v\n&#34;</span><span class=p>,</span> <span class=nx>handler</span><span class=p>.</span><span class=nx>Filename</span><span class=p>)</span>
+          <span class=nx>log</span><span class=p>.</span><span class=nf>Printf</span><span class=p>(</span><span class=s>&#34;Content type : %+v\n&#34;</span><span class=p>,</span> <span class=nx>handler</span><span class=p>.</span><span class=nx>Header</span><span class=p>.</span><span class=nf>Get</span><span class=p>(</span><span class=s>&#34;Content-Type&#34;</span><span class=p>))</span>
+          <span class=nx>log</span><span class=p>.</span><span class=nf>Printf</span><span class=p>(</span><span class=s>&#34;File Size    : %+v\n&#34;</span><span class=p>,</span> <span class=nx>handler</span><span class=p>.</span><span class=nx>Size</span><span class=p>)</span>
+          <span class=nx>log</span><span class=p>.</span><span class=nf>Printf</span><span class=p>(</span><span class=s>&#34;MIME Header  : %+v\n&#34;</span><span class=p>,</span> <span class=nx>handler</span><span class=p>.</span><span class=nx>Header</span><span class=p>)</span>
+
+          <span class=c1>// read all of the contents of our uploaded file into a
+</span><span class=c1></span>          <span class=c1>// byte array
+</span><span class=c1></span>          <span class=nx>fileBytes</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>ioutil</span><span class=p>.</span><span class=nf>ReadAll</span><span class=p>(</span><span class=nx>file</span><span class=p>)</span>
+          <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+                  <span class=nx>log</span><span class=p>.</span><span class=nf>Print</span><span class=p>(</span><span class=nx>err</span><span class=p>)</span>
+                  <span class=nx>fmt</span><span class=p>.</span><span class=nf>Println</span><span class=p>(</span><span class=nx>err</span><span class=p>)</span>
+                  <span class=k>return</span>
+          <span class=p>}</span>
+
+          <span class=nx>md5string</span> <span class=o>:=</span> <span class=nx>fmt</span><span class=p>.</span><span class=nf>Sprintf</span><span class=p>(</span><span class=s>&#34;%x&#34;</span><span class=p>,</span> <span class=nx>md5</span><span class=p>.</span><span class=nf>Sum</span><span class=p>(</span><span class=nx>fileBytes</span><span class=p>))</span>
+
+          <span class=nx>ioutil</span><span class=p>.</span><span class=nf>WriteFile</span><span class=p>(</span><span class=nx>fmt</span><span class=p>.</span><span class=nf>Sprintf</span><span class=p>(</span><span class=s>&#34;blobs/%s&#34;</span><span class=p>,</span> <span class=nx>md5string</span><span class=p>),</span> <span class=nx>fileBytes</span><span class=p>,</span> <span class=mo>0666</span><span class=p>)</span>
+
+          <span class=c1>// Return the key
+</span><span class=c1></span>          <span class=nx>fmt</span><span class=p>.</span><span class=nf>Fprintf</span><span class=p>(</span><span class=nx>w</span><span class=p>,</span> <span class=s>&#34;%s&#34;</span><span class=p>,</span> <span class=nx>md5string</span><span class=p>)</span>
+
+  <span class=p>}</span>
+
+  <span class=kd>func</span> <span class=nf>handlePost</span><span class=p>(</span><span class=nx>w</span> <span class=nx>http</span><span class=p>.</span><span class=nx>ResponseWriter</span><span class=p>,</span> <span class=nx>r</span> <span class=o>*</span><span class=nx>http</span><span class=p>.</span><span class=nx>Request</span><span class=p>)</span> <span class=p>{</span>
+          <span class=nx>log</span><span class=p>.</span><span class=nf>Print</span><span class=p>(</span> <span class=s>&#34;Storing raw post&#34;</span> <span class=p>)</span>
+          <span class=nx>body</span><span class=p>,</span> <span class=nx>_</span> <span class=o>:=</span> <span class=nx>ioutil</span><span class=p>.</span><span class=nf>ReadAll</span><span class=p>(</span> <span class=nx>r</span><span class=p>.</span><span class=nx>Body</span> <span class=p>)</span>
+          <span class=k>defer</span> <span class=nx>r</span><span class=p>.</span><span class=nx>Body</span><span class=p>.</span><span class=nf>Close</span><span class=p>()</span>
+
+          <span class=nx>md5string</span> <span class=o>:=</span> <span class=nx>fmt</span><span class=p>.</span><span class=nf>Sprintf</span><span class=p>(</span><span class=s>&#34;%x&#34;</span><span class=p>,</span> <span class=nx>md5</span><span class=p>.</span><span class=nf>Sum</span><span class=p>(</span><span class=nx>body</span><span class=p>))</span>
+
+          <span class=nx>ioutil</span><span class=p>.</span><span class=nf>WriteFile</span><span class=p>(</span><span class=nx>fmt</span><span class=p>.</span><span class=nf>Sprintf</span><span class=p>(</span><span class=s>&#34;blobs/%s&#34;</span><span class=p>,</span> <span class=nx>md5string</span><span class=p>),</span> <span class=nx>body</span><span class=p>,</span> <span class=mo>0666</span><span class=p>)</span>
+
+          <span class=c1>// Return the key
+</span><span class=c1></span>          <span class=nx>fmt</span><span class=p>.</span><span class=nf>Fprintf</span><span class=p>(</span><span class=nx>w</span><span class=p>,</span> <span class=s>&#34;%s&#34;</span><span class=p>,</span> <span class=nx>md5string</span><span class=p>)</span>
+  <span class=p>}</span>
+
+  <span class=kd>func</span> <span class=nf>mkdir_p</span><span class=p>(</span><span class=nx>dir</span> <span class=kt>string</span><span class=p>)</span> <span class=p>{</span>
+          <span class=nx>_</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>os</span><span class=p>.</span><span class=nf>Stat</span><span class=p>(</span><span class=nx>dir</span><span class=p>)</span>
+
+          <span class=k>if</span> <span class=nx>os</span><span class=p>.</span><span class=nf>IsNotExist</span><span class=p>(</span><span class=nx>err</span><span class=p>)</span> <span class=p>{</span>
+                  <span class=nx>log</span><span class=p>.</span><span class=nf>Print</span><span class=p>(</span><span class=s>&#34;Creating &#34;</span><span class=p>,</span> <span class=nx>dir</span><span class=p>)</span>
+                  <span class=nx>errDir</span> <span class=o>:=</span> <span class=nx>os</span><span class=p>.</span><span class=nf>MkdirAll</span><span class=p>(</span><span class=nx>dir</span><span class=p>,</span> <span class=mo>0755</span><span class=p>)</span>
+                  <span class=k>if</span> <span class=nx>errDir</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+                          <span class=nx>log</span><span class=p>.</span><span class=nf>Fatal</span><span class=p>(</span><span class=nx>err</span><span class=p>)</span>
+                  <span class=p>}</span>
+
+          <span class=p>}</span>
+  <span class=p>}</span>
+
+  <span class=kd>func</span> <span class=nf>main</span><span class=p>()</span> <span class=p>{</span>
+          <span class=nf>mkdir_p</span><span class=p>(</span><span class=s>&#34;blobs&#34;</span><span class=p>)</span>
+
+          <span class=nx>fs</span> <span class=o>:=</span> <span class=nx>http</span><span class=p>.</span><span class=nf>FileServer</span><span class=p>(</span><span class=nx>http</span><span class=p>.</span><span class=nf>Dir</span><span class=p>(</span><span class=s>&#34;./blobs&#34;</span><span class=p>))</span>
+          <span class=nx>http</span><span class=p>.</span><span class=nf>Handle</span><span class=p>(</span><span class=s>&#34;/get/&#34;</span><span class=p>,</span> <span class=nx>http</span><span class=p>.</span><span class=nf>StripPrefix</span><span class=p>(</span><span class=s>&#34;/get/&#34;</span><span class=p>,</span> <span class=nx>fs</span><span class=p>))</span>
+          <span class=nx>http</span><span class=p>.</span><span class=nf>HandleFunc</span><span class=p>(</span><span class=s>&#34;/put&#34;</span><span class=p>,</span> <span class=nx>putHandler</span><span class=p>)</span>
+
+          <span class=nx>log</span><span class=p>.</span><span class=nf>Print</span><span class=p>(</span><span class=s>&#34;Starting server on port 8080&#34;</span><span class=p>)</span>
+          <span class=k>if</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>http</span><span class=p>.</span><span class=nf>ListenAndServe</span><span class=p>(</span><span class=s>&#34;:8080&#34;</span><span class=p>,</span> <span class=kc>nil</span><span class=p>);</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+                  <span class=nx>log</span><span class=p>.</span><span class=nf>Fatal</span><span class=p>(</span><span class=nx>err</span><span class=p>)</span>
+          <span class=p>}</span>
+  <span class=p>}</span></code></pre></div></div><h3 id=headline-3>Server code orig</h3><p>In <code class=verbatim>simple/server.go</code>:</p><div class="src src-go"><div class=highlight><pre class=chroma><code class=language-go data-lang=go>  <span class=kn>package</span> <span class=nx>main</span>
+
+  <span class=kn>import</span> <span class=p>(</span>
+          <span class=s>&#34;crypto/md5&#34;</span>
+          <span class=s>&#34;fmt&#34;</span>
+          <span class=s>&#34;io/ioutil&#34;</span>
+          <span class=s>&#34;log&#34;</span>
+          <span class=s>&#34;net/http&#34;</span>
+          <span class=s>&#34;os&#34;</span>
+  <span class=p>)</span>
+
+  <span class=kd>func</span> <span class=nf>uploadFile</span><span class=p>(</span><span class=nx>w</span> <span class=nx>http</span><span class=p>.</span><span class=nx>ResponseWriter</span><span class=p>,</span> <span class=nx>r</span> <span class=o>*</span><span class=nx>http</span><span class=p>.</span><span class=nx>Request</span><span class=p>)</span> <span class=p>{</span>
+          <span class=nx>log</span><span class=p>.</span><span class=nf>Print</span><span class=p>(</span><span class=s>&#34;Proccessing file upload&#34;</span><span class=p>)</span>
+
+          <span class=c1>// Set upload limit
+</span><span class=c1></span>          <span class=nx>r</span><span class=p>.</span><span class=nf>ParseMultipartForm</span><span class=p>(</span><span class=mi>10</span> <span class=o>&lt;&lt;</span> <span class=mi>20</span><span class=p>)</span>
+
+          <span class=nx>file</span><span class=p>,</span> <span class=nx>handler</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>r</span><span class=p>.</span><span class=nf>FormFile</span><span class=p>(</span><span class=s>&#34;file&#34;</span><span class=p>)</span>
+          <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+                  <span class=nx>fmt</span><span class=p>.</span><span class=nf>Println</span><span class=p>(</span><span class=s>&#34;Error Retrieving the File&#34;</span><span class=p>)</span>
+                  <span class=nx>fmt</span><span class=p>.</span><span class=nf>Println</span><span class=p>(</span><span class=nx>err</span><span class=p>)</span>
+                  <span class=k>return</span>
+          <span class=p>}</span>
+          <span class=k>defer</span> <span class=nx>file</span><span class=p>.</span><span class=nf>Close</span><span class=p>()</span>
+
+          <span class=nx>log</span><span class=p>.</span><span class=nf>Printf</span><span class=p>(</span><span class=s>&#34;Uploaded File: %+v\n&#34;</span><span class=p>,</span> <span class=nx>handler</span><span class=p>.</span><span class=nx>Filename</span><span class=p>)</span>
+          <span class=nx>log</span><span class=p>.</span><span class=nf>Printf</span><span class=p>(</span><span class=s>&#34;Content type : %+v\n&#34;</span><span class=p>,</span> <span class=nx>handler</span><span class=p>.</span><span class=nx>Header</span><span class=p>.</span><span class=nf>Get</span><span class=p>(</span><span class=s>&#34;Content-Type&#34;</span><span class=p>))</span>
+          <span class=nx>log</span><span class=p>.</span><span class=nf>Printf</span><span class=p>(</span><span class=s>&#34;File Size    : %+v\n&#34;</span><span class=p>,</span> <span class=nx>handler</span><span class=p>.</span><span class=nx>Size</span><span class=p>)</span>
+          <span class=nx>log</span><span class=p>.</span><span class=nf>Printf</span><span class=p>(</span><span class=s>&#34;MIME Header  : %+v\n&#34;</span><span class=p>,</span> <span class=nx>handler</span><span class=p>.</span><span class=nx>Header</span><span class=p>)</span>
+
+          <span class=c1>// read all of the contents of our uploaded file into a
+</span><span class=c1></span>          <span class=c1>// byte array
+</span><span class=c1></span>          <span class=nx>fileBytes</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>ioutil</span><span class=p>.</span><span class=nf>ReadAll</span><span class=p>(</span><span class=nx>file</span><span class=p>)</span>
+          <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+                  <span class=nx>log</span><span class=p>.</span><span class=nf>Print</span><span class=p>(</span><span class=nx>err</span><span class=p>)</span>
+                  <span class=nx>fmt</span><span class=p>.</span><span class=nf>Println</span><span class=p>(</span><span class=nx>err</span><span class=p>)</span>
+                  <span class=k>return</span>
+          <span class=p>}</span>
+
+          <span class=nx>md5string</span> <span class=o>:=</span> <span class=nx>fmt</span><span class=p>.</span><span class=nf>Sprintf</span><span class=p>(</span><span class=s>&#34;%x&#34;</span><span class=p>,</span> <span class=nx>md5</span><span class=p>.</span><span class=nf>Sum</span><span class=p>(</span><span class=nx>fileBytes</span><span class=p>))</span>
+
+          <span class=nx>ioutil</span><span class=p>.</span><span class=nf>WriteFile</span><span class=p>(</span><span class=nx>fmt</span><span class=p>.</span><span class=nf>Sprintf</span><span class=p>(</span><span class=s>&#34;blobs/%s&#34;</span><span class=p>,</span> <span class=nx>md5string</span><span class=p>),</span> <span class=nx>fileBytes</span><span class=p>,</span> <span class=mo>0666</span><span class=p>)</span>
+
+          <span class=c1>// Return the key
+</span><span class=c1></span>          <span class=nx>fmt</span><span class=p>.</span><span class=nf>Fprintf</span><span class=p>(</span><span class=nx>w</span><span class=p>,</span> <span class=s>&#34;%s&#34;</span><span class=p>,</span> <span class=nx>md5string</span><span class=p>)</span>
+
+  <span class=p>}</span>
+
+  <span class=kd>func</span> <span class=nf>mkdir_p</span><span class=p>(</span><span class=nx>dir</span> <span class=kt>string</span><span class=p>)</span> <span class=p>{</span>
+          <span class=nx>_</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>os</span><span class=p>.</span><span class=nf>Stat</span><span class=p>(</span><span class=nx>dir</span><span class=p>)</span>
+
+          <span class=k>if</span> <span class=nx>os</span><span class=p>.</span><span class=nf>IsNotExist</span><span class=p>(</span><span class=nx>err</span><span class=p>)</span> <span class=p>{</span>
+                  <span class=nx>log</span><span class=p>.</span><span class=nf>Print</span><span class=p>(</span><span class=s>&#34;Creating &#34;</span><span class=p>,</span> <span class=nx>dir</span><span class=p>)</span>
+                  <span class=nx>errDir</span> <span class=o>:=</span> <span class=nx>os</span><span class=p>.</span><span class=nf>MkdirAll</span><span class=p>(</span><span class=nx>dir</span><span class=p>,</span> <span class=mo>0755</span><span class=p>)</span>
+                  <span class=k>if</span> <span class=nx>errDir</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+                          <span class=nx>log</span><span class=p>.</span><span class=nf>Fatal</span><span class=p>(</span><span class=nx>err</span><span class=p>)</span>
+                  <span class=p>}</span>
+
+          <span class=p>}</span>
+  <span class=p>}</span>
+
+  <span class=kd>func</span> <span class=nf>main</span><span class=p>()</span> <span class=p>{</span>
+          <span class=nf>mkdir_p</span><span class=p>(</span><span class=s>&#34;blobs&#34;</span><span class=p>)</span>
+
+          <span class=nx>fs</span> <span class=o>:=</span> <span class=nx>http</span><span class=p>.</span><span class=nf>FileServer</span><span class=p>(</span><span class=nx>http</span><span class=p>.</span><span class=nf>Dir</span><span class=p>(</span><span class=s>&#34;./blobs&#34;</span><span class=p>))</span>
+          <span class=nx>http</span><span class=p>.</span><span class=nf>Handle</span><span class=p>(</span><span class=s>&#34;/get/&#34;</span><span class=p>,</span> <span class=nx>http</span><span class=p>.</span><span class=nf>StripPrefix</span><span class=p>(</span><span class=s>&#34;/get/&#34;</span><span class=p>,</span> <span class=nx>fs</span><span class=p>))</span>
+          <span class=nx>http</span><span class=p>.</span><span class=nf>HandleFunc</span><span class=p>(</span><span class=s>&#34;/put&#34;</span><span class=p>,</span> <span class=nx>uploadFile</span><span class=p>)</span>
+
+          <span class=nx>log</span><span class=p>.</span><span class=nf>Print</span><span class=p>(</span><span class=s>&#34;Starting server on port 8080&#34;</span><span class=p>)</span>
+          <span class=k>if</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>http</span><span class=p>.</span><span class=nf>ListenAndServe</span><span class=p>(</span><span class=s>&#34;:8080&#34;</span><span class=p>,</span> <span class=kc>nil</span><span class=p>);</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+                  <span class=nx>log</span><span class=p>.</span><span class=nf>Fatal</span><span class=p>(</span><span class=nx>err</span><span class=p>)</span>
+          <span class=p>}</span>
+  <span class=p>}</span></code></pre></div></div><h3 id=headline-4>Testing</h3><p>First start it up:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>go run server.go</code></pre></div></div><p>Then upload the file using curl <code class=verbatim>-F</code>. We need to name the parameter
+<code class=verbatim>file</code> and use the <code class=verbatim>@</code> syntax to push the file contents.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>curl -F <span class=nv>file</span><span class=o>=</span><span class=s2>&#34;@/home/wschenk/mobiledownloads/talk.pdf&#34;</span> http://localhost:8080/put</code></pre></div></div><pre class=example>
+a03a16aa4ed93c7194c03bb3d759ba23
+</pre><p>Which returns the has, then we can download it</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash><span class=nb>echo</span> KEY is <span class=si>${</span><span class=nv>KEY</span><span class=si>}</span>
+curl -o /tmp/talk.pdf http://localhost:8080/get/<span class=si>${</span><span class=nv>KEY</span><span class=si>}</span>
+ls -l /tmp/talk.pdf
+md5sum /tmp/talk.pdf</code></pre></div></div><pre class=example>
+KEY is a03a16aa4ed93c7194c03bb3d759ba23
+-rw-r--r-- 1 wschenk wschenk 2227748 Feb 16 09:19 /tmp/talk.pdf
+a03a16aa4ed93c7194c03bb3d759ba23  /tmp/talk.pdf
+</pre><h3 id=headline-5>Dockerizing</h3><p>First we don't want to put the blobs into our docker image, so create
+a <code class=verbatim>.dockerignore</code>:</p><div class="src src-.dockerignore"><pre><code class=language-.dockerignore data-lang=.dockerignore>blobs/</code></pre></div><p>Then a simple <code class=verbatim>Dockerfile</code>:</p><div class="src src-dockerfile"><div class=highlight><pre class=chroma><code class=language-dockerfile data-lang=dockerfile><span class=k>FROM</span><span class=s> golang:1.15.8-alpine3.13 as builder</span><span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>COPY</span> server.go .<span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>RUN</span> go build server.go<span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>FROM</span><span class=s> alpine:3.13</span><span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>WORKDIR</span><span class=s> /app</span><span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>COPY</span> --from<span class=o>=</span>builder /go/server .<span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>EXPOSE</span><span class=s> 8080</span><span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>CMD</span> <span class=p>[</span> <span class=s2>&#34;./server&#34;</span> <span class=p>]</span></code></pre></div></div><p>And then build it:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>docker build . -t simpleblobserver</code></pre></div></div><p>And run it</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>docker run -it --rm -p 8080:8080 simpleblobserver</code></pre></div></div><h2 id=headline-6>NGINX uploader</h2><p>This works fine, but it also requires loading everything into memory.</p><p>We can use nginx and the <code class=verbatim>nginx-upload-module</code> to have the webserver
+stream it directly to disk, and once this is done it will call our
+handler which will move it over to the <code class=verbatim>blobs</code> directory. This module
+also computes the <code class=verbatim>md5</code> for us, so that's nice an easy. But setting it
+up is more complicated, and we'll need to use <code class=verbatim>docker-compose.yml</code> to
+wire everything together.</p><ol><li><p><code class=verbatim>docker-compose.yml</code> to wire it all together</p></li><li><p>nginx <code class=verbatim>Dockerfile</code></p></li><li><p><code class=verbatim>default.conf</code> to configure the module</p></li><li><p>go mover <code class=verbatim>Dockerfile</code></p></li><li><p>mover code</p></li></ol><p>Let go!</p><h3 id=headline-7><code class=verbatim>docker-compose.yml</code></h3><p>We'll define two services, which share a file system at <code class=verbatim>/blobs</code></p><div class="src src-yaml"><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=w>  </span><span class=k>version</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;3.7&#34;</span><span class=w>
+</span><span class=w>
+</span><span class=w>  </span><span class=k>services</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=k>nginx</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=k>build</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span><span class=k>context</span><span class=p>:</span><span class=w> </span>.<span class=w>
+</span><span class=w>        </span><span class=k>dockerfile</span><span class=p>:</span><span class=w> </span>Dockerfile.nginx<span class=w>
+</span><span class=w>      </span><span class=k>volumes</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span>- <span class=k>type</span><span class=p>:</span><span class=w> </span>bind<span class=w>
+</span><span class=w>          </span><span class=k>source</span><span class=p>:</span><span class=w> </span>./blobs<span class=w>
+</span><span class=w>          </span><span class=k>target</span><span class=p>:</span><span class=w> </span>/blobs<span class=w>
+</span><span class=w>
+</span><span class=w>      </span><span class=k>ports</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span>- <span class=s2>&#34;8080:80&#34;</span><span class=w>
+</span><span class=w>
+</span><span class=w>    </span><span class=k>mover</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=k>build</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span><span class=k>context</span><span class=p>:</span><span class=w> </span>.<span class=w>
+</span><span class=w>        </span><span class=k>dockerfile</span><span class=p>:</span><span class=w> </span>Dockerfile.mover<span class=w>
+</span><span class=w>      </span><span class=k>volumes</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span>- <span class=k>type</span><span class=p>:</span><span class=w> </span>bind<span class=w>
+</span><span class=w>          </span><span class=k>source</span><span class=p>:</span><span class=w> </span>./blobs<span class=w>
+</span><span class=w>          </span><span class=k>target</span><span class=p>:</span><span class=w> </span>/blobs<span class=w>
+</span><span class=w>
+</span><span class=w>      </span><span class=k>ports</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span>- <span class=s2>&#34;9090:8080&#34;</span></code></pre></div></div><h3 id=headline-8>nginx Dockerfile</h3><p>First we create a <code class=verbatim>Dockerfile.nginx</code> to download the source for both
+<code class=verbatim>nginx</code> and <code class=verbatim>nginx-upload-module</code>, build then, add it to the main
+<code class=verbatim>nginx.conf</code> file:</p><div class="src src-dockerfile"><div class=highlight><pre class=chroma><code class=language-dockerfile data-lang=dockerfile><span class=k>FROM</span><span class=s> nginx:1.19.6-alpine AS builder</span><span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>WORKDIR</span><span class=s> /usr/src</span><span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=c># For latest build deps, see https://github.com/nginxinc/docker-nginx/blob/master/mainline/alpine/Dockerfile</span><span class=err>
+</span><span class=err></span><span class=k>RUN</span> apk add --no-cache --virtual .build-deps <span class=se>\
+</span><span class=se></span>        gcc <span class=se>\
+</span><span class=se></span>        libc-dev <span class=se>\
+</span><span class=se></span>        make <span class=se>\
+</span><span class=se></span>        openssl-dev <span class=se>\
+</span><span class=se></span>        pcre-dev <span class=se>\
+</span><span class=se></span>        zlib-dev <span class=se>\
+</span><span class=se></span>        linux-headers <span class=se>\
+</span><span class=se></span>        curl <span class=se>\
+</span><span class=se></span>        gnupg <span class=se>\
+</span><span class=se></span>        libxslt-dev <span class=se>\
+</span><span class=se></span>        gd-dev <span class=se>\
+</span><span class=se></span>        geoip-dev <span class=se>\
+</span><span class=se></span>        git<span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=c># Download sources</span><span class=err>
+</span><span class=err></span><span class=k>RUN</span> wget <span class=s2>&#34;http://nginx.org/download/nginx-</span><span class=si>${</span><span class=nv>NGINX_VERSION</span><span class=si>}</span><span class=s2>.tar.gz&#34;</span> -O nginx.tar.gz<span class=err>
+</span><span class=err></span><span class=k>RUN</span> git clone --depth <span class=m>1</span> https://github.com/vkholodkov/nginx-upload-module<span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=c># Reuse same cli arguments as the nginx:alpine image used to build</span><span class=err>
+</span><span class=err></span><span class=k>RUN</span> <span class=nv>CONFARGS</span><span class=o>=</span><span class=k>$(</span>nginx -V 2&gt;<span class=p>&amp;</span><span class=m>1</span> <span class=p>|</span> sed -n -e <span class=s1>&#39;s/^.*arguments: //p&#39;</span><span class=k>)</span> <span class=se>\
+</span><span class=se></span>	tar -zxC /usr/src -f nginx.tar.gz <span class=o>&amp;&amp;</span> <span class=se>\
+</span><span class=se></span>        <span class=nv>MODDIR</span><span class=o>=</span><span class=s2>&#34;</span><span class=k>$(</span><span class=nb>pwd</span><span class=k>)</span><span class=s2>/nginx-upload-module&#34;</span> <span class=o>&amp;&amp;</span> <span class=se>\
+</span><span class=se></span>        <span class=nb>cd</span> /usr/src/nginx-<span class=nv>$NGINX_VERSION</span> <span class=o>&amp;&amp;</span> <span class=se>\
+</span><span class=se></span>        ./configure --with-compat <span class=nv>$CONFARGS</span> --add-dynamic-module<span class=o>=</span><span class=nv>$MODDIR</span> <span class=o>&amp;&amp;</span> <span class=se>\
+</span><span class=se></span>        make <span class=o>&amp;&amp;</span> make install<span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>FROM</span><span class=s> nginx:1.19.6-alpine</span><span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=c># Add the module to the main nginx configuration</span><span class=err>
+</span><span class=err></span><span class=k>COPY</span> --from<span class=o>=</span>builder /usr/local/nginx/modules/ngx_http_upload_module.so /usr/local/nginx/modules/ngx_http_upload_module.so<span class=err>
+</span><span class=err></span><span class=k>RUN</span> <span class=nb>echo</span> -e <span class=s2>&#34;load_module /usr/local/nginx/modules/ngx_http_upload_module.so;\n</span><span class=k>$(</span>cat /etc/nginx/nginx.conf<span class=k>)</span><span class=s2>&#34;</span> &gt; /etc/nginx/nginx.conf<span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>COPY</span> default.conf /etc/nginx/conf.d/default.conf<span class=err>
+</span><span class=err></span><span class=k>EXPOSE</span><span class=s> 80</span><span class=err>
+</span><span class=err></span><span class=k>STOPSIGNAL</span><span class=s> SIGTERM</span><span class=err>
+</span><span class=err></span><span class=k>CMD</span> <span class=p>[</span><span class=s2>&#34;nginx&#34;</span><span class=p>,</span> <span class=s2>&#34;-g&#34;</span><span class=p>,</span> <span class=s2>&#34;daemon off;&#34;</span><span class=p>]</span></code></pre></div></div><h3 id=headline-9>nginx <code class=verbatim>default.config</code></h3><p>Couple of things of note in this <code class=verbatim>default.conf</code> file:</p><table class="table table-striped"><tbody><tr><td><code class=verbatim>client_max_body_size</code></td><td>set to 2 gigs</td></tr><tr><td><code class=verbatim>/get</code></td><td>serves from <code class=verbatim>/blobs</code> directly</td></tr><tr><td><code class=verbatim>/put</code></td><td>Stores stuff into <code class=verbatim>/blobs/upload</code> and calls <code class=verbatim>/mover</code> on success</td></tr><tr><td>error 415</td><td>just post to /mover</td></tr><tr><td>nginx</td><td>computes the mp5 hash</td></tr></tbody></table><div class="src src-text"><div class=highlight><pre class=chroma><code class=language-text data-lang=text>  server {
+      listen       80;
+      server_name  localhost;
+
+      client_max_body_size 2000m;
+
+      #charset koi8-r;
+      #access_log  /var/log/nginx/host.access.log  main;
+
+      location / {
+          root   /usr/share/nginx/html;
+          index  index.html index.htm;
+      }
+
+      #error_page  404              /404.html;
+
+      # redirect server error pages to the static page /50x.html
+      #
+      error_page   500 502 503 504  /50x.html;
+      location = /50x.html {
+          root   /usr/share/nginx/html;
+      }
+
+      location /get {
+          rewrite /get/(.*) /$1  break;
+          root /blobs;
+      }
+
+      location /put {
+          error_page 415 = /mover;
+          # Pass altered request body to this location
+          upload_pass   /mover;
+
+          # Store files to this directory
+          # The directory is hashed, subdirectories 0 1 2 3 4 5 6 7 8 9 should exist
+          upload_store /blobs/upload 1;
+
+          # Allow uploaded files to be read only by user
+          upload_store_access user:r;
+
+          # Set specified fields in request body
+          upload_set_form_field &#34;${upload_field_name}_name&#34; $upload_file_name;
+          upload_set_form_field &#34;${upload_field_name}_content_type&#34; $upload_content_type;
+          upload_set_form_field &#34;${upload_field_name}_path&#34; $upload_tmp_path;
+
+          # Inform backend about hash and size of a file
+          upload_aggregate_form_field &#34;${upload_field_name}_md5&#34; $upload_file_md5;
+          upload_aggregate_form_field &#34;${upload_field_name}_size&#34; $upload_file_size;
+
+          upload_pass_form_field &#34;^submit$|^description$&#34;;
+      }
+
+      location /mover {
+          proxy_pass http://mover:8080;
+      }
+  }</code></pre></div></div><h3 id=headline-10>mover <code class=verbatim>Dockerfile.mover</code></h3><p>This is a simple dockerfile that builds our go binary, and then just
+copies it over.</p><div class="src src-dockerfile"><div class=highlight><pre class=chroma><code class=language-dockerfile data-lang=dockerfile>  FROM golang:1.15.8-alpine3.13 as builder<span class=err>
+</span><span class=err>
+</span><span class=err></span>  COPY mover.go .<span class=err>
+</span><span class=err>
+</span><span class=err></span>  RUN go build mover.go<span class=err>
+</span><span class=err>
+</span><span class=err></span>  FROM alpine:3.13<span class=err>
+</span><span class=err>
+</span><span class=err></span>  WORKDIR /app<span class=err>
+</span><span class=err>
+</span><span class=err></span>  COPY --from<span class=o>=</span>builder /go/mover .<span class=err>
+</span><span class=err>
+</span><span class=err></span>  EXPOSE <span class=m>8080</span><span class=err>
+</span><span class=err>
+</span><span class=err></span>  CMD <span class=o>[</span> <span class=s2>&#34;./mover&#34;</span> <span class=o>]</span></code></pre></div></div><h3 id=headline-11>mover go code</h3><p>All this really is doing is to look at the header and move the file
+around to the right path.</p><div class="src src-go"><div class=highlight><pre class=chroma><code class=language-go data-lang=go>  <span class=kn>package</span> <span class=nx>main</span>
+
+  <span class=kn>import</span> <span class=p>(</span>
+          <span class=s>&#34;crypto/md5&#34;</span>
+          <span class=s>&#34;fmt&#34;</span>
+          <span class=s>&#34;io/ioutil&#34;</span>
+          <span class=s>&#34;log&#34;</span>
+          <span class=s>&#34;net/http&#34;</span>
+          <span class=s>&#34;net/http/httputil&#34;</span>
+          <span class=s>&#34;os&#34;</span>
+          <span class=s>&#34;strings&#34;</span>
+  <span class=p>)</span>
+
+  <span class=kd>func</span> <span class=nf>formHandler</span><span class=p>(</span><span class=nx>w</span> <span class=nx>http</span><span class=p>.</span><span class=nx>ResponseWriter</span><span class=p>,</span> <span class=nx>r</span> <span class=o>*</span><span class=nx>http</span><span class=p>.</span><span class=nx>Request</span><span class=p>)</span> <span class=p>{</span>
+          <span class=nx>contentType</span> <span class=o>:=</span> <span class=nx>r</span><span class=p>.</span><span class=nx>Header</span><span class=p>.</span><span class=nf>Get</span><span class=p>(</span><span class=s>&#34;Content-Type&#34;</span><span class=p>)</span>
+          <span class=nx>log</span><span class=p>.</span><span class=nf>Printf</span><span class=p>(</span> <span class=s>&#34;Content-Type %s\n&#34;</span><span class=p>,</span> <span class=nx>contentType</span> <span class=p>);</span>
+          <span class=k>if</span> <span class=nx>strings</span><span class=p>.</span><span class=nf>HasPrefix</span><span class=p>(</span><span class=nx>contentType</span><span class=p>,</span><span class=s>&#34;multipart/form-data&#34;</span><span class=p>)</span> <span class=p>{</span>
+                  <span class=nf>moveFile</span><span class=p>(</span><span class=nx>w</span><span class=p>,</span> <span class=nx>r</span><span class=p>)</span>
+          <span class=p>}</span> <span class=k>else</span> <span class=p>{</span>
+                  <span class=nf>saveFile</span><span class=p>(</span><span class=nx>w</span><span class=p>,</span> <span class=nx>r</span><span class=p>)</span>
+          <span class=p>}</span>
+  <span class=p>}</span>
+
+  <span class=kd>func</span> <span class=nf>moveFile</span><span class=p>(</span><span class=nx>w</span> <span class=nx>http</span><span class=p>.</span><span class=nx>ResponseWriter</span><span class=p>,</span> <span class=nx>r</span> <span class=o>*</span><span class=nx>http</span><span class=p>.</span><span class=nx>Request</span><span class=p>)</span> <span class=p>{</span>
+          <span class=nx>r</span><span class=p>.</span><span class=nf>ParseMultipartForm</span><span class=p>(</span><span class=mi>10</span> <span class=o>&lt;&lt;</span> <span class=mi>20</span><span class=p>)</span>
+          <span class=c1>// Save a copy of this request for debugging.
+</span><span class=c1></span>          <span class=nx>requestDump</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>httputil</span><span class=p>.</span><span class=nf>DumpRequest</span><span class=p>(</span><span class=nx>r</span><span class=p>,</span> <span class=kc>true</span><span class=p>)</span>
+          <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+                  <span class=nx>fmt</span><span class=p>.</span><span class=nf>Println</span><span class=p>(</span><span class=nx>err</span><span class=p>)</span>
+          <span class=p>}</span>
+          <span class=nx>fmt</span><span class=p>.</span><span class=nf>Println</span><span class=p>(</span><span class=nb>string</span><span class=p>(</span><span class=nx>requestDump</span><span class=p>))</span>
+
+          <span class=k>if</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>r</span><span class=p>.</span><span class=nf>ParseForm</span><span class=p>();</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+                  <span class=nx>fmt</span><span class=p>.</span><span class=nf>Fprintf</span><span class=p>(</span><span class=nx>w</span><span class=p>,</span> <span class=s>&#34;ParseForm() err: %v&#34;</span><span class=p>,</span> <span class=nx>err</span><span class=p>)</span>
+                  <span class=k>return</span>
+          <span class=p>}</span>
+          <span class=nx>log</span><span class=p>.</span><span class=nf>Print</span><span class=p>(</span><span class=s>&#34;POST request successful&#34;</span><span class=p>)</span>
+          <span class=nx>log</span><span class=p>.</span><span class=nf>Printf</span><span class=p>(</span><span class=s>&#34;Filename     : %s\n&#34;</span><span class=p>,</span> <span class=nx>r</span><span class=p>.</span><span class=nf>FormValue</span><span class=p>(</span><span class=s>&#34;file_name&#34;</span><span class=p>))</span>
+          <span class=nx>log</span><span class=p>.</span><span class=nf>Printf</span><span class=p>(</span><span class=s>&#34;Content Type : %s\n&#34;</span><span class=p>,</span> <span class=nx>r</span><span class=p>.</span><span class=nf>FormValue</span><span class=p>(</span><span class=s>&#34;file_content_type&#34;</span><span class=p>))</span>
+          <span class=nx>log</span><span class=p>.</span><span class=nf>Printf</span><span class=p>(</span><span class=s>&#34;MD5          : %s\n&#34;</span><span class=p>,</span> <span class=nx>r</span><span class=p>.</span><span class=nf>FormValue</span><span class=p>(</span><span class=s>&#34;file_md5&#34;</span><span class=p>))</span>
+          <span class=nx>log</span><span class=p>.</span><span class=nf>Printf</span><span class=p>(</span><span class=s>&#34;Size         : %s\n&#34;</span><span class=p>,</span> <span class=nx>r</span><span class=p>.</span><span class=nf>FormValue</span><span class=p>(</span><span class=s>&#34;file_size&#34;</span><span class=p>))</span>
+          <span class=nx>log</span><span class=p>.</span><span class=nf>Printf</span><span class=p>(</span><span class=s>&#34;Path         : %s\n&#34;</span><span class=p>,</span> <span class=nx>r</span><span class=p>.</span><span class=nf>FormValue</span><span class=p>(</span><span class=s>&#34;file_path&#34;</span><span class=p>))</span>
+
+          <span class=nx>md5</span> <span class=o>:=</span> <span class=nx>r</span><span class=p>.</span><span class=nf>FormValue</span><span class=p>(</span><span class=s>&#34;file_md5&#34;</span><span class=p>)</span>
+          <span class=nx>err</span> <span class=p>=</span> <span class=nx>os</span><span class=p>.</span><span class=nf>Rename</span><span class=p>(</span><span class=nx>r</span><span class=p>.</span><span class=nf>FormValue</span><span class=p>(</span><span class=s>&#34;file_path&#34;</span><span class=p>),</span> <span class=nx>fmt</span><span class=p>.</span><span class=nf>Sprintf</span><span class=p>(</span><span class=s>&#34;/blobs/%s&#34;</span><span class=p>,</span> <span class=nx>md5</span><span class=p>))</span>
+          <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+                  <span class=nx>fmt</span><span class=p>.</span><span class=nf>Print</span><span class=p>(</span><span class=nx>err</span><span class=p>)</span>
+          <span class=p>}</span> <span class=k>else</span> <span class=p>{</span>
+                  <span class=nx>fmt</span><span class=p>.</span><span class=nf>Fprintf</span><span class=p>(</span><span class=nx>w</span><span class=p>,</span> <span class=s>&#34;%s&#34;</span><span class=p>,</span> <span class=nx>md5</span><span class=p>)</span>
+          <span class=p>}</span>
+  <span class=p>}</span>
+
+  <span class=kd>func</span> <span class=nf>saveFile</span><span class=p>(</span><span class=nx>w</span> <span class=nx>http</span><span class=p>.</span><span class=nx>ResponseWriter</span><span class=p>,</span> <span class=nx>r</span> <span class=o>*</span><span class=nx>http</span><span class=p>.</span><span class=nx>Request</span><span class=p>)</span> <span class=p>{</span>
+          <span class=nx>log</span><span class=p>.</span><span class=nf>Print</span><span class=p>(</span><span class=s>&#34;Storing raw post&#34;</span><span class=p>)</span>
+          <span class=nx>body</span><span class=p>,</span> <span class=nx>_</span> <span class=o>:=</span> <span class=nx>ioutil</span><span class=p>.</span><span class=nf>ReadAll</span><span class=p>(</span><span class=nx>r</span><span class=p>.</span><span class=nx>Body</span><span class=p>)</span>
+          <span class=k>defer</span> <span class=nx>r</span><span class=p>.</span><span class=nx>Body</span><span class=p>.</span><span class=nf>Close</span><span class=p>()</span>
+
+          <span class=nx>md5string</span> <span class=o>:=</span> <span class=nx>fmt</span><span class=p>.</span><span class=nf>Sprintf</span><span class=p>(</span><span class=s>&#34;%x&#34;</span><span class=p>,</span> <span class=nx>md5</span><span class=p>.</span><span class=nf>Sum</span><span class=p>(</span><span class=nx>body</span><span class=p>))</span>
+
+          <span class=nx>ioutil</span><span class=p>.</span><span class=nf>WriteFile</span><span class=p>(</span><span class=nx>fmt</span><span class=p>.</span><span class=nf>Sprintf</span><span class=p>(</span><span class=s>&#34;blobs/%s&#34;</span><span class=p>,</span> <span class=nx>md5string</span><span class=p>),</span> <span class=nx>body</span><span class=p>,</span> <span class=mo>0666</span><span class=p>)</span>
+
+          <span class=c1>// Return the key
+</span><span class=c1></span>          <span class=nx>fmt</span><span class=p>.</span><span class=nf>Fprintf</span><span class=p>(</span><span class=nx>w</span><span class=p>,</span> <span class=s>&#34;%s&#34;</span><span class=p>,</span> <span class=nx>md5string</span><span class=p>)</span>
+  <span class=p>}</span>
+
+  <span class=kd>func</span> <span class=nf>main</span><span class=p>()</span> <span class=p>{</span>
+          <span class=nx>http</span><span class=p>.</span><span class=nf>HandleFunc</span><span class=p>(</span><span class=s>&#34;/&#34;</span><span class=p>,</span> <span class=nx>formHandler</span><span class=p>)</span>
+          <span class=nx>http</span><span class=p>.</span><span class=nf>HandleFunc</span><span class=p>(</span><span class=s>&#34;/mover&#34;</span><span class=p>,</span> <span class=nx>formHandler</span><span class=p>)</span>
+
+          <span class=nx>log</span><span class=p>.</span><span class=nf>Print</span><span class=p>(</span><span class=s>&#34;Starting server at port 8080&#34;</span><span class=p>)</span>
+          <span class=k>if</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>http</span><span class=p>.</span><span class=nf>ListenAndServe</span><span class=p>(</span><span class=s>&#34;:8080&#34;</span><span class=p>,</span> <span class=kc>nil</span><span class=p>);</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+                  <span class=nx>log</span><span class=p>.</span><span class=nf>Fatal</span><span class=p>(</span><span class=nx>err</span><span class=p>)</span>
+          <span class=p>}</span>
+  <span class=p>}</span></code></pre></div></div><h3 id=headline-12>Setup</h3><p>We don't really need this, but it's a good idea to make sure that the
+blobs don't go over as part of the build.</p><p><code class=verbatim>.dockerignore</code>:</p><div class="src src-dockerignore"><pre><code class=language-dockerignore data-lang=dockerignore>blobs/</code></pre></div><p>Lets create the <code class=verbatim>blobs</code> folder, the <code class=verbatim>upload</code> subdirectories, and make sure
+that docker and read and write them:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>mkdir -p blobs/upload/<span class=o>{</span>0..9<span class=o>}</span>
+chmod -R <span class=m>777</span> blobs</code></pre></div></div><p>Then start it all up with:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>docker-compose up</code></pre></div></div><h3 id=headline-13>Testing</h3><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>curl -F <span class=nv>file</span><span class=o>=</span><span class=s2>&#34;@/home/wschenk/mobiledownloads/talk.pdf&#34;</span> http://localhost:8080/put</code></pre></div></div><pre class=example>
+a03a16aa4ed93c7194c03bb3d759ba23
+</pre><p>Which returns the has, then we can download it</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash><span class=nb>echo</span> KEY is <span class=si>${</span><span class=nv>KEY</span><span class=si>}</span>
+curl -o /tmp/talk.pdf http://localhost:8080/get/<span class=si>${</span><span class=nv>KEY</span><span class=si>}</span>
+ls -l /tmp/talk.pdf
+md5sum /tmp/talk.pdf</code></pre></div></div><pre class=example>
+KEY is a03a16aa4ed93c7194c03bb3d759ba23
+-rw-r--r-- 1 wschenk wschenk 2227748 Feb 16 11:31 /tmp/talk.pdf
+a03a16aa4ed93c7194c03bb3d759ba23  /tmp/talk.pdf
+</pre><h2 id=headline-14>Client examples</h2><h3 id=headline-15>Bash posting data</h3><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>curl -d <span class=s2>&#34;This is my string&#34;</span> http://localhost:8080/put</code></pre></div></div><pre class=example>
+c2a9ce57e8df081b4baad80d81868bbb
+</pre><h3 id=headline-16>Bash posting file</h3><p>We've already seen this:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>curl -F <span class=nv>file</span><span class=o>=</span><span class=s2>&#34;@/home/wschenk/mobiledownloads/talk.pdf&#34;</span> http://localhost:8080/put</code></pre></div></div><pre class=example>
+a03a16aa4ed93c7194c03bb3d759ba23
+</pre><h3 id=headline-17>Ruby posting data</h3><p><code class=verbatim>client/ruby_data.rb</code>:</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=nb>require</span> <span class=s1>&#39;net/http&#39;</span>
+
+  <span class=n>res</span> <span class=o>=</span> <span class=no>Net</span><span class=o>::</span><span class=no>HTTP</span><span class=o>.</span><span class=n>post</span><span class=p>(</span> <span class=no>URI</span><span class=p>(</span> <span class=s1>&#39;http://localhost:8080/put&#39;</span> <span class=p>),</span> <span class=s1>&#39;This is my string&#39;</span> <span class=p>)</span>
+
+  <span class=nb>puts</span> <span class=n>res</span><span class=o>.</span><span class=n>body</span></code></pre></div></div><pre class=example>
+c2a9ce57e8df081b4baad80d81868bbb
+</pre><h3 id=headline-18>Ruby posting data as a file</h3><p><code class=verbatim>client/ruby_data_as_file.rb</code>:</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=nb>require</span> <span class=s1>&#39;net/http&#39;</span>
+
+  <span class=k>def</span> <span class=nf>write_string_blob</span><span class=p>(</span> <span class=n>host</span><span class=p>,</span> <span class=n>data</span> <span class=p>)</span>
+    <span class=n>uri</span> <span class=o>=</span> <span class=no>URI</span><span class=p>(</span><span class=n>host</span><span class=p>)</span>
+    <span class=n>req</span> <span class=o>=</span> <span class=no>Net</span><span class=o>::</span><span class=no>HTTP</span><span class=o>::</span><span class=no>Post</span><span class=o>.</span><span class=n>new</span><span class=p>(</span> <span class=n>uri</span><span class=o>.</span><span class=n>path</span> <span class=p>)</span>
+    <span class=n>req</span><span class=o>.</span><span class=n>set_form</span><span class=p>(</span><span class=o>[[</span><span class=s1>&#39;file&#39;</span><span class=p>,</span> <span class=s1>&#39;This is my string&#39;</span><span class=p>,</span> <span class=p>{</span><span class=ss>filename</span><span class=p>:</span> <span class=s1>&#39;test&#39;</span><span class=p>}</span><span class=o>]]</span><span class=p>,</span> <span class=s1>&#39;multipart/form-data&#39;</span><span class=p>)</span>
+
+    <span class=n>res</span> <span class=o>=</span> <span class=no>Net</span><span class=o>::</span><span class=no>HTTP</span><span class=o>.</span><span class=n>start</span><span class=p>(</span><span class=n>uri</span><span class=o>.</span><span class=n>hostname</span><span class=p>,</span> <span class=n>uri</span><span class=o>.</span><span class=n>port</span><span class=p>)</span> <span class=k>do</span> <span class=o>|</span><span class=n>http</span><span class=o>|</span>
+      <span class=n>http</span><span class=o>.</span><span class=n>request</span><span class=p>(</span><span class=n>req</span><span class=p>)</span>
+    <span class=k>end</span>
+
+    <span class=n>res</span><span class=o>.</span><span class=n>body</span>
+  <span class=k>end</span>
+
+  <span class=nb>puts</span> <span class=n>write_string_blob</span><span class=p>(</span> <span class=s1>&#39;http://localhost:8080/put&#39;</span><span class=p>,</span> <span class=s1>&#39;this is my data&#39;</span> <span class=p>)</span></code></pre></div></div><pre class=example>
+c2a9ce57e8df081b4baad80d81868bbb
+</pre><h3 id=headline-19>Ruby posting file</h3><p><code class=verbatim>client/ruby_file.rb</code>:</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=nb>require</span> <span class=s1>&#39;net/http&#39;</span>
+
+  <span class=k>def</span> <span class=nf>write_file_blob</span><span class=p>(</span> <span class=n>host</span><span class=p>,</span> <span class=n>file</span> <span class=p>)</span>
+      <span class=n>uri</span> <span class=o>=</span> <span class=no>URI</span><span class=p>(</span><span class=n>host</span><span class=p>)</span>
+      <span class=n>req</span> <span class=o>=</span> <span class=no>Net</span><span class=o>::</span><span class=no>HTTP</span><span class=o>::</span><span class=no>Post</span><span class=o>.</span><span class=n>new</span><span class=p>(</span> <span class=n>uri</span><span class=o>.</span><span class=n>path</span> <span class=p>)</span>
+      <span class=n>req</span><span class=o>.</span><span class=n>set_form</span><span class=p>(</span><span class=o>[[</span><span class=s1>&#39;file&#39;</span><span class=p>,</span> <span class=no>File</span><span class=o>.</span><span class=n>open</span><span class=p>(</span> <span class=n>file</span> <span class=p>)</span><span class=o>]]</span><span class=p>,</span> <span class=s1>&#39;multipart/form-data&#39;</span><span class=p>)</span>
+
+      <span class=n>res</span> <span class=o>=</span> <span class=no>Net</span><span class=o>::</span><span class=no>HTTP</span><span class=o>.</span><span class=n>start</span><span class=p>(</span><span class=n>uri</span><span class=o>.</span><span class=n>hostname</span><span class=p>,</span> <span class=n>uri</span><span class=o>.</span><span class=n>port</span><span class=p>)</span> <span class=k>do</span> <span class=o>|</span><span class=n>http</span><span class=o>|</span>
+        <span class=n>http</span><span class=o>.</span><span class=n>request</span><span class=p>(</span><span class=n>req</span><span class=p>)</span>
+      <span class=k>end</span>
+
+      <span class=n>res</span><span class=o>.</span><span class=n>body</span>
+  <span class=k>end</span>
+
+  <span class=nb>puts</span> <span class=n>write_file_blob</span><span class=p>(</span> <span class=s1>&#39;http://localhost:8080/put&#39;</span><span class=p>,</span> <span class=s1>&#39;/home/wschenk/mobiledownloads/talk.pdf&#39;</span> <span class=p>)</span></code></pre></div></div><pre class=example>
+a03a16aa4ed93c7194c03bb3d759ba23
+</pre><h3 id=headline-20>node posting data</h3><p>Requires <code class=verbatim>node-fetch</code> npm package.</p><p><code class=verbatim>client/node_string.js</code>:</p><div class="src src-javascript"><div class=highlight><pre class=chroma><code class=language-javascript data-lang=javascript>  <span class=kr>const</span> <span class=nx>fetch</span> <span class=o>=</span> <span class=nx>require</span><span class=p>(</span> <span class=s1>&#39;node-fetch&#39;</span> <span class=p>)</span>
+
+  <span class=nx>fetch</span><span class=p>(</span> <span class=s1>&#39;http://localhost:8080/put&#39;</span><span class=p>,</span>
+         <span class=p>{</span><span class=nx>method</span><span class=o>:</span> <span class=s1>&#39;POST&#39;</span><span class=p>,</span> <span class=nx>body</span><span class=o>:</span> <span class=s1>&#39;This is my string&#39;</span><span class=p>}</span> <span class=p>)</span>
+      <span class=p>.</span><span class=nx>then</span><span class=p>(</span> <span class=p>(</span><span class=nx>res</span><span class=p>)</span> <span class=p>=&gt;</span> <span class=nx>res</span><span class=p>.</span><span class=nx>text</span><span class=p>()</span> <span class=p>)</span>
+      <span class=p>.</span><span class=nx>then</span><span class=p>(</span> <span class=p>(</span><span class=nx>res</span><span class=p>)</span> <span class=p>=&gt;</span> <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=nx>res</span> <span class=p>)</span> <span class=p>)</span>
+</code></pre></div></div><h3 id=headline-21>node posting string as file</h3><p>Requires <code class=verbatim>node-fetch</code> and <code class=verbatim>form-data</code> packages:</p><p><code class=verbatim>client/node_string_as_file.js</code>:</p><div class="src src-javascript"><div class=highlight><pre class=chroma><code class=language-javascript data-lang=javascript>  <span class=kr>const</span> <span class=nx>fetch</span> <span class=o>=</span> <span class=nx>require</span><span class=p>(</span> <span class=s1>&#39;node-fetch&#39;</span> <span class=p>);</span>
+  <span class=kr>const</span> <span class=nx>FormData</span> <span class=o>=</span> <span class=nx>require</span><span class=p>(</span> <span class=s1>&#39;form-data&#39;</span> <span class=p>);</span>
+
+  <span class=kd>function</span> <span class=nx>write_string_blob</span><span class=p>(</span> <span class=nx>url</span><span class=p>,</span> <span class=nx>string</span> <span class=p>)</span> <span class=p>{</span>
+      <span class=kr>const</span> <span class=nx>form</span> <span class=o>=</span> <span class=k>new</span> <span class=nx>FormData</span><span class=p>();</span>
+      <span class=nx>form</span><span class=p>.</span><span class=nx>append</span><span class=p>(</span><span class=s1>&#39;file&#39;</span><span class=p>,</span> <span class=nx>string</span><span class=p>,</span> <span class=p>{</span><span class=nx>filename</span><span class=o>:</span> <span class=s1>&#39;test&#39;</span><span class=p>}</span> <span class=p>);</span>
+
+      <span class=kr>const</span> <span class=nx>options</span> <span class=o>=</span> <span class=p>{</span>
+          <span class=nx>method</span><span class=o>:</span> <span class=s1>&#39;POST&#39;</span><span class=p>,</span>
+          <span class=nx>credentials</span><span class=o>:</span> <span class=s1>&#39;include&#39;</span><span class=p>,</span>
+          <span class=nx>body</span><span class=o>:</span> <span class=nx>form</span>
+      <span class=p>};</span>
+
+      <span class=k>return</span> <span class=nx>fetch</span><span class=p>(</span><span class=nx>url</span><span class=p>,</span> <span class=p>{</span> <span class=p>...</span><span class=nx>options</span> <span class=p>})</span>
+          <span class=p>.</span><span class=nx>then</span><span class=p>(</span><span class=nx>res</span> <span class=p>=&gt;</span> <span class=p>{</span>
+              <span class=k>if</span> <span class=p>(</span><span class=nx>res</span><span class=p>.</span><span class=nx>ok</span><span class=p>)</span> <span class=k>return</span> <span class=nx>res</span><span class=p>.</span><span class=nx>text</span><span class=p>();</span>
+              <span class=k>throw</span> <span class=nx>res</span><span class=p>;</span>
+          <span class=p>});</span>
+  <span class=p>}</span>
+
+  <span class=nx>write_string_blob</span><span class=p>(</span> <span class=s1>&#39;http://localhost:8080/put&#39;</span><span class=p>,</span> <span class=s1>&#39;This is my string&#39;</span><span class=p>).</span>
+      <span class=nx>then</span><span class=p>(</span> <span class=p>(</span><span class=nx>res</span><span class=p>)</span> <span class=p>=&gt;</span> <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=nx>res</span> <span class=p>)</span> <span class=p>)</span>
+</code></pre></div></div><h3 id=headline-22>node posting file</h3><p>First we need to install some libraries:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>npm init -y
+npm add node-fetch form-data</code></pre></div></div><p>Then:</p><div class="src src-javascript"><div class=highlight><pre class=chroma><code class=language-javascript data-lang=javascript>  <span class=kr>const</span> <span class=nx>fetch</span> <span class=o>=</span> <span class=nx>require</span><span class=p>(</span> <span class=s1>&#39;node-fetch&#39;</span> <span class=p>);</span>
+  <span class=kr>const</span> <span class=nx>FormData</span> <span class=o>=</span> <span class=nx>require</span><span class=p>(</span> <span class=s1>&#39;form-data&#39;</span> <span class=p>);</span>
+  <span class=kr>const</span> <span class=nx>fs</span> <span class=o>=</span> <span class=nx>require</span><span class=p>(</span><span class=s1>&#39;fs&#39;</span><span class=p>);</span>
+  <span class=kr>const</span> <span class=nx>path</span> <span class=o>=</span> <span class=nx>require</span><span class=p>(</span><span class=s1>&#39;path&#39;</span><span class=p>)</span>
+
+  <span class=kd>function</span> <span class=nx>write_file_blob</span><span class=p>(</span> <span class=nx>url</span><span class=p>,</span> <span class=nx>filename</span> <span class=p>)</span> <span class=p>{</span>
+      <span class=kr>const</span> <span class=nx>form</span> <span class=o>=</span> <span class=k>new</span> <span class=nx>FormData</span><span class=p>();</span>
+      <span class=kr>const</span> <span class=nx>buffer</span> <span class=o>=</span> <span class=nx>fs</span><span class=p>.</span><span class=nx>readFileSync</span><span class=p>(</span><span class=nx>filename</span><span class=p>);</span>
+
+      <span class=nx>form</span><span class=p>.</span><span class=nx>append</span><span class=p>(</span><span class=s1>&#39;file&#39;</span><span class=p>,</span> <span class=nx>buffer</span><span class=p>,</span> <span class=p>{</span><span class=nx>filename</span><span class=o>:</span> <span class=nx>path</span><span class=p>.</span><span class=nx>basename</span><span class=p>(</span> <span class=nx>filename</span> <span class=p>)}</span> <span class=p>);</span>
+
+      <span class=kr>const</span> <span class=nx>options</span> <span class=o>=</span> <span class=p>{</span>
+          <span class=nx>method</span><span class=o>:</span> <span class=s1>&#39;POST&#39;</span><span class=p>,</span>
+          <span class=nx>credentials</span><span class=o>:</span> <span class=s1>&#39;include&#39;</span><span class=p>,</span>
+          <span class=nx>body</span><span class=o>:</span> <span class=nx>form</span>
+      <span class=p>};</span>
+
+      <span class=k>return</span> <span class=nx>fetch</span><span class=p>(</span><span class=nx>url</span><span class=p>,</span> <span class=p>{</span> <span class=p>...</span><span class=nx>options</span> <span class=p>})</span>
+          <span class=p>.</span><span class=nx>then</span><span class=p>(</span><span class=nx>res</span> <span class=p>=&gt;</span> <span class=p>{</span>
+              <span class=k>if</span> <span class=p>(</span><span class=nx>res</span><span class=p>.</span><span class=nx>ok</span><span class=p>)</span> <span class=k>return</span> <span class=nx>res</span><span class=p>.</span><span class=nx>text</span><span class=p>();</span>
+              <span class=k>throw</span> <span class=nx>res</span><span class=p>;</span>
+          <span class=p>});</span>
+  <span class=p>}</span>
+
+  <span class=nx>write_file_blob</span><span class=p>(</span> 
+      <span class=s1>&#39;http://localhost:8080/put&#39;</span><span class=p>,</span>
+      <span class=s1>&#39;/home/wschenk/mobiledownloads/talk.pdf&#39;</span>
+  <span class=p>).</span>
+      <span class=nx>then</span><span class=p>(</span> <span class=p>(</span><span class=nx>res</span><span class=p>)</span> <span class=p>=&gt;</span> <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=nx>res</span> <span class=p>),</span> <span class=p>(</span><span class=nx>rej</span><span class=p>)</span> <span class=p>=&gt;</span> <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=nx>rej</span> <span class=p>)</span> <span class=p>)</span>
+</code></pre></div></div><h3 id=headline-23>Deno posting string</h3><p><code class=verbatim>client/deno_string.ts</code>:</p><div class="src src-typescript"><div class=highlight><pre class=chroma><code class=language-typescript data-lang=typescript>  <span class=nx>fetch</span><span class=p>(</span> <span class=s1>&#39;http://localhost:8080/put&#39;</span><span class=p>,</span>
+         <span class=p>{</span><span class=nx>method</span><span class=o>:</span> <span class=s1>&#39;POST&#39;</span><span class=p>,</span> <span class=nx>body</span><span class=o>:</span> <span class=s1>&#39;This is my string&#39;</span><span class=p>}</span> <span class=p>)</span>
+      <span class=p>.</span><span class=nx>then</span><span class=p>(</span> <span class=p>(</span><span class=nx>res</span><span class=p>)</span> <span class=o>=&gt;</span> <span class=nx>res</span><span class=p>.</span><span class=nx>text</span><span class=p>()</span> <span class=p>)</span>
+      <span class=p>.</span><span class=nx>then</span><span class=p>(</span> <span class=p>(</span><span class=nx>res</span><span class=p>)</span> <span class=o>=&gt;</span> <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=nx>res</span> <span class=p>)</span> <span class=p>)</span>
+</code></pre></div></div><h3 id=headline-24>Deno posting string as file</h3><p><code class=verbatim>client/deno_string_as_file.ts</code>:</p><div class="src src-typescript"><div class=highlight><pre class=chroma><code class=language-typescript data-lang=typescript>  <span class=kr>const</span> <span class=nx>form</span> <span class=o>=</span> <span class=k>new</span> <span class=nx>FormData</span><span class=p>()</span>
+  <span class=kr>const</span> <span class=nx>blob</span> <span class=o>=</span> <span class=k>new</span> <span class=nx>Blob</span><span class=p>([</span><span class=s1>&#39;This is my string&#39;</span><span class=p>])</span>
+  <span class=nx>form</span><span class=p>.</span><span class=nx>append</span><span class=p>(</span> <span class=s1>&#39;file&#39;</span><span class=p>,</span> <span class=nx>blob</span><span class=p>,</span>  <span class=s1>&#39;testfilename&#39;</span><span class=p>)</span>
+
+  <span class=kr>const</span> <span class=nx>options</span> <span class=o>=</span> <span class=p>{</span>
+      <span class=nx>method</span><span class=o>:</span> <span class=s1>&#39;POST&#39;</span><span class=p>,</span>
+      <span class=nx>body</span>: <span class=kt>form</span> <span class=p>}</span>
+
+  <span class=nx>fetch</span><span class=p>(</span> <span class=s1>&#39;http://localhost:8080/put&#39;</span><span class=p>,</span> <span class=p>{...</span><span class=nx>options</span><span class=p>})</span>
+      <span class=p>.</span><span class=nx>then</span><span class=p>(</span> <span class=nx>res</span> <span class=o>=&gt;</span> <span class=nx>res</span><span class=p>.</span><span class=nx>text</span><span class=p>()</span> <span class=p>)</span>
+      <span class=p>.</span><span class=nx>then</span><span class=p>(</span> <span class=nx>res</span> <span class=o>=&gt;</span> <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=nx>res</span> <span class=p>)</span> <span class=p>);</span>
+</code></pre></div></div><h3 id=headline-25>Deno posting file</h3><div class="src src-typescript"><div class=highlight><pre class=chroma><code class=language-typescript data-lang=typescript>  <span class=kr>const</span> <span class=nx>form</span> <span class=o>=</span> <span class=k>new</span> <span class=nx>FormData</span><span class=p>()</span>
+  <span class=kr>const</span> <span class=nx>file</span> <span class=o>=</span> <span class=nx>await</span> <span class=nx>Deno</span><span class=p>.</span><span class=nx>readFile</span><span class=p>(</span> <span class=s1>&#39;/home/wschenk/mobiledownloads/talk.pdf&#39;</span> <span class=p>)</span>
+  <span class=kr>const</span> <span class=nx>blob</span> <span class=o>=</span> <span class=k>new</span> <span class=nx>Blob</span><span class=p>(</span> <span class=p>[</span><span class=nx>file</span><span class=p>]</span> <span class=p>)</span>
+  <span class=nx>form</span><span class=p>.</span><span class=nx>append</span><span class=p>(</span> <span class=s1>&#39;file&#39;</span><span class=p>,</span> <span class=nx>blob</span><span class=p>,</span>  <span class=s1>&#39;testfilename&#39;</span><span class=p>)</span>
+
+  <span class=kr>const</span> <span class=nx>options</span> <span class=o>=</span> <span class=p>{</span>
+      <span class=nx>method</span><span class=o>:</span> <span class=s1>&#39;POST&#39;</span><span class=p>,</span>
+      <span class=nx>body</span>: <span class=kt>form</span> <span class=p>}</span>
+
+  <span class=nx>fetch</span><span class=p>(</span> <span class=s1>&#39;http://localhost:8080/put&#39;</span><span class=p>,</span> <span class=p>{...</span><span class=nx>options</span><span class=p>})</span>
+      <span class=p>.</span><span class=nx>then</span><span class=p>(</span> <span class=nx>res</span> <span class=o>=&gt;</span> <span class=nx>res</span><span class=p>.</span><span class=nx>text</span><span class=p>()</span> <span class=p>)</span>
+      <span class=p>.</span><span class=nx>then</span><span class=p>(</span> <span class=nx>res</span> <span class=o>=&gt;</span> <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=nx>res</span> <span class=p>)</span> <span class=p>);</span>
+</code></pre></div></div><h3 id=headline-26>go posting string</h3><p><code class=verbatim>client/go_string.go</code>:</p><div class="src src-go"><div class=highlight><pre class=chroma><code class=language-go data-lang=go>  <span class=kn>package</span> <span class=nx>main</span>
+
+  <span class=kn>import</span> <span class=p>(</span>
+          <span class=s>&#34;fmt&#34;</span>
+          <span class=s>&#34;io/ioutil&#34;</span>
+          <span class=s>&#34;net/http&#34;</span>
+          <span class=s>&#34;strings&#34;</span>
+  <span class=p>)</span>
+
+  <span class=kd>func</span> <span class=nf>write_string_blob</span><span class=p>(</span><span class=nx>uri</span> <span class=kt>string</span><span class=p>,</span> <span class=nx>message</span> <span class=kt>string</span><span class=p>)</span> <span class=p>(</span><span class=kt>string</span><span class=p>,</span> <span class=kt>error</span><span class=p>)</span> <span class=p>{</span>
+          <span class=nx>body</span> <span class=o>:=</span> <span class=nx>strings</span><span class=p>.</span><span class=nf>NewReader</span><span class=p>(</span><span class=nx>message</span><span class=p>)</span>
+
+          <span class=nx>client</span> <span class=o>:=</span> <span class=o>&amp;</span><span class=nx>http</span><span class=p>.</span><span class=nx>Client</span><span class=p>{}</span>
+          <span class=nx>req</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>http</span><span class=p>.</span><span class=nf>NewRequest</span><span class=p>(</span><span class=s>&#34;POST&#34;</span><span class=p>,</span> <span class=nx>uri</span><span class=p>,</span> <span class=nx>body</span><span class=p>)</span>
+          <span class=nx>req</span><span class=p>.</span><span class=nx>Header</span><span class=p>.</span><span class=nf>Add</span><span class=p>(</span><span class=s>&#34;Content-Type&#34;</span><span class=p>,</span> <span class=s>&#34;application/octet-stream&#34;</span><span class=p>)</span>
+
+          <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+                  <span class=k>return</span> <span class=s>&#34;&#34;</span><span class=p>,</span> <span class=nx>err</span>
+          <span class=p>}</span>
+
+          <span class=nx>resp</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>client</span><span class=p>.</span><span class=nf>Do</span><span class=p>(</span><span class=nx>req</span><span class=p>)</span>
+
+          <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+                  <span class=k>return</span> <span class=s>&#34;&#34;</span><span class=p>,</span> <span class=nx>err</span>
+          <span class=p>}</span> <span class=k>else</span> <span class=p>{</span>
+                  <span class=nx>body</span><span class=p>,</span> <span class=nx>_</span> <span class=o>:=</span> <span class=nx>ioutil</span><span class=p>.</span><span class=nf>ReadAll</span><span class=p>(</span><span class=nx>resp</span><span class=p>.</span><span class=nx>Body</span><span class=p>)</span>
+                  <span class=nx>resp</span><span class=p>.</span><span class=nx>Body</span><span class=p>.</span><span class=nf>Close</span><span class=p>()</span>
+                  <span class=k>return</span> <span class=nb>string</span><span class=p>(</span><span class=nx>body</span><span class=p>),</span> <span class=kc>nil</span>
+          <span class=p>}</span>
+  <span class=p>}</span>
+
+  <span class=kd>func</span> <span class=nf>main</span><span class=p>()</span> <span class=p>{</span>
+          <span class=nx>md5</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nf>write_string_blob</span><span class=p>(</span><span class=s>&#34;http://localhost:8080/put&#34;</span><span class=p>,</span> <span class=s>&#34;This is my string&#34;</span><span class=p>)</span>
+
+          <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+                  <span class=nb>panic</span><span class=p>(</span><span class=nx>err</span><span class=p>)</span>
+          <span class=p>}</span>
+
+          <span class=nx>fmt</span><span class=p>.</span><span class=nf>Print</span><span class=p>(</span><span class=nx>md5</span><span class=p>)</span>
+  <span class=p>}</span></code></pre></div></div><h3 id=headline-27>go posting string as file</h3><p><code class=verbatim>client/go_string_as_file.go</code>:</p><div class="src src-go"><div class=highlight><pre class=chroma><code class=language-go data-lang=go>  <span class=kn>package</span> <span class=nx>main</span>
+
+  <span class=kn>import</span> <span class=p>(</span>
+          <span class=s>&#34;bytes&#34;</span>
+          <span class=s>&#34;fmt&#34;</span>
+          <span class=s>&#34;io/ioutil&#34;</span>
+          <span class=s>&#34;mime/multipart&#34;</span>
+          <span class=s>&#34;net/http&#34;</span>
+  <span class=p>)</span>
+
+  <span class=kd>func</span> <span class=nf>write_string_as_file</span><span class=p>(</span><span class=nx>uri</span> <span class=kt>string</span><span class=p>,</span> <span class=nx>message</span> <span class=kt>string</span><span class=p>)</span> <span class=p>(</span><span class=kt>string</span><span class=p>,</span> <span class=kt>error</span><span class=p>)</span> <span class=p>{</span>
+          <span class=nx>body</span> <span class=o>:=</span> <span class=nb>new</span><span class=p>(</span><span class=nx>bytes</span><span class=p>.</span><span class=nx>Buffer</span><span class=p>)</span>
+
+          <span class=nx>writer</span> <span class=o>:=</span> <span class=nx>multipart</span><span class=p>.</span><span class=nf>NewWriter</span><span class=p>(</span><span class=nx>body</span><span class=p>)</span>
+
+          <span class=nx>part</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>writer</span><span class=p>.</span><span class=nf>CreateFormFile</span><span class=p>(</span><span class=s>&#34;file&#34;</span><span class=p>,</span> <span class=s>&#34;filename&#34;</span><span class=p>)</span>
+
+          <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+                  <span class=k>return</span> <span class=s>&#34;&#34;</span><span class=p>,</span> <span class=nx>err</span>
+          <span class=p>}</span>
+
+          <span class=nx>part</span><span class=p>.</span><span class=nf>Write</span><span class=p>([]</span><span class=nb>byte</span><span class=p>(</span><span class=nx>message</span><span class=p>))</span>
+
+          <span class=nx>err</span> <span class=p>=</span> <span class=nx>writer</span><span class=p>.</span><span class=nf>Close</span><span class=p>()</span>
+
+          <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+                  <span class=k>return</span> <span class=s>&#34;&#34;</span><span class=p>,</span> <span class=nx>err</span>
+          <span class=p>}</span>
+
+          <span class=nx>client</span> <span class=o>:=</span> <span class=o>&amp;</span><span class=nx>http</span><span class=p>.</span><span class=nx>Client</span><span class=p>{}</span>
+          <span class=nx>req</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>http</span><span class=p>.</span><span class=nf>NewRequest</span><span class=p>(</span><span class=s>&#34;POST&#34;</span><span class=p>,</span> <span class=nx>uri</span><span class=p>,</span> <span class=nx>body</span><span class=p>)</span>
+          <span class=nx>req</span><span class=p>.</span><span class=nx>Header</span><span class=p>.</span><span class=nf>Add</span><span class=p>(</span><span class=s>&#34;Content-Type&#34;</span><span class=p>,</span> <span class=nx>writer</span><span class=p>.</span><span class=nf>FormDataContentType</span><span class=p>())</span>
+
+          <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+                  <span class=k>return</span> <span class=s>&#34;&#34;</span><span class=p>,</span> <span class=nx>err</span>
+          <span class=p>}</span>
+
+          <span class=nx>resp</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>client</span><span class=p>.</span><span class=nf>Do</span><span class=p>(</span><span class=nx>req</span><span class=p>)</span>
+
+          <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+                  <span class=k>return</span> <span class=s>&#34;&#34;</span><span class=p>,</span> <span class=nx>err</span>
+          <span class=p>}</span> <span class=k>else</span> <span class=p>{</span>
+                  <span class=nx>body</span><span class=p>,</span> <span class=nx>_</span> <span class=o>:=</span> <span class=nx>ioutil</span><span class=p>.</span><span class=nf>ReadAll</span><span class=p>(</span><span class=nx>resp</span><span class=p>.</span><span class=nx>Body</span><span class=p>)</span>
+                  <span class=nx>resp</span><span class=p>.</span><span class=nx>Body</span><span class=p>.</span><span class=nf>Close</span><span class=p>()</span>
+                  <span class=k>return</span> <span class=nb>string</span><span class=p>(</span><span class=nx>body</span><span class=p>),</span> <span class=kc>nil</span>
+          <span class=p>}</span>
+  <span class=p>}</span>
+
+  <span class=kd>func</span> <span class=nf>main</span><span class=p>()</span> <span class=p>{</span>
+          <span class=nx>md5</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nf>write_string_as_file</span><span class=p>(</span><span class=s>&#34;http://localhost:8080/put&#34;</span><span class=p>,</span> <span class=s>&#34;This is my string&#34;</span><span class=p>)</span>
+
+          <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+                  <span class=nb>panic</span><span class=p>(</span><span class=nx>err</span><span class=p>)</span>
+          <span class=p>}</span>
+
+          <span class=nx>fmt</span><span class=p>.</span><span class=nf>Print</span><span class=p>(</span><span class=nx>md5</span><span class=p>)</span>
+  <span class=p>}</span></code></pre></div></div><h3 id=headline-28>go posting file</h3><p><code class=verbatim>client/go_string_as_file.go</code>:</p><div class="src src-go"><div class=highlight><pre class=chroma><code class=language-go data-lang=go>  <span class=kn>package</span> <span class=nx>main</span>
+
+  <span class=kn>import</span> <span class=p>(</span>
+          <span class=s>&#34;bytes&#34;</span>
+          <span class=s>&#34;fmt&#34;</span>
+          <span class=s>&#34;io/ioutil&#34;</span>
+          <span class=s>&#34;mime/multipart&#34;</span>
+          <span class=s>&#34;net/http&#34;</span>
+          <span class=s>&#34;os&#34;</span>
+  <span class=p>)</span>
+
+  <span class=kd>func</span> <span class=nf>write_file_blob</span><span class=p>(</span><span class=nx>uri</span> <span class=kt>string</span><span class=p>,</span> <span class=nx>path</span> <span class=kt>string</span><span class=p>)</span> <span class=p>(</span><span class=kt>string</span><span class=p>,</span> <span class=kt>error</span><span class=p>)</span> <span class=p>{</span>
+          <span class=nx>body</span> <span class=o>:=</span> <span class=nb>new</span><span class=p>(</span><span class=nx>bytes</span><span class=p>.</span><span class=nx>Buffer</span><span class=p>)</span>
+
+          <span class=nx>file</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>os</span><span class=p>.</span><span class=nf>Open</span><span class=p>(</span><span class=nx>path</span><span class=p>)</span>
+          <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+                  <span class=k>return</span> <span class=s>&#34;&#34;</span><span class=p>,</span> <span class=nx>err</span>
+          <span class=p>}</span>
+          <span class=nx>fileContents</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>ioutil</span><span class=p>.</span><span class=nf>ReadAll</span><span class=p>(</span><span class=nx>file</span><span class=p>)</span>
+          <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+                  <span class=k>return</span> <span class=s>&#34;&#34;</span><span class=p>,</span> <span class=nx>err</span>
+          <span class=p>}</span>
+          <span class=nx>fi</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>file</span><span class=p>.</span><span class=nf>Stat</span><span class=p>()</span>
+          <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+                  <span class=k>return</span> <span class=s>&#34;&#34;</span><span class=p>,</span> <span class=nx>err</span>
+          <span class=p>}</span>
+          <span class=nx>file</span><span class=p>.</span><span class=nf>Close</span><span class=p>()</span>
+
+          <span class=nx>writer</span> <span class=o>:=</span> <span class=nx>multipart</span><span class=p>.</span><span class=nf>NewWriter</span><span class=p>(</span><span class=nx>body</span><span class=p>)</span>
+
+          <span class=nx>part</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>writer</span><span class=p>.</span><span class=nf>CreateFormFile</span><span class=p>(</span><span class=s>&#34;file&#34;</span><span class=p>,</span> <span class=nx>fi</span><span class=p>.</span><span class=nf>Name</span><span class=p>())</span>
+
+          <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+                  <span class=k>return</span> <span class=s>&#34;&#34;</span><span class=p>,</span> <span class=nx>err</span>
+          <span class=p>}</span>
+
+          <span class=nx>part</span><span class=p>.</span><span class=nf>Write</span><span class=p>(</span><span class=nx>fileContents</span><span class=p>)</span>
+
+          <span class=nx>err</span> <span class=p>=</span> <span class=nx>writer</span><span class=p>.</span><span class=nf>Close</span><span class=p>()</span>
+
+          <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+                  <span class=k>return</span> <span class=s>&#34;&#34;</span><span class=p>,</span> <span class=nx>err</span>
+          <span class=p>}</span>
+
+          <span class=nx>client</span> <span class=o>:=</span> <span class=o>&amp;</span><span class=nx>http</span><span class=p>.</span><span class=nx>Client</span><span class=p>{}</span>
+          <span class=nx>req</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>http</span><span class=p>.</span><span class=nf>NewRequest</span><span class=p>(</span><span class=s>&#34;POST&#34;</span><span class=p>,</span> <span class=nx>uri</span><span class=p>,</span> <span class=nx>body</span><span class=p>)</span>
+          <span class=nx>req</span><span class=p>.</span><span class=nx>Header</span><span class=p>.</span><span class=nf>Add</span><span class=p>(</span><span class=s>&#34;Content-Type&#34;</span><span class=p>,</span> <span class=nx>writer</span><span class=p>.</span><span class=nf>FormDataContentType</span><span class=p>())</span>
+
+          <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+                  <span class=k>return</span> <span class=s>&#34;&#34;</span><span class=p>,</span> <span class=nx>err</span>
+          <span class=p>}</span>
+
+          <span class=nx>resp</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>client</span><span class=p>.</span><span class=nf>Do</span><span class=p>(</span><span class=nx>req</span><span class=p>)</span>
+
+          <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+                  <span class=k>return</span> <span class=s>&#34;&#34;</span><span class=p>,</span> <span class=nx>err</span>
+          <span class=p>}</span> <span class=k>else</span> <span class=p>{</span>
+                  <span class=nx>body</span><span class=p>,</span> <span class=nx>_</span> <span class=o>:=</span> <span class=nx>ioutil</span><span class=p>.</span><span class=nf>ReadAll</span><span class=p>(</span><span class=nx>resp</span><span class=p>.</span><span class=nx>Body</span><span class=p>)</span>
+                  <span class=nx>resp</span><span class=p>.</span><span class=nx>Body</span><span class=p>.</span><span class=nf>Close</span><span class=p>()</span>
+                  <span class=k>return</span> <span class=nb>string</span><span class=p>(</span><span class=nx>body</span><span class=p>),</span> <span class=kc>nil</span>
+          <span class=p>}</span>
+  <span class=p>}</span>
+
+  <span class=kd>func</span> <span class=nf>main</span><span class=p>()</span> <span class=p>{</span>
+          <span class=nx>md5</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nf>write_file_blob</span><span class=p>(</span><span class=s>&#34;http://localhost:8080/put&#34;</span><span class=p>,</span> <span class=s>&#34;/home/wschenk/mobiledownloads/talk.pdf&#34;</span><span class=p>)</span>
+
+          <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+                  <span class=nb>panic</span><span class=p>(</span><span class=nx>err</span><span class=p>)</span>
+          <span class=p>}</span>
+
+          <span class=nx>fmt</span><span class=p>.</span><span class=nf>Print</span><span class=p>(</span><span class=nx>md5</span><span class=p>)</span>
+  <span class=p>}</span></code></pre></div></div><h2 id=headline-29>Final thoughts</h2><p>The reason that I wrote this is so that I could easily share large
+blobs of data between cloud functions without the overhead of
+installing a S3 clone or trying to jam stuff into Redis.</p><h2 id=headline-30>References</h2><ol><li><p><a href=https://gist.github.com/hermanbanken/96f0ff298c162a522ddbba44cad31081>https://gist.github.com/hermanbanken/96f0ff298c162a522ddbba44cad31081</a></p></li><li><p><a href=https://vsoch.github.io/2018/django-nginx-upload/>https://vsoch.github.io/2018/django-nginx-upload/</a></p></li><li><p><a href=https://www.yanxurui.cc/posts/server/2017-03-21-NGINX-as-a-file-server/>https://www.yanxurui.cc/posts/server/2017-03-21-NGINX-as-a-file-server/</a></p></li><li><p><a href=https://golang.org/pkg/net/http/httputil/>https://golang.org/pkg/net/http/httputil/</a></p></li><li><p><a href=https://gist.github.com/pinkhominid/e6f53706e0dd8cf34f2bd94c3aa357c5>https://gist.github.com/pinkhominid/e6f53706e0dd8cf34f2bd94c3aa357c5</a></p></li><li><p><a href=https://gist.github.com/mattetti/5914158/f4d1393d83ebedc682a3c8e7bdc6b49670083b84>https://gist.github.com/mattetti/5914158/f4d1393d83ebedc682a3c8e7bdc6b49670083b84</a></p></li></ol></article><div class="alert alert-secondary">The code from this article can be found at <a href=https://github.com/wschenk/blob_server>https://github.com/wschenk/blob_server</a></div></div><div class="bg-light py-5"><div class=container><h2 class=text-center>Read next</h2><div class=row><div class="col-md-6 text-center"></div><div class="col-md-6 text-center">Previous Post:
+<a href=../../../articles/2021/building_an_openfaas_template/>Building static OpenFaas templates</a></div></div></div></div><div class="container mt-5"><h2 class=text-center>See also</h2><div class=row><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2020/rails_in_docker/>Rails in Docker</a></p><p class="lead font-italic mb-0">Why install ruby locally?</p><div class="font-weight-light mt-3"><p>In leveraging disposability for exploration we looked at how to build software without having it installed on your local computer. Lets go through how to setup and develop a rails application with this process. docker-compose.yml all the way down We're going to create our app by adding things to a docker-compose.yml file as needed. Lets create the first one, which will contain our rails container as well as a volume for keeping track of all the gems.</p></div><a href=../../../articles/2020/rails_in_docker/ class="btn btn-primary">Read more</a></div><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2019/setting_up_an_ipfs_node/>Setting up an IPFS Node</a></p><p class="lead font-italic mb-0">using docker-compose and certbot</p><div class="font-weight-light mt-3"><p>IPFS nodes that run in the broswer communicate over websockets to the main network. Lets walk through how to setup a IPFS server that your browser code can connect to in addition to the public gateways. Strategy Wire everything up with docker-compose Create and configure an ipfs container Setup nginx with dummy certificate Replace that certificate with certbot Setup certbot to auto renew the certificates Requirements You will need: A server with a domain or subdomain to use certbot to get a certificate A working docker-compose install I'm using a prebuilt docker image on Digital Ocean but the key part is to get the domain name.</p></div><a href=../../../articles/2019/setting_up_an_ipfs_node/ class="btn btn-primary">Read more</a></div></div></div><footer class="footer bg-dark text-light mt-3"><div class=container><h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2></div></footer></body></html>
