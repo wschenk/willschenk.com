@@ -11,10 +11,14 @@ fi
 
 # Look inside of our post to load up where the remote
 # is configured, bail if not set
-REMOTE=$(awk '/^remote:/ {print $2}' index.md |head -n 1)
+if [ -f index.md ]; then
+    REMOTE=$(awk '/^remote:/ {print $2}' index.md |head -n 1)
+else
+    REMOTE=$(awk '/^\#\+remote:/ {print $2}' index.org |head -n 1)
+fi    
 
 if [ -z "${REMOTE}" ]; then
-  echo remote is not defined in the front matter of index.md
+  echo remote is not defined in the front matter of index.md or index.org
   exit 1
 fi
 
