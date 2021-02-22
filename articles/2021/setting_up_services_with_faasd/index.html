@@ -1,0 +1,130 @@
+<!doctype html><html><head><title>Setting up redis and nat-connector with FaasD</title><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><link rel=stylesheet href=../../../css/theme.css><link rel=stylesheet href=../../../css/syntax.css><script type=application/javascript>var doNotTrack=false;if(!doNotTrack){window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;ga('create','UA-56296045-1','auto');ga('send','pageview');}</script><script async src=https://www.google-analytics.com/analytics.js></script><script async defer data-domain=willschenk.com src=https://plausible.io/js/plausible.js></script><meta property="og:title" content="Setting up redis and nat-connector with FaasD"><meta property="og:description" content="Lets look at how we expand our faasd server to include a couple of services. We'll first add a redis server and some simple ruby code to add a counter, and then we'll build and add the nats-connector to be able publish and subscribe to events. About /var/lib/faasd/docker-compose.yaml   This looks like a docker-compose file, and I believe that it actually does use the same code that parses the file of that name, but it doesn't use docker to set up the containers."><meta property="og:type" content="article"><meta property="og:url" content="https://willschenk.com/articles/2021/setting_up_services_with_faasd/"><meta property="article:published_time" content="2021-02-22T00:00:00+00:00"><meta property="article:modified_time" content="2021-02-22T00:00:00+00:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Setting up redis and nat-connector with FaasD"><meta name=twitter:description content="Lets look at how we expand our faasd server to include a couple of services. We'll first add a redis server and some simple ruby code to add a counter, and then we'll build and add the nats-connector to be able publish and subscribe to events. About /var/lib/faasd/docker-compose.yaml   This looks like a docker-compose file, and I believe that it actually does use the same code that parses the file of that name, but it doesn't use docker to set up the containers."><meta name=twitter:site content="@wschenk"><style>.article p,.article ul,.article ol,.article table{max-width:45em}.article pre p{max-width:none;margin-top:-1.5rem}article.article p:first-child,.article blockquote{font-size:1.25em;font-weight:300;max-width:36em}.half-height-scroll{max-height:32em;overflow:scroll}</style></head><body><nav class="container my-5"><h1 class="pt-md-5 display-3"><a class=text-dark href=../../../>Will Schenk</a></h1><p><a class="text-dark h4 mr-3 font-weight-light" href=../../../articles/>Articles</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../contact>Contact</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../tags/>Tags</a>
+<a href=../../../feed.xml class="mr-3 h4 text-light"><img src=../../../img/rss.svg alt=rss height=20 width=20></a>
+<a href=https://twitter.com/@wschenk class="mr-3 h4 text-light"><img src=../../../img/twitter.svg alt=twitter height=20 width=20></a>
+<a href=https://instagram.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/instagram.svg alt=instagram height=20 width=20></a>
+<a href=https://github.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/github.svg alt=github height=20 width=20></a>
+<a href=https://linkedin.com/in/will-schenk-420266 class="mr-3 h4 text-light"><img src=../../../img/linkedin.svg alt=linkedin height=20 width=20></a></p></nav><div class=container><h1 class=mt-5>Setting up redis and nat-connector with FaasD</h1><h2 class="font-weight-light font-italic mb-3">Storage for your functions</h2><p class="text-muted mt-3"><a class=text-muted href=https://willschenk.com/articles/2021/setting_up_services_with_faasd/>Published February 22, 2021</a>
+<a class=text-muted href=../../../tags/faasd>#faasd,</a>
+<a class=text-muted href=../../../tags/serverless>#serverless,</a>
+<a class=text-muted href=../../../tags/redis>#redis,</a>
+<a class=text-muted href=../../../tags/nats>#nats,</a>
+<a class=text-muted href=../../../tags/openfaas>#openfaas</a></p><article class="article mt-5"><p>Lets look at how we expand our <code class=verbatim>faasd</code> server to include a couple of
+services. We'll first add a redis server and some simple ruby code to
+add a counter, and then we'll build and add the <code class=verbatim>nats-connector</code> to be
+able publish and subscribe to events.</p><h2 id=headline-1>About <code class=verbatim>/var/lib/faasd/docker-compose.yaml</code></h2><p>This looks like a <code class=verbatim>docker-compose</code> file, and I believe that it actually
+does use the same code that parses the file of that name, but it
+doesn't use <code class=verbatim>docker</code> to set up the containers. This is what <code class=verbatim>faasd</code> does.
+The biggest difference I've noticed is how it treats networking. The
+short of it is that you need to use the ip address of the main faasd
+gateway to access the servers, not the name of the service in the
+file. So, instead of pointing your client to <code class=verbatim>redis</code> or <code class=verbatim>gateway</code> you
+point them to <code class=verbatim>10.62.0.1</code>.</p><h2 id=headline-2>Redis</h2><h3 id=headline-3>Setting up Redis</h3><p>First thing is we need to log into our faasd server, and create the
+storage directory with the right user.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>sudo mkdir -p /var/lib/faasd/redis/data
+sudo chown -R 1000:1000 /var/lib/faasd/redis/data</code></pre></div></div><p>Then we need to add the redis instance in <code class=verbatim>/var/lib/faasd/docker-compose.yaml</code>:</p><div class="src src-yaml"><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=w>  </span><span class=k>redis</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=k>image</span><span class=p>:</span><span class=w> </span>docker.io/library/redis<span class=p>:</span><span class=m>6.0.10</span>-alpine<span class=w>
+</span><span class=w>    </span><span class=k>volumes</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=c># we assume cwd == /var/lib/faasd</span><span class=w>
+</span><span class=w>      </span>- <span class=k>type</span><span class=p>:</span><span class=w> </span>bind<span class=w>
+</span><span class=w>        </span><span class=k>source</span><span class=p>:</span><span class=w> </span>./redis/data<span class=w>
+</span><span class=w>        </span><span class=k>target</span><span class=p>:</span><span class=w> </span>/data<span class=w>
+</span><span class=w>    </span><span class=k>cap_add</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- CAP_NET_RAW<span class=w>
+</span><span class=w>    </span><span class=k>entrypoint</span><span class=p>:</span><span class=w> </span>/usr/local/bin/redis-server<span class=w> </span>--appendonly<span class=w> </span>yes<span class=w>
+</span><span class=w>    </span><span class=k>user</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;1000&#34;</span><span class=w>
+</span><span class=w>    </span><span class=k>ports</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- <span class=s2>&#34;10.62.0.1:6379:6379&#34;</span></code></pre></div></div><p>Note that if you get a "Background saving error" this is probably
+because you have an open redis port and <a href=https://github.com/docker-library/redis/issues/44#issuecomment-274287156>someone is scanning you</a>.</p><p>The <code class=verbatim>10.62.0.1</code> is the default network that <code class=verbatim>faasd</code> sets up.</p><p>Then we restart:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>sudo systemctl daemon-reload
+sudo systemctl restart faasd</code></pre></div></div><p>We can look at the logs using:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>sudo journalctl -t openfaas:redis -f</code></pre></div></div><h3 id=headline-4>Writing our function</h3><p>Back on our machine, lets create a simple ruby function that
+increments and returns the value from redis.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>faas-cli new counter --lang ruby</code></pre></div></div><p>Inside of the counter directory, we need to add the redis gem:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash><span class=nb>cd</span> counter
+bundler add redis</code></pre></div></div><p>And now we can write our handler:</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=nb>require</span> <span class=s1>&#39;redis&#39;</span>
+
+  <span class=k>class</span> <span class=nc>Handler</span>
+    <span class=k>def</span> <span class=nf>run</span><span class=p>(</span><span class=n>req</span><span class=p>)</span>
+      <span class=n>redis</span> <span class=o>=</span> <span class=no>Redis</span><span class=o>.</span><span class=n>new</span><span class=p>(</span> <span class=ss>host</span><span class=p>:</span> <span class=no>ENV</span><span class=o>[</span><span class=s1>&#39;redis_host&#39;</span><span class=o>]</span> <span class=p>)</span>
+    
+      <span class=n>redis</span><span class=o>.</span><span class=n>incr</span> <span class=s2>&#34;test_key&#34;</span>
+    <span class=k>end</span>
+  <span class=k>end</span></code></pre></div></div><p>And inside of our <code class=verbatim>counter.yml</code> file we can add the following
+environment variable so we don't hard code the address of the redis
+instance in our container.</p><div class="src src-yaml"><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=w>  </span><span class=k>counter</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=k>lang</span><span class=p>:</span><span class=w> </span>ruby<span class=w>
+</span><span class=w>    </span><span class=k>handler</span><span class=p>:</span><span class=w> </span>./counter<span class=w>
+</span><span class=w>    </span><span class=k>image</span><span class=p>:</span><span class=w> </span>wschenk/counter<span class=p>:</span>latest<span class=w>
+</span><span class=w>    </span><span class=k>environment</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=k>redis_host</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;10.62.0.1&#34;</span></code></pre></div></div><p>You'll want to replace that <code class=verbatim>wschenk</code> with your docker user.</p><p>Then we can load it:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>faas-cli up --filter counter</code></pre></div></div><p>And run it:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash><span class=nb>echo</span> <span class=p>|</span> faas-cli invoke counter</code></pre></div></div><p>And you should see a number go up and up!</p><h2 id=headline-5>Publishing and subscribing to messages</h2><p>The <a href=https://github.com/openfaas/nats-connector>nats-connector</a> is a way to have functions called when messages are
+sent to certain topics in your nats instance. Lets see how that
+works.</p><h3 id=headline-6>Installing the <code class=verbatim>nats-connector</code>:</h3><p>I couldn't find the latest version of <code class=verbatim>nats-connector</code> on docker, so
+here's how to build it:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>git clone https://github.com/openfaas/nats-connector
+<span class=nb>cd</span> nats-connector
+docker build . -t wschenk/nats-connector:0.2.4
+docker push wschenk/nats-connector:0.2.4</code></pre></div></div><p>Pretty simple. (Change <code class=verbatim>wschenk</code> to be your username.)</p><h3 id=headline-7>Setting up <code class=verbatim>docker-compose.yaml</code></h3><p>Back on your <code class=verbatim>faads</code> server, lets first open up <code class=verbatim>nats</code> to our functions
+and then add in the <code class=verbatim>nats-connector</code>:</p><p><em>This section should already be there</em>:</p><div class="src src-yaml"><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=w>  </span><span class=k>nats</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=k>image</span><span class=p>:</span><span class=w> </span>docker.io/library/nats-streaming<span class=p>:</span><span class=m>0.11.2</span><span class=w>
+</span><span class=w>    </span><span class=k>command</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- <span class=s2>&#34;/nats-streaming-server&#34;</span><span class=w>
+</span><span class=w>      </span>- <span class=s2>&#34;-m&#34;</span><span class=w>
+</span><span class=w>      </span>- <span class=s2>&#34;8222&#34;</span><span class=w>
+</span><span class=w>      </span>- <span class=s2>&#34;--store=memory&#34;</span><span class=w>
+</span><span class=w>      </span>- <span class=s2>&#34;--cluster_id=faas-cluster&#34;</span><span class=w>
+</span><span class=w>    </span><span class=k>ports</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- <span class=s2>&#34;10.62.0.1:4222:4222&#34;</span><span class=w>
+</span><span class=w>      </span>- <span class=s2>&#34;10.62.0.1:8222:8222&#34;</span></code></pre></div></div><p>And then add:</p><div class="src src-yaml"><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=w>  </span><span class=k>nats-connector</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=k>image</span><span class=p>:</span><span class=w> </span>docker.io/wschenk/nats-connector<span class=p>:</span><span class=m>0.2.4</span><span class=w>
+</span><span class=w>    </span><span class=k>environment</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=k>upstream_timeout</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;1m2s&#34;</span><span class=w>
+</span><span class=w>      </span><span class=k>gateway_url</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;http://gateway:8080&#34;</span><span class=w>
+</span><span class=w>      </span><span class=k>topics</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;nats-test,topic-foo,&#34;</span><span class=w>
+</span><span class=w>      </span><span class=k>print_response</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;true&#34;</span><span class=w>
+</span><span class=w>      </span><span class=k>print_body_response</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;true&#34;</span><span class=w>
+</span><span class=w>      </span><span class=k>basic_auth</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;true&#34;</span><span class=w>
+</span><span class=w>      </span><span class=k>secret_mount_path</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;/run/secrets/&#34;</span><span class=w>
+</span><span class=w>      </span><span class=k>topic_delimiter</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;,&#34;</span><span class=w>
+</span><span class=w>      </span><span class=k>asynchronous_invocation</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;false&#34;</span><span class=w>
+</span><span class=w>    </span><span class=k>volumes</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=c># we assume cwd == /var/lib/faasd</span><span class=w>
+</span><span class=w>      </span>- <span class=k>type</span><span class=p>:</span><span class=w> </span>bind<span class=w>
+</span><span class=w>        </span><span class=k>source</span><span class=p>:</span><span class=w> </span>./secrets/basic-auth-user<span class=w>
+</span><span class=w>        </span><span class=k>target</span><span class=p>:</span><span class=w> </span>/run/secrets/basic-auth-user<span class=w>
+</span><span class=w>      </span>- <span class=k>type</span><span class=p>:</span><span class=w> </span>bind<span class=w>
+</span><span class=w>        </span><span class=k>source</span><span class=p>:</span><span class=w> </span>./secrets/basic-auth-password<span class=w>
+</span><span class=w>        </span><span class=k>target</span><span class=p>:</span><span class=w> </span>/run/secrets/basic-auth-password<span class=w>
+</span><span class=w>    </span><span class=k>cap_add</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- CAP_NET_RAW<span class=w>
+</span><span class=w>    </span><span class=k>depends_on</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- nats<span class=w>
+</span><span class=w>      </span>- gateway</code></pre></div></div><p>Be sure to change the image name to your build, if you don't want to
+use mine.</p><h3 id=headline-8>Publish</h3><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>faas-cli new publishtest --lang ruby --append stack.yml
+<span class=nb>cd</span> publishtest
+bundle add nats-pure</code></pre></div></div><p>And then a simple handler</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=nb>require</span> <span class=s1>&#39;nats/io/client&#39;</span>
+
+  <span class=k>class</span> <span class=nc>Handler</span>
+    <span class=k>def</span> <span class=nf>run</span><span class=p>(</span><span class=n>req</span><span class=p>)</span>
+      <span class=nb>puts</span> <span class=s2>&#34;Trying to connect to </span><span class=si>#{</span><span class=no>ENV</span><span class=o>[</span><span class=s1>&#39;nats_host&#39;</span><span class=o>]</span><span class=si>}</span><span class=s2>&#34;</span>
+
+      <span class=n>nats</span> <span class=o>=</span> <span class=no>NATS</span><span class=o>::</span><span class=no>IO</span><span class=o>::</span><span class=no>Client</span><span class=o>.</span><span class=n>new</span>
+    
+      <span class=n>nats</span><span class=o>.</span><span class=n>connect</span><span class=p>(</span><span class=no>ENV</span><span class=o>[</span><span class=s1>&#39;nats_host&#39;</span><span class=o>]</span><span class=p>)</span>
+      <span class=nb>puts</span> <span class=s2>&#34;Connected to </span><span class=si>#{</span><span class=n>nats</span><span class=o>.</span><span class=n>connected_server</span><span class=si>}</span><span class=s2>&#34;</span>
+
+      <span class=nb>puts</span> <span class=s2>&#34;Sending message&#34;</span>
+      <span class=n>nats</span><span class=o>.</span><span class=n>publish</span><span class=p>(</span><span class=s1>&#39;nats-test&#39;</span><span class=p>,</span> <span class=s1>&#39;You done?&#39;</span><span class=p>)</span>
+
+      <span class=nb>puts</span> <span class=s2>&#34;Flushing&#34;</span>
+      <span class=n>nats</span><span class=o>.</span><span class=n>flush</span><span class=p>(</span><span class=mi>1</span><span class=p>)</span>
+      <span class=n>nats</span><span class=o>.</span><span class=n>close</span>
+    <span class=k>end</span>
+  <span class=k>end</span></code></pre></div></div><p>And then in <code class=verbatim>stack.yml</code>:</p><div class="src src-yaml"><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=w>  </span><span class=k>publishtest</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=k>lang</span><span class=p>:</span><span class=w> </span>ruby<span class=w>
+</span><span class=w>    </span><span class=k>handler</span><span class=p>:</span><span class=w> </span>./publishtest<span class=w>
+</span><span class=w>    </span><span class=k>image</span><span class=p>:</span><span class=w> </span>wschenk/publishtest<span class=p>:</span>latest<span class=w>
+</span><span class=w>    </span><span class=k>environment</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=k>nats_host</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;10.62.0.1&#34;</span></code></pre></div></div><h3 id=headline-9>Receive</h3><div class="src src-text"><div class=highlight><pre class=chroma><code class=language-text data-lang=text>faas-cli new receivetest --lang ruby --append stack.yml</code></pre></div></div><p>And inside of <code class=verbatim>stack.yml</code> add an annotations section</p><div class="src src-yaml"><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=w>  </span><span class=k>receivetest</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=k>lang</span><span class=p>:</span><span class=w> </span>ruby<span class=w>
+</span><span class=w>    </span><span class=k>handler</span><span class=p>:</span><span class=w> </span>./receivetest<span class=w>
+</span><span class=w>    </span><span class=k>image</span><span class=p>:</span><span class=w> </span>wschenk/receivetest<span class=p>:</span>latest<span class=w>
+</span><span class=w>    </span><span class=k>annotations</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=k>topic</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;nats-test&#34;</span></code></pre></div></div><p>We don't need to do anything particular with this handler, we just
+want to look at the logs to see if it gets triggered.</p><h3 id=headline-10>Running</h3><p>On your dev machine:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>faas-cli up</code></pre></div></div><p>Then on the <code class=verbatim>faasd</code> server:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>journalctl -f</code></pre></div></div><p>(Or if you want to be more targeted:)</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>journalctl -t openfaas-fn:receivetest -f</code></pre></div></div><p>And on your client machine:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash><span class=nb>echo</span> <span class=p>|</span> faas-cli invoke publishtest</code></pre></div></div><h2 id=headline-11>References</h2><ol><li><p><a href=https://github.com/openfaas/faasd>https://github.com/openfaas/faasd</a></p></li><li><p><a href=https://gumroad.com/l/serverless-for-everyone-else>https://gumroad.com/l/serverless-for-everyone-else</a></p></li><li><p><a href=https://github.com/docker-library/redis/issues/128>https://github.com/docker-library/redis/issues/128</a></p></li><li><p><a href=https://github.com/docker-library/redis/issues/44#issuecomment-274287156>https://github.com/docker-library/redis/issues/44#issuecomment-274287156</a></p></li><li><p><a href=https://github.com/openfaas/nats-connector>https://github.com/openfaas/nats-connector</a></p></li><li><p><a href=https://twitter.com/alexellisuk/status/1318841881439199233/photo/1>https://twitter.com/alexellisuk/status/1318841881439199233/photo/1</a></p></li></ol></article></div><div class="bg-light py-5"><div class=container><h2 class=text-center>Read next</h2><div class=row><div class="col-md-6 text-center"></div><div class="col-md-6 text-center">Previous Post:
+<a href=../../../articles/2021/uploading_blobs/>Uploading Blobs</a></div></div></div></div><div class="container mt-5"><h2 class=text-center>See also</h2><div class=row><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2021/installing_faasd/>Installing faasd</a></p><p class="lead font-italic mb-0">cgi was good, serverless is better</p><div class="font-weight-light mt-3"><p>Recently I came across an article on faasd, and I thought I'd give it a try and see how easy it is to use. Server templating is an easy way to create a server with DNS, and following the whole disposability principals, we'll whip something up and see how it goes. What is faasd? Functions as a service are a way to easily package up simple functions as an API, with a minimal amount of overhead.</p></div><a href=../../../articles/2021/installing_faasd/ class="btn btn-primary">Read more</a></div><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2020/effigy_social_data_layer/>Effigy, a distributed social data layer</a></p><p class="lead font-italic mb-0">Scuttlebutt is awesome, let&rsquo;s run with it</p><div class="font-weight-light mt-3"><p>I grew up in the world of BBSes, Usenet, and, to some extent, UUCP before that. This was fun – a world wide network all built up by volunteers sharing. Since we are all carrying supercomputers around now with massive idle storage and bandwidth, let's think about how we can recreate some of that fun, independent data sharing with modern web technologies, specifically Websockets and WebRTC. All you need is the computer that you already have with you.</p></div><a href=../../../articles/2020/effigy_social_data_layer/ class="btn btn-primary">Read more</a></div></div></div><footer class="footer bg-dark text-light mt-3"><div class=container><h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2></div></footer></body></html>
