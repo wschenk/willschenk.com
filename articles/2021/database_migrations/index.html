@@ -1,0 +1,251 @@
+<!doctype html><html><head><title>Database Migrations</title><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><link rel=stylesheet href=../../../css/theme.css><link rel=stylesheet href=../../../css/syntax.css><script type=application/javascript>var doNotTrack=false;if(!doNotTrack){window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;ga('create','UA-56296045-1','auto');ga('send','pageview');}</script><script async src=https://www.google-analytics.com/analytics.js></script><script async defer data-domain=willschenk.com src=https://plausible.io/js/plausible.js></script><meta property="og:title" content="Database Migrations"><meta property="og:description" content="Keeping track of database changes over time is best done using database migrations stored in a code repository. I'm working on something where programs in different languages will be access the same database, so here we are going to look at 3 different solutions to track changes that aren't tied to a specific framework.  We're going to setup a postgres database – with pgadmin so we can see what's going on – and then do the same execersizes with 3 different ways to manage changes."><meta property="og:type" content="article"><meta property="og:url" content="https://willschenk.com/articles/2021/database_migrations/"><meta property="article:published_time" content="2021-03-10T00:00:00+00:00"><meta property="article:modified_time" content="2021-03-10T00:00:00+00:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Database Migrations"><meta name=twitter:description content="Keeping track of database changes over time is best done using database migrations stored in a code repository. I'm working on something where programs in different languages will be access the same database, so here we are going to look at 3 different solutions to track changes that aren't tied to a specific framework.  We're going to setup a postgres database – with pgadmin so we can see what's going on – and then do the same execersizes with 3 different ways to manage changes."><meta name=twitter:site content="@wschenk"><style>.article p,.article ul,.article ol,.article table{max-width:45em}.article pre p{max-width:none;margin-top:-1.5rem}article.article p:first-child,.article blockquote{font-size:1.25em;font-weight:300;max-width:36em}.half-height-scroll{max-height:32em;overflow:scroll}</style></head><body><nav class="container my-5"><h1 class="pt-md-5 display-3"><a class=text-dark href=../../../>Will Schenk</a></h1><p><a class="text-dark h4 mr-3 font-weight-light" href=../../../articles/>Articles</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../contact>Contact</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../tags/>Tags</a>
+<a href=../../../feed.xml class="mr-3 h4 text-light"><img src=../../../img/rss.svg alt=rss height=20 width=20></a>
+<a href=https://twitter.com/@wschenk class="mr-3 h4 text-light"><img src=../../../img/twitter.svg alt=twitter height=20 width=20></a>
+<a href=https://instagram.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/instagram.svg alt=instagram height=20 width=20></a>
+<a href=https://github.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/github.svg alt=github height=20 width=20></a>
+<a href=https://linkedin.com/in/will-schenk-420266 class="mr-3 h4 text-light"><img src=../../../img/linkedin.svg alt=linkedin height=20 width=20></a></p></nav><div class=container><h1 class=mt-5>Database Migrations</h1><h2 class="font-weight-light font-italic mb-3">what should I do when not using rails</h2><p class="text-muted mt-3"><a class=text-muted href=https://willschenk.com/articles/2021/database_migrations/>Published March 10, 2021</a>
+<a class=text-muted href=../../../tags/database>#database,</a>
+<a class=text-muted href=../../../tags/node>#node,</a>
+<a class=text-muted href=../../../tags/activerecord>#activerecord,</a>
+<a class=text-muted href=../../../tags/db-migrate>#db-migrate,</a>
+<a class=text-muted href=../../../tags/golang-migrate>#golang-migrate</a></p><article class="article mt-5"><p>Keeping track of database changes over time is best done using
+database migrations stored in a code repository. I'm working on
+something where programs in different languages will be access the
+same database, so here we are going to look at 3 different solutions
+to track changes that aren't tied to a specific framework.</p><p>We're going to setup a postgres database – with <code class=verbatim>pgadmin</code> so we can see
+what's going on – and then do the same execersizes with 3 different
+ways to manage changes.</p><h2 id=headline-1>Setup the databases</h2><p>Lets get our test environment up and running:</p><p>Using <code class=verbatim>docker-compose.yaml</code>:</p><div class="src src-yaml"><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=w>  </span><span class=k>version</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;3.7&#34;</span><span class=w>
+</span><span class=w>
+</span><span class=w>  </span><span class=k>services</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=k>postgres</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=k>image</span><span class=p>:</span><span class=w> </span>postgres<span class=p>:</span><span class=m>13.1</span><span class=w>
+</span><span class=w>      </span><span class=k>environment</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span><span class=k>POSTGRES_PASSWORD</span><span class=p>:</span><span class=w> </span>awesome_password<span class=w>
+</span><span class=w>      </span><span class=k>ports</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span>- <span class=s2>&#34;5432:5432&#34;</span><span class=w>
+</span><span class=w>      </span><span class=k>volumes</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span>- postgres<span class=p>:</span>/var/lib/postgresql/data<span class=w>
+</span><span class=w>
+</span><span class=w>    </span><span class=k>pgadmin</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=k>image</span><span class=p>:</span><span class=w> </span>dpage/pgadmin4<span class=p>:</span><span class=m>5.0</span><span class=w>
+</span><span class=w>      </span><span class=k>environment</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span><span class=k>PGADMIN_DEFAULT_EMAIL</span><span class=p>:</span><span class=w> </span>admin@example.com<span class=w>
+</span><span class=w>        </span><span class=k>PGADMIN_DEFAULT_PASSWORD</span><span class=p>:</span><span class=w> </span>SuperSecret<span class=w>
+</span><span class=w>        </span><span class=k>GUNICORN_ACCESS_LOGFILE</span><span class=p>:</span><span class=w> </span>/dev/<span class=kc>null</span><span class=w>
+</span><span class=w>      </span><span class=k>ports</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span>- <span class=s2>&#34;4000:80&#34;</span><span class=w>
+</span><span class=w>      </span><span class=k>depends_on</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span>- postgres<span class=w>
+</span><span class=w>      </span><span class=k>volumes</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span>- pgadmin<span class=p>:</span>/var/lib/pgadmin<span class=w>
+</span><span class=w>
+</span><span class=w>  </span><span class=k>volumes</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=k>postgres</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span>pgadmin<span class=p>:</span></code></pre></div></div><p>Then</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>docker-compose up</code></pre></div></div><p>And finally create the test databases:</p><div class="src src-text"><div class=highlight><pre class=chroma><code class=language-text data-lang=text>docker-compose run --rm postgres psql -h postgres -U postgres
+
+postgres=# create database nodetest;
+create database nodetest;
+CREATE DATABASE
+postgres=# create database rubytest;
+create database rubytest;
+CREATE DATABASE
+postgres=# create database gotest;
+create database gotest;
+CREATE DATABASE
+postgres=# \q</code></pre></div></div><p>We have out three databases now, so it's time to run through the contenders!</p><h2 id=headline-2>Node: <code class=verbatim>db-migrate</code></h2><p>First we'll create a node project to load the <code class=verbatim>db-migrate</code> module with
+the postgres adapter. I try very hard not to install things globally,
+so this will happen within a project.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  npm init -y
+  npm install db-migrate db-migrate-pg</code></pre></div></div><p>Now we need to create a <code class=verbatim>database.json</code> file, which tells <code class=verbatim>db-migrate</code> how
+to connect to the database.</p><div class="src src-json"><div class=highlight><pre class=chroma><code class=language-json data-lang=json>  <span class=p>{</span>
+      <span class=nt>&#34;dev&#34;</span><span class=p>:</span> <span class=p>{</span>
+          <span class=nt>&#34;driver&#34;</span><span class=p>:</span> <span class=s2>&#34;pg&#34;</span><span class=p>,</span>
+          <span class=nt>&#34;user&#34;</span><span class=p>:</span> <span class=s2>&#34;postgres&#34;</span><span class=p>,</span>
+          <span class=nt>&#34;password&#34;</span><span class=p>:</span> <span class=s2>&#34;awesome_password&#34;</span><span class=p>,</span>
+          <span class=nt>&#34;host&#34;</span><span class=p>:</span> <span class=s2>&#34;localhost&#34;</span><span class=p>,</span>
+          <span class=nt>&#34;database&#34;</span><span class=p>:</span> <span class=s2>&#34;nodetest&#34;</span><span class=p>,</span>
+          <span class=nt>&#34;port&#34;</span><span class=p>:</span> <span class=s2>&#34;5432&#34;</span>
+      <span class=p>}</span>
+  <span class=p>}</span></code></pre></div></div><h3 id=headline-3>Creating a table</h3><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  ./node_modules/.bin/db-migrate create create_urls</code></pre></div></div><p>Then open up the created migration in the <code class=verbatim>migrations</code> folder, and change the <code class=verbatim>up</code> function to be:</p><div class="src src-javascript"><div class=highlight><pre class=chroma><code class=language-javascript data-lang=javascript>  <span class=nx>exports</span><span class=p>.</span><span class=nx>up</span> <span class=o>=</span> <span class=kd>function</span><span class=p>(</span><span class=nx>db</span><span class=p>)</span> <span class=p>{</span>
+    <span class=k>return</span> <span class=nx>db</span><span class=p>.</span><span class=nx>createTable</span><span class=p>(</span><span class=s1>&#39;urls&#39;</span><span class=p>,</span> <span class=p>{</span>
+        <span class=nx>id</span><span class=o>:</span> <span class=p>{</span>
+            <span class=nx>type</span><span class=o>:</span> <span class=s1>&#39;int&#39;</span><span class=p>,</span>
+            <span class=nx>primaryKey</span><span class=o>:</span> <span class=kc>true</span>
+        <span class=p>},</span>
+        <span class=nx>full_name</span><span class=o>:</span> <span class=p>{</span>
+            <span class=nx>type</span><span class=o>:</span> <span class=s1>&#39;string&#39;</span><span class=p>,</span>
+            <span class=nx>length</span><span class=o>:</span> <span class=mi>200</span>
+        <span class=p>},</span>
+        <span class=nx>added</span><span class=o>:</span> <span class=p>{</span>
+            <span class=nx>type</span><span class=o>:</span> <span class=s1>&#39;date&#39;</span>
+        <span class=p>},</span>
+        <span class=nx>active</span><span class=o>:</span> <span class=p>{</span>
+            <span class=nx>type</span><span class=o>:</span> <span class=s1>&#39;boolean&#39;</span><span class=p>,</span>
+            <span class=k>default</span><span class=o>:</span> <span class=s1>&#39;true&#39;</span>
+        <span class=p>}</span>
+    <span class=p>})</span>
+  <span class=p>};</span>
+</code></pre></div></div><p>Then:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  ./node_modules/.bin/db-migrate up</code></pre></div></div><h3 id=headline-4>Renaming a column</h3><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>./node_modules/.bin/db-migrate create rename_url_column
+<span class=o>[</span>INFO<span class=o>]</span> Created migration at /home/wschenk/willschenk.com/content/article</code></pre></div></div><p>Then in the new migration:</p><div class="src src-javascript"><div class=highlight><pre class=chroma><code class=language-javascript data-lang=javascript><span class=nx>exports</span><span class=p>.</span><span class=nx>up</span> <span class=o>=</span> <span class=kd>function</span><span class=p>(</span><span class=nx>db</span><span class=p>)</span> <span class=p>{</span>
+    <span class=k>return</span> <span class=nx>db</span><span class=p>.</span><span class=nx>renameColumn</span><span class=p>(</span> <span class=s1>&#39;urls&#39;</span><span class=p>,</span> <span class=s1>&#39;full_name&#39;</span><span class=p>,</span> <span class=s1>&#39;url&#39;</span> <span class=p>)</span>
+<span class=p>};</span>
+
+<span class=nx>exports</span><span class=p>.</span><span class=nx>down</span> <span class=o>=</span> <span class=kd>function</span><span class=p>(</span><span class=nx>db</span><span class=p>)</span> <span class=p>{</span>
+    <span class=k>return</span> <span class=nx>db</span><span class=p>.</span><span class=nx>renameColumn</span><span class=p>(</span> <span class=s1>&#39;urls&#39;</span><span class=p>,</span> <span class=s1>&#39;url&#39;</span><span class=p>,</span> <span class=s1>&#39;full_name&#39;</span> <span class=p>)</span>
+
+<span class=p>};</span>
+</code></pre></div></div><p>And then do the migration again:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  ./node_modules/.bin/db-migrate up</code></pre></div></div><h3 id=headline-5>Thoughts</h3><p>Probably I'm being foolish by not installing this globally, but there
+you go. You can choose to have <code class=verbatim>db-migrate</code> use SQL files or write the
+changes in javascript. Doing it in JavaScript gives you options to
+switch databases, to use SQLite for example in development. In
+practice this is is rarely done, but its a nice option.</p><p>I found the documentation of <code class=verbatim>db-migrate</code> to be unhelpful. It could use
+more examples and I was a bit bewildered at first even though it
+turned out to be straightforward to get working.</p><h2 id=headline-6>Ruby: <code class=verbatim>ActiveRecord</code></h2><p>Lets see how to use <a href=https://edgeguides.rubyonrails.org/active_record_basics.html>ActiveRecord</a> to handle migrations, but without
+using rails.</p><p>First we need to make sure that we have a ruby environment with the
+correct gems installed:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  bundle init
+  bundle add <span class=s2>&#34;activerecord&#34;</span> --version <span class=s2>&#34;6.1.3&#34;</span>
+  bundle add rake</code></pre></div></div><p>Now we setup our <code class=verbatim>database.yml</code>:</p><div class="src src-yaml"><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=w>  </span><span class=k>host</span><span class=p>:</span><span class=w> </span><span class=s1>&#39;localhost&#39;</span><span class=w>
+</span><span class=w>  </span><span class=k>adapter</span><span class=p>:</span><span class=w> </span><span class=s1>&#39;postgresql&#39;</span><span class=w>
+</span><span class=w>  </span><span class=k>encoding</span><span class=p>:</span><span class=w> </span>utf<span class=m>-8</span><span class=w>
+</span><span class=w>  </span><span class=k>database</span><span class=p>:</span><span class=w> </span><span class=s1>&#39;rubytest&#39;</span><span class=w>
+</span><span class=w>  </span><span class=k>username</span><span class=p>:</span><span class=w> </span>postgres<span class=w>
+</span><span class=w>  </span><span class=k>password</span><span class=p>:</span><span class=w> </span>awesome_password</code></pre></div></div><p>And we can make a <code class=verbatim>Rakefile</code> to give us a similar usage pattern as you'd
+get with rails:</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=c1># From https://gist.github.com/Rhoxio/ee9a855088c53d447f2eb888bd9d09a4</span>
+  <span class=nb>require</span> <span class=s2>&#34;active_record&#34;</span>
+  <span class=nb>require</span> <span class=s2>&#34;fileutils&#34;</span>
+
+  <span class=no>FileUtils</span><span class=o>.</span><span class=n>mkdir_p</span> <span class=s2>&#34;db/migrate&#34;</span>
+
+  <span class=n>namespace</span> <span class=ss>:db</span> <span class=k>do</span>
+    <span class=n>db_config</span>       <span class=o>=</span> <span class=no>YAML</span><span class=o>::</span><span class=nb>load</span><span class=p>(</span><span class=no>File</span><span class=o>.</span><span class=n>open</span><span class=p>(</span><span class=s1>&#39;database.yml&#39;</span><span class=p>))</span>
+    <span class=n>db_config_admin</span> <span class=o>=</span> <span class=n>db_config</span><span class=o>.</span><span class=n>merge</span><span class=p>({</span><span class=s1>&#39;database&#39;</span> <span class=o>=&gt;</span> <span class=s1>&#39;postgres&#39;</span><span class=p>,</span> <span class=s1>&#39;schema_search_path&#39;</span> <span class=o>=&gt;</span> <span class=s1>&#39;public&#39;</span><span class=p>})</span>
+
+    <span class=n>desc</span> <span class=s2>&#34;Create the database&#34;</span>
+    <span class=n>task</span> <span class=ss>:create</span> <span class=k>do</span>
+      <span class=no>ActiveRecord</span><span class=o>::</span><span class=no>Base</span><span class=o>.</span><span class=n>establish_connection</span><span class=p>(</span><span class=n>db_config_admin</span><span class=p>)</span>
+      <span class=no>ActiveRecord</span><span class=o>::</span><span class=no>Base</span><span class=o>.</span><span class=n>connection</span><span class=o>.</span><span class=n>create_database</span><span class=p>(</span><span class=n>db_config</span><span class=o>[</span><span class=s2>&#34;database&#34;</span><span class=o>]</span><span class=p>)</span>
+      <span class=nb>puts</span> <span class=s2>&#34;Database created.&#34;</span>
+    <span class=k>end</span>
+
+    <span class=n>desc</span> <span class=s2>&#34;Migrate the database&#34;</span>
+    <span class=n>task</span> <span class=ss>:migrate</span> <span class=k>do</span>
+      <span class=no>ActiveRecord</span><span class=o>::</span><span class=no>Base</span><span class=o>.</span><span class=n>establish_connection</span><span class=p>(</span><span class=n>db_config</span><span class=p>)</span>
+      <span class=no>ActiveRecord</span><span class=o>::</span><span class=no>Tasks</span><span class=o>::</span><span class=no>DatabaseTasks</span><span class=o>.</span><span class=n>migrate</span>
+      <span class=no>Rake</span><span class=o>::</span><span class=no>Task</span><span class=o>[</span><span class=s2>&#34;db:schema&#34;</span><span class=o>].</span><span class=n>invoke</span>
+      <span class=nb>puts</span> <span class=s2>&#34;Database migrated.&#34;</span>
+    <span class=k>end</span>
+
+    <span class=n>desc</span> <span class=s2>&#34;Drop the database&#34;</span>
+    <span class=n>task</span> <span class=ss>:drop</span> <span class=k>do</span>
+      <span class=no>ActiveRecord</span><span class=o>::</span><span class=no>Base</span><span class=o>.</span><span class=n>establish_connection</span><span class=p>(</span><span class=n>db_config_admin</span><span class=p>)</span>
+      <span class=no>ActiveRecord</span><span class=o>::</span><span class=no>Base</span><span class=o>.</span><span class=n>connection</span><span class=o>.</span><span class=n>drop_database</span><span class=p>(</span><span class=n>db_config</span><span class=o>[</span><span class=s2>&#34;database&#34;</span><span class=o>]</span><span class=p>)</span>
+      <span class=nb>puts</span> <span class=s2>&#34;Database deleted.&#34;</span>
+    <span class=k>end</span>
+
+    <span class=n>desc</span> <span class=s2>&#34;Reset the database&#34;</span>
+    <span class=n>task</span> <span class=ss>:reset</span> <span class=o>=&gt;</span> <span class=o>[</span><span class=ss>:drop</span><span class=p>,</span> <span class=ss>:create</span><span class=p>,</span> <span class=ss>:migrate</span><span class=o>]</span>
+
+    <span class=n>desc</span> <span class=s1>&#39;Create a db/schema.rb file that is portable against any DB supported by AR&#39;</span>
+    <span class=n>task</span> <span class=ss>:schema</span> <span class=k>do</span>
+      <span class=no>ActiveRecord</span><span class=o>::</span><span class=no>Base</span><span class=o>.</span><span class=n>establish_connection</span><span class=p>(</span><span class=n>db_config</span><span class=p>)</span>
+      <span class=nb>require</span> <span class=s1>&#39;active_record/schema_dumper&#39;</span>
+      <span class=n>filename</span> <span class=o>=</span> <span class=s2>&#34;db/schema.rb&#34;</span>
+      <span class=no>File</span><span class=o>.</span><span class=n>open</span><span class=p>(</span><span class=n>filename</span><span class=p>,</span> <span class=s2>&#34;w:utf-8&#34;</span><span class=p>)</span> <span class=k>do</span> <span class=o>|</span><span class=n>file</span><span class=o>|</span>
+        <span class=no>ActiveRecord</span><span class=o>::</span><span class=no>SchemaDumper</span><span class=o>.</span><span class=n>dump</span><span class=p>(</span><span class=no>ActiveRecord</span><span class=o>::</span><span class=no>Base</span><span class=o>.</span><span class=n>connection</span><span class=p>,</span> <span class=n>file</span><span class=p>)</span>
+      <span class=k>end</span>
+    <span class=k>end</span>
+  <span class=k>end</span>
+
+  <span class=n>namespace</span> <span class=ss>:g</span> <span class=k>do</span>
+    <span class=n>desc</span> <span class=s2>&#34;Generate migration&#34;</span>
+    <span class=n>task</span> <span class=ss>:migration</span> <span class=k>do</span>
+      <span class=nb>name</span> <span class=o>=</span> <span class=no>ARGV</span><span class=o>[</span><span class=mi>1</span><span class=o>]</span> <span class=o>||</span> <span class=k>raise</span><span class=p>(</span><span class=s2>&#34;Specify name: rake g:migration your_migration&#34;</span><span class=p>)</span>
+      <span class=n>timestamp</span> <span class=o>=</span> <span class=no>Time</span><span class=o>.</span><span class=n>now</span><span class=o>.</span><span class=n>strftime</span><span class=p>(</span><span class=s2>&#34;%Y%m%d%H%M%S&#34;</span><span class=p>)</span>
+      <span class=n>path</span> <span class=o>=</span> <span class=no>File</span><span class=o>.</span><span class=n>expand_path</span><span class=p>(</span><span class=s2>&#34;../db/migrate/</span><span class=si>#{</span><span class=n>timestamp</span><span class=si>}</span><span class=s2>_</span><span class=si>#{</span><span class=nb>name</span><span class=si>}</span><span class=s2>.rb&#34;</span><span class=p>,</span> <span class=bp>__FILE__</span><span class=p>)</span>
+      <span class=n>migration_class</span> <span class=o>=</span> <span class=nb>name</span><span class=o>.</span><span class=n>split</span><span class=p>(</span><span class=s2>&#34;_&#34;</span><span class=p>)</span><span class=o>.</span><span class=n>map</span><span class=p>(</span><span class=o>&amp;</span><span class=ss>:capitalize</span><span class=p>)</span><span class=o>.</span><span class=n>join</span>
+
+      <span class=no>File</span><span class=o>.</span><span class=n>open</span><span class=p>(</span><span class=n>path</span><span class=p>,</span> <span class=s1>&#39;w&#39;</span><span class=p>)</span> <span class=k>do</span> <span class=o>|</span><span class=n>file</span><span class=o>|</span>
+        <span class=n>file</span><span class=o>.</span><span class=n>write</span> <span class=s>&lt;&lt;-EOF
+</span><span class=s></span>  <span class=k>class</span> <span class=c1>#{migration_class} &lt; ActiveRecord::Migration[6.0]</span>
+    <span class=k>def</span> <span class=nc>self</span><span class=o>.</span><span class=nf>up</span>
+    <span class=k>end</span>
+  
+    <span class=k>def</span> <span class=nc>self</span><span class=o>.</span><span class=nf>down</span>
+    <span class=k>end</span>
+  <span class=k>end</span>
+        <span class=no>EOF</span>
+      <span class=k>end</span>
+
+      <span class=nb>puts</span> <span class=s2>&#34;Migration </span><span class=si>#{</span><span class=n>path</span><span class=si>}</span><span class=s2> created&#34;</span>
+      <span class=nb>abort</span> <span class=c1># needed stop other tasks</span>
+    <span class=k>end</span>
+  <span class=k>end</span></code></pre></div></div><p>This is a handy task runner also, so you could stick more tasks in
+there as time goes on. Here you can see the ones that are defined.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>rake -T</code></pre></div></div><h3 id=headline-7>Creating a table</h3><p>Create the template:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>rake g:migration create_users</code></pre></div></div><p>And then fill out the migration itself:</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=k>class</span> <span class=nc>CreateUser</span> <span class=o>&lt;</span> <span class=no>ActiveRecord</span><span class=o>::</span><span class=no>Migration</span><span class=o>[</span><span class=mi>6</span><span class=o>.</span><span class=mi>0</span><span class=o>]</span>
+  <span class=k>def</span> <span class=nc>self</span><span class=o>.</span><span class=nf>up</span>
+    <span class=n>create_table</span> <span class=ss>:urls</span> <span class=k>do</span> <span class=o>|</span><span class=n>t</span><span class=o>|</span>
+      <span class=n>t</span><span class=o>.</span><span class=n>string</span> <span class=ss>:full_name</span>
+      <span class=n>t</span><span class=o>.</span><span class=n>datetime</span> <span class=ss>:added</span>
+      <span class=n>t</span><span class=o>.</span><span class=n>boolean</span> <span class=ss>:active</span><span class=p>,</span> <span class=ss>default</span><span class=p>:</span> <span class=kp>true</span>
+    <span class=k>end</span>
+  <span class=k>end</span>
+
+  <span class=k>def</span> <span class=nc>self</span><span class=o>.</span><span class=nf>down</span>
+    <span class=n>drop_table</span> <span class=ss>:urls</span>
+  <span class=k>end</span>
+<span class=k>end</span></code></pre></div></div><p>And finally run it:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  rake db:migrate</code></pre></div></div><h3 id=headline-8>Renaming a column</h3><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>rake g:migration rename_url_column</code></pre></div></div><p>And edit the resulting migration:</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=k>class</span> <span class=nc>RenameUrlColumn</span> <span class=o>&lt;</span> <span class=no>ActiveRecord</span><span class=o>::</span><span class=no>Migration</span><span class=o>[</span><span class=mi>6</span><span class=o>.</span><span class=mi>0</span><span class=o>]</span>
+    <span class=k>def</span> <span class=nc>self</span><span class=o>.</span><span class=nf>up</span>
+      <span class=n>rename_column</span> <span class=ss>:urls</span><span class=p>,</span> <span class=ss>:full_name</span><span class=p>,</span> <span class=ss>:url</span>
+    <span class=k>end</span>
+
+    <span class=k>def</span> <span class=nc>self</span><span class=o>.</span><span class=nf>down</span>
+      <span class=n>rename_column</span> <span class=ss>:urls</span><span class=p>,</span> <span class=ss>:url</span><span class=p>,</span> <span class=ss>:full_name</span>
+    <span class=k>end</span>
+  <span class=k>end</span></code></pre></div></div><p>And then run it:</p><h3 id=headline-9>Schema dump</h3><p>The rakefile will also extract what it knows about the database and
+put it in the <code class=verbatim>db/schema.rb</code> file, which ends up like:</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=no>ActiveRecord</span><span class=o>::</span><span class=no>Schema</span><span class=o>.</span><span class=n>define</span><span class=p>(</span><span class=ss>version</span><span class=p>:</span> <span class=mi>2021_03_10_205953</span><span class=p>)</span> <span class=k>do</span>
+
+    <span class=c1># These are extensions that must be enabled in order to support this database</span>
+    <span class=n>enable_extension</span> <span class=s2>&#34;plpgsql&#34;</span>
+
+    <span class=n>create_table</span> <span class=s2>&#34;urls&#34;</span><span class=p>,</span> <span class=ss>force</span><span class=p>:</span> <span class=ss>:cascade</span> <span class=k>do</span> <span class=o>|</span><span class=n>t</span><span class=o>|</span>
+      <span class=n>t</span><span class=o>.</span><span class=n>string</span> <span class=s2>&#34;url&#34;</span>
+      <span class=n>t</span><span class=o>.</span><span class=n>datetime</span> <span class=s2>&#34;added&#34;</span>
+      <span class=n>t</span><span class=o>.</span><span class=n>boolean</span> <span class=s2>&#34;active&#34;</span><span class=p>,</span> <span class=ss>default</span><span class=p>:</span> <span class=kp>true</span>
+    <span class=k>end</span>
+  <span class=k>end</span></code></pre></div></div><p>Which is handy if you are used to rails. The <code class=verbatim>rake db:reset</code> function
+is also pretty handy.</p><h3 id=headline-10>Thoughts</h3><p>This is the style that I'm more used to, so I'm biased. However one
+thing I really like is that it will create the database for you if
+need it, and <code class=verbatim>db:reset</code> often comes in handy. Feels much more user
+friendly than the node version does.</p><h2 id=headline-11>Go: <code class=verbatim>golang-migrate</code></h2><p>Another interesting option is to use the <code class=verbatim>migrate</code> tool which is written
+in go. This can be run as a standalone cli (so similar to <code class=verbatim>db-migrate</code>
+in that respect) but also embedded in your go programs, running on
+startup perhaps as needed.</p><p>This also packaged up as a docker image, so we don't need it install
+anything locally if we don't want to, which I don't, so lets create a
+quick script <code class=verbatim>migrate</code> to run the command:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  <span class=c1>#!/bin/bash</span>
+
+  mkdir -p migrations
+  docker run --rm -it --user <span class=k>$(</span>id -u<span class=k>)</span>:<span class=k>$(</span>id -g<span class=k>)</span> <span class=se>\
+</span><span class=se></span>         -v <span class=k>$(</span><span class=nb>pwd</span><span class=k>)</span>/migrations:/migrations <span class=se>\
+</span><span class=se></span>         --network host <span class=se>\
+</span><span class=se></span>         migrate/migrate <span class=nv>$@</span></code></pre></div></div><p>You could also just <a href=https://github.com/golang-migrate/migrate/tree/master/cmd/migrate>install the CLI</a>.</p><p>The rest here is adapted from the <a href=https://github.com/golang-migrate/migrate/blob/master/database/postgres/TUTORIAL.md>Postgres tutorial</a>.</p><h3 id=headline-12>Create a table</h3><p>First we generate our templates:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  migrate create -ext sql -dir /migrations -seq create_urls</code></pre></div></div><p>And then in put our sql in the generated file
+<code class=verbatim>migrations/000001_create_urls.up.sql</code>:</p><div class="src src-sql"><div class=highlight><pre class=chroma><code class=language-sql data-lang=sql>  <span class=k>CREATE</span> <span class=k>TABLE</span> <span class=k>IF</span> <span class=k>NOT</span> <span class=k>EXISTS</span> <span class=n>urls</span><span class=p>(</span>
+     <span class=n>id</span> <span class=nb>serial</span> <span class=k>PRIMARY</span> <span class=k>KEY</span><span class=p>,</span>
+     <span class=n>full_name</span> <span class=nb>VARCHAR</span> <span class=p>(</span><span class=mi>200</span><span class=p>)</span> <span class=k>NOT</span> <span class=k>NULL</span><span class=p>,</span>
+     <span class=n>added</span> <span class=k>timestamp</span> <span class=k>without</span> <span class=n>time</span> <span class=k>zone</span><span class=p>,</span>
+     <span class=n>active</span> <span class=nb>boolean</span> <span class=k>default</span> <span class=k>true</span>
+  <span class=p>);</span></code></pre></div></div><p>To run the migration itself we are going to pass the database connect
+string as an environment variable first, and then run the migration:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  <span class=nb>export</span> <span class=nv>POSTGRESQL_URL</span><span class=o>=</span><span class=s1>&#39;postgres://postgres:awesome_password@localhost:5432/gotest?sslmode=disable&#39;</span>
+
+  migrate -database <span class=si>${</span><span class=nv>POSTGRESQL_URL</span><span class=si>}</span> -path /migrations up
+  1/u create_urls <span class=o>(</span>55.866946ms<span class=o>)</span></code></pre></div></div><h3 id=headline-13>Renaming a column</h3><p>Create our template:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  migrate create -ext sql -dir /migrations -seq rename_fullname_to_url</code></pre></div></div><p>Slap the sql into the new file:</p><div class="src src-sql"><div class=highlight><pre class=chroma><code class=language-sql data-lang=sql>  <span class=k>alter</span> <span class=k>table</span> <span class=n>urls</span> <span class=k>rename</span> <span class=k>column</span> <span class=n>full_name</span> <span class=k>to</span> <span class=n>url</span><span class=p>;</span></code></pre></div></div><p>And run:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  migrate -database <span class=si>${</span><span class=nv>POSTGRESQL_URL</span><span class=si>}</span> -path /migrations up</code></pre></div></div><h3 id=headline-14>Thoughts</h3><p>This feels like the cleanest "standalone" tool. Writing database
+specific sql feels like a bit of a throwback but honestly at a certain
+point you'll need to get into that level on control. The docker image
+is only <code class=verbatim>35.1MB</code> and anything with node or ruby is generally in the 100s
+of MB, which is probably fine overall but feels a bit excessive for
+something this seemingly simple.</p><h2 id=headline-15>Conclusion</h2><p>I like the <code class=verbatim>Rakefile</code> based solution the best, since it gives me both
+more functionality out of the box (db create and reset, schema
+definitions), it's a good place to add other tasks, and, let's
+acknowledge it, I'm the most familiar with it.</p><p>Of the three, the go one feels the most "serious" and feels like where
+I'll end up in the long run, so if you were to pick one I'd in general
+recommend that.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  docker-compose down</code></pre></div></div><h2 id=headline-16>References</h2><ol><li><p><a href=https://github.com/db-migrate/node-db-migrate>https://github.com/db-migrate/node-db-migrate</a></p></li><li><p><a href=https://db-migrate.readthedocs.io/en/latest/Getting%20Started/usage/>https://db-migrate.readthedocs.io/en/latest/Getting%20Started/usage/</a></p></li><li><p><a href=https://itnext.io/updating-an-sql-database-schema-using-node-js-6c58173a455a>https://itnext.io/updating-an-sql-database-schema-using-node-js-6c58173a455a</a></p></li><li><p><a href=https://www.devdungeon.com/content/ruby-activerecord-without-rails-tutorial#toc-9>https://www.devdungeon.com/content/ruby-activerecord-without-rails-tutorial#toc-9</a></p></li><li><p><a href=https://gist.github.com/Rhoxio/ee9a855088c53d447f2eb888bd9d09a4>https://gist.github.com/Rhoxio/ee9a855088c53d447f2eb888bd9d09a4</a></p></li><li><p><a href=https://github.com/golang-migrate/migrate/blob/master/database/postgres/TUTORIAL.md>https://github.com/golang-migrate/migrate/blob/master/database/postgres/TUTORIAL.md</a></p></li></ol></article></div><div class="bg-light py-5"><div class=container><h2 class=text-center>Read next</h2><div class=row><div class="col-md-6 text-center"></div><div class="col-md-6 text-center">Previous Post:
+<a href=../../../articles/2021/installing_emacs_on_buster/>Installing emacs on buster</a></div></div></div></div><div class="container mt-5"><h2 class=text-center>See also</h2><div class=row><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2020/looking_at_packagejson/>Looking at package.json</a></p><p class="lead font-italic mb-0">making sense of package-lock.json</p><div class="font-weight-light mt-3"><p>Look at the dependencies First lets create a simple project and add a single module, in this case npm-api which will we use to access the main repository. npm init -y npm add npm-api And lets see what's been installed in node_modules: ls -l node_modules | wc -l du -sh node_modules 68 12M node_modules 68 directories with 12M of code!</p></div><a href=../../../articles/2020/looking_at_packagejson/ class="btn btn-primary">Read more</a></div></div></div><footer class="footer bg-dark text-light mt-3"><div class=container><h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2></div></footer></body></html>
