@@ -1,0 +1,469 @@
+#+title: Database Migrations
+#+subtitle: what should I do when not using rails
+#+tags: database, node, activerecord, db-migrate, golang-migrate
+#+date: 2021-03-10
+
+Keeping track of database changes over time is best done using
+database migrations stored in a code repository.  I'm working on
+something where programs in different languages will be access the
+same database, so here we are going to look at 3 different solutions
+to track changes that aren't tied to a specific framework.
+
+We're going to setup a postgres database -- with =pgadmin= so we can see
+what's going on -- and then do the same execersizes with 3 different
+ways to manage changes.
+
+* Setup the databases
+
+Lets get our test environment up and running:
+
+Using =docker-compose.yaml=:
+
+#+begin_src yaml :tangle docker-compose.yaml
+  version: "3.7"
+
+  services:
+    postgres:
+      image: postgres:13.1
+      environment:
+        POSTGRES_PASSWORD: awesome_password
+      ports:
+        - "5432:5432"
+      volumes:
+        - postgres:/var/lib/postgresql/data
+
+    pgadmin:
+      image: dpage/pgadmin4:5.0
+      environment:
+        PGADMIN_DEFAULT_EMAIL: admin@example.com
+        PGADMIN_DEFAULT_PASSWORD: SuperSecret
+        GUNICORN_ACCESS_LOGFILE: /dev/null
+      ports:
+        - "4000:80"
+      depends_on:
+        - postgres
+      volumes:
+        - pgadmin:/var/lib/pgadmin
+
+  volumes:
+    postgres:
+    pgadmin:
+
+#+end_src
+
+Then
+
+#+begin_src bash
+docker-compose up
+#+end_src
+
+And finally create the test databases:
+
+#+begin_src 
+docker-compose run --rm postgres psql -h postgres -U postgres
+
+postgres=# create database nodetest;
+create database nodetest;
+CREATE DATABASE
+postgres=# create database rubytest;
+create database rubytest;
+CREATE DATABASE
+postgres=# create database gotest;
+create database gotest;
+CREATE DATABASE
+postgres=# \q
+#+end_src
+
+We have out three databases now, so it's time to run through the contenders!
+
+* Node: =db-migrate=
+First we'll create a node project to load the =db-migrate= module with
+the postgres adapter.  I try very hard not to install things globally,
+so this will happen within a project.
+
+#+begin_src bash
+  npm init -y
+  npm install db-migrate db-migrate-pg
+#+end_src
+
+Now we need to create a =database.json= file, which tells =db-migrate= how
+to connect to the database.
+
+#+begin_src json :tangle node/database.json
+  {
+      "dev": {
+          "driver": "pg",
+          "user": "postgres",
+          "password": "awesome_password",
+          "host": "localhost",
+          "database": "nodetest",
+          "port": "5432"
+      }
+  }
+#+end_src
+** Creating a table
+#+begin_src bash
+  ./node_modules/.bin/db-migrate create create_urls
+#+end_src
+
+Then open up the created migration in the =migrations= folder, and change the =up= function to be:
+
+#+begin_src javascript
+  exports.up = function(db) {
+    return db.createTable('urls', {
+        id: {
+            type: 'int',
+            primaryKey: true
+        },
+        full_name: {
+            type: 'string',
+            length: 200
+        },
+        added: {
+            type: 'date'
+        },
+        active: {
+            type: 'boolean',
+            default: 'true'
+        }
+    })
+  };
+#+end_src
+
+Then:
+
+#+begin_src bash
+  ./node_modules/.bin/db-migrate up
+#+end_src
+
+** Renaming a column
+
+#+begin_src bash
+./node_modules/.bin/db-migrate create rename_url_column
+[INFO] Created migration at /home/wschenk/willschenk.com/content/article
+#+end_src
+
+Then in the new migration:
+
+#+begin_src javascript
+exports.up = function(db) {
+    return db.renameColumn( 'urls', 'full_name', 'url' )
+};
+
+exports.down = function(db) {
+    return db.renameColumn( 'urls', 'url', 'full_name' )
+
+};
+#+end_src
+
+And then do the migration again:
+
+#+begin_src bash
+  ./node_modules/.bin/db-migrate up
+#+end_src
+
+** Thoughts
+Probably I'm being foolish by not installing this globally, but there
+you go.  You can choose to have =db-migrate= use SQL files or write the
+changes in javascript.  Doing it in JavaScript gives you options to
+switch databases, to use SQLite for example in development.  In
+practice this is is rarely done, but its a nice option.
+
+I found the documentation of =db-migrate= to be unhelpful.  It could use
+more examples and I was a bit bewildered at first even though it
+turned out to be straightforward to get working.
+
+* Ruby: =ActiveRecord=
+Lets see how to use [[https://edgeguides.rubyonrails.org/active_record_basics.html][ActiveRecord]] to handle migrations, but without
+using rails.
+
+First we need to make sure that we have a ruby environment with the
+correct gems installed:
+
+#+begin_src bash
+  bundle init
+  bundle add "activerecord" --version "6.1.3"
+  bundle add rake
+#+end_src
+
+Now we setup our =database.yml=:
+
+#+begin_src yaml :tangle ruby/database.yml
+  host: 'localhost'
+  adapter: 'postgresql'
+  encoding: utf-8
+  database: 'rubytest'
+  username: postgres
+  password: awesome_password
+#+end_src
+
+And we can make a =Rakefile= to give us a similar usage pattern as you'd
+get with rails:
+
+#+begin_src ruby :tangle ruby/Rakefile
+  # From https://gist.github.com/Rhoxio/ee9a855088c53d447f2eb888bd9d09a4
+  require "active_record"
+  require "fileutils"
+
+  FileUtils.mkdir_p "db/migrate"
+
+  namespace :db do
+    db_config       = YAML::load(File.open('database.yml'))
+    db_config_admin = db_config.merge({'database' => 'postgres', 'schema_search_path' => 'public'})
+
+    desc "Create the database"
+    task :create do
+      ActiveRecord::Base.establish_connection(db_config_admin)
+      ActiveRecord::Base.connection.create_database(db_config["database"])
+      puts "Database created."
+    end
+
+    desc "Migrate the database"
+    task :migrate do
+      ActiveRecord::Base.establish_connection(db_config)
+      ActiveRecord::Tasks::DatabaseTasks.migrate
+      Rake::Task["db:schema"].invoke
+      puts "Database migrated."
+    end
+
+    desc "Drop the database"
+    task :drop do
+      ActiveRecord::Base.establish_connection(db_config_admin)
+      ActiveRecord::Base.connection.drop_database(db_config["database"])
+      puts "Database deleted."
+    end
+
+    desc "Reset the database"
+    task :reset => [:drop, :create, :migrate]
+
+    desc 'Create a db/schema.rb file that is portable against any DB supported by AR'
+    task :schema do
+      ActiveRecord::Base.establish_connection(db_config)
+      require 'active_record/schema_dumper'
+      filename = "db/schema.rb"
+      File.open(filename, "w:utf-8") do |file|
+        ActiveRecord::SchemaDumper.dump(ActiveRecord::Base.connection, file)
+      end
+    end
+  end
+
+  namespace :g do
+    desc "Generate migration"
+    task :migration do
+      name = ARGV[1] || raise("Specify name: rake g:migration your_migration")
+      timestamp = Time.now.strftime("%Y%m%d%H%M%S")
+      path = File.expand_path("../db/migrate/#{timestamp}_#{name}.rb", __FILE__)
+      migration_class = name.split("_").map(&:capitalize).join
+
+      File.open(path, 'w') do |file|
+        file.write <<-EOF
+  class #{migration_class} < ActiveRecord::Migration[6.0]
+    def self.up
+    end
+  
+    def self.down
+    end
+  end
+        EOF
+      end
+
+      puts "Migration #{path} created"
+      abort # needed stop other tasks
+    end
+  end
+#+end_src
+
+This is a handy task runner also, so you could stick more tasks in
+there as time goes on.  Here you can see the ones that are defined.
+
+#+begin_src bash
+rake -T
+#+end_src
+
+** Creating a table
+Create the template:
+
+#+begin_src bash
+rake g:migration create_users
+#+end_src
+
+And then fill out the migration itself:
+
+#+begin_src ruby
+class CreateUser < ActiveRecord::Migration[6.0]
+  def self.up
+    create_table :urls do |t|
+      t.string :full_name
+      t.datetime :added
+      t.boolean :active, default: true
+    end
+  end
+
+  def self.down
+    drop_table :urls
+  end
+end
+#+end_src
+
+And finally run it:
+
+#+begin_src bash
+  rake db:migrate
+#+end_src
+
+** Renaming a column
+
+#+begin_src bash
+rake g:migration rename_url_column
+#+end_src
+
+And edit the resulting migration:
+
+#+begin_src ruby
+  class RenameUrlColumn < ActiveRecord::Migration[6.0]
+    def self.up
+      rename_column :urls, :full_name, :url
+    end
+
+    def self.down
+      rename_column :urls, :url, :full_name
+    end
+  end
+#+end_src
+
+And then run it:
+
+** Schema dump
+The rakefile will also extract what it knows about the database and
+put it in the =db/schema.rb= file, which ends up like:
+
+#+begin_src ruby
+  ActiveRecord::Schema.define(version: 2021_03_10_205953) do
+
+    # These are extensions that must be enabled in order to support this database
+    enable_extension "plpgsql"
+
+    create_table "urls", force: :cascade do |t|
+      t.string "url"
+      t.datetime "added"
+      t.boolean "active", default: true
+    end
+  end
+
+#+end_src
+
+Which is handy if you are used to rails.  The =rake db:reset= function
+is also pretty handy.
+
+** Thoughts
+This is the style that I'm more used to, so I'm biased.  However one
+thing I really like is that it will create the database for you if
+need it, and =db:reset= often comes in handy.  Feels much more user
+friendly than the node version does.
+
+* Go: =golang-migrate=
+Another interesting option is to use the =migrate= tool which is written
+in go.  This can be run as a standalone cli (so similar to =db-migrate=
+in that respect) but also embedded in your go programs, running on
+startup perhaps as needed.
+
+This also packaged up as a docker image, so we don't need it install
+anything locally if we don't want to, which I don't, so lets create a
+quick script =migrate= to run the command:
+
+#+begin_src bash :tangle go/migrate
+  #!/bin/bash
+
+  mkdir -p migrations
+  docker run --rm -it --user $(id -u):$(id -g) \
+         -v $(pwd)/migrations:/migrations \
+         --network host \
+         migrate/migrate $@
+#+end_src
+
+You could also just [[https://github.com/golang-migrate/migrate/tree/master/cmd/migrate][install the CLI]].
+
+The rest here is adapted from the [[https://github.com/golang-migrate/migrate/blob/master/database/postgres/TUTORIAL.md][Postgres tutorial]].
+
+** Create a table
+First we generate our templates:
+#+begin_src bash
+  migrate create -ext sql -dir /migrations -seq create_urls
+#+end_src
+
+And then in put our sql in the generated file
+=migrations/000001_create_urls.up.sql=:
+
+#+begin_src sql
+  CREATE TABLE IF NOT EXISTS urls(
+     id serial PRIMARY KEY,
+     full_name VARCHAR (200) NOT NULL,
+     added timestamp without time zone,
+     active boolean default true
+  );
+#+end_src
+
+To run the migration itself we are going to pass the database connect
+string as an environment variable first, and then run the migration:
+
+#+begin_src bash
+  export POSTGRESQL_URL='postgres://postgres:awesome_password@localhost:5432/gotest?sslmode=disable'
+
+  migrate -database ${POSTGRESQL_URL} -path /migrations up
+  1/u create_urls (55.866946ms)
+#+end_src
+
+** Renaming a column
+Create our template:
+
+#+begin_src bash
+  migrate create -ext sql -dir /migrations -seq rename_fullname_to_url
+#+end_src
+
+Slap the sql into the new file:
+
+#+begin_src sql
+  alter table urls rename column full_name to url;
+#+end_src
+
+And run:
+
+#+begin_src bash
+  migrate -database ${POSTGRESQL_URL} -path /migrations up
+#+end_src
+
+** Thoughts
+This feels like the cleanest "standalone" tool.  Writing database
+specific sql feels like a bit of a throwback but honestly at a certain
+point you'll need to get into that level on control. The docker image
+is only =35.1MB= and anything with node or ruby is generally in the 100s
+of MB, which is probably fine overall but feels a bit excessive for
+something this seemingly simple.
+
+* Conclusion
+
+I like the =Rakefile= based solution the best, since it gives me both
+more functionality out of the box (db create and reset, schema
+definitions), it's a good place to add other tasks, and, let's
+acknowledge it, I'm the most familiar with it.
+
+Of the three, the go one feels the most "serious" and feels like where
+I'll end up in the long run, so if you were to pick one I'd in general
+recommend that.
+
+#+begin_src bash
+  docker-compose down
+#+end_src
+
+* References
+
+1. https://github.com/db-migrate/node-db-migrate
+2. [[https://db-migrate.readthedocs.io/en/latest/Getting%20Started/usage/]]
+3. https://itnext.io/updating-an-sql-database-schema-using-node-js-6c58173a455a
+4. https://www.devdungeon.com/content/ruby-activerecord-without-rails-tutorial#toc-9
+5. https://gist.github.com/Rhoxio/ee9a855088c53d447f2eb888bd9d09a4
+6. https://github.com/golang-migrate/migrate/blob/master/database/postgres/TUTORIAL.md
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
