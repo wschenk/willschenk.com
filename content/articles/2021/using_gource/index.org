@@ -1,0 +1,189 @@
+#+title: Using gource
+#+date: 2021-03-13
+#+draft: true
+
+Gource is a tool to make animations from git repository changes. Lets
+write some scripts so we can easily visualize a github repo.
+
+* Packaging up =grouce= as a docker container
+#+begin_src Dockerfile :tangle Dockerfile
+FROM debian:10
+
+RUN apt update && apt install -y \
+       gource \
+       git \
+       screen \
+       xvfb \
+       xfonts-base \
+       xfonts-75dpi \
+       xfonts-100dpi \
+       xfonts-cyrillic \
+       ffmpeg 
+
+# Mount volumes
+VOLUME ["/repos", "/avatars", "/results", "/mp3s"]
+
+# Set the working directory to where the git repository is stored
+WORKDIR /repos
+
+# Add the init script
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+
+# Run the init script by default
+ENTRYPOINT ["/docker-entrypoint.sh"]
+#+end_src
+
+Now are generator script (from [[https://github.com/sandrokeil/docker-files/tree/master/gource][sandrokeil]]:)
+
+#+begin_src bash :tangle docker-entrypoint.sh
+  #!/bin/bash
+
+  # Stop on first error
+  set -e
+
+  # Define defaults
+  RES="${RES:-1920x1080}"
+  DEPTH="${DEPTH:-24}"
+  FRAMES="${FRAMES:-60}"
+  SEC_PER_DAY=${SEC_PER_DAY:-0.3}
+  HIDE=${HIDE:-filenames}
+  COMPRESSION=${COMPRESSION:-18}
+  GOURCE_ARGS=${GOURCE_ARGS:-}
+
+  render () {
+    cd /results
+
+    echo "Using $RES $DEPTH $FRAMES $SEC_PER_DAY"
+    screen -dmS recording xvfb-run -a -s "-screen 0 ${RES}x${DEPTH}" gource combined.txt -r 60 --auto-skip-seconds 1 --max-file-lag 0.1 --stop-at-end "-$RES" --user-image-dir /avatars/ --highlight-all-users -s 0.5 --seconds-per-day ${SEC_PER_DAY} --hide ${HIDE} ${GOURCE_ARGS} -o gource.ppm
+
+    # This hack is needed because gource process doesn't stop
+    lastsize="0"
+    filesize="0"
+
+    while [[ "$filesize" -eq "0" || $lastsize -lt $filesize ]] ;
+    do
+        sleep 5
+        lastsize="$filesize"
+        filesize=$(stat -c '%s' /results/gource.ppm)
+        echo 'Polling the size. Current size is' $filesize
+    done
+
+    echo 'Force stopping recording because file size is not growing'
+    screen -S recording -X quit
+  }
+
+  convert () {
+      xvfb-run -a -s "-screen 0 ${RES}x${DEPTH}" ffmpeg -y -r ${FRAMES} -f image2pipe -loglevel info -vcodec ppm -i /results/gource.ppm -vcodec libx264 -preset medium -pix_fmt yuv420p -crf ${COMPRESSION} -threads 0 -bf 0 /results/gource.mp4
+  }
+
+  audio () {
+      cd /mp3s
+      AUDIO_FILES=
+
+      for f in *.mp3; do
+          if [ -e $f ]; then
+              if [ -n "$AUDIO_FILES" ]; then
+                  AUDIO_FILES="${AUDIO_FILES}|"
+              fi
+              AUDIO_FILES="${AUDIO_FILES}${f}"
+          fi
+      done
+
+      if [ -z "$AUDIO_FILES" ]; then
+          echo "No audio files found."
+          return
+      fi
+
+      ffmpeg -i /results/gource.mp4 -i "concat:$AUDIO_FILES" -map 0:v -map 1:a -codec copy -shortest /results/gource-audio.mp4
+  }
+
+  if [ -e "/results/gource.ppm" ]; then
+      echo "Video gource.ppm already exists."
+  else
+      FILES=
+
+      for d in */ ; do
+          DIR=${d%?}
+          gource --output-custom-log /results/${DIR}.log ${DIR}
+          sed -i -r "s#(.+)\|#\1|/$DIR#" /results/${DIR}.log
+          FILES="$FILES /results/${DIR}.log"
+      done
+
+      cat ${FILES} | sort -n > /results/combined.txt
+
+      render
+  fi
+
+  convert
+  audio
+
+#+end_src
+
+Then build
+
+#+begin_src bash
+docker build . -t wschenk/gource
+#+end_src
+
+* Setup a work environment
+
+#+begin_src bash 
+  export REPO="https://github.com/wschenk/willschenk.com"
+  export WORKDIR="${HOME}/gource_workdir"
+
+  export REPO_DIR=${WORKDIR}/repo && mkdir -p ${REPO_DIR}
+  export AVATAR_DIR=${WORKDIR}/avatar && mkdir -p ${AVATAR_DIR}
+  export RESULTS_DIR=${WORKDIR}/results && mkdir -p ${RESULTS_DIR}
+#+end_src
+
+* Get the repository
+
+#+begin_src bash
+  cd ${WORKDIR}/repo
+  git clone ${REPO}
+#+end_src
+
+* Get those =gravatars=
+
+#+begin_src bash :tangle gravatar_download.sh
+  for i in ${REPO_DIR}/*
+  do
+      (cd ${i};git log --pretty=format:"%ae:%an")
+  done | sort -u > ${WORKDIR}/authors
+
+  while IFS= read -r line; do
+      readarray -d : -t strarr <<< "$line"
+      email=${strarr[0]}
+      name=${strarr[1]::-1}
+      #echo "$name $email"
+
+      filename=${AVATAR_DIR}/${name}.png
+      #echo Looking for ${filename}
+      if [ ! -f "${filename}" ]; then
+          md5=$(echo -n "$email" | tr '[A-Z]' '[a-z]' | md5sum | cut -d" " -f1)
+          wget http://www.gravatar.com/avatar/$md5?size=512 -O "${filename}"
+      fi
+
+  done < ${WORKDIR}/authors
+#+end_src
+* Doing a test run generator
+
+#+begin_src bash
+
+docker run -it --rm --name gource \
+  -v ${REPO_DIR}:/repos \
+  -v ${RESULTS_DIR}:/results \
+  -v ${AVATAR_DIR}:/avatars \
+  --env GOURCE_ARGS="title='My awesome project' --logo=/repos/logo.png" \
+  wschenk/gource
+#+end_src
+* References
+1. https://github.com/acaudwell/Gource
+2. https://www.culturefoundry.com/cultivate/technology/using-gource-to-visualize-a-gitrepo/
+3. https://github.com/sandrokeil/docker-files/tree/master/gource
+
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
