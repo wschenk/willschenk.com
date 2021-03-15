@@ -3,40 +3,71 @@
 #+draft: true
 
 Gource is a tool to make animations from git repository changes. Lets
-write some scripts so we can easily visualize a github repo.
+package up =gource= with a bunch of scripts that will let us make videos
+for each tag release of a project.
 
-* Packaging up =grouce= as a docker container
+* Over all steps
+
+We are going to package up =gource= into a container and a couple of
+supporting scripts to orchistrate it.  The usage will be that we fire
+up a docker container passing in a repository remote and it will
+output a video or series of videos.
+
+1. Pull down a repo
+2. Find all the authors and their avatars
+3. If no date ranges are passed, deduce them from the tags
+4. Make a video for each date range
+
+* =Dockerfile= to build with
+
 #+begin_src Dockerfile :tangle Dockerfile
 FROM debian:10
 
-RUN apt update && apt install -y \
-       gource \
-       git \
-       screen \
-       xvfb \
-       xfonts-base \
-       xfonts-75dpi \
-       xfonts-100dpi \
-       xfonts-cyrillic \
-       ffmpeg 
+RUN echo deb-src http://deb.debian.org/debian buster main contrib non-free >> /etc/apt/sources.list
+RUN apt-get update && apt install -y git ffmpeg curl xvfb
+RUN apt build-dep -y gource
 
-# Mount volumes
-VOLUME ["/repos", "/avatars", "/results", "/mp3s"]
+WORKDIR /gource
 
-# Set the working directory to where the git repository is stored
-WORKDIR /repos
+RUN git clone https://github.com/acaudwell/Gource.git
 
-# Add the init script
-COPY docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
+WORKDIR /gource/Gource
+
+RUN ./autogen.sh
+RUN ./configure
+RUN make && make install
+
+WORKDIR /app
+
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 # Run the init script by default
-ENTRYPOINT ["/docker-entrypoint.sh"]
+#ENTRYPOINT ["/entrypoint.sh"]
+CMD bash
 #+end_src
 
-Now are generator script (from [[https://github.com/sandrokeil/docker-files/tree/master/gource][sandrokeil]]:)
+Build this with
 
-#+begin_src bash :tangle docker-entrypoint.sh
+#+begin_src bash
+docker build . -t wschenk/gource
+#+end_src
+
+Now we have this, we can run it with
+
+#+begin_src bash
+export REPO=https://github.com/wschenk/cabal-experiments.git
+export REPO=https://github.com/cabal-club/cabal-core.git
+mkdir -p output
+docker run --rm -it -v $PWD/output:/output --env REPO=$REPO --env HIDE="" --env RES=1280x720 -v $PWD:/app wschenk/gource
+#+end_src
+
+* The script
+
+This is the script that docker will run when it starts up.  These are
+the environment variables that we can use to change the behavior.
+
+#+begin_src bash :tangle entrypoint.sh
   #!/bin/bash
 
   # Stop on first error
@@ -51,106 +82,41 @@ Now are generator script (from [[https://github.com/sandrokeil/docker-files/tree
   COMPRESSION=${COMPRESSION:-18}
   GOURCE_ARGS=${GOURCE_ARGS:-}
 
-  render () {
-    cd /results
+  # Internal directories
+  WORK_DIR=/workspace && mkdir -p ${WORK_DIR}
+  AVATAR_DIR=/avatars && mkdir -p ${AVATAR_DIR}
+#+end_src
+* Download a repo
 
-    echo "Using $RES $DEPTH $FRAMES $SEC_PER_DAY"
-    screen -dmS recording xvfb-run -a -s "-screen 0 ${RES}x${DEPTH}" gource combined.txt -r 60 --auto-skip-seconds 1 --max-file-lag 0.1 --stop-at-end "-$RES" --user-image-dir /avatars/ --highlight-all-users -s 0.5 --seconds-per-day ${SEC_PER_DAY} --hide ${HIDE} ${GOURCE_ARGS} -o gource.ppm
-
-    # This hack is needed because gource process doesn't stop
-    lastsize="0"
-    filesize="0"
-
-    while [[ "$filesize" -eq "0" || $lastsize -lt $filesize ]] ;
-    do
-        sleep 5
-        lastsize="$filesize"
-        filesize=$(stat -c '%s' /results/gource.ppm)
-        echo 'Polling the size. Current size is' $filesize
-    done
-
-    echo 'Force stopping recording because file size is not growing'
-    screen -S recording -X quit
-  }
-
-  convert () {
-      xvfb-run -a -s "-screen 0 ${RES}x${DEPTH}" ffmpeg -y -r ${FRAMES} -f image2pipe -loglevel info -vcodec ppm -i /results/gource.ppm -vcodec libx264 -preset medium -pix_fmt yuv420p -crf ${COMPRESSION} -threads 0 -bf 0 /results/gource.mp4
-  }
-
-  audio () {
-      cd /mp3s
-      AUDIO_FILES=
-
-      for f in *.mp3; do
-          if [ -e $f ]; then
-              if [ -n "$AUDIO_FILES" ]; then
-                  AUDIO_FILES="${AUDIO_FILES}|"
-              fi
-              AUDIO_FILES="${AUDIO_FILES}${f}"
-          fi
-      done
-
-      if [ -z "$AUDIO_FILES" ]; then
-          echo "No audio files found."
-          return
-      fi
-
-      ffmpeg -i /results/gource.mp4 -i "concat:$AUDIO_FILES" -map 0:v -map 1:a -codec copy -shortest /results/gource-audio.mp4
-  }
-
-  if [ -e "/results/gource.ppm" ]; then
-      echo "Video gource.ppm already exists."
-  else
-      FILES=
-
-      for d in */ ; do
-          DIR=${d%?}
-          gource --output-custom-log /results/${DIR}.log ${DIR}
-          sed -i -r "s#(.+)\|#\1|/$DIR#" /results/${DIR}.log
-          FILES="$FILES /results/${DIR}.log"
-      done
-
-      cat ${FILES} | sort -n > /results/combined.txt
-
-      render
+#+begin_src bash :tangle entrypoint.sh
+  # Download the repository
+  if [ -z "$REPO" ]; then
+    echo REPO is not set!
+    exit 1
   fi
 
-  convert
-  audio
+  mkdir -p /repositories
+  if [ ! -d /repositories/repo ]; then
+      echo Cloning $REPO
+      git clone $REPO /repositories/repo
+  else
+      echo Updating $REPO
+      (cd /repositories/repo; git pull)
+  fi
 
 #+end_src
 
-Then build
+* Find the avatars
 
-#+begin_src bash
-docker build . -t wschenk/gource
-#+end_src
+Lets extract all of the author lines from the repos, and then interate
+over all of the names and download their icons from gravatar.
 
-* Setup a work environment
-
-#+begin_src bash 
-  export REPO="https://github.com/wschenk/willschenk.com"
-  export WORKDIR="${HOME}/gource_workdir"
-
-  export REPO_DIR=${WORKDIR}/repo && mkdir -p ${REPO_DIR}
-  export AVATAR_DIR=${WORKDIR}/avatar && mkdir -p ${AVATAR_DIR}
-  export RESULTS_DIR=${WORKDIR}/results && mkdir -p ${RESULTS_DIR}
-#+end_src
-
-* Get the repository
-
-#+begin_src bash
-  cd ${WORKDIR}/repo
-  git clone ${REPO}
-#+end_src
-
-* Get those =gravatars=
-
-#+begin_src bash :tangle gravatar_download.sh
-  for i in ${REPO_DIR}/*
+#+begin_src bash :tangle entrypoint.sh
+  # Pull down the authors from the repositories
+  for i in /repositories/*
   do
       (cd ${i};git log --pretty=format:"%ae:%an")
-  done | sort -u > ${WORKDIR}/authors
+  done | sort -u > ${WORK_DIR}/authors
 
   while IFS= read -r line; do
       readarray -d : -t strarr <<< "$line"
@@ -162,22 +128,95 @@ docker build . -t wschenk/gource
       #echo Looking for ${filename}
       if [ ! -f "${filename}" ]; then
           md5=$(echo -n "$email" | tr '[A-Z]' '[a-z]' | md5sum | cut -d" " -f1)
-          wget http://www.gravatar.com/avatar/$md5?size=512 -O "${filename}"
+          curl http://www.gravatar.com/avatar/$md5?size=512 -o "${filename}"
+      else
+          echo ${filename} already exists
       fi
 
-  done < ${WORKDIR}/authors
-#+end_src
-* Doing a test run generator
+  done < ${WORK_DIR}/authors
 
-#+begin_src bash
-
-docker run -it --rm --name gource \
-  -v ${REPO_DIR}:/repos \
-  -v ${RESULTS_DIR}:/results \
-  -v ${AVATAR_DIR}:/avatars \
-  --env GOURCE_ARGS="title='My awesome project' --logo=/repos/logo.png" \
-  wschenk/gource
 #+end_src
+* Find the video slices
+
+#+begin_src bash :tangle entrypoint.sh
+  # Find the tags in the repo and sort by semver
+  cd /repositories/repo
+  > ${WORK_DIR}/slices
+
+  first_commit=$(git rev-list --max-parents=0 HEAD | head -1)
+  git tag --sort=v:refname > ${WORK_DIR}/tags
+
+  commit_time() {
+      t=$(git log --pretty='%aI' -n 1 $1 | tr 'T' ' ')
+      echo ${t::-6}
+  }
+
+  start_time=$(commit_time $first_commit)
+
+  while IFS= read -r line; do
+      time=$(commit_time $line)
+      if [ "${start_time}" != "${time}" ]; then
+          echo ${line},${start_time},${time} >> ${WORK_DIR}/slices
+      else
+          echo skipping ${line}
+      fi
+      start_time=${time}
+  done < ${WORK_DIR}/tags
+
+#+end_src
+
+* Make the videos
+
+#+begin_src bash :tangle entrypoint.sh
+  readarray linearray < ${WORK_DIR}/slices
+
+  for line in "${linearray[@]}"
+  do
+      echo $line
+      readarray -d , -t strarr <<< "$line"
+      name=${strarr[0]}
+      starttime=${strarr[1]}
+      stoptime=${strarr[2]::-1}
+      echo ${name} -- ${starttime} -- ${stoptime}
+
+
+      if [ ! -f "${WORK_DIR}/${name}.ppm" ];then
+          echo Generating ${name}.ppm
+          xvfb-run -a -s "-screen 0 ${RES}x${DEPTH}" gource $RES \
+                   -o ${WORK_DIR}/${name}.ppm \
+                   -r 60 --auto-skip-seconds 1 --max-file-lag 0.1 \
+                   --stop-at-end "-$RES" --user-image-dir ${AVATAR_DIR} \
+                   --highlight-all-users -s 0.5 \
+                   --start-date "${starttime}" \
+                   --stop-date "${stoptime}" \
+                   --seconds-per-day ${SEC_PER_DAY} --hide ${HIDE} /repositories/repo
+      else
+          echo ${name}.ppm already exists
+      fi
+
+      if [ ! -f "${WORK_DIR}/${name}.webm" ]; then
+          if [ -s "${WORK_DIR}/${name}.ppm" ]; then
+              ffmpeg -y -r 60 \
+                     -f image2pipe \
+                     -vcodec ppm -i ${WORK_DIR}/${name}.ppm \
+                     -vcodec libvpx \
+                     -b 10000K ${WORK_DIR}/${name}.webm
+          else
+              echo ${name}.ppm is empty
+          fi
+      else
+          echo ${name}.webm already exists
+      fi
+
+      if [ -f "${WORK_DIR}/${name}.webm" ]; then
+          echo Copying to ${name}.webm to output directory
+          cp ${WORK_DIR}/${name}.webm /output
+      fi
+  done
+
+#+end_src
+
+
 * References
 1. https://github.com/acaudwell/Gource
 2. https://www.culturefoundry.com/cultivate/technology/using-gource-to-visualize-a-gitrepo/

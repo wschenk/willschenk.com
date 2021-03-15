@@ -1,25 +1,24 @@
 FROM debian:10
 
-RUN apt update && apt install -y \
-       gource \
-       git \
-       screen \
-       xvfb \
-       xfonts-base \
-       xfonts-75dpi \
-       xfonts-100dpi \
-       xfonts-cyrillic \
-       ffmpeg 
+RUN echo deb-src http://deb.debian.org/debian buster main contrib non-free >> /etc/apt/sources.list
+RUN apt-get update && apt install -y git ffmpeg curl xvfb
+RUN apt build-dep -y gource
 
-# Mount volumes
-VOLUME ["/repos", "/avatars", "/results", "/mp3s"]
+WORKDIR /gource
 
-# Set the working directory to where the git repository is stored
-WORKDIR /repos
+RUN git clone https://github.com/acaudwell/Gource.git
 
-# Add the init script
-COPY docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
+WORKDIR /gource/Gource
+
+RUN ./autogen.sh
+RUN ./configure
+RUN make && make install
+
+WORKDIR /app
+
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 # Run the init script by default
-ENTRYPOINT ["/docker-entrypoint.sh"]
+#ENTRYPOINT ["/entrypoint.sh"]
+CMD bash
