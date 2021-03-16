@@ -1,0 +1,99 @@
+#+title: Playing with AlephJS
+#+subtitle: fun in deno land
+#+tags: deno, alephjs
+#+draft: true
+#+date: 2021-03-13
+
+* Installing alephjs
+
+First we need to make sure that deno is installed:
+
+#+begin_src bash :results output
+deno --version
+#+end_src
+
+#+RESULTS:
+: deno 1.7.5 (release, x86_64-unknown-linux-gnu)
+: v8 9.0.123
+: typescript 4.1.4
+
+Then install the aleph cli.  Check for the latest version in [[https://alephjs.org/docs/get-started][the aleph]]
+installation documentation.
+
+#+begin_src bash :results output
+deno install --unstable -A -f -n aleph https://deno.land/x/aleph@v0.3.0-alpha.8/cli.ts
+#+end_src
+
+#+RESULTS:
+: ✅ Successfully installed aleph
+: /home/wschenk/.asdf/installs/deno/1.6.3/.deno/bin/aleph
+
+Now we can create our project:
+
+#+begin_src bash
+aleph init hello
+#+end_src
+
+Which will install a bunch of stuff into the =hello= directory.
+
+* In a docker container
+
+#+begin_src Dockerfile :tangle Dockerfile
+FROM hayd/debian-deno:1.7.0
+
+WORKDIR /app
+
+#USER deno
+
+RUN deno install --unstable -A -f -n aleph https://deno.land/x/aleph@v0.3.0-alpha.8/cli.ts
+#RUN aleph init hello
+
+# WORKDIR /app/hello
+
+CMD bash
+#+end_src
+
+#+begin_src bash :results output
+docker build . -t wschenk/aleph
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Sending build context to Docker daemon  5.632kB
+Step 1/4 : FROM hayd/debian-deno:1.7.0
+ ---> 81a4882f6886
+Step 2/4 : WORKDIR /app
+ ---> Using cache
+ ---> f30964b509d9
+Step 3/4 : RUN deno install --unstable -A -f -n aleph https://deno.land/x/aleph@v0.3.0-alpha.8/cli.ts
+ ---> Using cache
+ ---> 38c3955a4c4e
+Step 4/4 : CMD bash
+ ---> Running in ab3289b1bdff
+Removing intermediate container ab3289b1bdff
+ ---> 50f1f77df192
+Successfully built 50f1f77df192
+Successfully tagged wschenk/aleph:latest
+#+end_example
+
+Then run it
+
+#+begin_src bash
+  mkdir -p hello
+  docker run --rm -it -v $PWD/hello:/app/hello -p 8080:8080 wschenk/aleph
+#+end_src
+
+Inside of the container:
+
+#+begin_src bash
+  aleph init hello
+  cd hello
+  aleph dev
+#+end_src
+* References
+
+1. https://alephjs.org/docs/get-started
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

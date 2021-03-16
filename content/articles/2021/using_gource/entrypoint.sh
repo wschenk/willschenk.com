@@ -89,7 +89,6 @@ do
     stoptime=${strarr[2]::-1}
     echo ${name} -- ${starttime} -- ${stoptime}
 
-
     if [ ! -f "${WORK_DIR}/${name}.ppm" ];then
         echo Generating ${name}.ppm
         xvfb-run -a -s "-screen 0 ${RES}x${DEPTH}" gource $RES \
