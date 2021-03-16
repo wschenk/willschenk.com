@@ -1,4 +1,509 @@
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Sat, 13 Mar 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>asdf as environment manager</title><link>https://willschenk.com/articles/2021/asdf_as_environment_manager/</link><pubDate>Sat, 13 Mar 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/asdf_as_environment_manager/</guid><description>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Mon, 15 Mar 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Emacs Blog Writing and Navigation Mode</title><link>https://willschenk.com/articles/2021/emacs_blogging_mode/</link><pubDate>Mon, 15 Mar 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/emacs_blogging_mode/</guid><description>
+&lt;p>
+This blog is basically my labnotes where I explore different parts of
+technology. Almost all of my coding related activity starts off in
+this repo, while I explore different things to see how they work. I
+have a lot of things in drafts, and I wanted to learn how to build a
+simple emacs interface to let me navigate around my file system.
+&lt;/p>
+&lt;p>
+I couldn&amp;#39;t find any good documentation on how to do anything with
+&lt;code class="verbatim">tabulated-list-mode&lt;/code> so I spend the evening poking around and seeing
+how it works. Here you go.
+&lt;/p>
+&lt;p>
+The final file is &lt;a href="blog.el">blog.el&lt;/a>
+&lt;/p>
+&lt;h2 id="headline-1">
+My basical directory structure
+&lt;/h2>
+&lt;p>
+I have my repo checked out at &lt;code class="verbatim">~/willschenk.com&lt;/code>, and I put all my work
+in &lt;code class="verbatim">content/articles&lt;/code> and then the year. So this file is called
+&lt;code class="verbatim">/home/wschenk/willschenk.com/content/articles/2021/emacs_blogging_mode/index.org&lt;/code>
+&lt;/p>
+&lt;p>
+Sometimes the &lt;code class="verbatim">org&lt;/code> file is at the top level directory, and in the past
+I wrote in &lt;code class="verbatim">md&lt;/code> files so I want to make sure that they come through as
+well.
+&lt;/p>
+&lt;div class="src src-elisp">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-elisp" data-lang="elisp"> &lt;span class="c1">;; set the directory&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">setq&lt;/span> &lt;span class="nv">blog-mode-base-dir&lt;/span> &lt;span class="s">&amp;#34;/home/wschenk/willschenk.com/content/articles&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">require&lt;/span> &lt;span class="ss">&amp;#39;transient&lt;/span>&lt;span class="p">)&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-2">
+How &lt;code class="verbatim">tabulated-list-mode&lt;/code> works
+&lt;/h2>
+&lt;p>
+The basic idea is that
+&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>
+You create a derived mode from &lt;code class="verbatim">tabulated-list-mode&lt;/code>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+This defines the column headers in &lt;code class="verbatim">tabulated-list-format&lt;/code>, and some
+other stuff
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+You create a function that
+&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>
+Creates a new buffer
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+Switches to your derived mode
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+Sets &lt;code class="verbatim">tabluated-list-entries&lt;/code>, which is a list of lists, the first
+element being the key and the following elements are the data
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+Calles &lt;code class="verbatim">(tabulated-list-print t)&lt;/code> which displays the data
+&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>
+You create a mode map that lets you add functions, the selected &lt;code class="verbatim">key&lt;/code>
+is returned by &lt;code class="verbatim">tabulated-list-get-id&lt;/code>.
+&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;p>
+One tricky thing to figure out is how to create the data. It looks like
+&lt;/p>
+&lt;div class="src src-elisp">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-elisp" data-lang="elisp"> &lt;span class="p">(&lt;/span>&lt;span class="nf">list&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nf">list&lt;/span> &lt;span class="nv">key1&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="nv">col1&lt;/span> &lt;span class="nv">col2&lt;/span> &lt;span class="nv">col3&lt;/span>&lt;span class="p">])&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nf">list&lt;/span> &lt;span class="nv">key2&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="nv">col1&lt;/span> &lt;span class="nv">col2&lt;/span> &lt;span class="nv">col3&lt;/span>&lt;span class="p">]))&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Which you can create using &lt;code class="verbatim">(list key1 (vector col1 col2 col3))&lt;/code> if you
+want to actually use the values that &lt;code class="verbatim">col1&lt;/code> points to rather than the
+symbol &lt;code class="verbatim">col1&lt;/code> itself. Yay lisp!
+&lt;/p>
+&lt;p>
+Let&amp;#39;s get started.
+&lt;/p>
+&lt;h2 id="headline-3">
+Looking at the front matter
+&lt;/h2>
+&lt;p>
+This function takes a file, and passes it through &lt;code class="verbatim">awk&lt;/code> to parse the
+front matter. We will basically call this 4 times for each file to
+pull out the &lt;code class="verbatim">title&lt;/code>, &lt;code class="verbatim">date&lt;/code>, &lt;code class="verbatim">draft&lt;/code>, and &lt;code class="verbatim">tags&lt;/code>.
+&lt;/p>
+&lt;div class="src src-elisp">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-elisp" data-lang="elisp"> &lt;span class="p">(&lt;/span>&lt;span class="nb">defun&lt;/span> &lt;span class="nv">blog-mode-file-peek&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">pattern&lt;/span> &lt;span class="nv">file&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">let&lt;/span> &lt;span class="p">((&lt;/span>&lt;span class="nv">result&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nf">car&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">process-lines&lt;/span> &lt;span class="s">&amp;#34;awk&amp;#34;&lt;/span> &lt;span class="s">&amp;#34;-F: &amp;#34;&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nf">concat&lt;/span> &lt;span class="nv">pattern&lt;/span> &lt;span class="s">&amp;#34; {print $2}&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="nv">file&lt;/span>&lt;span class="p">))))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">if&lt;/span> &lt;span class="nv">result&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">replace-regexp-in-string&lt;/span> &lt;span class="s">&amp;#34;\&amp;#34;&amp;#34;&lt;/span> &lt;span class="s">&amp;#34;&amp;#34;&lt;/span> &lt;span class="nv">result&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="s">&amp;#34;&amp;#34;&lt;/span>&lt;span class="p">)))&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Also, I&amp;#39;m removing any quotes around the results.
+&lt;/p>
+&lt;h2 id="headline-4">
+Parse a &lt;code class="verbatim">.org&lt;/code> file
+&lt;/h2>
+&lt;p>
+This takes a file, and pulls out the attributes. I&amp;#39;m assuming that
+the first ones it find is actually the top matter, we ignore all other
+matches other than the first.
+&lt;/p>
+&lt;div class="src src-elisp">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-elisp" data-lang="elisp"> &lt;span class="p">(&lt;/span>&lt;span class="nb">defun&lt;/span> &lt;span class="nv">blog-mode-parse-org&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">file&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">let&lt;/span> &lt;span class="p">((&lt;/span>&lt;span class="nv">title&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">blog-mode-file-peek&lt;/span> &lt;span class="s">&amp;#34;/\\+title/&amp;#34;&lt;/span> &lt;span class="nv">file&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">date&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">blog-mode-file-peek&lt;/span> &lt;span class="s">&amp;#34;/\\+date/&amp;#34;&lt;/span> &lt;span class="nv">file&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">draft&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">blog-mode-file-peek&lt;/span> &lt;span class="s">&amp;#34;/\\+draft/&amp;#34;&lt;/span> &lt;span class="nv">file&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">tags&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">blog-mode-file-peek&lt;/span> &lt;span class="s">&amp;#34;/\\+tags/&amp;#34;&lt;/span> &lt;span class="nv">file&lt;/span>&lt;span class="p">)))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nf">list&lt;/span> &lt;span class="nv">file&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nf">vector&lt;/span> &lt;span class="nv">title&lt;/span> &lt;span class="nv">draft&lt;/span> &lt;span class="nv">date&lt;/span> &lt;span class="nv">tags&lt;/span>&lt;span class="p">))))&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;div class="src src-elisp">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-elisp" data-lang="elisp"> &lt;span class="c1">;; parse an org-file test&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">setq&lt;/span> &lt;span class="nv">org-test&lt;/span> &lt;span class="s">&amp;#34;/home/wschenk/willschenk.com/content/articles/2021/setting_up_emacs_for_typescript_development.org&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">blog-mode-parse-org&lt;/span> &lt;span class="nv">org-test&lt;/span>&lt;span class="p">)&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-5">
+Parsing an &lt;code class="verbatim">md&lt;/code> file
+&lt;/h2>
+&lt;p>
+Depending upon what sort of front matter you use, you may need to
+adjust the regex. All my old markdown files are using &lt;code class="verbatim">yaml&lt;/code> and not
+&lt;code class="verbatim">toml&lt;/code>, so your mileage may vary.
+&lt;/p>
+&lt;div class="src src-elisp">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-elisp" data-lang="elisp">
+&lt;span class="p">(&lt;/span>&lt;span class="nb">defun&lt;/span> &lt;span class="nv">blog-mode-parse-md&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">file&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">let&lt;/span> &lt;span class="p">((&lt;/span>&lt;span class="nv">title&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">blog-mode-file-peek&lt;/span> &lt;span class="s">&amp;#34;/^title/&amp;#34;&lt;/span> &lt;span class="nv">file&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">date&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">blog-mode-file-peek&lt;/span> &lt;span class="s">&amp;#34;/^date/&amp;#34;&lt;/span> &lt;span class="nv">file&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">draft&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">blog-mode-file-peek&lt;/span> &lt;span class="s">&amp;#34;/^draft/&amp;#34;&lt;/span> &lt;span class="nv">file&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">tags&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">blog-mode-file-peek&lt;/span> &lt;span class="s">&amp;#34;/^tags/&amp;#34;&lt;/span> &lt;span class="nv">file&lt;/span>&lt;span class="p">)))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nf">list&lt;/span> &lt;span class="nv">file&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nf">vector&lt;/span> &lt;span class="nv">title&lt;/span> &lt;span class="nv">draft&lt;/span> &lt;span class="nv">date&lt;/span> &lt;span class="nv">tags&lt;/span>&lt;span class="p">))))&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;div class="src src-elisp">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-elisp" data-lang="elisp"> &lt;span class="c1">;; parse a md file test&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">setq&lt;/span> &lt;span class="nv">md-test&lt;/span> &lt;span class="s">&amp;#34;/home/wschenk/willschenk.com/content/articles/2020/styling_tables_with_hugo.md&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">blog-mode-parse-md&lt;/span> &lt;span class="nv">md-test&lt;/span>&lt;span class="p">)&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-6">
+Figure out if its a directory or not
+&lt;/h2>
+&lt;p>
+For short posts that don&amp;#39;t have any tangling or other sub objects, my
+&lt;code class="verbatim">org&lt;/code> files live in the year directory. For others, it&amp;#39;s either going
+to be &lt;code class="verbatim">index.md&lt;/code> or &lt;code class="verbatim">index.org&lt;/code> so if we get a directory lets see which
+one is in there.
+&lt;/p>
+&lt;div class="src src-elisp">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-elisp" data-lang="elisp"> &lt;span class="p">(&lt;/span>&lt;span class="nb">defun&lt;/span> &lt;span class="nv">blog-mode-parse-directory&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">directory&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">let&lt;/span> &lt;span class="p">((&lt;/span>&lt;span class="nv">md&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nf">concat&lt;/span> &lt;span class="nv">directory&lt;/span> &lt;span class="s">&amp;#34;/index.md&amp;#34;&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">org&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nf">concat&lt;/span> &lt;span class="nv">directory&lt;/span> &lt;span class="s">&amp;#34;/index.org&amp;#34;&lt;/span>&lt;span class="p">)))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">if&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nf">file-exists-p&lt;/span> &lt;span class="nv">md&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">blog-mode-parse-md&lt;/span> &lt;span class="nv">md&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">if&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nf">file-exists-p&lt;/span> &lt;span class="nv">org&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">blog-mode-parse-org&lt;/span> &lt;span class="nv">org&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="no">nil&lt;/span>&lt;span class="p">))))&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;div class="src src-elisp">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-elisp" data-lang="elisp"> &lt;span class="c1">;; What can we figure out from a directory test&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">setq&lt;/span> &lt;span class="nv">dir-test&lt;/span> &lt;span class="s">&amp;#34;/home/wschenk/willschenk.com/content/articles/2021/gist_in_emacs&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">blog-mode-parse-directory&lt;/span> &lt;span class="nv">dir-test&lt;/span>&lt;span class="p">)&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-7">
+Figure out which parser to delegate to
+&lt;/h2>
+&lt;p>
+Given a file name or a directory, figure out which parse method knows
+how to make sense of it.
+&lt;/p>
+&lt;div class="src src-elisp">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-elisp" data-lang="elisp"> &lt;span class="p">(&lt;/span>&lt;span class="nb">defun&lt;/span> &lt;span class="nv">blog-mode-parse&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">file&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">if&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nf">file-directory-p&lt;/span> &lt;span class="nv">file&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">blog-mode-parse-directory&lt;/span> &lt;span class="nv">file&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">let&lt;/span> &lt;span class="p">((&lt;/span>&lt;span class="nv">ex&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">file-name-extension&lt;/span> &lt;span class="nv">file&lt;/span>&lt;span class="p">)))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">if&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">string=&lt;/span> &lt;span class="nv">ex&lt;/span> &lt;span class="s">&amp;#34;md&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">blog-mode-parse-md&lt;/span> &lt;span class="nv">file&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">if&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">string=&lt;/span> &lt;span class="nv">ex&lt;/span> &lt;span class="s">&amp;#34;org&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">blog-mode-parse-org&lt;/span> &lt;span class="nv">file&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nf">message&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nf">concat&lt;/span> &lt;span class="s">&amp;#34;Unknown extension &amp;#34;&lt;/span> &lt;span class="nv">ex&lt;/span>&lt;span class="p">)))))))&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;div class="src src-elisp">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-elisp" data-lang="elisp"> &lt;span class="c1">;; another test&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">blog-mode-parse&lt;/span> &lt;span class="nv">org-test&lt;/span>&lt;span class="p">)&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-8">
+Scan through all of the files and then parse them
+&lt;/h2>
+&lt;p>
+I&amp;#39;m again shelling out to the &lt;code class="verbatim">find&lt;/code> command with &lt;code class="verbatim">-maxdepth&lt;/code> of &lt;code class="verbatim">2&lt;/code> to give
+me a list of the files and/or directories that contain blog posts.
+For each of the files, I&amp;#39;m parsing them to get the data in tab form
+that the mode knows how to deal with.
+&lt;/p>
+&lt;p>
+&lt;code class="verbatim">dolist&lt;/code> was fun to figure out.
+&lt;/p>
+&lt;div class="src src-elisp">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-elisp" data-lang="elisp"> &lt;span class="p">(&lt;/span>&lt;span class="nb">defun&lt;/span> &lt;span class="nv">blog-mode-refresh-data&lt;/span> &lt;span class="p">()&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">setq&lt;/span> &lt;span class="nv">blog-mode-entries&lt;/span> &lt;span class="no">nil&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">dolist&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">file&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">process-lines&lt;/span> &lt;span class="s">&amp;#34;find&amp;#34;&lt;/span> &lt;span class="nv">blog-mode-base-dir&lt;/span> &lt;span class="s">&amp;#34;-maxdepth&amp;#34;&lt;/span> &lt;span class="s">&amp;#34;2&amp;#34;&lt;/span> &lt;span class="s">&amp;#34;-print&amp;#34;&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">let&lt;/span> &lt;span class="p">((&lt;/span>&lt;span class="nv">entry&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">blog-mode-parse&lt;/span> &lt;span class="nv">file&lt;/span>&lt;span class="p">)))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">if&lt;/span> &lt;span class="nv">entry&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">push&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">blog-mode-parse&lt;/span> &lt;span class="nv">file&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="nv">blog-mode-entries&lt;/span>&lt;span class="p">)))))&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;div class="src src-elisp">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-elisp" data-lang="elisp"> &lt;span class="p">(&lt;/span>&lt;span class="nv">blog-mode-refresh-data&lt;/span>&lt;span class="p">)&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-9">
+Set up the mode itself
+&lt;/h2>
+&lt;p>
+We create a derived mode called &lt;code class="verbatim">blog-mode&lt;/code> from &lt;code class="verbatim">tabulated-list-mode&lt;/code>.
+In it we set the columns, padding, sort order (on date) and
+explicitely tell it to use our mode map, &lt;code class="verbatim">blog-mode-map&lt;/code> defined below.
+It&amp;#39;s unclear why it doesn&amp;#39;t pick it up automatically, but I needed to
+call it out specifically.
+&lt;/p>
+&lt;p>
+We also create a &lt;code class="verbatim">blog-list&lt;/code> function which is our entry point. This
+creates and opens a new buffer, switches it to &lt;code class="verbatim">blog-mode&lt;/code>, loads in our
+data, and then tells it to display. &lt;code class="verbatim">tabulated-list-entries&lt;/code> is local
+to the buffer, by the by, so you can have multiple modes using the
+same variable.
+&lt;/p>
+&lt;div class="src src-elisp">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-elisp" data-lang="elisp"> &lt;span class="p">(&lt;/span>&lt;span class="nb">define-derived-mode&lt;/span> &lt;span class="nv">blog-mode&lt;/span> &lt;span class="nv">tabulated-list-mode&lt;/span> &lt;span class="s">&amp;#34;blog-mode&amp;#34;&lt;/span> &lt;span class="s">&amp;#34;Major mode Blog Mode, to edit hugo blogs&amp;#34;&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">setq&lt;/span> &lt;span class="nv">tabulated-list-format&lt;/span> &lt;span class="p">[(&lt;/span>&lt;span class="s">&amp;#34;Title&amp;#34;&lt;/span> &lt;span class="mi">60&lt;/span> &lt;span class="no">t&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;Draft&amp;#34;&lt;/span> &lt;span class="mi">5&lt;/span> &lt;span class="no">nil&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;Date&amp;#34;&lt;/span> &lt;span class="mi">11&lt;/span> &lt;span class="no">t&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;Tags&amp;#34;&lt;/span> &lt;span class="mi">0&lt;/span> &lt;span class="no">nil&lt;/span>&lt;span class="p">)])&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">setq&lt;/span> &lt;span class="nv">tabulated-list-padding&lt;/span> &lt;span class="mi">2&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">setq&lt;/span> &lt;span class="nv">tabulated-list-sort-key&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nf">cons&lt;/span> &lt;span class="s">&amp;#34;Date&amp;#34;&lt;/span> &lt;span class="no">t&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nf">use-local-map&lt;/span> &lt;span class="nv">blog-mode-map&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">tabulated-list-init-header&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">defun&lt;/span> &lt;span class="nv">blog-list&lt;/span> &lt;span class="p">()&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">interactive&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">pop-to-buffer&lt;/span> &lt;span class="s">&amp;#34;*Blog Mode*&amp;#34;&lt;/span> &lt;span class="no">nil&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">blog-mode&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">blog-mode-refresh-data&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">setq&lt;/span> &lt;span class="nv">tabulated-list-entries&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">-non-nil&lt;/span> &lt;span class="nv">blog-mode-entries&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">tabulated-list-print&lt;/span> &lt;span class="no">t&lt;/span>&lt;span class="p">))&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-10">
+Create the mode map
+&lt;/h2>
+&lt;p>
+Here I&amp;#39;m defining some functions that are specific to our mode.
+&lt;/p>
+&lt;table class="table table-striped">
+&lt;tbody>
+&lt;tr>
+&lt;td>&lt;code class="verbatim">?&lt;/code>&lt;/td>
+&lt;td>Help&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code class="verbatim">o&lt;/code>&lt;/td>
+&lt;td>Open the selected file&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code class="verbatim">r&lt;/code>&lt;/td>
+&lt;td>Refresh lists&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code class="verbatim">d&lt;/code>&lt;/td>
+&lt;td>Only show drafts&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code class="verbatim">p&lt;/code>&lt;/td>
+&lt;td>Only show published posts&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code class="verbatim">a&lt;/code>&lt;/td>
+&lt;td>Show all posts&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code class="verbatim">c&lt;/code>&lt;/td>
+&lt;td>Create a new post&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code class="verbatim">s&lt;/code>&lt;/td>
+&lt;td>Start the hugo process&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;p>
+For fun I also created a &lt;code class="verbatim">transient&lt;/code> popup which shows all of this.
+&lt;/p>
+&lt;div class="src src-elisp">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-elisp" data-lang="elisp"> &lt;span class="p">(&lt;/span>&lt;span class="nb">defvar&lt;/span> &lt;span class="nv">blog-mode-map&lt;/span> &lt;span class="no">nil&lt;/span> &lt;span class="s">&amp;#34;keymap for blog-mode&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">setq&lt;/span> &lt;span class="nv">blog-mode-map&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nf">make-sparse-keymap&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nf">define-key&lt;/span> &lt;span class="nv">blog-mode-map&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">kbd&lt;/span> &lt;span class="s">&amp;#34;?&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="ss">&amp;#39;blog-mode-help&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nf">define-key&lt;/span> &lt;span class="nv">blog-mode-map&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">kbd&lt;/span> &lt;span class="s">&amp;#34;o&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="ss">&amp;#39;blog-mode-open&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nf">define-key&lt;/span> &lt;span class="nv">blog-mode-map&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">kbd&lt;/span> &lt;span class="s">&amp;#34;&amp;lt;return&amp;gt;&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="ss">&amp;#39;blog-mode-open&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nf">define-key&lt;/span> &lt;span class="nv">blog-mode-map&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">kbd&lt;/span> &lt;span class="s">&amp;#34;d&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="ss">&amp;#39;blog-mode-drafts&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nf">define-key&lt;/span> &lt;span class="nv">blog-mode-map&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">kbd&lt;/span> &lt;span class="s">&amp;#34;a&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="ss">&amp;#39;blog-mode-all&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nf">define-key&lt;/span> &lt;span class="nv">blog-mode-map&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">kbd&lt;/span> &lt;span class="s">&amp;#34;p&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="ss">&amp;#39;blog-mode-published&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nf">define-key&lt;/span> &lt;span class="nv">blog-mode-map&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">kbd&lt;/span> &lt;span class="s">&amp;#34;r&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="ss">&amp;#39;blog-mode-refresh-all&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nf">define-key&lt;/span> &lt;span class="nv">blog-mode-map&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">kbd&lt;/span> &lt;span class="s">&amp;#34;c&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="ss">&amp;#39;blog-mode-make-draft&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nf">define-key&lt;/span> &lt;span class="nv">blog-mode-map&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">kbd&lt;/span> &lt;span class="s">&amp;#34;s&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="ss">&amp;#39;blog-mode-start-hugo&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nf">define-key&lt;/span> &lt;span class="nv">blog-mode-map&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">kbd&lt;/span> &lt;span class="s">&amp;#34;RET&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="ss">&amp;#39;blog-mode-open&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">transient-define-prefix&lt;/span> &lt;span class="nv">blog-mode-help&lt;/span> &lt;span class="p">()&lt;/span>
+&lt;span class="s">&amp;#34;Help transient for blog mode.&amp;#34;&lt;/span>
+&lt;span class="p">[&lt;/span>&lt;span class="s">&amp;#34;Blog mode help&amp;#34;&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;o&amp;#34;&lt;/span> &lt;span class="s">&amp;#34;Open&amp;#34;&lt;/span> &lt;span class="nv">blog-mode-open&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;d&amp;#34;&lt;/span> &lt;span class="s">&amp;#34;Drafts&amp;#34;&lt;/span> &lt;span class="nv">blog-mode-drafts&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;a&amp;#34;&lt;/span> &lt;span class="s">&amp;#34;All&amp;#34;&lt;/span> &lt;span class="nv">blog-mode-all&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;p&amp;#34;&lt;/span> &lt;span class="s">&amp;#34;Published&amp;#34;&lt;/span> &lt;span class="nv">blog-mode-published&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;r&amp;#34;&lt;/span> &lt;span class="s">&amp;#34;Refresh&amp;#34;&lt;/span> &lt;span class="nv">blog-mode-refresh-all&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;c&amp;#34;&lt;/span> &lt;span class="s">&amp;#34;Create post&amp;#34;&lt;/span> &lt;span class="nv">blog-mode-make-draft&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;s&amp;#34;&lt;/span> &lt;span class="s">&amp;#34;Start hugo&amp;#34;&lt;/span> &lt;span class="nv">blog-mode-start-hugo&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">])&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-11">
+Actions: open
+&lt;/h2>
+&lt;p>
+I set the key to be the filename, so &lt;code class="verbatim">(find-file
+(tabulated-list-get-id))&lt;/code> opens the file.
+&lt;/p>
+&lt;div class="src src-elisp">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-elisp" data-lang="elisp"> &lt;span class="p">(&lt;/span>&lt;span class="nb">defun&lt;/span> &lt;span class="nv">blog-mode-open&lt;/span> &lt;span class="p">()&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">interactive&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">find-file&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">tabulated-list-get-id&lt;/span>&lt;span class="p">)))&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-12">
+Actions: All/Published/Drafts
+&lt;/h2>
+&lt;p>
+These functions filter the &lt;code class="verbatim">blog-mode-entries&lt;/code> variable to filter what
+is displayed. I&amp;#39;m not sure how I feel about calling
+&lt;code class="verbatim">tabulated-list-print&lt;/code> each time but it seems to work.
+&lt;/p>
+&lt;div class="src src-elisp">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-elisp" data-lang="elisp"> &lt;span class="p">(&lt;/span>&lt;span class="nb">defun&lt;/span> &lt;span class="nv">blog-mode-refresh-all&lt;/span> &lt;span class="p">()&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">interactive&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">progn&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">blog-mode-refresh-data&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">setq&lt;/span> &lt;span class="nv">tabulated-list-entries&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">-non-nil&lt;/span> &lt;span class="nv">blog-mode-entries&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">tabulated-list-print&lt;/span> &lt;span class="no">t&lt;/span>&lt;span class="p">)))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">defun&lt;/span> &lt;span class="nv">blog-mode-all&lt;/span> &lt;span class="p">()&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">interactive&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">progn&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">setq&lt;/span> &lt;span class="nv">tabulated-list-entries&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">-non-nil&lt;/span> &lt;span class="nv">blog-mode-entries&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">tabulated-list-print&lt;/span> &lt;span class="no">t&lt;/span>&lt;span class="p">)))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">defun&lt;/span> &lt;span class="nv">blog-mode-drafts&lt;/span> &lt;span class="p">()&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">interactive&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">progn&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">setq&lt;/span> &lt;span class="nv">tabulated-list-entries&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">-filter&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nb">lambda&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">x&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">string=&lt;/span> &lt;span class="s">&amp;#34;true&amp;#34;&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nf">aref&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nf">car&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nf">cdr&lt;/span> &lt;span class="nv">x&lt;/span>&lt;span class="p">))&lt;/span> &lt;span class="mi">1&lt;/span>&lt;span class="p">)))&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">-non-nil&lt;/span> &lt;span class="nv">blog-mode-entries&lt;/span>&lt;span class="p">)))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">tabulated-list-print&lt;/span> &lt;span class="no">t&lt;/span>&lt;span class="p">)))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">defun&lt;/span> &lt;span class="nv">blog-mode-published&lt;/span> &lt;span class="p">()&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">interactive&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">progn&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">setq&lt;/span> &lt;span class="nv">tabulated-list-entries&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">-filter&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nb">lambda&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">x&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">string=&lt;/span> &lt;span class="s">&amp;#34;&amp;#34;&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nf">aref&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nf">car&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nf">cdr&lt;/span> &lt;span class="nv">x&lt;/span>&lt;span class="p">))&lt;/span> &lt;span class="mi">1&lt;/span>&lt;span class="p">)))&lt;/span> &lt;span class="nv">blog-mode-entries&lt;/span>&lt;span class="p">)))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">tabulated-list-print&lt;/span> &lt;span class="no">t&lt;/span>&lt;span class="p">))&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-13">
+Actions: create a new post
+&lt;/h2>
+&lt;p>
+I like my urls to be the same as the title, so the first function here
+normalizes the title to fit in the filesystem. I&amp;#39;ve forgotten where I
+copied this code from, by thank you internet.
+&lt;/p>
+&lt;p>
+I have two types of posts. &amp;#34;mini&amp;#34; which just means its a standalone
+file, and a full post, which is in a directory. I also turn on
+automatic &lt;code class="verbatim">org-babel-tangle&lt;/code> on save, which I set as a local org
+variable.
+&lt;/p>
+&lt;div class="src src-elisp">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-elisp" data-lang="elisp"> &lt;span class="p">(&lt;/span>&lt;span class="nb">defun&lt;/span> &lt;span class="nv">string-title-to-filename&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">str&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="s">&amp;#34;FooBar =&amp;gt; foo_bar&amp;#34;&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">let&lt;/span> &lt;span class="p">((&lt;/span>&lt;span class="nv">case-fold-search&lt;/span> &lt;span class="no">nil&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">setq&lt;/span> &lt;span class="nv">str&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">replace-regexp-in-string&lt;/span> &lt;span class="s">&amp;#34;\\([a-z0-9]\\)\\([A-Z]\\)&amp;#34;&lt;/span> &lt;span class="s">&amp;#34;\\1_\\2&amp;#34;&lt;/span> &lt;span class="nv">str&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">setq&lt;/span> &lt;span class="nv">str&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">replace-regexp-in-string&lt;/span> &lt;span class="s">&amp;#34;\\([A-Z]+\\)\\([A-Z][a-z]\\)&amp;#34;&lt;/span> &lt;span class="s">&amp;#34;\\1_\\2&amp;#34;&lt;/span> &lt;span class="nv">str&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">setq&lt;/span> &lt;span class="nv">str&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">replace-regexp-in-string&lt;/span> &lt;span class="s">&amp;#34;-&amp;#34;&lt;/span> &lt;span class="s">&amp;#34;_&amp;#34;&lt;/span> &lt;span class="nv">str&lt;/span>&lt;span class="p">))&lt;/span> &lt;span class="c1">; FOO-BAR =&amp;gt; FOO_BAR&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">setq&lt;/span> &lt;span class="nv">str&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">replace-regexp-in-string&lt;/span> &lt;span class="s">&amp;#34;_+&amp;#34;&lt;/span> &lt;span class="s">&amp;#34;_&amp;#34;&lt;/span> &lt;span class="nv">str&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">setq&lt;/span> &lt;span class="nv">str&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">replace-regexp-in-string&lt;/span> &lt;span class="s">&amp;#34; &amp;#34;&lt;/span> &lt;span class="s">&amp;#34;_&amp;#34;&lt;/span> &lt;span class="nv">str&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nf">downcase&lt;/span> &lt;span class="nv">str&lt;/span>&lt;span class="p">)))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">defun&lt;/span> &lt;span class="nv">blog-mode-make-draft&lt;/span> &lt;span class="p">()&lt;/span>
+&lt;span class="s">&amp;#34;Little function to create a org file inside of the blog&amp;#34;&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">interactive&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">let*&lt;/span> &lt;span class="p">(&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">mini&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nf">yes-or-no-p&lt;/span> &lt;span class="s">&amp;#34;Mini post? &amp;#34;&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">title&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nf">read-from-minibuffer&lt;/span> &lt;span class="s">&amp;#34;Title: &amp;#34;&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">year&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nf">format-time-string&lt;/span> &lt;span class="s">&amp;#34;%Y&amp;#34;&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">filename&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">string-title-to-filename&lt;/span> &lt;span class="nv">title&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">rootpath&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nf">concat&lt;/span> &lt;span class="nv">blog-mode-base-dir&lt;/span> &lt;span class="s">&amp;#34;/&amp;#34;&lt;/span> &lt;span class="nv">year&lt;/span> &lt;span class="s">&amp;#34;/&amp;#34;&lt;/span> &lt;span class="nv">filename&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">path&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nb">if&lt;/span> &lt;span class="nv">mini&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nf">concat&lt;/span> &lt;span class="nv">rootpath&lt;/span> &lt;span class="s">&amp;#34;.org&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nf">concat&lt;/span> &lt;span class="nv">rootpath&lt;/span> &lt;span class="s">&amp;#34;/index.org&amp;#34;&lt;/span>&lt;span class="p">)))&lt;/span>
+&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nf">set-buffer&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">find-file&lt;/span> &lt;span class="nv">path&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nf">insert&lt;/span> &lt;span class="s">&amp;#34;#+title: &amp;#34;&lt;/span> &lt;span class="nv">title&lt;/span> &lt;span class="s">&amp;#34;\n&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nf">insert&lt;/span> &lt;span class="s">&amp;#34;#+date: &amp;#34;&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nf">format-time-string&lt;/span> &lt;span class="s">&amp;#34;%Y-%m-%d&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="s">&amp;#34;\n&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nf">insert&lt;/span> &lt;span class="s">&amp;#34;#+draft: true\n&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">unless&lt;/span> &lt;span class="nv">mini&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nf">insert&lt;/span> &lt;span class="s">&amp;#34;\n* References\n# Local Variables:\n# eval: (add-hook &amp;#39;after-save-hook (lambda ()(org-babel-tangle)) nil t)\n# End:\n&amp;#34;&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="p">)&lt;/span>
+&lt;span class="p">)&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-14">
+Action: Start hugo
+&lt;/h2>
+&lt;p>
+This is probably too particular for my machine, since I run hugo
+inside of a docker container so I need to start it with a script, but
+this function starts hugo if it isn&amp;#39;t running, then waits 5 seconds to
+call &lt;code class="verbatim">xdg-open&lt;/code> to bring it up in the browser.
+&lt;/p>
+&lt;div class="src src-elisp">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-elisp" data-lang="elisp"> &lt;span class="p">(&lt;/span>&lt;span class="nb">defun&lt;/span> &lt;span class="nv">blog-mode-start-hugo&lt;/span> &lt;span class="p">()&lt;/span>
+&lt;span class="s">&amp;#34;Starts up a hugo watch process&amp;#34;&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">interactive&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">let*&lt;/span> &lt;span class="p">(&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">default-directory&lt;/span> &lt;span class="s">&amp;#34;/home/wschenk/willschenk.com&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">height&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nf">/&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nf">frame-total-lines&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="mi">3&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">name&lt;/span> &lt;span class="s">&amp;#34;*shell hugo process&amp;#34;&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">delete-other-windows&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">split-window-vertically&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nf">-&lt;/span> &lt;span class="nv">height&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">other-window&lt;/span> &lt;span class="mi">1&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">switch-to-buffer&lt;/span> &lt;span class="nv">name&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nb">unless&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nf">get-buffer-process&lt;/span> &lt;span class="nv">name&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">async-shell-command&lt;/span> &lt;span class="s">&amp;#34;cd /home/wschenk/willschenk.com;./dev.sh&amp;#34;&lt;/span> &lt;span class="nv">name&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nv">async-shell-command&lt;/span> &lt;span class="s">&amp;#34;sleep 5;xdg-open http://localhost:1313&amp;#34;&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nf">get-buffer&lt;/span> &lt;span class="s">&amp;#34;*hugo web opener*&amp;#34;&lt;/span>&lt;span class="p">))))&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-15">
+Plug it in
+&lt;/h2>
+&lt;div class="src src-elisp">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-elisp" data-lang="elisp">&lt;span class="p">(&lt;/span>&lt;span class="nv">global-set-key&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nv">kbd&lt;/span> &lt;span class="s">&amp;#34;C-c d&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="ss">&amp;#39;blog-list&lt;/span>&lt;span class="p">)&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-16">
+Conclusion
+&lt;/h2>
+&lt;p>
+I couldn&amp;#39;t find any good tutorials on how to write an emacs mode to
+interact with my system, so I thought I should write one. I think
+there&amp;#39;s probably something on YouTube but it didn&amp;#39;t show up in any
+search algorithms so hopefully this is helpful.
+&lt;/p>
+&lt;h2 id="headline-17">
+References
+&lt;/h2>
+&lt;ol>
+&lt;li>
+&lt;p>
+&lt;a href="https://pagefault.se/post/lets-build-docker-mode-part-1/">https://pagefault.se/post/lets-build-docker-mode-part-1/&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://www.gnu.org/software/emacs/manual/html_node/elisp/File-Name-Components.html#File-Name-Components">https://www.gnu.org/software/emacs/manual/html_node/elisp/File-Name-Components.html#File-Name-Components&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="http://lgmoneda.github.io/2017/03/15/elisp-summary.html#loops">http://lgmoneda.github.io/2017/03/15/elisp-summary.html#loops&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="http://ergoemacs.org/emacs/elisp_vector.html">http://ergoemacs.org/emacs/elisp_vector.html&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://stackoverflow.com/questions/2234860/lisp-filter-out-results-from-list-not-matching-predicate">https://stackoverflow.com/questions/2234860/lisp-filter-out-results-from-list-not-matching-predicate&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://vallyscode.github.io/posts/tabulated-list-mode/">https://vallyscode.github.io/posts/tabulated-list-mode/&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;/ol></description></item><item><title>asdf as environment manager</title><link>https://willschenk.com/articles/2021/asdf_as_environment_manager/</link><pubDate>Sat, 13 Mar 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/asdf_as_environment_manager/</guid><description>
 &lt;p>
 I&amp;#39;ve switch to using &lt;a href="https://asdf-vm.com/">asdf&lt;/a> to manage my computers version of different
 programming environments. This is both a more unified approach to
