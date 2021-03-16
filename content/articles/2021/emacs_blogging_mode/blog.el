@@ -79,6 +79,7 @@
 (define-key blog-mode-map (kbd "p") 'blog-mode-published)
 (define-key blog-mode-map (kbd "r") 'blog-mode-refresh-all)
 (define-key blog-mode-map (kbd "c") 'blog-mode-make-draft)
+(define-key blog-mode-map (kbd "s") 'blog-mode-start-hugo)
 (define-key blog-mode-map (kbd "RET") 'blog-mode-open)
 
 (transient-define-prefix blog-mode-help ()
@@ -90,6 +91,7 @@
    ("p" "Published" blog-mode-published)
    ("r" "Refresh" blog-mode-refresh-all)
    ("c" "Create post" blog-mode-make-draft)
+   ("s" "Start hugo" blog-mode-start-hugo)
    ])
 
 (defun blog-mode-open ()
@@ -156,3 +158,19 @@
       (insert "\n* References\n# Local Variables:\n# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)\n# End:\n"))
     )
   )
+
+(defun blog-mode-start-hugo ()
+  "Starts up a hugo watch process"
+  (interactive)
+  (let* (
+         (default-directory "/home/wschenk/willschenk.com")
+         (height (/ (frame-total-lines) 3))
+         (name "*shell hugo process"))
+    (delete-other-windows)
+    (split-window-vertically (- height))
+    (other-window 1)
+    (switch-to-buffer name)
+    (unless (get-buffer-process name)
+      (async-shell-command "cd /home/wschenk/willschenk.com;xdg-open http://localhost:1313&./dev.sh" name))))
+
+(global-set-key (kbd "C-c d") 'blog-list)

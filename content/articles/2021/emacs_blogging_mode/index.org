@@ -1,8 +1,29 @@
-#+title: Emacs Blogging Mode
+#+title: Emacs Blog Writing and Navigation Mode
 #+subtitle: emacs and hugo sitting in a tree
-#+draft: true
-#+tags: emacs, hugo, elisp
+#+tags: emacs, hugo, elisp, tabulated-list-mode
 #+date: 2021-03-15
+
+This blog is basically my labnotes where I explore different parts of
+technology.  Almost all of my coding related activity starts off in
+this repo, while I explore different things to see how they work.  I
+have a lot of things in drafts, and I wanted to learn how to build a
+simple emacs interface to let me navigate around my file system.
+
+I couldn't find any good documentation on how to do anything with
+=tabulated-list-mode= so I spend the evening poking around and seeing
+how it works.  Here you go.
+
+The final file is [[blog.el]]
+
+* My basical directory structure
+
+I have my repo checked out at =~/willschenk.com=, and I put all my work
+in =content/articles= and then the year.  So this file is called
+=/home/wschenk/willschenk.com/content/articles/2021/emacs_blogging_mode/index.org=
+
+Sometimes the =org= file is at the top level directory, and in the past
+I wrote in =md= files so I want to make sure that they come through as
+well.
 
 #+begin_src elisp :tangle blog.el
   ;; set the directory
@@ -10,8 +31,41 @@
   (require 'transient)
 #+end_src
 
-#+RESULTS:
-: transient
+* How =tabulated-list-mode= works
+
+The basic idea is that
+
+1. You create a derived mode from =tabulated-list-mode=
+2. This defines the column headers in =tabulated-list-format=, and some
+   other stuff
+3. You create a function that
+   - Creates a new buffer
+   - Switches to your derived mode
+   - Sets =tabluated-list-entries=, which is a list of lists, the first
+     element being the key and the following elements are the data
+   - Calles =(tabulated-list-print t)= which displays the data
+4. You create a mode map that lets you add functions, the selected =key=
+   is returned by =tabulated-list-get-id=.
+
+One tricky thing to figure out is how to create the data.  It looks like
+
+#+begin_src elisp
+   (list
+    (list key1 [col1 col2 col3])
+    (list key2 [col1 col2 col3]))
+#+end_src
+
+Which you can create using =(list key1 (vector col1 col2 col3))= if you
+want to actually use the values that =col1= points to rather than the
+symbol =col1= itself. Yay lisp!
+
+Let's get started.
+
+* Looking at the front matter
+
+This function takes a file, and passes it through =awk= to parse the
+front matter.  We will basically call this 4 times for each file to
+pull out the =title=, =date=, =draft=, and =tags=.
 
 #+begin_src elisp :tangle blog.el
   (defun blog-mode-file-peek (pattern file)
@@ -21,8 +75,13 @@
         "")))
 #+end_src
 
-#+RESULTS:
-: blog-mode-file-peek
+Also, I'm removing any quotes around the results.
+
+* Parse a =.org= file
+
+This takes a file, and pulls out the attributes.  I'm assuming that
+the first ones it find is actually the top matter, we ignore all other
+matches other than the first.
 
 #+begin_src elisp :tangle blog.el
   (defun blog-mode-parse-org (file)
@@ -36,14 +95,17 @@
 #+end_src
 
 #+begin_src elisp
-  ;; parse an org-file
+  ;; parse an org-file test
   (setq org-test "/home/wschenk/willschenk.com/content/articles/2021/setting_up_emacs_for_typescript_development.org")
 
   (blog-mode-parse-org org-test)
 #+end_src
 
-#+RESULTS:
-| /home/wschenk/willschenk.com/content/articles/2021/setting_up_emacs_for_typescript_development.org | [Setting up emacs for typescript development true 2021-03-06 emacs, typescript] |
+* Parsing an =md= file
+
+Depending upon what sort of front matter you use, you may need to
+adjust the regex.  All my old markdown files are using =yaml= and not
+=toml=, so your mileage may vary.
 
 #+begin_src elisp :tangle blog.el
 
@@ -57,14 +119,19 @@
 #+end_src
 
 #+begin_src elisp
+  ;; parse a md file test
   (setq md-test "/home/wschenk/willschenk.com/content/articles/2020/styling_tables_with_hugo.md")
 
   (blog-mode-parse-md md-test)
 
 #+end_src
 
-#+RESULTS:
-| /home/wschenk/willschenk.com/content/articles/2020/styling_tables_with_hugo.md | [Styling tables with Hugo  "2020-03-02" ] |
+* Figure out if its a directory or not
+
+For short posts that don't have any tangling or other sub objects, my
+=org= files live in the year directory.  For others, it's either going
+to be =index.md= or =index.org= so if we get a directory lets see which
+one is in there.
 
 #+begin_src elisp :tangle blog.el
   (defun blog-mode-parse-directory (directory)
@@ -79,13 +146,16 @@
 #+end_src
 
 #+begin_src elisp
-  ;; What can we figure out from a directory
+  ;; What can we figure out from a directory test
   (setq dir-test "/home/wschenk/willschenk.com/content/articles/2021/gist_in_emacs")
 
   (blog-mode-parse-directory dir-test)
 #+end_src
-#+RESULTS:
-| /home/wschenk/willschenk.com/content/articles/2021/gist_in_emacs/index.org | [gist in emacs true 2021-03-09 emacs, github, gists] |
+
+* Figure out which parser to delegate to
+
+Given a file name or a directory, figure out which parse method knows
+how to make sense of it.
 
 #+begin_src elisp :tangle blog.el
   (defun blog-mode-parse (file)
@@ -100,11 +170,18 @@
 #+end_src
 
 #+begin_src elisp
+  ;; another test
   (blog-mode-parse org-test)  
 #+end_src
 
-#+RESULTS:
-| /home/wschenk/willschenk.com/content/articles/2021/setting_up_emacs_for_typescript_development.org | [Setting up emacs for typescript development true 2021-03-06 emacs, typescript] |
+* Scan through all of the files and then parse them
+
+I'm again shelling out to the =find= command with =-maxdepth= of =2= to give
+me a list of the files and/or directories that contain blog posts.
+For each of the files, I'm parsing them to get the data in tab form
+that the mode knows how to deal with.
+
+=dolist= was fun to figure out.
 
 #+begin_src elisp :tangle blog.el
   (defun blog-mode-refresh-data ()
@@ -116,13 +193,24 @@
 #+end_src
 
 #+begin_src elisp
-
   (blog-mode-refresh-data)
 #+end_src
 
 #+RESULTS:
 
-Set up the mode
+* Set up the mode itself
+
+We create a derived mode called =blog-mode= from =tabulated-list-mode=.
+In it we set the columns, padding, sort order (on date) and
+explicitely tell it to use our mode map, =blog-mode-map= defined below.
+It's unclear why it doesn't pick it up automatically, but I needed to
+call it out specifically.
+
+We also create a =blog-list= function which is our entry point.  This
+creates and opens a new buffer, switches it to =blog-mode=, loads in our
+data, and then tells it to display.  =tabulated-list-entries= is local
+to the buffer, by the by, so you can have multiple modes using the
+same variable.
 
 #+begin_src elisp :tangle blog.el
   (define-derived-mode blog-mode tabulated-list-mode "blog-mode" "Major mode Blog Mode, to edit hugo blogs"
@@ -144,8 +232,21 @@ Set up the mode
     (tabulated-list-print t))
 #+end_src
 
-#+RESULTS:
-: blog-list
+* Create the mode map
+
+Here I'm defining some functions that are specific to our mode.
+
+#+ATTR_HTML: :class table table-striped
+| =?= | Help                      |
+| =o= | Open the selected file    |
+| =r= | Refresh lists             |
+| =d= | Only show drafts          |
+| =p= | Only show published posts |
+| =a= | Show all posts            |
+| =c= | Create a new post         |
+| =s= | Start the hugo process    |
+
+For fun I also created a =transient= popup which shows all of this.
 
 #+begin_src elisp :tangle blog.el
   (defvar blog-mode-map nil "keymap for blog-mode")
@@ -160,6 +261,7 @@ Set up the mode
   (define-key blog-mode-map (kbd "p") 'blog-mode-published)
   (define-key blog-mode-map (kbd "r") 'blog-mode-refresh-all)
   (define-key blog-mode-map (kbd "c") 'blog-mode-make-draft)
+  (define-key blog-mode-map (kbd "s") 'blog-mode-start-hugo)
   (define-key blog-mode-map (kbd "RET") 'blog-mode-open)
 
   (transient-define-prefix blog-mode-help ()
@@ -171,15 +273,26 @@ Set up the mode
      ("p" "Published" blog-mode-published)
      ("r" "Refresh" blog-mode-refresh-all)
      ("c" "Create post" blog-mode-make-draft)
+     ("s" "Start hugo" blog-mode-start-hugo)
      ])
+#+end_src
 
+* Actions: open
+
+I set the key to be the filename, so =(find-file
+(tabulated-list-get-id))= opens the file.
+
+#+begin_src elisp :tangle blog.el
   (defun blog-mode-open ()
     (interactive)
     (find-file (tabulated-list-get-id)))
 #+end_src
 
-#+RESULTS:
-: blog-mode-open
+* Actions: All/Published/Drafts
+
+These functions filter the =blog-mode-entries= variable to filter what
+is displayed.  I'm not sure how I feel about calling
+=tabulated-list-print= each time but it seems to work.
 
 #+begin_src elisp :tangle blog.el
   (defun blog-mode-refresh-all ()
@@ -214,8 +327,16 @@ Set up the mode
       (tabulated-list-print t))
 #+end_src
 
-#+RESULTS:
-: blog-mode-published
+* Actions: create a new post
+
+I like my urls to be the same as the title, so the first function here
+normalizes the title to fit in the filesystem.  I've forgotten where I
+copied this code from, by thank you internet.
+
+I have two types of posts.  "mini" which just means its a standalone
+file, and a full post, which is in a directory.  I also turn on
+automatic =org-babel-tangle= on save, which I set as a local org
+variable.
 
 #+begin_src elisp :tangle blog.el
   (defun string-title-to-filename (str)
@@ -250,16 +371,43 @@ Set up the mode
 
 #+end_src
 
-#+RESULTS:
-: blog-mode-make-draft
+* Action: Start hugo
+
+This is probably too particular for my machine, since I run hugo
+inside of a docker container so I need to start it with a script, but
+this function starts hugo if it isn't running, then waits 5 seconds to
+call =xdg-open= to bring it up in the browser.
+
+#+begin_src elisp :tangle blog.el
+  (defun blog-mode-start-hugo ()
+    "Starts up a hugo watch process"
+    (interactive)
+    (let* (
+           (default-directory "/home/wschenk/willschenk.com")
+           (height (/ (frame-total-lines) 3))
+           (name "*shell hugo process"))
+      (delete-other-windows)
+      (split-window-vertically (- height))
+      (other-window 1)
+      (switch-to-buffer name)
+      (unless (get-buffer-process name)
+        (async-shell-command "cd /home/wschenk/willschenk.com;./dev.sh" name))
+      (async-shell-command "sleep 5;xdg-open http://localhost:1313" (get-buffer "*hugo web opener*"))))
+#+end_src
+
+* Plug it in
 
 #+begin_src elisp :tangle blog.el
 (global-set-key (kbd "C-c d") 'blog-list)
 
 #+end_src
 
-#+RESULTS:
-: blog-list
+* Conclusion
+
+I couldn't find any good tutorials on how to write an emacs mode to
+interact with my system, so I thought I should write one.  I think
+there's probably something on YouTube but it didn't show up in any
+search algorithms so hopefully this is helpful.
 
 * References
 
@@ -268,6 +416,7 @@ Set up the mode
 3. http://lgmoneda.github.io/2017/03/15/elisp-summary.html#loops
 4. http://ergoemacs.org/emacs/elisp_vector.html
 5. https://stackoverflow.com/questions/2234860/lisp-filter-out-results-from-list-not-matching-predicate
+6. https://vallyscode.github.io/posts/tabulated-list-mode/
    
 # Local Variables:
 # eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
