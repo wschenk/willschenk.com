@@ -13,9 +13,7 @@
 
 ;; https://www.emacswiki.org/emacs/NoTabs
 (setq-default indent-tabs-mode nil)
-
-;; https://www.emacswiki.org/emacs/TabStopList
-(setq tab-stop-list (number-sequence 2 120 2))
+(setq-default tab-width 2)
 
 (load-file "~/.emacs.d/functions.el")
 (load-file "~/.emacs.d/shortcuts.el")
@@ -35,16 +33,63 @@
   (package-refresh-contents)
   (package-install 'use-package))
 
+(tool-bar-mode 0)
+(scroll-bar-mode 0)
+
+(use-package moody
+  :ensure t
+  :config
+  (setq x-underline-at-descent-line t)
+  (moody-replace-mode-line-buffer-identification)
+  (moody-replace-vc-mode))
+
+(use-package modus-themes
+  :ensure                         ; omit this to use the built-in themes
+  :init
+  ;; Add all your customizations prior to loading the themes
+  (setq modus-themes-slanted-constructs t
+        modus-themes-bold-constructs nil
+        modus-themes-mode-line 'moody
+        )
+
+  ;; Load the theme files before enabling a theme (else you get an error).
+  (modus-themes-load-themes)
+  :config
+  ;; Load the theme of your choice:
+  (modus-themes-load-vivendi)
+  )
+
+(use-package time
+  :ensure nil
+  :config (display-time-mode t))
+
+(use-package battery
+  :ensure nil
+  :config (display-battery-mode t))
+
+(use-package display-line-numbers
+  :ensure nil
+  :hook (prog-mode . display-line-numbers-mode)
+  (yaml-mode . display-line-numbers-mode))
+
+(use-package diminish
+  :ensure t
+  :defer t
+  :after use-package)
+
+(use-package beacon
+  :ensure t
+  :diminish beacon-mode
+  :config (beacon-mode t))
+
+(use-package display-line-numbers
+  :ensure nil
+  :hook (prog-mode . display-line-numbers-mode)
+  (yaml-mode . display-line-numbers-mode))
+
 ;; Startup Screen
 (use-package all-the-icons
   :ensure t)
-
-(use-package projectile
-  :ensure t
-  :init
-  (projectile-mode +1)
-  :bind (:map projectile-mode-map
-              ("C-c p" . projectile-command-map)))
 
 (use-package dashboard
   :ensure t
@@ -60,6 +105,26 @@
   (setq dashboard-set-file-icons t)
   (dashboard-setup-startup-hook)
   )
+
+(use-package projectile
+  :ensure t
+  :init
+  (projectile-mode +1)
+  :bind (:map projectile-mode-map
+              ("C-c p" . projectile-command-map)))
+
+(use-package selectrum
+  :ensure t
+  :config
+  (selectrum-mode +1))
+
+(use-package selectrum-prescient
+  :ensure t
+  :config
+  ;; to make sorting and filtering more intelligent
+  (selectrum-prescient-mode +1))
+
+(use-package ag :ensure t)
 
 ;; Org mode
 (use-package org
@@ -117,11 +182,6 @@
   :ensure t
   :bind ("C-x g" . magit-status))
 
-(use-package modus-vivendi-theme
-  :ensure t
-  :config
-  (load-theme 'modus-vivendi 'no-confirm))
-
 (use-package pdf-tools
   :ensure t
   :config
@@ -131,18 +191,6 @@
   :ensure t
   :hook (org-load . org-pdftools-setup-link))
 
-(use-package helm-ls-git
-  :ensure t
-  :bind (
-         ( "C-x C-d" . helm-browse-project ))
-  :config
-  (require 'helm-config))
-
-(use-package helm-ag
-  :ensure t
-  :bind
-         ( "C-x f" . helm-ag-project-root))
-  
 (use-package company
   :ensure t
   :bind (:map company-active-map
@@ -161,8 +209,9 @@
   :ensure t
   :bind ("C-c C-d" . docker))
 
-(use-package yaml-mode
-  :ensure t)
+(use-package dockerfile-mode :ensure t)
+
+(use-package yaml-mode :ensure t)
 
 (use-package web-mode
   :ensure t
