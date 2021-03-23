@@ -171,6 +171,7 @@
     (other-window 1)
     (switch-to-buffer name)
     (unless (get-buffer-process name)
-      (async-shell-command "cd /home/wschenk/willschenk.com;xdg-open http://localhost:1313&./dev.sh" name))))
+      (async-shell-command "cd /home/wschenk/willschenk.com;./dev.sh" name))
+    (async-shell-command "sleep 5;xdg-open http://localhost:1313" (get-buffer "*hugo web opener*"))))
 
 (global-set-key (kbd "C-c d") 'blog-list)
