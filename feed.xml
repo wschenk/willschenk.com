@@ -1,4 +1,109 @@
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Mon, 15 Mar 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Emacs Blog Writing and Navigation Mode</title><link>https://willschenk.com/articles/2021/emacs_blogging_mode/</link><pubDate>Mon, 15 Mar 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/emacs_blogging_mode/</guid><description>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Wed, 31 Mar 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>CLOCViz</title><link>https://willschenk.com/articles/2021/cloc_viz/</link><pubDate>Wed, 31 Mar 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/cloc_viz/</guid><description>
+&lt;p>
+I&amp;#39;ve been looking at small tools that we could combine together to get
+a better sense of a repository. &lt;a href="https://github.com/cdkini/clocviz">clocviz&lt;/a> is a nifty on that puts a
+front end on top of &lt;a href="https://github.com/AlDanial/cloc">cloc&lt;/a>, so I packaged up a docker container that
+lets you pass in a url and will generate some static html for you.
+&lt;/p>
+&lt;h2 id="headline-1">
+First we package up &lt;code class="verbatim">clocviz&lt;/code>
+&lt;/h2>
+&lt;p>
+We&amp;#39;ll build this using &lt;code class="verbatim">go 1.16.2&lt;/code> and then install a few dependancies,
+specifically &lt;code class="verbatim">cloc&lt;/code>, &lt;code class="verbatim">wget&lt;/code>, and &lt;code class="verbatim">git&lt;/code>.
+&lt;/p>
+&lt;div class="src src-dockerfile">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-dockerfile" data-lang="dockerfile">&lt;span class="k">FROM&lt;/span>&lt;span class="s"> golang:1.16.2-buster&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> apt-get update &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> apt-get install -y cloc wget git&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">WORKDIR&lt;/span>&lt;span class="s"> /app&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> git clone https://github.com/cdkini/clocviz clocviz&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> &lt;span class="nb">cd&lt;/span> clocviz &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> go get &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> go build&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">COPY&lt;/span> *sh ./&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> chmod +x *sh&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> chmod &lt;span class="m">777&lt;/span> /app&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">ENTRYPOINT&lt;/span> /app/entry_point.sh&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-2">
+Script to pull down the repo and generate the html
+&lt;/h2>
+&lt;p>
+This script expects the &lt;code class="verbatim">REPO&lt;/code> environment variable to be set to a URI
+that &lt;code class="verbatim">git&lt;/code> can clone. It will pull down the repo, then run clocviz, and
+then scrape the html into the &lt;code class="verbatim">/output&lt;/code> directory (presumably mounted as
+a volume.)
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> &lt;span class="c1">#/bin/bash&lt;/span>
+&lt;span class="nv">REPO_WORK_DIR&lt;/span>&lt;span class="o">=&lt;/span>/app/repository
+&lt;span class="nv">WORK_DIR&lt;/span>&lt;span class="o">=&lt;/span>/output
+&lt;span class="k">if&lt;/span> &lt;span class="o">[&lt;/span> -d &lt;span class="si">${&lt;/span>&lt;span class="nv">REPO_WORK_DIR&lt;/span>&lt;span class="si">}&lt;/span> &lt;span class="o">]&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="k">then&lt;/span>
+&lt;span class="nb">echo&lt;/span> Using repo in &lt;span class="si">${&lt;/span>&lt;span class="nv">REPO_WORK_DIR&lt;/span>&lt;span class="si">}&lt;/span>
+&lt;span class="k">else&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="o">[&lt;/span> -z &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="nv">$REPO&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="o">]&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="k">then&lt;/span>
+&lt;span class="nb">echo&lt;/span> Please &lt;span class="nb">set&lt;/span> the REPO env variable or mount &lt;span class="si">${&lt;/span>&lt;span class="nv">REPO_WORK_DIR&lt;/span>&lt;span class="si">}&lt;/span>
+&lt;span class="nb">exit&lt;/span> &lt;span class="m">1&lt;/span>
+&lt;span class="k">fi&lt;/span>
+git clone &lt;span class="nv">$REPO&lt;/span> &lt;span class="si">${&lt;/span>&lt;span class="nv">REPO_WORK_DIR&lt;/span>&lt;span class="si">}&lt;/span>
+&lt;span class="k">fi&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="o">[&lt;/span> ! -d &lt;span class="si">${&lt;/span>&lt;span class="nv">WORK_DIR&lt;/span>&lt;span class="si">}&lt;/span> &lt;span class="o">]&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="k">then&lt;/span>
+&lt;span class="nb">echo&lt;/span> Creating &lt;span class="si">${&lt;/span>&lt;span class="nv">WORK_DIR&lt;/span>&lt;span class="si">}&lt;/span>
+mkdir -p &lt;span class="si">${&lt;/span>&lt;span class="nv">WORK_DIR&lt;/span>&lt;span class="si">}&lt;/span>
+&lt;span class="k">fi&lt;/span>
+&lt;span class="c1"># clocviz serves static files from its filesystem, so we need to run it from there&lt;/span>
+&lt;span class="o">(&lt;/span>&lt;span class="nb">cd&lt;/span> /app/clocviz&lt;span class="p">;&lt;/span> clocviz &lt;span class="nv">$REPO_WORK_DIR&lt;/span> &lt;span class="p">&amp;amp;&lt;/span>&lt;span class="o">)&lt;/span>
+&lt;span class="nb">cd&lt;/span> &lt;span class="k">$(&lt;/span>mktemp -d&lt;span class="k">)&lt;/span>
+wget --recursive &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --page-requisites &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --convert-links &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --no-parent &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> http://localhost:8080
+cp -r localhost:8080/* &lt;span class="nv">$WORK_DIR&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-3">
+Build the container
+&lt;/h2>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">docker build . -t wschenk/clocviz&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-4">
+Do a run
+&lt;/h2>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> &lt;span class="nb">export&lt;/span> &lt;span class="nv">REPO&lt;/span>&lt;span class="o">=&lt;/span>https://github.com/ruby-git/ruby-git
+mkdir -p output
+docker run --rm -it &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> -v &lt;span class="nv">$PWD&lt;/span>/output:/output &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --env REPO &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> -u &lt;span class="k">$(&lt;/span>id -u&lt;span class="k">)&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> wschenk/clocviz&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Then test:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="o">(&lt;/span>&lt;span class="nb">cd&lt;/span> output&lt;span class="p">;&lt;/span>npx live-server&lt;span class="o">)&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-5">
+Thoughts
+&lt;/h2>
+&lt;p>
+The output HTML needs a bit of work on smaller screens but that&amp;#39;s
+pretty neat.
+&lt;/p>
+&lt;h2 id="headline-6">
+References
+&lt;/h2>
+&lt;ol>
+&lt;li>
+&lt;p>
+&lt;a href="https://github.com/cdkini/clocviz">https://github.com/cdkini/clocviz&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;/ol></description></item><item><title>Emacs Blog Writing and Navigation Mode</title><link>https://willschenk.com/articles/2021/emacs_blogging_mode/</link><pubDate>Mon, 15 Mar 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/emacs_blogging_mode/</guid><description>
 &lt;p>
 This blog is basically my labnotes where I explore different parts of
 technology. Almost all of my coding related activity starts off in
