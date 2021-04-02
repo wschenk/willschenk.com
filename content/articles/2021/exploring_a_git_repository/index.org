@@ -1,20 +1,18 @@
 #+title: Exploring a git repository
+#+title: git
 #+date: 2021-03-24
 #+draft: true
 
 * Dockerfile
 
 #+begin_src Dockerfile :tangle Dockerfile
-#FROM debian:10.8
 FROM ruby:3.0.0
-
-#RUN apt update && apt install -y git
 
 WORKDIR /app
 
 COPY *.rb *sh ./
 RUN chmod +x *.sh *rb
-#ENTRYPOINT ["/app/entry_point.sh"]
+#ENTRYPOINT "/app/entry_point.sh"
 
 CMD bash
 #+end_src
@@ -31,7 +29,7 @@ CMD bash
 
 #             -v $PWD:/app \
 
-* Script
+* =entry_point= Script
 
 1. Checkout the repostory
 2. Create the work directory
@@ -63,9 +61,7 @@ CMD bash
   (cd ${REPO_WORK_DIR};git log --reverse --pretty='format:%aI|%ae|%an|%D') | sort > ${WORK_DIR}/commits.log
 
   # Create a list of authors
-
-  (cd ${REPO_WORK_DIR};git log --pretty=format:"%ae:%an") | sort -u > ${WORK_DIR}/author.log
-
+  (cd ${REPO_WORK_DIR};git log --pretty=format:"%ae:%an") | sort -u > ${WORK_DIR}/authors.log
 
   cd ${WORK_DIR}
 
@@ -74,7 +70,24 @@ CMD bash
   done
 #+end_src
 
-* Authors
+* Avatars
+#+begin_src ruby :tangle avatars.rb
+  require 'fileutils'
+  require 'digest'
+
+  FileUtils.mkdir_p "avatars"
+
+  File.readlines( "authors.log" ).each do |line|
+    email,name = line.chomp.split( /\:/ )
+    if( !File.exists?( "avatars/#{name}.png" ) )
+      md5 = Digest::MD5.hexdigest email
+      system( "curl http://www.gravatar.com/avatar/#{md5}?size=512 -o \"avatars/#{name}.png\"" )
+    else
+      puts "#{name}.png already exists"
+    end
+  end
+#+end_src
+
 * Monthly commits
 
 #+begin_src ruby :tangle monthly_commits.rb

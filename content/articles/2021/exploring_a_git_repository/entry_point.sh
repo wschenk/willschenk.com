@@ -23,9 +23,7 @@ fi
 (cd ${REPO_WORK_DIR};git log --reverse --pretty='format:%aI|%ae|%an|%D') | sort > ${WORK_DIR}/commits.log
 
 # Create a list of authors
-
-(cd ${REPO_WORK_DIR};git log --pretty=format:"%ae:%an") | sort -u > ${WORK_DIR}/author.log
-
+(cd ${REPO_WORK_DIR};git log --pretty=format:"%ae:%an") | sort -u > ${WORK_DIR}/authors.log
 
 cd ${WORK_DIR}
 
