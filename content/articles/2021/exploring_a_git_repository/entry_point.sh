@@ -25,6 +25,9 @@ fi
 # Create a list of authors
 (cd ${REPO_WORK_DIR};git log --pretty=format:"%ae:%an") | sort -u > ${WORK_DIR}/authors.log
 
+# Create a log of commits with files
+(cd ${REPO_WORK_DIR};git log --pretty=format:'|%h|%ae|%an|%aI|%s' --numstat) > ${WORK_DIR}/commits_with_files.log
+
 cd ${WORK_DIR}
 
 for i in /app/*rb; do
