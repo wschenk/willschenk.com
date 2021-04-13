@@ -6,17 +6,17 @@
 * Dockerfile
 
 #+begin_src Dockerfile :tangle Dockerfile
-FROM ruby:3.0.0
+FROM ruby:3.0.1
 
 RUN apt-get update && apt-get install -y cloc libsqlite3-dev
 
 WORKDIR /app
 
-COPY Gemfile* ./
-RUN bundle install
+#COPY Gemfile* ./
+#RUN bundle install
 
-COPY *.rb *sh ./
-RUN chmod +x *.sh *rb
+#COPY *.rb *sh ./
+#RUN chmod +x *.sh *rb
 #ENTRYPOINT "/app/entry_point.sh"
 
 CMD bash
@@ -28,19 +28,49 @@ CMD bash
   docker build . -t wschenk/gitinfo && \
       docker run --rm -it \
              -v $PWD/output:/output \
+             -v $PWD:/app \
              --env REPO=$REPO \
              wschenk/gitinfo
 #+end_src
 
 #             -v $PWD:/app \
 
+* Rakefile
+
+#+begin_src ruby :tangle Rakefile
+  REPO_WORK_DIR="/repository"
+  REPO=ENV['REPO']
+
+  throw "Set REPO" if REPO.nil? || REPO == ""
+
+  if !File.exists?( "#{REPO_WORK_DIR}/.git" )
+    puts "Ensuring that we have the repository"
+    system( "git clone #{REPO} #{REPO_WORK_DIR}" )
+  end
+
+  file "authors.log" do
+    puts "Generating authors.log"
+    system( "(cd #{REPO_WORK_DIR};git log --pretty=format:\"%ae:%an\") | sort -u > authors.log" )
+  end
+
+  file "commits.log" do
+    puts "Generating commits.log"
+    system( "(cd #{REPO_WORK_DIR};git log --reverse --pretty='format:%aI|%ae|%an|%D') | sort > commits.log" )
+  end
+
+  task :avatars => "authors.log" do
+    puts "Looking for avatars"
+  end
+
+  task :default => :avatars
+#+end_src
 * =entry_point= Script
 
 1. Checkout the repostory
 2. Create the work directory
 3. Run the scripts
    
-#+begin_src bash :tangle entry_point.sh
+#+begin_src bash tangle entry_point.sh
   #!/bin/bash
   REPO_WORK_DIR=/repository
   WORK_DIR=/output
@@ -79,7 +109,7 @@ CMD bash
 #+end_src
 
 * Avatars
-#+begin_src ruby :tangle avatars.rb
+#+begin_src ruby tangle avatars.rb
   require 'fileutils'
   require 'digest'
 
@@ -98,7 +128,7 @@ CMD bash
 
 * Monthly commits
 
-#+begin_src ruby :tangle monthly_commits.rb
+#+begin_src ruby tangle monthly_commits.rb
   require 'csv'
   require 'json'
   require 'date'
@@ -190,7 +220,7 @@ end
 #+end_src
 * Project Timeline
 
-#+begin_src ruby :tangle project_timeline.rb
+#+begin_src ruby tangle project_timeline.rb
   require 'csv'
   require 'date'
   require 'json'
@@ -275,7 +305,7 @@ We'll need a =Gemfile= to include for the sqlite3 gem.
   sudo apt-get install libsqlite3-dev
 #+end_src
 
-#+begin_src ruby :tangle Gemfile
+#+begin_src ruby tangle Gemfile
   # frozen_string_literal: true
 
   source "https://rubygems.org"
@@ -285,7 +315,7 @@ We'll need a =Gemfile= to include for the sqlite3 gem.
   gem "sqlite3", "~> 1.4"
 #+end_src
 
-#+begin_src ruby :tangle sqlite.rb
+#+begin_src ruby tangle sqlite.rb
   require 'sqlite3'
 
   def create_database filename
