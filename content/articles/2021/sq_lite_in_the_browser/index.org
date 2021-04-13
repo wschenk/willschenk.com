@@ -1,0 +1,76 @@
+#+title: SQLite in the browser
+#+date: 2021-04-12
+#+draft: true
+
+* Installing deno
+
+I used =asdf=, but you can [[https://deno.land/#installation][follow the official instructions]].
+
+#+begin_src bash
+  asdf plugin add deno
+  asdf install deno latest
+#+end_src
+
+And then:
+
+#+begin_src bash :results output
+deno --version
+#+end_src
+
+#+RESULTS:
+: deno 1.8.3 (release, x86_64-unknown-linux-gnu)
+: v8 9.0.257.3
+: typescript 4.2.2
+
+* Dependancies
+
+Create =deps.ts=:
+#+begin_src typescript :tangle deps.ts
+export { DB } from "https://deno.land/x/sqlite/mod.ts";
+#+end_src
+
+* Test script
+
+#+begin_src typescript :tangle test.ts
+import { DB } from "./deps.ts";
+
+// Open a database
+const db = new DB("test.db");
+db.query(
+  "CREATE TABLE IF NOT EXISTS people (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT)",
+);
+
+const names = ["Peter Parker", "Clark Kent", "Bruce Wayne"];
+
+// Run a simple query
+for (const name of names) {
+  db.query("INSERT INTO people (name) VALUES (?)", [name]);
+}
+
+// Print out data in table
+for (const [name] of db.query("SELECT name FROM people")) {
+  console.log(name);
+}
+
+// Close connection
+db.close();
+#+end_src
+
+And then we can run this with:
+
+#+begin_src bash
+deno run --allow-read --allow-write test.ts
+#+end_src
+
+#+RESULTS:
+| Peter | Parker |
+| Clark | Kent   |
+| Bruce | Wayne  |
+| Peter | Parker |
+| Clark | Kent   |
+| Bruce | Wayne  |
+
+* References
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
