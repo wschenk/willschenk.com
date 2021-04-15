@@ -1,4 +1,370 @@
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Tue, 13 Apr 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Setting up emacs for typescript development</title><link>https://willschenk.com/articles/2021/setting_up_emacs_for_typescript_development/</link><pubDate>Tue, 13 Apr 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/setting_up_emacs_for_typescript_development/</guid><description>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Thu, 15 Apr 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>SQLite in the browser</title><link>https://willschenk.com/articles/2021/sq_lite_in_the_browser/</link><pubDate>Thu, 15 Apr 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/sq_lite_in_the_browser/</guid><description>
+&lt;p>
+I&amp;#39;m getting more interested in SQLite as a database, keeping
+everything in memory to the process itself. When do we actually need
+to have a multi-process solution for a website? How much can we
+really do within a single process?
+&lt;/p>
+&lt;p>
+One type of architecture I&amp;#39;m exploring is to have a zillion little
+sqlite files that are shipped around as needed, rather than providing
+an API to parse them out have one way where we can generate a bunch of
+effectively static assets of the structured data and then having the
+visualization happen on the client side. Let&amp;#39;s look at two JavaScript
+examples that let that all happen in the browser.
+&lt;/p>
+&lt;p>
+Both of these use wasm to ship the actually sqlite binary code and run
+in in browser!
+&lt;/p>
+&lt;h2 id="headline-1">
+&lt;a href="https://sql.js.org/#/">SQL.js&lt;/a>
+&lt;/h2>
+&lt;p>
+We are going to use &lt;code class="verbatim">npm&lt;/code> to download the packages only. We need to get
+&lt;code class="verbatim">sql-wasm.js&lt;/code> and &lt;code class="verbatim">sql-wasm.wasm&lt;/code> and simply serve them up in the browser.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> npm init -y
+npm install sql.js
+cp node_modules/sql.js/dist/sql-wasm.js .
+cp node_modules/sql.js/dist/sql-wasm.wasm .&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-2">
+Test CLI Script
+&lt;/h3>
+&lt;p>
+Lets look at how to create and populate a simple database on the
+command line.
+&lt;/p>
+&lt;div class="src src-javascript">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-javascript" data-lang="javascript"> &lt;span class="kd">var&lt;/span> &lt;span class="nx">fs&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">require&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s2">&amp;#34;fs&amp;#34;&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="kd">var&lt;/span> &lt;span class="nx">initSqlJs&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">require&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s1">&amp;#39;./sql-wasm.js&amp;#39;&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="nx">initSqlJs&lt;/span>&lt;span class="p">().&lt;/span>&lt;span class="nx">then&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="kd">function&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">SQL&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="kd">var&lt;/span> &lt;span class="nx">db&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="k">new&lt;/span> &lt;span class="nx">SQL&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Database&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;span class="c1">// Run a query without reading the results
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="nx">db&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">run&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s2">&amp;#34;CREATE TABLE test (col1, col2);&amp;#34;&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="c1">// Insert two rows: (1,111) and (2,222)
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="nx">db&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">run&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s2">&amp;#34;INSERT INTO test VALUES (?,?), (?,?)&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="mi">111&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="mi">2&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="mi">222&lt;/span>&lt;span class="p">]);&lt;/span>
+&lt;span class="kd">var&lt;/span> &lt;span class="nx">data&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">db&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="kr">export&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;span class="kd">var&lt;/span> &lt;span class="nx">buffer&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="k">new&lt;/span> &lt;span class="nx">Buffer&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">from&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">data&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="nx">fs&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">writeFileSync&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s2">&amp;#34;filename.sqlite&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">buffer&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="p">}&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Which we can test with:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> &lt;span class="nb">echo&lt;/span> &lt;span class="k">select&lt;/span> &lt;span class="se">\*&lt;/span> from test&lt;span class="se">\;&lt;/span> &lt;span class="p">|&lt;/span> sqlite3 sqljs/filename.sqlite&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;table class="table table-striped">
+&lt;tbody>
+&lt;tr>
+&lt;td class="align-right">1&lt;/td>
+&lt;td class="align-right">111&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td class="align-right">2&lt;/td>
+&lt;td class="align-right">222&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;p>
+Not wildly exciting data but there there you go.
+&lt;/p>
+&lt;h3 id="headline-3">
+Test webpage
+&lt;/h3>
+&lt;ol>
+&lt;li>
+&lt;p>
+Load up the &lt;code class="verbatim">sql-wasm.js&lt;/code> file, which provides &lt;code class="verbatim">initSqlJs&lt;/code>.
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;code class="verbatim">locateFile&lt;/code> is used to figure out where &lt;code class="verbatim">sql-wasm.wasm&lt;/code> is.
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+Fetch our database that we genereated previously, called &lt;code class="verbatim">filename.sqlite&lt;/code>.
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+Create a new database using the &lt;code class="verbatim">Uint8Array&lt;/code> of the file loaded.
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+Do some awesome HTML DOM manipulation to create the table.
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+Run the query, and populate the table.
+&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;div class="src src-html">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-html" data-lang="html"> &lt;span class="p">&amp;lt;&lt;/span>&lt;span class="nt">html&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
+&lt;span class="p">&amp;lt;&lt;/span>&lt;span class="nt">head&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
+&lt;span class="p">&amp;lt;&lt;/span>&lt;span class="nt">script&lt;/span> &lt;span class="na">src&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s">&amp;#39;./sql-wasm.js&amp;#39;&lt;/span>&lt;span class="p">&amp;gt;&amp;lt;/&lt;/span>&lt;span class="nt">script&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
+&lt;span class="p">&amp;lt;&lt;/span>&lt;span class="nt">script&lt;/span> &lt;span class="na">type&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s">&amp;#34;module&amp;#34;&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
+&lt;span class="c1">// Load sqj.js module and database
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="kr">const&lt;/span> &lt;span class="nx">sqlPromise&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">initSqlJs&lt;/span>&lt;span class="p">({&lt;/span>
+&lt;span class="nx">locateFile&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">file&lt;/span> &lt;span class="p">=&amp;gt;&lt;/span> &lt;span class="sb">`./&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nx">file&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="sb">`&lt;/span>
+&lt;span class="p">});&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">dataPromise&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">fetch&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s2">&amp;#34;filename.sqlite&amp;#34;&lt;/span>&lt;span class="p">).&lt;/span>&lt;span class="nx">then&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">res&lt;/span> &lt;span class="p">=&amp;gt;&lt;/span> &lt;span class="nx">res&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">arrayBuffer&lt;/span>&lt;span class="p">());&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="nx">SQL&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">buf&lt;/span>&lt;span class="p">]&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">await&lt;/span> &lt;span class="nb">Promise&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">all&lt;/span>&lt;span class="p">([&lt;/span>&lt;span class="nx">sqlPromise&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">dataPromise&lt;/span>&lt;span class="p">])&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">db&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="k">new&lt;/span> &lt;span class="nx">SQL&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Database&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="k">new&lt;/span> &lt;span class="nx">Uint8Array&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">buf&lt;/span>&lt;span class="p">));&lt;/span>
+&lt;span class="c1">// Grab the table element
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="kr">const&lt;/span> &lt;span class="nx">table&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nb">document&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">querySelector&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s2">&amp;#34;table&amp;#34;&lt;/span> &lt;span class="p">);&lt;/span>
+&lt;span class="nx">table&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">innerHTML&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s1">&amp;#39;&amp;lt;tr&amp;gt;&amp;lt;th&amp;gt;Col1&amp;lt;/th&amp;gt;&amp;lt;th&amp;gt;Col2&amp;lt;/th&amp;gt;&amp;lt;/tr&amp;gt;&amp;#39;&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="c1">// Prepare a statement
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="kd">var&lt;/span> &lt;span class="nx">stmt&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">db&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">prepare&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s2">&amp;#34;SELECT * FROM test WHERE col1 BETWEEN $start AND $end&amp;#34;&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="nx">stmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">getAsObject&lt;/span>&lt;span class="p">({&lt;/span>&lt;span class="nx">$start&lt;/span>&lt;span class="o">:&lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">$end&lt;/span>&lt;span class="o">:&lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="p">});&lt;/span> &lt;span class="c1">// {col1:1, col2:111}
+&lt;/span>&lt;span class="c1">&lt;/span>
+&lt;span class="c1">// Bind new values
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="nx">stmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">bind&lt;/span>&lt;span class="p">({&lt;/span>&lt;span class="nx">$start&lt;/span>&lt;span class="o">:&lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">$end&lt;/span>&lt;span class="o">:&lt;/span>&lt;span class="mi">2&lt;/span>&lt;span class="p">});&lt;/span>
+&lt;span class="k">while&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">stmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">step&lt;/span>&lt;span class="p">())&lt;/span> &lt;span class="p">{&lt;/span> &lt;span class="c1">//
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="kd">var&lt;/span> &lt;span class="nx">row&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">stmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">getAsObject&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;span class="nx">table&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">innerHTML&lt;/span> &lt;span class="o">+=&lt;/span> &lt;span class="sb">`&amp;lt;tr&amp;gt;&amp;lt;td&amp;gt;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nx">row&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s1">&amp;#39;col1&amp;#39;&lt;/span>&lt;span class="p">]&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="sb">&amp;lt;/td&amp;gt;&amp;lt;td&amp;gt;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nx">row&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s1">&amp;#39;col2&amp;#39;&lt;/span>&lt;span class="p">]&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="sb">&amp;lt;/td&amp;gt;&amp;lt;/tr&amp;gt;`&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s2">&amp;#34;Done&amp;#34;&lt;/span> &lt;span class="p">);&lt;/span>
+&lt;span class="p">&amp;lt;/&lt;/span>&lt;span class="nt">script&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
+&lt;span class="p">&amp;lt;/&lt;/span>&lt;span class="nt">head&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
+&lt;span class="p">&amp;lt;&lt;/span>&lt;span class="nt">body&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
+&lt;span class="p">&amp;lt;&lt;/span>&lt;span class="nt">h1&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>Results&lt;span class="p">&amp;lt;/&lt;/span>&lt;span class="nt">h1&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
+&lt;span class="p">&amp;lt;&lt;/span>&lt;span class="nt">table&lt;/span>&lt;span class="p">&amp;gt;&amp;lt;/&lt;/span>&lt;span class="nt">table&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
+&lt;span class="p">&amp;lt;/&lt;/span>&lt;span class="nt">body&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
+&lt;span class="p">&amp;lt;/&lt;/span>&lt;span class="nt">html&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+In the directory with the html, wasm, and sqlite files, run:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">npx live-server&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+And you should get:
+&lt;/p>
+&lt;p>
+&lt;img class='' style='' src='./articles/2021/sq_lite_in_the_browser/screenshot_hue79c3ff0c4e535799a362ebb8aeb6618_9996_250x250_fit_box_2.png'>
+&lt;/p>
+&lt;h2 id="headline-4">
+&lt;a href="https://github.com/dyedgreen/deno-sqlite">deno-sqlite&lt;/a>
+&lt;/h2>
+&lt;p>
+Lets look at using a different method, using deno instead of node.
+&lt;/p>
+&lt;h3 id="headline-5">
+Installing deno
+&lt;/h3>
+&lt;p>
+I used &lt;code class="verbatim">asdf&lt;/code>, but you can &lt;a href="https://deno.land/#installation">follow the official instructions&lt;/a>.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> asdf plugin add deno
+asdf install deno latest&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+And then check to see what you have installed:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">deno --version&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+deno 1.8.3 (release, x86_64-unknown-linux-gnu)
+v8 9.0.257.3
+typescript 4.2.2
+&lt;/pre>
+&lt;h3 id="headline-6">
+Configuring TypeScript
+&lt;/h3>
+&lt;p>
+I need this to make my emacs integration work, but it could be
+optional for you.
+&lt;/p>
+&lt;div class="src src-json">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-json" data-lang="json"> &lt;span class="p">{&lt;/span>
+&lt;span class="nt">&amp;#34;compilerOptions&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nt">&amp;#34;lib&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="p">[&lt;/span>
+&lt;span class="s2">&amp;#34;es6&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="p">],&lt;/span>
+&lt;span class="nt">&amp;#34;plugins&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="p">[&lt;/span>
+&lt;span class="p">{&lt;/span>
+&lt;span class="nt">&amp;#34;name&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;typescript-deno-plugin&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nt">&amp;#34;enable&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="kc">true&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="err">//&lt;/span> &lt;span class="err">default&lt;/span> &lt;span class="err">is&lt;/span> &lt;span class="err">`true`&lt;/span>
+&lt;span class="nt">&amp;#34;importmap&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;import_map.json&amp;#34;&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">]&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">}&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-7">
+Dependencies
+&lt;/h3>
+&lt;p>
+Create &lt;code class="verbatim">deps.ts&lt;/code> to centralize your version dependancies:
+&lt;/p>
+&lt;div class="src src-typescript">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-typescript" data-lang="typescript"> &lt;span class="kr">export&lt;/span> &lt;span class="p">{&lt;/span> &lt;span class="nx">DB&lt;/span> &lt;span class="p">}&lt;/span> &lt;span class="nx">from&lt;/span> &lt;span class="s2">&amp;#34;https://deno.land/x/sqlite/mod.ts&amp;#34;&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-8">
+Test cli script
+&lt;/h3>
+&lt;p>
+Lets create a &lt;code class="verbatim">test.ts&lt;/code> script which creates a database and popualtes it:
+&lt;/p>
+&lt;div class="src src-typescript">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-typescript" data-lang="typescript">&lt;span class="kr">import&lt;/span> &lt;span class="p">{&lt;/span> &lt;span class="nx">DB&lt;/span> &lt;span class="p">}&lt;/span> &lt;span class="nx">from&lt;/span> &lt;span class="s2">&amp;#34;./deps.ts&amp;#34;&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="c1">// Open a database
+&lt;/span>&lt;span class="c1">&lt;/span>&lt;span class="kr">const&lt;/span> &lt;span class="nx">db&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="k">new&lt;/span> &lt;span class="nx">DB&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s2">&amp;#34;test.db&amp;#34;&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="nx">db&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">query&lt;/span>&lt;span class="p">(&lt;/span>
+&lt;span class="s2">&amp;#34;CREATE TABLE IF NOT EXISTS people (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT)&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="p">);&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">names&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;Peter Parker&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s2">&amp;#34;Clark Kent&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s2">&amp;#34;Bruce Wayne&amp;#34;&lt;/span>&lt;span class="p">];&lt;/span>
+&lt;span class="c1">// Run a simple query
+&lt;/span>&lt;span class="c1">&lt;/span>&lt;span class="k">for&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="kr">const&lt;/span> &lt;span class="nx">name&lt;/span> &lt;span class="nx">of&lt;/span> &lt;span class="nx">names&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">db&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">query&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s2">&amp;#34;INSERT INTO people (name) VALUES (?)&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="nx">name&lt;/span>&lt;span class="p">]);&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="c1">// Print out data in table
+&lt;/span>&lt;span class="c1">&lt;/span>&lt;span class="k">for&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="kr">const&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="nx">name&lt;/span>&lt;span class="p">]&lt;/span> &lt;span class="nx">of&lt;/span> &lt;span class="nx">db&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">query&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s2">&amp;#34;SELECT name FROM people&amp;#34;&lt;/span>&lt;span class="p">))&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">name&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="c1">// Close connection
+&lt;/span>&lt;span class="c1">&lt;/span>&lt;span class="nx">db&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">close&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+And then we can run this with:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">deno run --allow-read --allow-write test.ts&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Which returns:
+&lt;/p>
+&lt;table class="table table-striped">
+&lt;tbody>
+&lt;tr>
+&lt;td>Peter&lt;/td>
+&lt;td>Parker&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>Clark&lt;/td>
+&lt;td>Kent&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>Bruce&lt;/td>
+&lt;td>Wayne&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;h3 id="headline-9">
+Test web script webworkers
+&lt;/h3>
+&lt;p>
+Here we are going to write a &lt;code class="verbatim">web.tsx&lt;/code> file that will function as a
+WebWorker. Our database will run in a different thread and the main
+worker thread.
+&lt;/p>
+&lt;div class="src src-typescript">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-typescript" data-lang="typescript"> &lt;span class="kr">import&lt;/span> &lt;span class="p">{&lt;/span> &lt;span class="nx">DB&lt;/span> &lt;span class="p">}&lt;/span> &lt;span class="nx">from&lt;/span> &lt;span class="s2">&amp;#34;./deps.ts&amp;#34;&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">ctx&lt;/span>: &lt;span class="kt">Worker&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">self&lt;/span> &lt;span class="kr">as&lt;/span> &lt;span class="nx">any&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="nx">ctx&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">onmessage&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nx">e&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="o">=&amp;gt;&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s2">&amp;#34;Got message&amp;#34;&lt;/span> &lt;span class="p">);&lt;/span>
+&lt;span class="nx">ctx&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">postMessage&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s2">&amp;#34;Hi there&amp;#34;&lt;/span> &lt;span class="p">);&lt;/span>
+&lt;span class="k">for&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="kr">const&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="nx">name&lt;/span>&lt;span class="p">]&lt;/span> &lt;span class="nx">of&lt;/span> &lt;span class="nx">db&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">query&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s2">&amp;#34;SELECT name FROM people&amp;#34;&lt;/span>&lt;span class="p">))&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">name&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">db&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="k">new&lt;/span> &lt;span class="nx">DB&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;span class="nx">db&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">query&lt;/span>&lt;span class="p">(&lt;/span>
+&lt;span class="s2">&amp;#34;CREATE TABLE IF NOT EXISTS people (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT)&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="p">);&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">names&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;Peter Parker&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s2">&amp;#34;Clark Kent&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s2">&amp;#34;Bruce Wayne&amp;#34;&lt;/span>&lt;span class="p">];&lt;/span>
+&lt;span class="c1">// Run a simple query
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="k">for&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="kr">const&lt;/span> &lt;span class="nx">name&lt;/span> &lt;span class="nx">of&lt;/span> &lt;span class="nx">names&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">db&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">query&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s2">&amp;#34;INSERT INTO people (name) VALUES (?)&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="nx">name&lt;/span>&lt;span class="p">]);&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s2">&amp;#34;Loaded the worker&amp;#34;&lt;/span> &lt;span class="p">);&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Then we need to bundle it up:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">deno bundle web.tsx web.js&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+This creates a &lt;code class="verbatim">web.js&lt;/code> file that contains our webworker as well as the
+entire &lt;code class="verbatim">sqlite&lt;/code> binary in wasm.
+&lt;/p>
+&lt;h3 id="headline-10">
+Webpage
+&lt;/h3>
+&lt;p>
+This code is simpler that the previous code. We load up &lt;code class="verbatim">web.js&lt;/code> as a &lt;code class="verbatim">modulepreload&lt;/code>, and then inside of our script tag we create the new webwork, and send it a message. Once it gets the message it creates the in-memory database, then
+&lt;/p>
+&lt;div class="src src-html">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-html" data-lang="html"> &lt;span class="p">&amp;lt;&lt;/span>&lt;span class="nt">html&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
+&lt;span class="p">&amp;lt;&lt;/span>&lt;span class="nt">head&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
+&lt;span class="p">&amp;lt;&lt;/span>&lt;span class="nt">link&lt;/span> &lt;span class="na">rel&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s">&amp;#34;modulepreload&amp;#34;&lt;/span> &lt;span class="na">href&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s">&amp;#34;web.js&amp;#34;&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
+&lt;span class="p">&amp;lt;/&lt;/span>&lt;span class="nt">head&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
+&lt;span class="p">&amp;lt;&lt;/span>&lt;span class="nt">body&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
+&lt;span class="p">&amp;lt;&lt;/span>&lt;span class="nt">div&lt;/span> &lt;span class="na">id&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s">&amp;#34;status&amp;#34;&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>Loading...&lt;span class="p">&amp;lt;/&lt;/span>&lt;span class="nt">div&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
+&lt;span class="p">&amp;lt;&lt;/span>&lt;span class="nt">table&lt;/span> &lt;span class="na">id&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s">&amp;#34;data&amp;#34;&lt;/span>&lt;span class="p">&amp;gt;&amp;lt;/&lt;/span>&lt;span class="nt">table&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
+&lt;span class="p">&amp;lt;&lt;/span>&lt;span class="nt">script&lt;/span> &lt;span class="na">type&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s">&amp;#34;module&amp;#34;&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">worker&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="k">new&lt;/span> &lt;span class="nx">Worker&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s2">&amp;#34;./web.js&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="p">{&lt;/span>&lt;span class="nx">type&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="s2">&amp;#34;module&amp;#34;&lt;/span>&lt;span class="p">});&lt;/span>
+&lt;span class="nx">worker&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">onmessage&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nx">e&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">=&amp;gt;&lt;/span> &lt;span class="p">{&lt;/span> &lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="sb">`received &lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nx">e&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="sb">`&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="p">};&lt;/span>
+&lt;span class="nx">worker&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">postMessage&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="s1">&amp;#39;hello&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s1">&amp;#39;This is my message&amp;#39;&lt;/span>&lt;span class="p">]&lt;/span> &lt;span class="p">);&lt;/span>
+&lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s2">&amp;#34;Sending hello message&amp;#34;&lt;/span> &lt;span class="p">);&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">status&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nb">document&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">querySelector&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s2">&amp;#34;#status&amp;#34;&lt;/span> &lt;span class="p">);&lt;/span>
+&lt;span class="nx">status&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">innerText&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;Loaded&amp;#34;&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="p">&amp;lt;/&lt;/span>&lt;span class="nt">script&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
+&lt;span class="p">&amp;lt;/&lt;/span>&lt;span class="nt">body&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
+&lt;span class="p">&amp;lt;/&lt;/span>&lt;span class="nt">html&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-11">
+But that&amp;#39;s not the same!
+&lt;/h3>
+&lt;p>
+I don&amp;#39;t know how to load in the database file with the deno bundle
+based solution, so at this moment while it works I don&amp;#39;t know how to
+solve that issue. Still the approach is cleaner.
+&lt;/p>
+&lt;h2 id="headline-12">
+Conclusion
+&lt;/h2>
+&lt;p>
+Right now it looks like &lt;code class="verbatim">sql.js&lt;/code> will do what I want. I&amp;#39;m surprised at
+how fast web assembly is.
+&lt;/p>
+&lt;h2 id="headline-13">
+References
+&lt;/h2>
+&lt;ol>
+&lt;li>
+&lt;p>
+&lt;a href="https://sql.js.org/">https://sql.js.org/&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://github.com/dyedgreen/deno-sqlite">https://github.com/dyedgreen/deno-sqlite&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://github.com/dyedgreen/deno-sqlite/issues/105">https://github.com/dyedgreen/deno-sqlite/issues/105&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;/ol></description></item><item><title>Setting up emacs for typescript development</title><link>https://willschenk.com/articles/2021/setting_up_emacs_for_typescript_development/</link><pubDate>Tue, 13 Apr 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/setting_up_emacs_for_typescript_development/</guid><description>
 &lt;p>
 I&amp;#39;ve been playing with deno and typescript, so I thought I&amp;#39;d document
 how to setup a basic tide environment with emacs.

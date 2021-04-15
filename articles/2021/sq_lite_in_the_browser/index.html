@@ -1,0 +1,171 @@
+<!doctype html><html><head><title>SQLite in the browser</title><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><link rel=stylesheet href=../../../css/theme.css><link rel=stylesheet href=../../../css/syntax.css><script type=application/javascript>var doNotTrack=false;if(!doNotTrack){window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;ga('create','UA-56296045-1','auto');ga('send','pageview');}</script><script async src=https://www.google-analytics.com/analytics.js></script><script async defer data-domain=willschenk.com src=https://plausible.io/js/plausible.js></script><meta property="og:title" content="SQLite in the browser"><meta property="og:description" content="I'm getting more interested in SQLite as a database, keeping everything in memory to the process itself. When do we actually need to have a multi-process solution for a website? How much can we really do within a single process?  One type of architecture I'm exploring is to have a zillion little sqlite files that are shipped around as needed, rather than providing an API to parse them out have one way where we can generate a bunch of effectively static assets of the structured data and then having the visualization happen on the client side."><meta property="og:type" content="article"><meta property="og:url" content="https://willschenk.com/articles/2021/sq_lite_in_the_browser/"><meta property="article:published_time" content="2021-04-15T00:00:00+00:00"><meta property="article:modified_time" content="2021-04-15T00:00:00+00:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="SQLite in the browser"><meta name=twitter:description content="I'm getting more interested in SQLite as a database, keeping everything in memory to the process itself. When do we actually need to have a multi-process solution for a website? How much can we really do within a single process?  One type of architecture I'm exploring is to have a zillion little sqlite files that are shipped around as needed, rather than providing an API to parse them out have one way where we can generate a bunch of effectively static assets of the structured data and then having the visualization happen on the client side."><meta name=twitter:site content="@wschenk"><style>.article p,.article ul,.article ol,.article table{max-width:45em}.article pre p{max-width:none;margin-top:-1.5rem}article.article p:first-child,.article blockquote{font-size:1.25em;font-weight:300;max-width:36em}.half-height-scroll{max-height:32em;overflow:scroll}</style></head><body><nav class="container my-5"><h1 class="pt-md-5 display-3"><a class=text-dark href=../../../>Will Schenk</a></h1><p><a class="text-dark h4 mr-3 font-weight-light" href=../../../articles/>Articles</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../contact>Contact</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../tags/>Tags</a>
+<a href=../../../feed.xml class="mr-3 h4 text-light"><img src=../../../img/rss.svg alt=rss height=20 width=20></a>
+<a href=https://twitter.com/@wschenk class="mr-3 h4 text-light"><img src=../../../img/twitter.svg alt=twitter height=20 width=20></a>
+<a href=https://instagram.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/instagram.svg alt=instagram height=20 width=20></a>
+<a href=https://github.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/github.svg alt=github height=20 width=20></a>
+<a href=https://linkedin.com/in/will-schenk-420266 class="mr-3 h4 text-light"><img src=../../../img/linkedin.svg alt=linkedin height=20 width=20></a></p></nav><div class=container><h1 class=mt-5>SQLite in the browser</h1><h2 class="font-weight-light font-italic mb-3">pushing everything to the client</h2><p class="text-muted mt-3"><a class=text-muted href=https://willschenk.com/articles/2021/sq_lite_in_the_browser/>Published April 15, 2021</a>
+<a class=text-muted href=../../../tags/deno>#deno,</a>
+<a class=text-muted href=../../../tags/sqlite>#sqlite,</a>
+<a class=text-muted href=../../../tags/browser>#browser,</a>
+<a class=text-muted href=../../../tags/static_sites>#static_sites,</a>
+<a class=text-muted href=../../../tags/wasm>#wasm</a></p><article class="article mt-5"><p>I'm getting more interested in SQLite as a database, keeping
+everything in memory to the process itself. When do we actually need
+to have a multi-process solution for a website? How much can we
+really do within a single process?</p><p>One type of architecture I'm exploring is to have a zillion little
+sqlite files that are shipped around as needed, rather than providing
+an API to parse them out have one way where we can generate a bunch of
+effectively static assets of the structured data and then having the
+visualization happen on the client side. Let's look at two JavaScript
+examples that let that all happen in the browser.</p><p>Both of these use wasm to ship the actually sqlite binary code and run
+in in browser!</p><h2 id=headline-1><a href=https://sql.js.org/#/>SQL.js</a></h2><p>We are going to use <code class=verbatim>npm</code> to download the packages only. We need to get
+<code class=verbatim>sql-wasm.js</code> and <code class=verbatim>sql-wasm.wasm</code> and simply serve them up in the browser.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  npm init -y
+  npm install sql.js
+  cp node_modules/sql.js/dist/sql-wasm.js .
+  cp node_modules/sql.js/dist/sql-wasm.wasm .</code></pre></div></div><h3 id=headline-2>Test CLI Script</h3><p>Lets look at how to create and populate a simple database on the
+command line.</p><div class="src src-javascript"><div class=highlight><pre class=chroma><code class=language-javascript data-lang=javascript>  <span class=kd>var</span> <span class=nx>fs</span> <span class=o>=</span> <span class=nx>require</span><span class=p>(</span><span class=s2>&#34;fs&#34;</span><span class=p>);</span>
+  <span class=kd>var</span> <span class=nx>initSqlJs</span> <span class=o>=</span> <span class=nx>require</span><span class=p>(</span><span class=s1>&#39;./sql-wasm.js&#39;</span><span class=p>);</span>
+
+  <span class=nx>initSqlJs</span><span class=p>().</span><span class=nx>then</span><span class=p>(</span> <span class=kd>function</span><span class=p>(</span><span class=nx>SQL</span><span class=p>)</span> <span class=p>{</span>
+      <span class=kd>var</span> <span class=nx>db</span> <span class=o>=</span> <span class=k>new</span> <span class=nx>SQL</span><span class=p>.</span><span class=nx>Database</span><span class=p>();</span>
+      <span class=c1>// Run a query without reading the results
+</span><span class=c1></span>      <span class=nx>db</span><span class=p>.</span><span class=nx>run</span><span class=p>(</span><span class=s2>&#34;CREATE TABLE test (col1, col2);&#34;</span><span class=p>);</span>
+      <span class=c1>// Insert two rows: (1,111) and (2,222)
+</span><span class=c1></span>      <span class=nx>db</span><span class=p>.</span><span class=nx>run</span><span class=p>(</span><span class=s2>&#34;INSERT INTO test VALUES (?,?), (?,?)&#34;</span><span class=p>,</span> <span class=p>[</span><span class=mi>1</span><span class=p>,</span><span class=mi>111</span><span class=p>,</span><span class=mi>2</span><span class=p>,</span><span class=mi>222</span><span class=p>]);</span>
+
+      <span class=kd>var</span> <span class=nx>data</span> <span class=o>=</span> <span class=nx>db</span><span class=p>.</span><span class=kr>export</span><span class=p>();</span>
+      <span class=kd>var</span> <span class=nx>buffer</span> <span class=o>=</span> <span class=k>new</span> <span class=nx>Buffer</span><span class=p>.</span><span class=nx>from</span><span class=p>(</span><span class=nx>data</span><span class=p>);</span>
+      <span class=nx>fs</span><span class=p>.</span><span class=nx>writeFileSync</span><span class=p>(</span><span class=s2>&#34;filename.sqlite&#34;</span><span class=p>,</span> <span class=nx>buffer</span><span class=p>);</span>
+  <span class=p>}</span> <span class=p>)</span>
+</code></pre></div></div><p>Which we can test with:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  <span class=nb>echo</span> <span class=k>select</span> <span class=se>\*</span> from test<span class=se>\;</span> <span class=p>|</span> sqlite3 sqljs/filename.sqlite</code></pre></div></div><table class="table table-striped"><tbody><tr><td class=align-right>1</td><td class=align-right>111</td></tr><tr><td class=align-right>2</td><td class=align-right>222</td></tr></tbody></table><p>Not wildly exciting data but there there you go.</p><h3 id=headline-3>Test webpage</h3><ol><li><p>Load up the <code class=verbatim>sql-wasm.js</code> file, which provides <code class=verbatim>initSqlJs</code>.</p></li><li><p><code class=verbatim>locateFile</code> is used to figure out where <code class=verbatim>sql-wasm.wasm</code> is.</p></li><li><p>Fetch our database that we genereated previously, called <code class=verbatim>filename.sqlite</code>.</p></li><li><p>Create a new database using the <code class=verbatim>Uint8Array</code> of the file loaded.</p></li><li><p>Do some awesome HTML DOM manipulation to create the table.</p></li><li><p>Run the query, and populate the table.</p></li></ol><div class="src src-html"><div class=highlight><pre class=chroma><code class=language-html data-lang=html>  <span class=p>&lt;</span><span class=nt>html</span><span class=p>&gt;</span>
+    <span class=p>&lt;</span><span class=nt>head</span><span class=p>&gt;</span>
+      <span class=p>&lt;</span><span class=nt>script</span> <span class=na>src</span><span class=o>=</span><span class=s>&#39;./sql-wasm.js&#39;</span><span class=p>&gt;&lt;/</span><span class=nt>script</span><span class=p>&gt;</span>
+      <span class=p>&lt;</span><span class=nt>script</span> <span class=na>type</span><span class=o>=</span><span class=s>&#34;module&#34;</span><span class=p>&gt;</span>
+        <span class=c1>// Load sqj.js module and database
+</span><span class=c1></span>        <span class=kr>const</span> <span class=nx>sqlPromise</span> <span class=o>=</span> <span class=nx>initSqlJs</span><span class=p>({</span>
+          <span class=nx>locateFile</span><span class=o>:</span> <span class=nx>file</span> <span class=p>=&gt;</span> <span class=sb>`./</span><span class=si>${</span><span class=nx>file</span><span class=si>}</span><span class=sb>`</span>
+        <span class=p>});</span>
+        <span class=kr>const</span> <span class=nx>dataPromise</span> <span class=o>=</span> <span class=nx>fetch</span><span class=p>(</span><span class=s2>&#34;filename.sqlite&#34;</span><span class=p>).</span><span class=nx>then</span><span class=p>(</span><span class=nx>res</span> <span class=p>=&gt;</span> <span class=nx>res</span><span class=p>.</span><span class=nx>arrayBuffer</span><span class=p>());</span>
+        <span class=kr>const</span> <span class=p>[</span><span class=nx>SQL</span><span class=p>,</span> <span class=nx>buf</span><span class=p>]</span> <span class=o>=</span> <span class=nx>await</span> <span class=nb>Promise</span><span class=p>.</span><span class=nx>all</span><span class=p>([</span><span class=nx>sqlPromise</span><span class=p>,</span> <span class=nx>dataPromise</span><span class=p>])</span>
+        <span class=kr>const</span> <span class=nx>db</span> <span class=o>=</span> <span class=k>new</span> <span class=nx>SQL</span><span class=p>.</span><span class=nx>Database</span><span class=p>(</span><span class=k>new</span> <span class=nx>Uint8Array</span><span class=p>(</span><span class=nx>buf</span><span class=p>));</span>
+
+        <span class=c1>// Grab the table element
+</span><span class=c1></span>        <span class=kr>const</span> <span class=nx>table</span> <span class=o>=</span> <span class=nb>document</span><span class=p>.</span><span class=nx>querySelector</span><span class=p>(</span> <span class=s2>&#34;table&#34;</span> <span class=p>);</span>
+        <span class=nx>table</span><span class=p>.</span><span class=nx>innerHTML</span> <span class=o>=</span> <span class=s1>&#39;&lt;tr&gt;&lt;th&gt;Col1&lt;/th&gt;&lt;th&gt;Col2&lt;/th&gt;&lt;/tr&gt;&#39;</span><span class=p>;</span>
+      
+        <span class=c1>// Prepare a statement
+</span><span class=c1></span>        <span class=kd>var</span> <span class=nx>stmt</span> <span class=o>=</span> <span class=nx>db</span><span class=p>.</span><span class=nx>prepare</span><span class=p>(</span><span class=s2>&#34;SELECT * FROM test WHERE col1 BETWEEN $start AND $end&#34;</span><span class=p>);</span>
+        <span class=nx>stmt</span><span class=p>.</span><span class=nx>getAsObject</span><span class=p>({</span><span class=nx>$start</span><span class=o>:</span><span class=mi>1</span><span class=p>,</span> <span class=nx>$end</span><span class=o>:</span><span class=mi>1</span><span class=p>});</span> <span class=c1>// {col1:1, col2:111}
+</span><span class=c1></span>
+        <span class=c1>// Bind new values
+</span><span class=c1></span>        <span class=nx>stmt</span><span class=p>.</span><span class=nx>bind</span><span class=p>({</span><span class=nx>$start</span><span class=o>:</span><span class=mi>1</span><span class=p>,</span> <span class=nx>$end</span><span class=o>:</span><span class=mi>2</span><span class=p>});</span>
+        <span class=k>while</span><span class=p>(</span><span class=nx>stmt</span><span class=p>.</span><span class=nx>step</span><span class=p>())</span> <span class=p>{</span> <span class=c1>//
+</span><span class=c1></span>        <span class=kd>var</span> <span class=nx>row</span> <span class=o>=</span> <span class=nx>stmt</span><span class=p>.</span><span class=nx>getAsObject</span><span class=p>();</span>
+          <span class=nx>table</span><span class=p>.</span><span class=nx>innerHTML</span> <span class=o>+=</span> <span class=sb>`&lt;tr&gt;&lt;td&gt;</span><span class=si>${</span><span class=nx>row</span><span class=p>[</span><span class=s1>&#39;col1&#39;</span><span class=p>]</span><span class=si>}</span><span class=sb>&lt;/td&gt;&lt;td&gt;</span><span class=si>${</span><span class=nx>row</span><span class=p>[</span><span class=s1>&#39;col2&#39;</span><span class=p>]</span><span class=si>}</span><span class=sb>&lt;/td&gt;&lt;/tr&gt;`</span><span class=p>;</span>
+        <span class=p>}</span>
+        <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;Done&#34;</span> <span class=p>);</span>
+      <span class=p>&lt;/</span><span class=nt>script</span><span class=p>&gt;</span>
+    <span class=p>&lt;/</span><span class=nt>head</span><span class=p>&gt;</span>
+    <span class=p>&lt;</span><span class=nt>body</span><span class=p>&gt;</span>
+      <span class=p>&lt;</span><span class=nt>h1</span><span class=p>&gt;</span>Results<span class=p>&lt;/</span><span class=nt>h1</span><span class=p>&gt;</span>
+
+      <span class=p>&lt;</span><span class=nt>table</span><span class=p>&gt;&lt;/</span><span class=nt>table</span><span class=p>&gt;</span>
+    <span class=p>&lt;/</span><span class=nt>body</span><span class=p>&gt;</span>
+  <span class=p>&lt;/</span><span class=nt>html</span><span class=p>&gt;</span></code></pre></div></div><p>In the directory with the html, wasm, and sqlite files, run:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>npx live-server</code></pre></div></div><p>And you should get:</p><p><img src=../../../articles/2021/sq_lite_in_the_browser/screenshot_hue79c3ff0c4e535799a362ebb8aeb6618_9996_250x250_fit_box_2.png></p><h2 id=headline-4><a href=https://github.com/dyedgreen/deno-sqlite>deno-sqlite</a></h2><p>Lets look at using a different method, using deno instead of node.</p><h3 id=headline-5>Installing deno</h3><p>I used <code class=verbatim>asdf</code>, but you can <a href=https://deno.land/#installation>follow the official instructions</a>.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  asdf plugin add deno
+  asdf install deno latest</code></pre></div></div><p>And then check to see what you have installed:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>deno --version</code></pre></div></div><pre class=example>
+deno 1.8.3 (release, x86_64-unknown-linux-gnu)
+v8 9.0.257.3
+typescript 4.2.2
+</pre><h3 id=headline-6>Configuring TypeScript</h3><p>I need this to make my emacs integration work, but it could be
+optional for you.</p><div class="src src-json"><div class=highlight><pre class=chroma><code class=language-json data-lang=json>  <span class=p>{</span> 
+      <span class=nt>&#34;compilerOptions&#34;</span><span class=p>:</span> <span class=p>{</span>
+          <span class=nt>&#34;lib&#34;</span><span class=p>:</span> <span class=p>[</span>
+            <span class=s2>&#34;es6&#34;</span><span class=p>,</span>
+          <span class=p>],</span>
+          <span class=nt>&#34;plugins&#34;</span><span class=p>:</span> <span class=p>[</span>
+              <span class=p>{</span>
+                  <span class=nt>&#34;name&#34;</span><span class=p>:</span> <span class=s2>&#34;typescript-deno-plugin&#34;</span><span class=p>,</span>
+                  <span class=nt>&#34;enable&#34;</span><span class=p>:</span> <span class=kc>true</span><span class=p>,</span> <span class=err>//</span> <span class=err>default</span> <span class=err>is</span> <span class=err>`true`</span>
+                  <span class=nt>&#34;importmap&#34;</span><span class=p>:</span> <span class=s2>&#34;import_map.json&#34;</span>
+              <span class=p>}</span>
+          <span class=p>]</span>
+      <span class=p>}</span>
+  <span class=p>}</span></code></pre></div></div><h3 id=headline-7>Dependencies</h3><p>Create <code class=verbatim>deps.ts</code> to centralize your version dependancies:</p><div class="src src-typescript"><div class=highlight><pre class=chroma><code class=language-typescript data-lang=typescript>  <span class=kr>export</span> <span class=p>{</span> <span class=nx>DB</span> <span class=p>}</span> <span class=nx>from</span> <span class=s2>&#34;https://deno.land/x/sqlite/mod.ts&#34;</span><span class=p>;</span>
+</code></pre></div></div><h3 id=headline-8>Test cli script</h3><p>Lets create a <code class=verbatim>test.ts</code> script which creates a database and popualtes it:</p><div class="src src-typescript"><div class=highlight><pre class=chroma><code class=language-typescript data-lang=typescript><span class=kr>import</span> <span class=p>{</span> <span class=nx>DB</span> <span class=p>}</span> <span class=nx>from</span> <span class=s2>&#34;./deps.ts&#34;</span><span class=p>;</span>
+
+<span class=c1>// Open a database
+</span><span class=c1></span><span class=kr>const</span> <span class=nx>db</span> <span class=o>=</span> <span class=k>new</span> <span class=nx>DB</span><span class=p>(</span><span class=s2>&#34;test.db&#34;</span><span class=p>);</span>
+<span class=nx>db</span><span class=p>.</span><span class=nx>query</span><span class=p>(</span>
+  <span class=s2>&#34;CREATE TABLE IF NOT EXISTS people (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT)&#34;</span><span class=p>,</span>
+<span class=p>);</span>
+
+<span class=kr>const</span> <span class=nx>names</span> <span class=o>=</span> <span class=p>[</span><span class=s2>&#34;Peter Parker&#34;</span><span class=p>,</span> <span class=s2>&#34;Clark Kent&#34;</span><span class=p>,</span> <span class=s2>&#34;Bruce Wayne&#34;</span><span class=p>];</span>
+
+<span class=c1>// Run a simple query
+</span><span class=c1></span><span class=k>for</span> <span class=p>(</span><span class=kr>const</span> <span class=nx>name</span> <span class=nx>of</span> <span class=nx>names</span><span class=p>)</span> <span class=p>{</span>
+  <span class=nx>db</span><span class=p>.</span><span class=nx>query</span><span class=p>(</span><span class=s2>&#34;INSERT INTO people (name) VALUES (?)&#34;</span><span class=p>,</span> <span class=p>[</span><span class=nx>name</span><span class=p>]);</span>
+<span class=p>}</span>
+
+<span class=c1>// Print out data in table
+</span><span class=c1></span><span class=k>for</span> <span class=p>(</span><span class=kr>const</span> <span class=p>[</span><span class=nx>name</span><span class=p>]</span> <span class=nx>of</span> <span class=nx>db</span><span class=p>.</span><span class=nx>query</span><span class=p>(</span><span class=s2>&#34;SELECT name FROM people&#34;</span><span class=p>))</span> <span class=p>{</span>
+  <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span><span class=nx>name</span><span class=p>);</span>
+<span class=p>}</span>
+
+<span class=c1>// Close connection
+</span><span class=c1></span><span class=nx>db</span><span class=p>.</span><span class=nx>close</span><span class=p>();</span>
+</code></pre></div></div><p>And then we can run this with:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>deno run --allow-read --allow-write test.ts</code></pre></div></div><p>Which returns:</p><table class="table table-striped"><tbody><tr><td>Peter</td><td>Parker</td></tr><tr><td>Clark</td><td>Kent</td></tr><tr><td>Bruce</td><td>Wayne</td></tr></tbody></table><h3 id=headline-9>Test web script webworkers</h3><p>Here we are going to write a <code class=verbatim>web.tsx</code> file that will function as a
+WebWorker. Our database will run in a different thread and the main
+worker thread.</p><div class="src src-typescript"><div class=highlight><pre class=chroma><code class=language-typescript data-lang=typescript>  <span class=kr>import</span> <span class=p>{</span> <span class=nx>DB</span> <span class=p>}</span> <span class=nx>from</span> <span class=s2>&#34;./deps.ts&#34;</span><span class=p>;</span>
+  <span class=kr>const</span> <span class=nx>ctx</span>: <span class=kt>Worker</span> <span class=o>=</span> <span class=nx>self</span> <span class=kr>as</span> <span class=nx>any</span><span class=p>;</span>
+
+  <span class=nx>ctx</span><span class=p>.</span><span class=nx>onmessage</span> <span class=o>=</span> <span class=p>(</span><span class=nx>e</span><span class=p>)</span> <span class=o>=&gt;</span> <span class=p>{</span>
+      <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;Got message&#34;</span> <span class=p>);</span>
+      <span class=nx>ctx</span><span class=p>.</span><span class=nx>postMessage</span><span class=p>(</span> <span class=s2>&#34;Hi there&#34;</span> <span class=p>);</span>
+      <span class=k>for</span> <span class=p>(</span><span class=kr>const</span> <span class=p>[</span><span class=nx>name</span><span class=p>]</span> <span class=nx>of</span> <span class=nx>db</span><span class=p>.</span><span class=nx>query</span><span class=p>(</span><span class=s2>&#34;SELECT name FROM people&#34;</span><span class=p>))</span> <span class=p>{</span>
+          <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span><span class=nx>name</span><span class=p>);</span>
+      <span class=p>}</span>
+
+  <span class=p>}</span>
+
+  <span class=kr>const</span> <span class=nx>db</span> <span class=o>=</span> <span class=k>new</span> <span class=nx>DB</span><span class=p>();</span>
+
+  <span class=nx>db</span><span class=p>.</span><span class=nx>query</span><span class=p>(</span>
+      <span class=s2>&#34;CREATE TABLE IF NOT EXISTS people (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT)&#34;</span><span class=p>,</span>
+  <span class=p>);</span>
+
+  <span class=kr>const</span> <span class=nx>names</span> <span class=o>=</span> <span class=p>[</span><span class=s2>&#34;Peter Parker&#34;</span><span class=p>,</span> <span class=s2>&#34;Clark Kent&#34;</span><span class=p>,</span> <span class=s2>&#34;Bruce Wayne&#34;</span><span class=p>];</span>
+
+  <span class=c1>// Run a simple query
+</span><span class=c1></span>  <span class=k>for</span> <span class=p>(</span><span class=kr>const</span> <span class=nx>name</span> <span class=nx>of</span> <span class=nx>names</span><span class=p>)</span> <span class=p>{</span>
+      <span class=nx>db</span><span class=p>.</span><span class=nx>query</span><span class=p>(</span><span class=s2>&#34;INSERT INTO people (name) VALUES (?)&#34;</span><span class=p>,</span> <span class=p>[</span><span class=nx>name</span><span class=p>]);</span>
+  <span class=p>}</span>
+
+  <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;Loaded the worker&#34;</span> <span class=p>);</span>
+</code></pre></div></div><p>Then we need to bundle it up:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>deno bundle web.tsx web.js</code></pre></div></div><p>This creates a <code class=verbatim>web.js</code> file that contains our webworker as well as the
+entire <code class=verbatim>sqlite</code> binary in wasm.</p><h3 id=headline-10>Webpage</h3><p>This code is simpler that the previous code. We load up <code class=verbatim>web.js</code> as a <code class=verbatim>modulepreload</code>, and then inside of our script tag we create the new webwork, and send it a message. Once it gets the message it creates the in-memory database, then</p><div class="src src-html"><div class=highlight><pre class=chroma><code class=language-html data-lang=html>  <span class=p>&lt;</span><span class=nt>html</span><span class=p>&gt;</span>
+    <span class=p>&lt;</span><span class=nt>head</span><span class=p>&gt;</span>
+    <span class=p>&lt;</span><span class=nt>link</span> <span class=na>rel</span><span class=o>=</span><span class=s>&#34;modulepreload&#34;</span> <span class=na>href</span><span class=o>=</span><span class=s>&#34;web.js&#34;</span><span class=p>&gt;</span>
+    <span class=p>&lt;/</span><span class=nt>head</span><span class=p>&gt;</span>
+    <span class=p>&lt;</span><span class=nt>body</span><span class=p>&gt;</span>
+      <span class=p>&lt;</span><span class=nt>div</span> <span class=na>id</span><span class=o>=</span><span class=s>&#34;status&#34;</span><span class=p>&gt;</span>Loading...<span class=p>&lt;/</span><span class=nt>div</span><span class=p>&gt;</span>
+      <span class=p>&lt;</span><span class=nt>table</span> <span class=na>id</span><span class=o>=</span><span class=s>&#34;data&#34;</span><span class=p>&gt;&lt;/</span><span class=nt>table</span><span class=p>&gt;</span>
+
+      <span class=p>&lt;</span><span class=nt>script</span> <span class=na>type</span><span class=o>=</span><span class=s>&#34;module&#34;</span><span class=p>&gt;</span>
+        <span class=kr>const</span> <span class=nx>worker</span> <span class=o>=</span> <span class=k>new</span> <span class=nx>Worker</span><span class=p>(</span> <span class=s2>&#34;./web.js&#34;</span><span class=p>,</span> <span class=p>{</span><span class=nx>type</span><span class=o>:</span> <span class=s2>&#34;module&#34;</span><span class=p>});</span>
+
+        <span class=nx>worker</span><span class=p>.</span><span class=nx>onmessage</span> <span class=o>=</span> <span class=p>(</span><span class=nx>e</span><span class=p>)</span> <span class=p>=&gt;</span> <span class=p>{</span> <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=sb>`received </span><span class=si>${</span><span class=nx>e</span><span class=si>}</span><span class=sb>`</span> <span class=p>)</span> <span class=p>};</span>
+      
+        <span class=nx>worker</span><span class=p>.</span><span class=nx>postMessage</span><span class=p>(</span> <span class=p>[</span><span class=s1>&#39;hello&#39;</span><span class=p>,</span> <span class=s1>&#39;This is my message&#39;</span><span class=p>]</span> <span class=p>);</span>
+        <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span> <span class=s2>&#34;Sending hello message&#34;</span> <span class=p>);</span>
+
+        <span class=kr>const</span> <span class=nx>status</span> <span class=o>=</span> <span class=nb>document</span><span class=p>.</span><span class=nx>querySelector</span><span class=p>(</span> <span class=s2>&#34;#status&#34;</span> <span class=p>);</span>
+        <span class=nx>status</span><span class=p>.</span><span class=nx>innerText</span> <span class=o>=</span> <span class=s2>&#34;Loaded&#34;</span><span class=p>;</span>
+
+      <span class=p>&lt;/</span><span class=nt>script</span><span class=p>&gt;</span>
+    <span class=p>&lt;/</span><span class=nt>body</span><span class=p>&gt;</span>
+  <span class=p>&lt;/</span><span class=nt>html</span><span class=p>&gt;</span></code></pre></div></div><h3 id=headline-11>But that's not the same!</h3><p>I don't know how to load in the database file with the deno bundle
+based solution, so at this moment while it works I don't know how to
+solve that issue. Still the approach is cleaner.</p><h2 id=headline-12>Conclusion</h2><p>Right now it looks like <code class=verbatim>sql.js</code> will do what I want. I'm surprised at
+how fast web assembly is.</p><h2 id=headline-13>References</h2><ol><li><p><a href=https://sql.js.org/>https://sql.js.org/</a></p></li><li><p><a href=https://github.com/dyedgreen/deno-sqlite>https://github.com/dyedgreen/deno-sqlite</a></p></li><li><p><a href=https://github.com/dyedgreen/deno-sqlite/issues/105>https://github.com/dyedgreen/deno-sqlite/issues/105</a></p></li></ol></article></div><div class="bg-light py-5"><div class=container><h2 class=text-center>Read next</h2><div class=row><div class="col-md-6 text-center"></div><div class="col-md-6 text-center">Previous Post:
+<a href=../../../articles/2021/setting_up_emacs_for_typescript_development/>Setting up emacs for typescript development</a></div></div></div></div><footer class="footer bg-dark text-light mt-3"><div class=container><h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2></div></footer></body></html>
