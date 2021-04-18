@@ -12,8 +12,8 @@ RUN apt-get update && apt-get install -y cloc libsqlite3-dev
 
 WORKDIR /app
 
-#COPY Gemfile* ./
-#RUN bundle install
+COPY Gemfile* ./
+RUN bundle install
 
 #COPY *.rb *sh ./
 #RUN chmod +x *.sh *rb
@@ -35,42 +35,13 @@ CMD bash
 
 #             -v $PWD:/app \
 
-* Rakefile
-
-#+begin_src ruby :tangle Rakefile
-  REPO_WORK_DIR="/repository"
-  REPO=ENV['REPO']
-
-  throw "Set REPO" if REPO.nil? || REPO == ""
-
-  if !File.exists?( "#{REPO_WORK_DIR}/.git" )
-    puts "Ensuring that we have the repository"
-    system( "git clone #{REPO} #{REPO_WORK_DIR}" )
-  end
-
-  file "authors.log" do
-    puts "Generating authors.log"
-    system( "(cd #{REPO_WORK_DIR};git log --pretty=format:\"%ae:%an\") | sort -u > authors.log" )
-  end
-
-  file "commits.log" do
-    puts "Generating commits.log"
-    system( "(cd #{REPO_WORK_DIR};git log --reverse --pretty='format:%aI|%ae|%an|%D') | sort > commits.log" )
-  end
-
-  task :avatars => "authors.log" do
-    puts "Looking for avatars"
-  end
-
-  task :default => :avatars
-#+end_src
 * =entry_point= Script
 
 1. Checkout the repostory
 2. Create the work directory
 3. Run the scripts
    
-#+begin_src bash tangle entry_point.sh
+#+begin_src bash :tangle entry_point.sh
   #!/bin/bash
   REPO_WORK_DIR=/repository
   WORK_DIR=/output
@@ -93,13 +64,22 @@ CMD bash
 
 
   # Create a log of commits
-  (cd ${REPO_WORK_DIR};git log --reverse --pretty='format:%aI|%ae|%an|%D') | sort > ${WORK_DIR}/commits.log
+  #(cd ${REPO_WORK_DIR};git log --reverse --pretty='format:%aI|%ae|%an|%D') | sort > ${WORK_DIR}/commits.log
 
   # Create a list of authors
-  (cd ${REPO_WORK_DIR};git log --pretty=format:"%ae:%an") | sort -u > ${WORK_DIR}/authors.log
+  #(cd ${REPO_WORK_DIR};git log --pretty=format:"%ae:%an") | sort -u > ${WORK_DIR}/authors.log
 
   # Create a log of commits with files
-  (cd ${REPO_WORK_DIR};git log --pretty=format:'|%h|%ae|%an|%aI|%s' --numstat) > ${WORK_DIR}/commits_with_files.log
+  (
+      cd ${REPO_WORK_DIR}
+      git log --pretty=format:'|%H|%ae|%an|%aI|%s' --numstat
+  ) > ${WORK_DIR}/commits_with_files.log
+
+  # Create a list of tags
+  (
+      cd ${REPO_WORK_DIR}
+      git tag --sort=-v:refname --format='%(refname:short):%(objectname):%(*objectname):%(creatordate:iso8601-strict)'
+  ) > ${WORK_DIR}/tags.log
 
   cd ${WORK_DIR}
 
@@ -108,204 +88,11 @@ CMD bash
   done
 #+end_src
 
-* Avatars
-#+begin_src ruby tangle avatars.rb
-  require 'fileutils'
-  require 'digest'
-
-  FileUtils.mkdir_p "avatars"
-
-  File.readlines( "authors.log" ).each do |line|
-    email,name = line.chomp.split( /\:/ )
-    if( !File.exists?( "avatars/#{name}.png" ) )
-      md5 = Digest::MD5.hexdigest email
-      system( "curl http://www.gravatar.com/avatar/#{md5}?size=512 -o \"avatars/#{name}.png\"" )
-    else
-      puts "#{name}.png already exists"
-    end
-  end
-#+end_src
-
-* Monthly commits
-
-#+begin_src ruby tangle monthly_commits.rb
-  require 'csv'
-  require 'json'
-  require 'date'
-
-  count = 0
-  last_month = nil
-  people = {}
-
-  CSV.open( ARGV[1] || "monthly_commits.csv", "w" ) do |csv|
-    csv << ['date', 'commits', 'authors', 'authors_json' ]
-
-    File.readlines( ARGV[0] || "commits.log" ).each do |line|
-      date, email, name = line.split( "|" )
-      month = date.gsub( /-\d\dT.*/, "" ).chomp
-
-      if month != last_month && last_month
-        csv << [last_month, count, people.length, people.to_json]
-
-        count = 0
-        people = {}
-
-        lc = 0
-      
-        # Fill in the missing months with zeros
-        next_month = (Date.parse( "#{last_month}-01" ) >> 1).strftime( "%Y-%m" )
-        while next_month != month
-          csv << [next_month, 0, 0, {}.to_json]
-          next_month = (Date.parse( "#{next_month}-01" ) >> 1).strftime( "%Y-%m" )
-          lc += 1
-          continue if lc > 24 # after 2 years this is probably broken
-        end
-      end
-
-      people[name] ||= 0
-      people[name] += 1
-
-      count += 1
-      last_month = month
-    end
-
-    csv << [last_month, count, people.length, people.to_json]
-  end
-#+end_src
-
-#+begin_src ruby
-require 'csv'
-require 'date'
-require 'json'
-
-count = 0
-last_month = nil
-people = {}
-
-CSV.open( ARGV[1] || "monthly_commits_show_blanks.csv", "w" ) do |csv|
-  csv << ['date', 'commits', 'authors', 'authors_json' ]
-
-  File.readlines( ARGV[0] || "commits.log" ).each do |line|
-    date, email, name = line.split( "|" )
-    month = date.gsub( /-\d\dT.*/, "" ).chomp;
-    if( month != last_month && last_month )
-      csv << [last_month, count, people.length, people.to_json]
-
-      count = 0
-      people = {}
-      
-      lc = 0
-      
-      # Fill in the missing months with zeros
-      next_month = (Date.parse( "#{last_month}-01" ) >> 1).strftime( "%Y-%m" )
-      while next_month != month
-        csv << [next_month, 0, 0, {}.to_json]
-        next_month = (Date.parse( "#{next_month}-01" ) >> 1).strftime( "%Y-%m" )
-        lc += 1
-        continue if lc > 24 # after 2 years this is probably broken
-      end
-    end
-    
-    people[name] ||= 0
-    people[name] += 1
-    
-    count += 1
-    last_month = month
-  end
-  
-  csv << [ last_month, count, people.length, people.to_json ]
-end
-
-
-#+end_src
-* Project Timeline
-
-#+begin_src ruby tangle project_timeline.rb
-  require 'csv'
-  require 'date'
-  require 'json'
-
-  CONTRIBUTOR_ACTIVE_MONTHS = 3
-  PROJECT_IDLE_MONTHS = 6
-
-  author_last_seen = {}
-  author_commits = {}
-  period_commits = 0
-  period_authors = {}
-  period_author_first_seen = {}
-  tag_authors = {}
-  csv = []
-
-  last_date = nil
-  File.readlines( ARGV[0] || "commits.log" ).each do |line|
-    date_string, email, name, decorator = line.split( "|" )
-    date = Date.parse( date_string )
-  
-    csv << [date, 'project', 'project_started', ''] if last_date.nil?
-  
-    if last_date && Date.parse(last_date) >> PROJECT_IDLE_MONTHS < date
-      csv << [Date.parse(last_date) >> PROJECT_IDLE_MONTHS, 'project', 'project_idle', period_authors.to_json, period_commits]
-      csv << [date, 'project', 'project_active', '']
-      period_commits = 0
-      period_authors = {}
-    end
-  
-    csv << [date, 'committer', 'started_contributing', name] if !author_last_seen[name]
-    author_last_seen[name] = date
-    author_commits[name] ||= 0
-    author_commits[name] += 1
-    period_authors[name] ||=0
-    period_authors[name] += 1
-    period_author_first_seen[name] ||= date
-    tag_authors[name] ||= 0
-    tag_authors[name] += 1
-  
-    left_authors = []
-    author_last_seen.each do |author,last_seen|
-      if last_seen >> CONTRIBUTOR_ACTIVE_MONTHS < date
-        left_authors << author
-        csv << [last_seen >> CONTRIBUTOR_ACTIVE_MONTHS, 'committer', 'left_project', author, author_commits[author]]
-        csv << [period_author_first_seen[author], 'committer', 'activity_between', author, author_last_seen[author], author_commits[author]]
-        author_commits.delete author
-        period_author_first_seen.delete author
-      end
-    end
-    left_authors.each { |author| author_last_seen.delete( author ) }
-
-    # Add tagging event
-    if decorator =~ /tag: (.*)/
-      csv << [date, 'project', 'tag', $1, name, tag_authors.to_json]
-      tag_authors = {}
-    end
-  
-    last_date = date_string
-    period_commits += 1
-  end
-
-  # Dump out remaining active people
-
-  period_author_first_seen.each do |author,first_seen|
-    csv << [first_seen, 'committer', 'activity_between', author, author_last_seen[author], author_commits[author]]
-  end
-
-  csv << [Date.parse(last_date), 'project', 'last_data', author_commits.to_json, period_commits]
-
-  CSV.open( ARGV[1] || "project_timeline.csv", "w" ) do |out|
-    out << ['date','actor', 'action', 'data', 'commits']
-
-    csv.sort { |a,b| a[0] <=> b[0] }.each { |x| out << x }
-  end
-
-#+end_src
 * Files
 
 We'll need a =Gemfile= to include for the sqlite3 gem.
 
-#+begin_src bash
-  sudo apt-get install libsqlite3-dev
-#+end_src
-
-#+begin_src ruby tangle Gemfile
+#+begin_src ruby :tangle Gemfile
   # frozen_string_literal: true
 
   source "https://rubygems.org"
@@ -315,7 +102,18 @@ We'll need a =Gemfile= to include for the sqlite3 gem.
   gem "sqlite3", "~> 1.4"
 #+end_src
 
-#+begin_src ruby tangle sqlite.rb
+* Commits
+
+Lets first populate the database with all of the commits, and files
+associated with those commits.
+
+This works off a file created with
+
+#+begin_src bash
+  git log --pretty=format:'|%H|%ae|%an|%aI|%s' --numstat
+#+end_src
+
+#+begin_src ruby :tangle commits.rb
   require 'sqlite3'
 
   def create_database filename
@@ -382,7 +180,92 @@ We'll need a =Gemfile= to include for the sqlite3 gem.
   parse_file db, "commits_with_files.log"
   db.commit
 #+end_src
+
 * Tags
+
+Now lets populate the tag information.  We are banking on the idea
+that a lot of projects will automatically tag a release as part of
+their build scripts.
+
+This file is created with:
+
+#+begin_src bash
+  git tag --sort=-v:refname --format='%(refname:short):%(objectname):%(*objectname):%(creatordate:iso8601-strict)'
+#+end_src
+
+#+begin_src ruby :tangle tags.rb
+  require 'sqlite3'
+
+  def create_database filename
+    db = SQLite3::Database.new filename
+
+    rows = db.execute <<-SQL1
+         CREATE TABLE IF NOT EXISTS tags (
+                name TEXT UNIQUE,
+                sha TEXT,
+                object TEXT,
+                created_at DATETIME
+                );
+  SQL1
+
+    return db
+  end
+
+  def add_tag db, name, sha, object, created_at
+    ret = db.execute("INSERT INTO tags (name, sha, object, created_at)
+              VALUES (?, ?, ?, ?)", [name, sha, object, created_at])
+  end
+
+
+
+  def parse_file db, file
+    commit = nil
+    File.open( file ).each_line do |line|
+      line.chomp!
+      md = line.match( /(.*?):(.*?):(.*?):(.*)/ )
+
+      if( !md )
+          puts "Unrecognized line #{line}"
+      else
+        tag_name = md[1]
+        sha = md[2]
+        sha_object = md[3] unless md[3] == "" # have annotated tags point to the main commit
+        created_at = md[4]
+
+        begin
+          add_tag db, tag_name, sha, sha_object, created_at
+        rescue SQLite3::ConstraintException
+          puts "Found existing tag, exiting"
+          exit
+        end
+      end
+    end
+  end
+
+  db = create_database "commits.db"
+  db.transaction
+  parse_file db, "tags.log"
+  db.commit
+#+end_src
+
+So if you wanted to find out who tagged what when you could use the query:
+
+#+begin_src sql
+  select id, name, summary, author_name, created_at
+  from tags, commits
+  where id=object or id=sha
+  order by created_at desc;
+#+end_src
+
+* Finding authors
+* Producing a timeline
+
+* Source file types
+
+#+begin_src bash
+cd #{repository.workdir};cloc --skip-uniqueness --quiet --by-file --csv --git #{sha}
+
+#+end_src
 * References
 # Local Variables:
 # eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
