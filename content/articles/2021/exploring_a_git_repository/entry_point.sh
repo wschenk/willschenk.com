@@ -1,6 +1,6 @@
 #!/bin/bash
-REPO_WORK_DIR=/repository
-WORK_DIR=/output
+export REPO_WORK_DIR=/repository
+export WORK_DIR=/output
 
 if [ -d ${REPO_WORK_DIR} ]; then
    echo Using repo in ${REPO_WORK_DIR}

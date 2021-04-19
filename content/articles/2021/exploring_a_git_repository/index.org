@@ -1,6 +1,8 @@
 #+title: Exploring a git repository
-#+title: git
+#+subtitle: just dump everything directly into sqlite
+#+tags: git
 #+date: 2021-03-24
+#+PROPERTY: header-args :db output/commits.db
 #+draft: true
 
 * Dockerfile
@@ -43,8 +45,8 @@ CMD bash
    
 #+begin_src bash :tangle entry_point.sh
   #!/bin/bash
-  REPO_WORK_DIR=/repository
-  WORK_DIR=/output
+  export REPO_WORK_DIR=/repository
+  export WORK_DIR=/output
 
   if [ -d ${REPO_WORK_DIR} ]; then
      echo Using repo in ${REPO_WORK_DIR}
@@ -113,7 +115,10 @@ This works off a file created with
   git log --pretty=format:'|%H|%ae|%an|%aI|%s' --numstat
 #+end_src
 
-#+begin_src ruby :tangle commits.rb
+/Note that we are creating a =tag= attribute in commits which will we
+populate later./
+
+#+begin_src ruby :tangle 0commits.rb
   require 'sqlite3'
 
   def create_database filename
@@ -122,6 +127,7 @@ This works off a file created with
     rows = db.execute <<-SQL1
          CREATE TABLE IF NOT EXISTS commits (
                 id	TEXT UNIQUE,
+                tag TEXT,
                 summary	TEXT,
                 author_name	TEXT,
                 author_email	TEXT,
@@ -166,7 +172,7 @@ This works off a file created with
           add_commit db, md[1], md[2], md[3], md[4], md[5]
         rescue SQLite3::ConstraintException
           puts "Found existing commit, exiting"
-          exit
+          return
         end
       elsif line.length != 0
         md = /([\d|-]*)\s*([\d|-]*)\s*(.*)/.match( line )
@@ -180,6 +186,77 @@ This works off a file created with
   parse_file db, "commits_with_files.log"
   db.commit
 #+end_src
+* Looking at Entities
+** All Entities all Authors
+
+We can look at who changed which file the most.
+
+#+begin_src sqlite :colnames yes
+  select author_name, name,
+    count(name) as times_touched,
+    sum(added) as lines_added,
+    sum(deleted) as lined_deleted,
+    date(max(author_when)) as most_recently
+  from commits, commit_files
+  where commits.id = commit_files.id
+  group by author_name, name
+  order by times_touched desc
+    limit 10;
+#+end_src
+
+#+RESULTS:
+#+ATTR_HTML: :class table table-striped
+| author_name      | name              | times_touched | lines_added | lined_deleted | most_recently |
+|------------------+-------------------+---------------+-------------+---------------+---------------|
+| scott Chacon     | lib/git/lib.rb    |            41 |         775 |           167 |    2008-01-31 |
+| scott Chacon     | lib/git/base.rb   |            28 |         504 |            49 |    2008-01-31 |
+| robertodecurnex  | lib/git/lib.rb    |            25 |         221 |           128 |    2014-06-25 |
+| scott Chacon     | camping/gitweb.rb |            18 |         667 |           112 |    2007-11-29 |
+| scott Chacon     | lib/git/object.rb |            18 |         349 |            69 |    2007-11-27 |
+| scott Chacon     | README            |            17 |         473 |           209 |    2007-11-27 |
+| scott Chacon     | lib/git.rb        |            17 |         137 |            42 |    2007-11-20 |
+| Roberto Decurnex | lib/git/lib.rb    |            16 |         386 |           243 |    2016-02-25 |
+| robertodecurnex  | lib/git/base.rb   |            14 |          95 |            28 |    2014-01-15 |
+| Roberto Decurnex | README.md         |            13 |          54 |            23 |    2016-02-25 |
+** Who touched a file the most recently
+
+We can also look at who touched a file in general, to get a sense of
+maybe who knows how it works.  If the last person who touched it is
+the person who owns it, you know who to look for.
+
+#+begin_src sqlite :colnames yes
+  select
+    name,
+    author_name,
+    date(max(author_when)) as last_touched,
+    count(name) as times_touched,
+    sum(added) as lines_added
+  from commits, commit_files
+  where commits.id = commit_files.id
+     and name = 'README.md'
+  group by author_name
+  order by last_touched desc
+  limit 100
+#+end_src
+
+#+RESULTS:
+#+ATTR_HTML: :class table table-striped
+| name      | author_name       | last_touched | times_touched | lines_added |
+|-----------+-------------------+--------------+---------------+-------------|
+| README.md | James Couball     |   2020-12-28 |             3 |          31 |
+| README.md | Hidetaka Okita    |   2020-12-22 |             1 |           1 |
+| README.md | Alex Mayer        |   2020-12-20 |             2 |         225 |
+| README.md | Ofir Petrushka    |   2020-09-05 |             1 |          15 |
+| README.md | Salim Afiune      |   2019-09-20 |             1 |           1 |
+| README.md | Evgenii Pecherkin |   2018-10-02 |             1 |           2 |
+| README.md | Kelly Stannard    |   2018-07-12 |             1 |           1 |
+| README.md | Joshua Liebowitz  |   2018-06-25 |             1 |           1 |
+| README.md | Per Lundberg      |   2018-05-16 |             2 |           4 |
+| README.md | Roberto Decurnex  |   2016-02-25 |            13 |          54 |
+| README.md | Guy Hughes        |   2014-05-21 |             1 |           2 |
+| README.md | robertodecurnex   |   2014-01-15 |             2 |          17 |
+| README.md | Andy Schrage      |   2013-12-17 |             1 |           1 |
+| README.md | schneems          |   2011-10-19 |             1 |         251 |
 
 * Tags
 
@@ -193,7 +270,7 @@ This file is created with:
   git tag --sort=-v:refname --format='%(refname:short):%(objectname):%(*objectname):%(creatordate:iso8601-strict)'
 #+end_src
 
-#+begin_src ruby :tangle tags.rb
+#+begin_src ruby :tangle 1tags.rb
   require 'sqlite3'
 
   def create_database filename
@@ -204,6 +281,7 @@ This file is created with:
                 name TEXT UNIQUE,
                 sha TEXT,
                 object TEXT,
+                author_email TEXT,
                 created_at DATETIME
                 );
   SQL1
@@ -211,12 +289,10 @@ This file is created with:
     return db
   end
 
-  def add_tag db, name, sha, object, created_at
-    ret = db.execute("INSERT INTO tags (name, sha, object, created_at)
-              VALUES (?, ?, ?, ?)", [name, sha, object, created_at])
+  def add_tag db, name, sha, object, created_at, author_email
+    ret = db.execute("INSERT INTO tags (name, sha, object, created_at, author_email)
+              VALUES (?, ?, ?, ?, ?)", [name, sha, object, created_at, author_email])
   end
-
-
 
   def parse_file db, file
     commit = nil
@@ -232,41 +308,693 @@ This file is created with:
         sha_object = md[3] unless md[3] == "" # have annotated tags point to the main commit
         created_at = md[4]
 
+        tagger = db.execute( "select author_email from commits where id = (?) or id = (?)", [sha, sha_object == "" ? sha : sha_object] ).first
+
         begin
-          add_tag db, tag_name, sha, sha_object, created_at
+          add_tag db, tag_name, sha, sha_object, created_at, tagger
         rescue SQLite3::ConstraintException
           puts "Found existing tag, exiting"
-          exit
+          return
         end
       end
     end
   end
 
+  def tag_commits db
+    last_date = nil
+    db.execute( "select name, created_at from tags where created_at is not null order by created_at asc" ).each do |row|
+      if last_date.nil?
+        db.execute( "update commits set tag = (?) where author_when <= (?)", [row[0], row[1]] )
+      else
+        db.execute( "update commits set tag = (?) where author_when <= (?) and author_when > (?)", [row[0], row[1], last_date] )
+      end
+
+      last_date = row[1]
+    end
+
+    db.execute( "update commits set tag = 'HEAD' where author_when > (?)", [last_date] )
+  end
+
   db = create_database "commits.db"
   db.transaction
   parse_file db, "tags.log"
+  tag_commits db
   db.commit
 #+end_src
 
 So if you wanted to find out who tagged what when you could use the query:
 
-#+begin_src sql
+#+begin_src sqlite :colnames yes
   select id, name, summary, author_name, created_at
   from tags, commits
   where id=object or id=sha
   order by created_at desc;
 #+end_src
 
+* Things that changed in a release
+
+Let's come up with some queries to tell us what has changed during a
+certain time period. What we are going to do applies best to repos
+that have trunk-on-main, meaning that there's a more or less basic
+branching strategy and we can just look at commits based upon
+timestamp.
+
+** Commit Messages
+
+#+begin_src sqlite :colnames yes
+   select
+     author_name,
+     tag,
+     summary
+   from commits
+   where tag = 'v1.8.1'
+   
+#+end_src
+
+#+RESULTS:
+| author_name   | tag    | summary                                                       |
+|---------------+--------+---------------------------------------------------------------|
+| James Couball | v1.8.1 | Release v1.8.1 (#508)                                         |
+| James Couball | v1.8.1 | Add all appropriate files (excluding tests) to the gem (#507) |
+
+** File changes
+
+If we wanted to focus our testing on what has changed in a release,
+here's a map to get you started.
+
+#+begin_src sqlite :colnames yes
+  select
+    author_name,
+    name,
+    count(commits.id) as changes,
+    sum( added ) as lines_added
+  from commits, commit_files
+  where commits.id = commit_files.id
+      and commits.tag = 'v1.8.1'
+  group by name, author_name
+  order by name
+#+end_src
+
+#+RESULTS:
+| author_name   | name               | changes | lines_added |
+|---------------+--------------------+---------+-------------|
+| James Couball | CHANGELOG.md       |       1 |           4 |
+| James Couball | git.gemspec        |       1 |           5 |
+| James Couball | lib/git/version.rb |       1 |           1 |
+
+Which can we verify by [[https://github.com/ruby-git/ruby-git/compare/v1.8.0...v1.8.1][looking at github]].
+
 * Finding authors
+
+We can look at the commits to find some information about the
+contributors.  We'll look at:
+
+#+ATTR_HTML: :class table table-striped
+| Name                     | Their reported name        |
+| Email                    | Their reported email       |
+| Number of commits        | Total over time            |
+| Number of tags           | Total over time            |
+| First Contribution       | First time we saw them     |
+| Most recent contribution | Last time we saw them      |
+| First reported timezone  | Guess as to where they are |
+
+The query is basically:
+
+#+begin_src sqlite :colnames yes
+  select
+    author_name,
+    count(*) as cnt,
+    date(min(author_when)) as earliest,
+    date(max(author_when)) as latest
+  from commits
+  group by author_email
+  having cnt > 2
+  order by count(*) desc
+#+end_src
+
+#+RESULTS:
+#+ATTR_HTML: :class table table-striped
+| author_name      | cnt |   earliest |     latest |
+|------------------+-----+------------+------------|
+| Roberto Decurnex | 147 | 2013-04-03 | 2016-02-25 |
+| scott Chacon     |  47 | 2007-11-10 | 2008-01-31 |
+| scott Chacon     |  34 | 2007-11-07 | 2007-11-29 |
+| Josh Nichols     |  24 | 2009-04-27 | 2011-09-02 |
+| schacon          |  21 | 2008-03-03 | 2009-08-10 |
+| James Couball    |  20 | 2019-02-17 | 2021-01-18 |
+| Daniel Mendler   |   8 | 2009-02-07 | 2009-02-12 |
+| Per Lundberg     |   8 | 2018-01-10 | 2018-08-10 |
+| Roberto Decurnex |   8 | 2014-06-09 | 2014-09-29 |
+| Vern Burton      |   6 | 2018-03-07 | 2020-12-22 |
+| elliottcable     |   4 | 2009-02-12 | 2009-02-12 |
+| James Rosen      |   4 | 2008-12-21 | 2008-12-21 |
+| Kelly Stannard   |   4 | 2014-08-06 | 2014-08-07 |
+| Yuichi Tateno    |   3 | 2008-07-25 | 2008-07-25 |
+| Jorge Bernal     |   3 | 2008-05-05 | 2008-05-06 |
+| Michael Mallete  |   3 | 2013-05-23 | 2013-05-24 |
+
+#+begin_src ruby :tangle 2authors.rb
+  require 'sqlite3'
+
+  def create_database filename
+    db = SQLite3::Database.new filename
+
+    rows = db.execute <<-SQL1
+         CREATE TABLE IF NOT EXISTS authors (
+                email text unique,
+                name text,
+                total_commits integer,
+                total_tags integer default 0,
+                earliest DATETIME,
+                latest DATETIME,
+                timezone_offset text
+                );
+  SQL1
+    rows = db.execute( "DELETE FROM authors;" );
+    return db;
+  end
+
+  db = create_database "commits.db"
+  db.transaction
+
+  # Preload the tag counts
+  tag_counts = {}
+  db.execute(
+    "select commits.author_email, count(name) from tags, commits where id=object or id=sha group by commits.author_email"
+  ).each do |row|
+    tag_counts[row[0]] = row[1]
+  end
+
+  db.execute( "select
+      author_email,
+      author_name,
+      count(*) as cnt,
+      min(author_when) as earliest,
+      max(author_when) as latest
+    from commits
+    group by author_email
+    order by count(*) desc" ).each do |row|
+      email, name, cnt, earliest, latest = row
+      tag_count = tag_counts[email] || 0
+
+      ending = earliest[-6..-1] || earliest
+
+      timezone_offset = ""
+      if( ending =~ /[-+]\d\d:\d\d/ )
+        timezone_offset = ending
+      end
+
+      db.execute( "INSERT INTO authors 
+                  (email,name,total_commits,total_tags,earliest,latest,timezone_offset) 
+                  values 
+                  (?,?,?,?,?,?,?)", [email, name, cnt, tag_count, earliest, latest, timezone_offset] );
+  end
+
+  db.commit
+#+end_src
+
+Lets take a look at this table for our test repo.  Lets look at all
+the people who created a tag, ordering it by the last time they were
+active in the repo.
+
+The story this tells is the maintainership of the repo over time.
+
+#+begin_src sqlite :colnames yes
+  select name, date(earliest), date(latest), total_commits, total_tags, timezone_offset
+         from authors
+       where total_tags > 0
+       order by latest desc
+#+end_src
+
+#+RESULTS:
+#+ATTR_HTML: :class table table-striped
+| name             | date(earliest) | date(latest) | total_commits | total_tags | timezone_offset |
+|------------------+----------------+--------------+---------------+------------+-----------------|
+| James Couball    |     2019-02-17 |   2021-01-18 |            20 |          3 |          -08:00 |
+| James Couball    |     2020-04-25 |   2020-04-25 |             1 |          1 |          -07:00 |
+| Per Lundberg     |     2018-01-10 |   2018-08-10 |             8 |          2 |          +02:00 |
+| Roberto Decurnex |     2013-04-03 |   2016-02-25 |           147 |          5 |          -03:00 |
+| Roberto Decurnex |     2014-06-09 |   2014-09-29 |             8 |          2 |          -03:00 |
+| Josh Nichols     |     2009-04-27 |   2011-09-02 |            24 |          6 |          -04:00 |
+| schacon          |     2008-03-03 |   2009-08-10 |            21 |          2 |          -08:00 |
+| Joshua Peek      |     2008-03-15 |   2008-03-15 |             1 |          1 |          -05:00 |
+| scott Chacon     |     2007-11-10 |   2008-01-31 |            47 |          1 |          -08:00 |
+
+
+We can see that the stewardship of this repo was something like:
+
+Originally Scott Chacon (West Coast) and Josua Peek (East Coast) in
+2007-2008.
+
+Josh Nichols (East Coast) in 2009-2011.
+
+Roberto Decurnex (-3 is probably Brazil?) in 2013-2014, when there was
+quite a lot of activity.
+
+Per Lundberg (+2 is probably in Europe) 2018.
+
+And currently James Couball from 2019 to 2021, hailing again from the
+West Coast.
+
+* Identifing file types
+** Using =cloc=
+Let's use the =cloc= program to try and map out what sorts of file are
+in the repository, how many lines of code vs comments vs white spaces.
+
+=cloc= can work by using a git tag or object, and it will look at the
+repository at that state.  We'll start by inventoring the current
+state, and then go back for each tag to see what that snapshot looks
+like.
+
+#+begin_src ruby :tangle 3cloc.rb
+  require 'sqlite3'
+  require 'csv'
+  exit
+  def create_database filename
+    db = SQLite3::Database.new filename
+
+    rows = db.execute <<-SQL1
+         CREATE TABLE IF NOT EXISTS file_stats_summary (
+                sha text,
+                tag text,
+                author_name text,
+                author_email text,
+                author_when text,
+                code_lines integer,
+                comment_lines integer,
+                blank_lines integer
+                );
+  SQL1
+    rows = db.execute "delete from file_stats_summary";
+
+    rows = db.execute <<-SQL1
+         CREATE TABLE IF NOT EXISTS file_stats (
+                sha text,
+                filename text,
+                language text,
+                code_lines integer,
+                comment_lines integer,
+                blank_lines integer
+                );
+  SQL1
+    rows = db.execute "delete from file_stats";
+    return db;
+  end
+
+  def import_cloc_output db, sha
+    puts "Finding stats for #{sha}"
+    output = `(cd #{ENV['REPO_WORK_DIR']};cloc --skip-uniqueness --quiet --by-file --csv --git #{sha})`
+    CSV.parse(output).each do |row|
+      next if row == []
+      next if row[0] == 'language'
+      if row[0] == 'SUM'
+        return { code_lines: row[4], comment_lines: row[3], blank_lines: row[2] }
+      else
+        ret = db.execute(
+          "INSERT INTO file_stats (sha, filename, language, code_lines, comment_lines, blank_lines)
+          VALUES (?, ?, ?, ?, ?, ?)",
+          sha, row[1], row[0], row[4], row[3], row[2] )
+      end
+    end
+  end
+
+  def find_commit db, sha, obj
+    row = db.execute( "select author_name, author_email, author_when from commits where id=(?) or id=(?)", [sha, obj] ).first
+
+    return nil if row.nil?
+    return {author_name: row[0], author_email: row[1], author_when: row[2]}
+  end
+
+  def add_summary db, summary, name, sha, commit
+    commit ||= {}
+    author_name = commit[:author_name]
+    author_email = commit[:author_email]
+    author_when = commit[:author_when];
+
+    ret = db.execute(
+      "INSERT INTO file_stats_summary (sha, tag, author_name, author_email, author_when, code_lines, comment_lines, blank_lines)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      [sha,
+       name,
+       author_name,
+       author_email,
+       author_when,
+       summary[:code_lines],
+       summary[:comment_lines],
+       summary[:blank_lines]
+      ])
+  end
+
+  db = create_database "commits.db"
+
+  db.transaction
+  head = `(cd #{ENV['REPO_WORK_DIR']};git rev-parse HEAD)`.chomp
+  summary = import_cloc_output db, head
+  add_summary db, summary, "HEAD", head, find_commit( db, head, head )
+
+  db.execute( "select sha, name, object from tags" ) do |row|
+    sha = row[0]
+    name = row[1]
+    object = row[2]
+    summary = import_cloc_output db, sha
+    add_summary db, summary, name, sha, find_commit( db, sha, object );
+  end
+  db.commit
+#+end_src
+
+** Code language line counts
+
+Here we can look at a project and see how many files are in each
+language, the numebr of code lines, and the number of comments.
+
+As a basic number I'm not sure that the number of lines means that
+much but the change over time conveys some sort of information.
+
+#+begin_src sqlite :colnames yes
+  select
+    language,
+    count(filename) as files,
+    sum(file_stats.code_lines) as code_lines,
+    sum(file_stats.comment_lines) as comment_lines
+  from file_stats, file_stats_summary
+  where file_stats.sha = file_stats_summary.sha
+    and file_stats_summary.tag = 'HEAD'
+  group by language
+  order by code_lines desc;
+#+end_src
+
+#+RESULTS:
+#+ATTR_HTML: :class table table-striped
+| language     | files | code_lines | comment_lines |
+|--------------+-------+------------+---------------|
+| Ruby         |    55 |       4323 |           883 |
+| Bourne Shell |    37 |        992 |           461 |
+| Markdown     |     7 |        516 |             0 |
+| Perl         |     1 |         65 |            30 |
+| YAML         |     2 |         46 |            10 |
+
+** Seeing code size changes over time
+
+#+begin_src sqlite :colnames yes
+    select tag, author_name, date(author_when), code_lines, comment_lines, blank_lines
+    from file_stats_summary;
+#+end_src
+
+#+RESULTS:
+#+ATTR_HTML: :class table table-striped
+| tag         | author_name      | date(author_when) | code_lines | comment_lines | blank_lines |
+|-------------+------------------+-------------------+------------+---------------+-------------|
+| HEAD        | yancyribbens     |        2021-03-27 |       5942 |          1384 |        1642 |
+| v1.8.1      | James Couball    |        2020-12-31 |       5913 |          1383 |        1635 |
+| v1.8.0      | James Couball    |        2020-12-31 |       5911 |          1383 |        1633 |
+| v1.7.0      | James Couball    |        2020-04-25 |       5134 |          1012 |        1465 |
+| v1.6.0.pre1 |                  |                   |       5023 |           994 |        1428 |
+| v1.6.0      | James Couball    |        2020-02-02 |       5109 |           994 |        1455 |
+| v1.5.0      | Per Lundberg     |        2018-08-10 |       4456 |           778 |        1286 |
+| v1.4.0      | Per Lundberg     |        2018-05-16 |       4227 |           769 |        1198 |
+| v1.3.0      | Roberto Decurnex |        2016-02-25 |       4099 |           703 |        1177 |
+| v1.2.10     | Roberto Decurnex |        2016-02-25 |       4107 |           703 |        1177 |
+| v1.2.9.1    | Roberto Decurnex |        2015-01-15 |       4056 |           703 |        1170 |
+| v1.2.9      | Roberto Decurnex |        2015-01-12 |       4048 |           703 |        1165 |
+| v1.2.8      | Roberto Decurnex |        2014-07-31 |       3759 |           628 |        1077 |
+| v1.2.7      | robertodecurnex  |        2014-06-09 |       3757 |           629 |        1076 |
+| v1.2.6      | robertodecurnex  |        2013-08-17 |       4236 |           651 |        1138 |
+| v1.2.5      | Joshua Nichols   |        2009-10-17 |       3801 |           563 |         941 |
+| v1.2.4      | Joshua Nichols   |        2009-10-02 |       3801 |           563 |         941 |
+| v1.2.3      | Joshua Nichols   |        2009-09-30 |       3801 |           563 |         941 |
+| v1.2.2      | Joshua Nichols   |        2009-08-02 |       3820 |           563 |         945 |
+| v1.2.1      | Joshua Nichols   |        2009-08-01 |       3820 |           563 |         944 |
+| v1.2.0      | Joshua Nichols   |        2009-08-01 |       3813 |           563 |         941 |
+| v1.0.7      | Scott Chacon     |        2008-05-27 |      15802 |           666 |        3532 |
+| 1.0.5.1     | Scott Chacon     |        2008-03-23 |      15724 |           660 |        3514 |
+| 1.0.5       | Joshua Peek      |        2008-03-15 |      15719 |           665 |        3515 |
+| 1.0.3       | scott Chacon     |        2007-11-16 |      13817 |           613 |        3183 |
+
+We can see that a while bunch of code was removed between 2008-2009 (I
+looked, it was the camping front end!) and overall the number of
+comments in the codeback jumped in =v1.8.0= so that implies a bit of
+difference on development styles.
+
 * Producing a timeline
 
-* Source file types
+Let's also produce a summary timeline of what is going on with the
+project.  We can track:
 
-#+begin_src bash
-cd #{repository.workdir};cloc --skip-uniqueness --quiet --by-file --csv --git #{sha}
+#+ATTR_HTML :class table table-striped
+| When a project starts            | First commit                             |
+| When a contributor first appears | First commit by author                   |
+| When a contributor leaves        | Last commit by author                    |
+| Is a contributor active?         | Commit with in time period, say 3 months |
+| Releases                         | Tag creation                             |
+| Major release                    | Semvar change                            |
+| Minor release                    | Semvar change                            |
+| Patch release                    | Semvar change                            |
 
+Another thing to look at is the state of knowledge of the project.  We
+will assume that working knowledge of a file will slowly decay, and so
+if a file hasn't recently been touched by a person who is active on a
+project, then the working knowledge of that file, why certain
+trade-offs were made, etc has been lost and /archeology will occur/.
+
+| Stale knowledge    | No contributors who touched a file are active |
+| Regained knowledge | Contribution to a forgotten file              |
+
+#+begin_src ruby :tangle 4timeline.rb
+  require 'sqlite3'
+
+  def create_database filename
+    db = SQLite3::Database.new filename
+
+    rows = db.execute <<-SQL1
+         CREATE TABLE IF NOT EXISTS timeline (
+                event_at DATETIME,
+                event_verb TEXT,
+                event_author TEXT,
+                event_subject TEXT,
+                concurrent_contributors INTEGER,
+                commits INTEGER,
+                entities_changed INTEGER
+                );
+  SQL1
+    rows = db.execute( "DELETE FROM timeline;" );
+    return db;
+  end
+
+  def concurrent_contribs db, at
+    return db.execute( "select count(*) from authors where earliest <= (?) and date(latest,'+90 days') >= (?)", [at, at]).first
+  end
+
+  def add_event db, at, verb, author, subject
+    concurrent = concurrent_contribs db, at
+
+    commits = db.execute( "select count(*) from commits where author_email = (?)", [author] ).first
+    entities_changed = db.execute( "select count(distinct(name)) from commits, commit_files where commits.id = commit_files.id and author_email = (?)", [author]).first
+
+    db.execute( "INSERT INTO timeline (event_at, event_verb, event_author, event_subject, concurrent_contributors, commits, entities_changed)
+    VALUES (?, ?, ?, ?, ?, ?, ?)",
+                [at, verb, author, subject, concurrent, commits, entities_changed] );
+  end
+
+  def project_start_stop db
+    row = db.execute( "select author_name, author_email, author_when from commits order by author_when asc limit 1" ).first
+
+    add_event db, row[2], "project.start", row[1], "#{row[0]} made first commit"
+
+    row = db.execute( "select author_name, author_email, author_when from commits order by author_when desc limit 1" ).first
+
+    add_event db, row[2], "project.mostrecent", row[1], "#{row[0]} made most recent"
+  end
+
+  def contributors db
+    # Look through all the authors to add when the started and stopped.
+    rows= db.execute( "select email, name, earliest, latest from authors" )
+    rows.each do |row|
+      if row[2] != row[3]
+        add_event db, row[2], "contrib.start", row[0], row[1]
+        # only add latest if it was 45 at least 45 days ago
+        add_event db, row[3], "contrib.latest", row[0], row[1]
+      end
+    end
+  end
+
+  def releases db
+    db.execute( "
+    select tag,
+    count(distinct(commits.author_email)) as contributors,
+    count(*) as commits,
+    count(distinct(commit_files.name)) as entities,
+    tags.name,
+    tags.author_email,
+    max(author_when)
+    from commits, commit_files
+    left join tags on tags.name = commits.tag
+    where commits.id = commit_files.id 
+    group by tag
+    order by max(author_when)
+  " ).each do |row|
+      tag, contributors, commits, entities, name, author_email, author_when = row
+
+      db.execute( "INSERT INTO timeline 
+  (event_at, event_verb, event_author, event_subject, concurrent_contributors, entities_changed, commits)
+  VALUES
+  (?, ?, ?, ?, ?, ?, ?)",
+                  [author_when, 'project.release', author_email, tag, contributors, entities, commits] )
+    end
+  end
+
+  db = create_database "commits.db"
+  db.transaction
+
+  project_start_stop db
+  contributors db
+  releases db
+
+  db.commit
 #+end_src
+
+
+#+begin_src sqlite :colnames yes
+  select tag,
+  count(distinct(commits.author_email)) as contributors,
+  count(*) as commits,
+  count(distinct(commit_files.name)) as entities,
+  tags.name,
+  tags.author_email,
+  max(author_when)
+  from commits, commit_files
+  left join tags on tags.name = commits.tag
+  where commits.id = commit_files.id 
+  group by tag
+  order by max(author_when)
+#+end_src
+
+#+RESULTS:
+| tag         | contributors | commits | entities | name        | author_email                   | max(author_when)          |
+|-------------+--------------+---------+----------+-------------+--------------------------------+---------------------------|
+| 1.0.3       |            2 |     980 |      738 | 1.0.3       | schacon@agadorsparticus.(none) | 2007-11-16T11:48:45-08:00 |
+| 1.0.5       |            5 |     189 |       63 | 1.0.5       | josh@joshpeek.com              | 2008-03-14T22:21:21-05:00 |
+| 1.0.5.1     |            1 |       1 |        1 | 1.0.5.1     | schacon@gmail.com              | 2008-03-23T13:32:52-07:00 |
+| v1.0.7      |            3 |      24 |       13 | v1.0.7      | schacon@gmail.com              | 2008-05-27T12:59:54-07:00 |
+| v1.2.0      |           11 |     270 |      226 | v1.2.0      | josh@technicalpickles.com      | 2009-08-01T18:17:54-04:00 |
+| v1.2.1      |            1 |       4 |        4 | v1.2.1      | josh@technicalpickles.com      | 2009-08-01T19:01:35-04:00 |
+| v1.2.2      |            1 |       3 |        3 | v1.2.2      | josh@technicalpickles.com      | 2009-08-02T04:06:03-04:00 |
+| v1.2.3      |            2 |       6 |        5 | v1.2.3      | josh@technicalpickles.com      | 2009-09-30T02:46:02-04:00 |
+| v1.2.4      |            2 |       3 |        3 | v1.2.4      | josh@technicalpickles.com      | 2009-10-01T23:24:44-04:00 |
+| v1.2.5      |            2 |       4 |        4 | v1.2.5      | josh@technicalpickles.com      | 2009-10-17T11:00:26-04:00 |
+| v1.2.6      |           10 |     124 |       37 | v1.2.6      | decurnex.roberto@gmail.com     | 2013-08-17T04:23:53-03:00 |
+| v1.2.7      |            9 |      47 |       23 | v1.2.7      | roberto.decurnex@avature.net   | 2014-06-09T17:06:42-03:00 |
+| v1.2.8      |            4 |      15 |       10 | v1.2.8      | roberto.decurnex@avature.net   | 2014-07-31T16:57:57-03:00 |
+| v1.2.9      |            9 |      90 |       36 | v1.2.9      | decurnex.roberto@gmail.com     | 2015-01-12T16:51:41-03:00 |
+| v1.2.9.1    |            2 |       6 |        6 | v1.2.9.1    | decurnex.roberto@gmail.com     | 2015-01-15T14:15:46-03:00 |
+| v1.2.10     |            3 |      16 |        8 | v1.2.10     | decurnex.roberto@gmail.com     | 2016-02-25T16:16:06-03:00 |
+| v1.3.0      |            1 |       5 |        5 | v1.3.0      | decurnex.roberto@gmail.com     | 2016-02-25T19:22:08-03:00 |
+| v1.4.0      |            7 |      24 |       16 | v1.4.0      | per.lundberg@ecraft.com        | 2018-05-16T09:49:34+03:00 |
+| v1.5.0      |            8 |      28 |       20 | v1.5.0      | per.lundberg@ecraft.com        | 2018-08-10T09:57:26+02:00 |
+| v1.6.0.pre1 |            6 |      50 |       45 | v1.6.0.pre1 |                                | 2020-01-20T09:04:35-08:00 |
+| v1.6.0      |            2 |       7 |        7 | v1.6.0      | jcouball@yahoo.com             | 2020-02-02T08:06:19-08:00 |
+| v1.7.0      |           10 |      16 |        9 | v1.7.0      | couballj@verizonmedia.com      | 2020-04-25T14:37:59-07:00 |
+| v1.8.0      |           13 |     353 |      315 | v1.8.0      | jcouball@yahoo.com             | 2020-12-31T10:32:06-08:00 |
+| v1.8.1      |            1 |       3 |        3 | v1.8.1      | jcouball@yahoo.com             | 2020-12-31T13:01:10-08:00 |
+| HEAD        |            2 |       6 |        5 |             |                                | 2021-03-27T16:02:19-05:00 |
+
+#+begin_src sqlite :colnames yes
+select * from timeline  order by event_at desc limit 100
+#+end_src
+
+#+RESULTS:
+| event_at                  | event_verb         | event_author                              | event_subject                  | concurrent_contributors | commits | entities_changed |
+|---------------------------+--------------------+-------------------------------------------+--------------------------------+-------------------------+---------+------------------|
+| 2021-03-27T16:02:19-05:00 | project.mostrecent | yancy.ribbens@gmail.com                   | yancyribbens made most recent  |                       2 |       1 |                1 |
+| 2021-03-27T16:02:19-05:00 | project.release    |                                           | HEAD                           |                       2 |       6 |                5 |
+| 2021-01-18T12:48:26-08:00 | contrib.latest     | jcouball@yahoo.com                        | James Couball                  |                      11 |      20 |               55 |
+| 2020-12-31T13:01:10-08:00 | project.release    | jcouball@yahoo.com                        | v1.8.1                         |                       1 |       3 |                3 |
+| 2020-12-31T10:32:06-08:00 | project.release    | jcouball@yahoo.com                        | v1.8.0                         |                      13 |     353 |              315 |
+| 2020-12-22T16:26:24-06:00 | contrib.latest     | me@vernburton.com                         | Vern Burton                    |                       7 |       6 |               15 |
+| 2020-12-20T15:19:54-05:00 | contrib.latest     | amayer5125@gmail.com                      | Alex Mayer                     |                       6 |       2 |                1 |
+| 2020-10-25T13:44:45-04:00 | contrib.latest     | 23052+AndyObtiva@users.noreply.github.com | Andy Maleh                     |                       6 |       2 |               12 |
+| 2020-08-31T12:03:13-04:00 | contrib.start      | 23052+AndyObtiva@users.noreply.github.com | Andy Maleh                     |                       4 |       2 |               12 |
+| 2020-04-25T14:37:59-07:00 | project.release    | couballj@verizonmedia.com                 | v1.7.0                         |                      10 |      16 |                9 |
+| 2020-04-05T20:33:35+03:00 | contrib.latest     | sblohin@yandex.ru                         | TIT                            |                      12 |       2 |                1 |
+| 2020-04-05T17:50:17-04:00 | contrib.start      | amayer5125@gmail.com                      | Alex Mayer                     |                      12 |       2 |                1 |
+| 2020-02-05T00:20:01+09:00 | contrib.latest     | yuu725@gmail.com                          | Yuta Harima                    |                       6 |       2 |                1 |
+| 2020-02-04T03:31:12+09:00 | contrib.start      | yuu725@gmail.com                          | Yuta Harima                    |                       6 |       2 |                1 |
+| 2020-02-02T08:06:19-08:00 | project.release    | jcouball@yahoo.com                        | v1.6.0                         |                       2 |       7 |                7 |
+| 2020-01-20T09:04:35-08:00 | project.release    |                                           | v1.6.0.pre1                    |                       6 |      50 |               45 |
+| 2019-02-17T11:16:47-08:00 | contrib.start      | jcouball@yahoo.com                        | James Couball                  |                       3 |      20 |               55 |
+| 2018-08-10T09:57:26+02:00 | contrib.latest     | per.lundberg@ecraft.com                   | Per Lundberg                   |                       9 |       8 |               10 |
+| 2018-08-10T09:57:26+02:00 | project.release    | per.lundberg@ecraft.com                   | v1.5.0                         |                       8 |      28 |               20 |
+| 2018-06-25T11:46:53-07:00 | contrib.latest     | taquitos@users.noreply.github.com         | Joshua Liebowitz               |                      10 |       2 |                3 |
+| 2018-06-25T11:45:38-07:00 | contrib.start      | taquitos@users.noreply.github.com         | Joshua Liebowitz               |                      10 |       2 |                3 |
+| 2018-05-16T09:49:34+03:00 | project.release    | per.lundberg@ecraft.com                   | v1.4.0                         |                       7 |      24 |               16 |
+| 2018-03-07T11:33:27-06:00 | contrib.start      | me@vernburton.com                         | Vern Burton                    |                       3 |       6 |               15 |
+| 2018-01-10T08:28:55+02:00 | contrib.start      | per.lundberg@ecraft.com                   | Per Lundberg                   |                       2 |       8 |               10 |
+| 2016-02-25T19:22:08-03:00 | contrib.latest     | decurnex.roberto@gmail.com                | Roberto Decurnex               |                       3 |     147 |               60 |
+| 2016-02-25T19:22:08-03:00 | project.release    | decurnex.roberto@gmail.com                | v1.3.0                         |                       1 |       5 |                5 |
+| 2016-02-25T16:16:06-03:00 | project.release    | decurnex.roberto@gmail.com                | v1.2.10                        |                       3 |      16 |                8 |
+| 2015-01-15T14:15:46-03:00 | project.release    | decurnex.roberto@gmail.com                | v1.2.9.1                       |                       2 |       6 |                6 |
+| 2015-01-12T16:51:41-03:00 | project.release    | decurnex.roberto@gmail.com                | v1.2.9                         |                       9 |      90 |               36 |
+| 2014-09-29T17:15:13-03:00 | contrib.latest     | roberto.decurnex@avature.net              | Roberto Decurnex               |                       7 |       8 |                9 |
+| 2014-08-07T11:30:40-04:00 | contrib.latest     | kelly.stannard@lendkey.com                | Kelly Stannard                 |                       7 |       4 |                1 |
+| 2014-08-06T16:00:16-04:00 | contrib.start      | kelly.stannard@lendkey.com                | Kelly Stannard                 |                       7 |       4 |                1 |
+| 2014-07-31T16:57:57-03:00 | project.release    | roberto.decurnex@avature.net              | v1.2.8                         |                       4 |      15 |               10 |
+| 2014-07-08T03:18:02+09:00 | contrib.latest     | yuya@j96.org                              | Yuya.Nishida                   |                       5 |       2 |                7 |
+| 2014-07-08T03:16:57+09:00 | contrib.start      | yuya@j96.org                              | Yuya.Nishida                   |                       5 |       2 |                7 |
+| 2014-06-09T17:06:42-03:00 | contrib.start      | roberto.decurnex@avature.net              | Roberto Decurnex               |                       4 |       8 |                9 |
+| 2014-06-09T17:06:42-03:00 | project.release    | roberto.decurnex@avature.net              | v1.2.7                         |                       9 |      47 |               23 |
+| 2014-01-28T12:47:08+11:00 | contrib.latest     | cameron.walsh@bigcommerce.com             | Cameron Walsh                  |                       6 |       2 |                5 |
+| 2014-01-06T16:58:31+11:00 | contrib.start      | cameron.walsh@bigcommerce.com             | Cameron Walsh                  |                       5 |       2 |                5 |
+| 2013-08-17T04:23:53-03:00 | project.release    | decurnex.roberto@gmail.com                | v1.2.6                         |                      10 |     124 |               37 |
+| 2013-05-24T21:45:56+08:00 | contrib.latest     | mrmallete@gmail.com                       | Michael Mallete                |                       4 |       3 |                3 |
+| 2013-05-23T16:42:56+08:00 | contrib.start      | mrmallete@gmail.com                       | Michael Mallete                |                       4 |       3 |                3 |
+| 2013-04-29T11:35:07-04:00 | contrib.latest     | joe.moore@gmail.com                       | Joe Moore                      |                       3 |       2 |                3 |
+| 2013-04-29T11:21:32-04:00 | contrib.start      | joe.moore@gmail.com                       | Joe Moore                      |                       3 |       2 |                3 |
+| 2013-04-03T15:48:03-03:00 | contrib.start      | decurnex.roberto@gmail.com                | Roberto Decurnex               |                       2 |     147 |               60 |
+| 2013-01-19T18:38:23+04:00 | contrib.start      | sblohin@yandex.ru                         | TIT                            |                       1 |       2 |                1 |
+| 2011-09-02T15:17:26-07:00 | contrib.latest     | josh@technicalpickles.com                 | Josh Nichols                   |                       2 |      24 |                9 |
+| 2009-10-17T11:00:26-04:00 | project.release    | josh@technicalpickles.com                 | v1.2.5                         |                       2 |       4 |                4 |
+| 2009-10-01T23:24:44-04:00 | project.release    | josh@technicalpickles.com                 | v1.2.4                         |                       2 |       3 |                3 |
+| 2009-09-30T02:46:02-04:00 | project.release    | josh@technicalpickles.com                 | v1.2.3                         |                       2 |       6 |                5 |
+| 2009-08-10T08:08:42-07:00 | contrib.latest     | schacon@gmail.com                         | schacon                        |                       2 |      21 |               27 |
+| 2009-08-02T04:06:03-04:00 | project.release    | josh@technicalpickles.com                 | v1.2.2                         |                       1 |       3 |                3 |
+| 2009-08-01T19:01:35-04:00 | project.release    | josh@technicalpickles.com                 | v1.2.1                         |                       1 |       4 |                4 |
+| 2009-08-01T18:17:54-04:00 | project.release    | josh@technicalpickles.com                 | v1.2.0                         |                      11 |     270 |              226 |
+| 2009-04-26T22:57:14-04:00 | contrib.start      | josh@technicalpickles.com                 | Josh Nichols                   |                       5 |      24 |                9 |
+| 2009-03-17T11:26:01-04:00 | contrib.latest     | gianni@runlevel6.org                      | Gianni Chiappetta              |                       6 |       2 |                2 |
+| 2009-03-12T14:52:58-04:00 | contrib.start      | gianni@runlevel6.org                      | Gianni Chiappetta              |                       6 |       2 |                2 |
+| 2009-02-12T17:41:19+01:00 | contrib.latest     | minad@slizer.hadiko.de                    | Daniel Mendler                 |                       5 |       8 |               12 |
+| 2009-02-12T06:49:18-09:00 | contrib.latest     | git@elliottcable.name                     | elliottcable                   |                       5 |       4 |                3 |
+| 2009-02-12T06:33:51-09:00 | contrib.start      | git@elliottcable.name                     | elliottcable                   |                       5 |       4 |                3 |
+| 2009-02-07T02:41:05+01:00 | contrib.start      | minad@slizer.hadiko.de                    | Daniel Mendler                 |                       4 |       8 |               12 |
+| 2008-12-24T08:08:19+08:00 | contrib.latest     | jon335@gmail.com                          | Jonathan Rudenberg             |                       4 |       2 |              200 |
+| 2008-12-21T11:28:20+08:00 | contrib.latest     | james.a.rosen@gmail.com                   | James Rosen                    |                       4 |       4 |               16 |
+| 2008-12-21T11:08:15+08:00 | contrib.start      | james.a.rosen@gmail.com                   | James Rosen                    |                       4 |       4 |               16 |
+| 2008-12-21T04:59:09+08:00 | contrib.start      | jon335@gmail.com                          | Jonathan Rudenberg             |                       3 |       2 |              200 |
+| 2008-07-25T12:54:30+08:00 | contrib.latest     | hotchpotch@gmail.com                      | Yuichi Tateno                  |                       5 |       3 |                6 |
+| 2008-07-25T12:44:32+08:00 | contrib.start      | hotchpotch@gmail.com                      | Yuichi Tateno                  |                       5 |       3 |                6 |
+| 2008-05-27T12:59:54-07:00 | project.release    | schacon@gmail.com                         | v1.0.7                         |                       3 |      24 |               13 |
+| 2008-05-07T01:06:40+08:00 | contrib.latest     | jbernal@warp.es                           | Jorge Bernal                   |                       4 |       3 |                2 |
+| 2008-05-05T22:52:08+08:00 | contrib.start      | jbernal@warp.es                           | Jorge Bernal                   |                       4 |       3 |                2 |
+| 2008-03-23T13:32:52-07:00 | project.release    | schacon@gmail.com                         | 1.0.5.1                        |                       1 |       1 |                1 |
+| 2008-03-14T22:21:21-05:00 | project.release    | josh@joshpeek.com                         | 1.0.5                          |                       5 |     189 |               63 |
+| 2008-03-05T18:09:33-08:00 | contrib.latest     | eric@ericgoodwin.com                      | Eric Goodwin                   |                       3 |       2 |                7 |
+| 2008-03-03T13:00:08-08:00 | contrib.start      | schacon@gmail.com                         | schacon                        |                       3 |      21 |               27 |
+| 2008-03-03T10:49:28-08:00 | contrib.start      | eric@ericgoodwin.com                      | Eric Goodwin                   |                       2 |       2 |                7 |
+| 2008-01-31T09:52:24-08:00 | contrib.latest     | schacon@agadorsparticus.(none)            | scott Chacon                   |                       2 |      47 |              497 |
+| 2007-11-29T11:16:14-08:00 | contrib.latest     | schacon@agadorsparticus.corp.reactrix.com | scott Chacon                   |                       2 |      34 |              313 |
+| 2007-11-16T11:48:45-08:00 | project.release    | schacon@agadorsparticus.(none)            | 1.0.3                          |                       2 |     980 |              738 |
+| 2007-11-10T12:43:33-08:00 | contrib.start      | schacon@agadorsparticus.(none)            | scott Chacon                   |                       2 |      47 |              497 |
+| 2007-11-07T12:54:26-08:00 | project.start      | schacon@agadorsparticus.corp.reactrix.com | scott Chacon made first commit |                       1 |      34 |              313 |
+| 2007-11-07T12:54:26-08:00 | contrib.start      | schacon@agadorsparticus.corp.reactrix.com | scott Chacon                   |                       1 |      34 |              313 |
+
+
 * References
+
+1. https://git-scm.com/docs/git-log
+1. https://stackoverflow.com/questions/13208734/get-the-time-and-date-of-git-tags
+1. https://pragprog.com/book/atcrime/your-code-as-a-crime-scene
+2. http://www.adamtornhill.com/code/codemaat.htm
+3. https://github.com/adamtornhill/code-maat
+
 # Local Variables:
 # eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
 # End:

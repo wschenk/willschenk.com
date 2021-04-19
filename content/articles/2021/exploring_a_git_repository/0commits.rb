@@ -6,6 +6,7 @@ def create_database filename
   rows = db.execute <<-SQL1
        CREATE TABLE IF NOT EXISTS commits (
               id	TEXT UNIQUE,
+              tag TEXT,
               summary	TEXT,
               author_name	TEXT,
               author_email	TEXT,
@@ -50,7 +51,7 @@ def parse_file db, file
         add_commit db, md[1], md[2], md[3], md[4], md[5]
       rescue SQLite3::ConstraintException
         puts "Found existing commit, exiting"
-        exit
+        return
       end
     elsif line.length != 0
       md = /([\d|-]*)\s*([\d|-]*)\s*(.*)/.match( line )
