@@ -2,914 +2,8 @@
 #+subtitle: just dump everything directly into sqlite
 #+tags: git
 #+date: 2021-03-24
-#+PROPERTY: header-args :db repository.sqlite
+#+PROPERTY: header-args :db output/commits.db
 #+draft: true
-
-Let's [[https://willschenk.com/articles/2020/gitlog_in_sqlite/][extend the previous work]] of taking a git repo and putting it's
-meta data into a sqlite3 database.  The last post was a series of
-little scripts which wasn't as usable as it could be, and also we can
-include languaage usage.
-
-A *timeline* of project events. *Contributor* information. *Changes* in each
-release. *Knowledge* maintence of each file. *Language statistics* about
-what's in a project, and all other things you can glean with SQL.
-
-* How is it going to work
-
-We are going to use ruby the sqlite3 gem:
-
-#+attr_html: :class d-none
-#+begin_src ruby :tangle Gemfile
-  # frozen_string_literal: true
-
-  source "https://rubygems.org"
-
-  git_source(:github) {|repo_name| "https://github.com/#{repo_name}" }
-
-  gem "sqlite3", "~> 1.4"
-#+end_src
-
-#+begin_src ruby :tangle gitinfo.rb
-  require 'sqlite3'
-  require 'csv'
-#+end_src
-* First, the schema
-
-** Commits
-
-=commits= is the main table..
-
-#+ATTR_HTML: :class table table-striped
-| commits      |                                                |
-|--------------+------------------------------------------------|
-| id           | sha of commit                                  |
-| tag          | most recent tag that this commit is part of    |
-| summary      | commit message                                 |
-| author_email | email address of the person making the changed |
-| author_name  | self reported name                             |
-| author_when  | when the commit was reportedly made            |
-
-=commit_files= has information abot which files were changed in the
-commit.
-
-#+ATTR_HTML: :class table table-striped
-| commit_files |                                   |
-|--------------+-----------------------------------|
-| id           | sha of commit                     |
-| name         | name of the file that was changed |
-| added        | lines added                       |
-| deleted      | lines deleted                     |
-
-#+begin_src ruby :tangle gitinfo.rb
-  def create_commits_table db
-    db.execute <<-SQL1
-         CREATE TABLE IF NOT EXISTS commits (
-                id	TEXT UNIQUE,
-                tag TEXT,
-                summary	TEXT,
-                author_name	TEXT,
-                author_email	TEXT,
-                author_when	DATETIME
-                );
-  SQL1
-
-    db.execute <<-SQL2
-         CREATE TABLE IF NOT EXISTS commit_files (
-                id    TEXT,
-                name  TEXT,
-                added INT,
-                deleted INT
-                );
-  SQL2
-  end
-
-#+end_src
-
-** Tags
-
-=tags= stores which tags were created, and which commit they point to.
-
-#+ATTR_HTML: :class table table-striped
-| tags         |                                      |
-|--------------+--------------------------------------|
-| name         | tag short name                       |
-| sha          | sha of the tag if its a full commit  |
-| object       | sha of the tag if it's an annotation |
-| author_email | best guess as to who tagged it       |
-| created_at   | when the tag was created             |
-
-#+begin_src ruby :tangle gitinfo.rb
-  def create_tags_table db
-    db.execute <<-SQL3
-         CREATE TABLE IF NOT EXISTS tags (
-                name TEXT UNIQUE,
-                sha TEXT,
-                object TEXT,
-                author_email TEXT,
-                created_at DATETIME
-                );
-  SQL3
-  end
-#+end_src
-A =Dockerfile= is included at the end.  Lets start our script:
-
-** Authors
-
-=authors= is a rollup of commit activity around =author_email=.
-
-#+ATTR_HTML: :class table table-striped
-| authors         |                                           |
-|-----------------+-------------------------------------------|
-| email           | email address                             |
-| name            | name                                      |
-| total_commits   | total number of commits made by this user |
-| total_tags      | total number of tags made by this user    |
-| earliest        | earliest commit made by this user         |
-| latest          | latest commit made by this user           |
-| timezone_offset | a guess to where they are in the world    |
-
-#+begin_src ruby :tangle gitinfo.rb
-  def create_authors_table db
-    db.execute <<-SQL4
-           CREATE TABLE IF NOT EXISTS authors (
-                  email text unique,
-                  name text,
-                  total_commits integer,
-                  total_tags integer default 0,
-                  earliest DATETIME,
-                  latest DATETIME,
-                  timezone_offset text
-                  );
-  SQL4
-  end
-
-#+end_src
-
-** File Stats
-
-=file_stats_summary= is created for each =tag=, and it represents the
-state of the repository at that time.
-
-#+ATTR_HTML: :class table table-striped
-| file_stats_summary |                                      |
-|--------------------+--------------------------------------|
-| sha                | commit that this is summarizing      |
-| tag                | tag if known for this commit         |
-| created_at         | what point in time are we looking at |
-| code_lines         | number of code lines                 |
-| comment_lines      | number of comment lines              |
-| blank_lines        | number of blank lines                |
-
-=file_stats= shows information about the specific files at that time,
-mainly language but also number of lines of code.
-
-#+ATTR_HTML: :class table table-striped
-| file_stats    |                                    |
-|---------------+------------------------------------|
-| sha           | version of the file at this commit |
-| filename      | the name of the file               |
-| language      | language the file was written in   |
-| code_lines    | number of code lines               |
-| comment_lines | number of comment lines            |
-| blank_lines   | number of blank lines              |
-
-#+begin_src ruby :tangle gitinfo.rb
-  def create_file_stats_table db
-    db.execute <<-SQL5
-           CREATE TABLE IF NOT EXISTS file_stats_summary (
-                  sha text,
-                  tag text,
-                  author_name text,
-                  author_email text,
-                  author_when text,
-                  code_lines integer,
-                  comment_lines integer,
-                  blank_lines integer
-                  );
-  SQL5
-
-    db.execute <<-SQL6
-           CREATE TABLE IF NOT EXISTS file_stats (
-                  sha text,
-                  filename text,
-                  language text,
-                  code_lines integer,
-                  comment_lines integer,
-                  blank_lines integer
-                  );
-  SQL6
-  end
-
-#+end_src
-* Then, the repo
-
-Eventually we are going to wrap this up as a docker container so that
-it will run self contained, so we are going to pass in some switches
-in the environment.
-
-#+ATTR_HTML: :class table table-striped
-| REPO_DIR   | where the repository is located, by default "."        |
-| REPO_URL   | if there's no =.git= at =REPO_DIR=, check it out from here |
-| OUTPUT_DIR | where to store the output file, by default "."         |
-
-#+begin_src ruby :tangle gitinfo.rb
-
-  repo_dir = ENV['REPO_DIR'] || "."
-  database = File.join( ENV['OUTPUT_DIR'] || ".", "repository.sqlite" )
-
-  puts "Repodir: #{repo_dir}"
-
-  if !File.exists?( File.join( repo_dir, ".git" ) )
-    if !ENV['REPO_URL']
-      puts "Couldn't find a repo at #{repo_dir} and REPO_URL is unset"
-      exit 1
-    end
-    puts "Cloning repo #{ENV['REPO_URL']} into #{repo_dir}"
-    value = system( "git clone #{ENV['REPO_URL']} #{repo_dir}" )
-  end
-
-  head = `(cd #{repo_dir};git rev-parse HEAD)`.chomp
-
-  db = SQLite3::Database.new database
-  create_commits_table db
-  create_tags_table db
-  create_authors_table db
-  create_file_stats_table db
-#+end_src
-
-Which we can test with
-
-#+begin_src bash
-  REPO_URL=https://github.com/ruby-git/ruby-git REPO_DIR=/tmp/repo ruby gitinfo.rb 
-#+end_src
-
-And then we can look to see which tables are in the database:
-
-#+begin_src sqlite
-.tables
-#+end_src
-
-#+RESULTS:
-| authors             commits             file_stats_summary |
-| commit_files        file_stats          tags               |
-
-* Commits
-
-Lets first populate the database with all of the commits, and files
-associated with those commits.
-
-This uses the =git log= command:
-
-#+begin_src bash
-  git log --pretty=format:'|%H|%ae|%an|%aI|%s' --numstat
-#+end_src
-
-#+ATTR_HTML: :class table table-striped
-| =%H=  | full sha hash of the commit |
-| =%ae= | author email                |
-| =%an= | author name                 |
-| =%aI= | author date                 |
-| =%s=  | Summary/commit message      |
-
-/Note that we are creating a =tag= attribute in commits which will we
-populate later./
-
-#+begin_src ruby :tangle gitinfo.rb
-  def add_commit db, id, email, name, date, summary
-    ret = db.execute("INSERT INTO commits (id, summary, author_name, author_email, author_when)
-          VALUES (?, ?, ?, ?, ?)", [id, summary, name, email, date ] )
-  end
-
-  def add_file_commit db, id, file, added, deleted
-    ret = db.execute("INSERT INTO commit_files (id, name, added, deleted)
-          VALUES (?, ?, ?, ?)", [id, file, added, deleted] )
-
-  end
-
-  def load_commits db, repo_dir
-    commit = nil
-
-    `(cd #{repo_dir};git log --pretty=format:'|%H|%ae|%an|%aI|%s' --numstat)`.each_line do |line|
-      line.chomp!
-      if line[0] == '|'
-        md = /\|(.*?)\|(.*?)\|(.*?)\|(.*?)\|(.*)/.match( line )
-        commit = md[1]
-
-        puts line
-
-        begin
-          add_commit db, md[1], md[2], md[3], md[4], md[5]
-        rescue SQLite3::ConstraintException
-          puts "Found existing commit, exiting"
-          return
-        end
-      elsif line.length != 0
-        md = /([\d|-]*)\s*([\d|-]*)\s*(.*)/.match( line )
-        add_file_commit db, commit, md[3], md[1], md[2]
-      end
-    end
-  end
-
-  puts "Finding commits"
-  db.transaction
-  load_commits db, repo_dir
-  db.commit
-
-#+end_src
-
-** Running
-
-#+begin_src bash
-  REPO_URL=https://github.com/ruby-git/ruby-git REPO_DIR=/tmp/repo ruby gitinfo.rb 
-#+end_src
-
-* Looking at Entities
-** All Entities all Authors
-
-We can look at who changed which file the most.
-
-#+begin_src sqlite :colnames yes
-  select author_name, name,
-    count(name) as times_touched,
-    sum(added) as lines_added,
-    sum(deleted) as lined_deleted,
-    date(max(author_when)) as most_recently
-  from commits, commit_files
-  where commits.id = commit_files.id
-  group by author_name, name
-  order by times_touched desc
-    limit 10;
-#+end_src
-
-#+RESULTS:
-#+ATTR_HTML: :class table table-striped
-| author_name      | name              | times_touched | lines_added | lined_deleted | most_recently |
-|------------------+-------------------+---------------+-------------+---------------+---------------|
-| scott Chacon     | lib/git/lib.rb    |            41 |         775 |           167 |    2008-01-31 |
-| scott Chacon     | lib/git/base.rb   |            28 |         504 |            49 |    2008-01-31 |
-| robertodecurnex  | lib/git/lib.rb    |            25 |         221 |           128 |    2014-06-25 |
-| scott Chacon     | camping/gitweb.rb |            18 |         667 |           112 |    2007-11-29 |
-| scott Chacon     | lib/git/object.rb |            18 |         349 |            69 |    2007-11-27 |
-| scott Chacon     | README            |            17 |         473 |           209 |    2007-11-27 |
-| scott Chacon     | lib/git.rb        |            17 |         137 |            42 |    2007-11-20 |
-| Roberto Decurnex | lib/git/lib.rb    |            16 |         386 |           243 |    2016-02-25 |
-| robertodecurnex  | lib/git/base.rb   |            14 |          95 |            28 |    2014-01-15 |
-| Roberto Decurnex | README.md         |            13 |          54 |            23 |    2016-02-25 |
-** Who touched a file the most recently
-
-We can also look at who touched a file in general, to get a sense of
-maybe who knows how it works.  If the last person who touched it is
-the person who owns it, you know who to look for.
-
-#+begin_src sqlite :colnames yes
-  select
-    name,
-    author_name,
-    date(max(author_when)) as last_touched,
-    count(name) as times_touched,
-    sum(added) as lines_added
-  from commits, commit_files
-  where commits.id = commit_files.id
-     and name = 'README.md'
-  group by author_name
-  order by last_touched desc
-  limit 100
-#+end_src
-
-#+RESULTS:
-#+ATTR_HTML: :class table table-striped
-| name      | author_name       | last_touched | times_touched | lines_added |
-|-----------+-------------------+--------------+---------------+-------------|
-| README.md | James Couball     |   2020-12-28 |             3 |          31 |
-| README.md | Hidetaka Okita    |   2020-12-22 |             1 |           1 |
-| README.md | Alex Mayer        |   2020-12-20 |             2 |         225 |
-| README.md | Ofir Petrushka    |   2020-09-05 |             1 |          15 |
-| README.md | Salim Afiune      |   2019-09-20 |             1 |           1 |
-| README.md | Evgenii Pecherkin |   2018-10-02 |             1 |           2 |
-| README.md | Kelly Stannard    |   2018-07-12 |             1 |           1 |
-| README.md | Joshua Liebowitz  |   2018-06-25 |             1 |           1 |
-| README.md | Per Lundberg      |   2018-05-16 |             2 |           4 |
-| README.md | Roberto Decurnex  |   2016-02-25 |            13 |          54 |
-| README.md | Guy Hughes        |   2014-05-21 |             1 |           2 |
-| README.md | robertodecurnex   |   2014-01-15 |             2 |          17 |
-| README.md | Andy Schrage      |   2013-12-17 |             1 |           1 |
-| README.md | schneems          |   2011-10-19 |             1 |         251 |
-
-** What files changed together
-
-We can also look at which files changed together for a certain tag, or
-timeframe.  The query is a little complicated, so lets walk through it.
-
-First we limit our commits to a certain tag or date using =where
-commits.tag = 'v1.8.0'=.  You could also use a date or other filter.
-
-Then we get the cross product with a key that merges the name.
-
-#+begin_src sqlite
-  select
-    cf1.name as name_a,
-    cf2.name as name_b,
-    cf1.name || cf2.name as merged_name
-  from commit_files as cf1, commit_files as cf2, commits
-  where commits.tag = 'v1.8.0'
-    and commits.id = cf1.id
-    and cf1.id = cf2.id
-    and cf1.name < cf2.name
-  limit 10
-#+end_src
-
-#+RESULTS:
-#+ATTR_HTML: :class table table-striped
-| CHANGELOG.md | lib/git/version.rb | CHANGELOG.mdlib/git/version.rb |
-| .gitignore   | .yardopts          | .gitignore.yardopts            |
-| .gitignore   | CHANGELOG.md       | .gitignoreCHANGELOG.md         |
-| .gitignore   | CONTRIBUTING.md    | .gitignoreCONTRIBUTING.md      |
-| .gitignore   | MAINTAINERS.md     | .gitignoreMAINTAINERS.md       |
-| .gitignore   | README.md          | .gitignoreREADME.md            |
-| .gitignore   | RELEASING.md       | .gitignoreRELEASING.md         |
-| .gitignore   | Rakefile           | .gitignoreRakefile             |
-| .gitignore   | git.gemspec        | .gitignoregit.gemspec          |
-| .gitignore   | lib/git.rb         | .gitignorelib/git.rb           |
-
-Then we can group an count:
-
-#+begin_src sqlite :colnames yes
-    select name_a, name_b, count(*) as cnt from(
-      select
-        cf1.name as name_a,
-        cf2.name as name_b,
-        cf1.name || cf2.name as merged_name
-      from commit_files as cf1, commit_files as cf2, commits
-      where commits.tag = 'v1.8.0'
-        and commits.id = cf1.id
-        and cf1.id = cf2.id
-        and cf1.name < cf2.name
-    )
-    group by merged_name
-    having cnt > 1
-    order by cnt desc
-
-#+end_src
-
-#+RESULTS:
-#+ATTR_HTML: :class table table-striped
-| name_a                  | name_b                       | cnt |
-|-------------------------+------------------------------+-----|
-| README.md               | lib/git/lib.rb               |   4 |
-| lib/git/base.rb         | lib/git/lib.rb               |   4 |
-| README.md               | lib/git/base.rb              |   3 |
-| lib/git.rb              | lib/git/lib.rb               |   3 |
-| lib/git/lib.rb          | tests/units/test_lib.rb      |   3 |
-| .travis.yml             | tests/units/test_git_path.rb |   2 |
-| README.md               | lib/git.rb                   |   2 |
-| README.md               | lib/git/base/factory.rb      |   2 |
-| git.gemspec             | lib/git/base.rb              |   2 |
-| git.gemspec             | lib/git/lib.rb               |   2 |
-| lib/git.rb              | lib/git/base/factory.rb      |   2 |
-| lib/git/base.rb         | tests/test_helper.rb         |   2 |
-| lib/git/base.rb         | tests/units/test_init.rb     |   2 |
-| lib/git/base/factory.rb | lib/git/lib.rb               |   2 |
-| lib/git/lib.rb          | tests/units/test_init.rb     |   2 |
-| lib/git/lib.rb          | tests/units/test_log.rb      |   2 |
-| lib/git/lib.rb          | tests/units/test_logger.rb   |   2 |
-| lib/git/lib.rb          | tests/units/test_worktree.rb |   2 |
-
-Which tells you that =lib/git/base.rb= and =lib/git/lib.rb= change
-together the most, out of 20 commits:
-
-#+begin_src sqlite
-  select count(*) from commits where tag = 'v1.8.0'
-#+end_src
-
-#+RESULTS:
-: 20
-
-* Tags
-
-Now lets populate the tag information.  We are banking on the idea
-that a lot of projects will automatically tag a release as part of
-their build scripts.
-
-This file is created with:
-
-#+begin_src bash
-  git tag --sort=-v:refname --format='%(refname:short):%(objectname):%(*objectname):%(creatordate:iso8601-strict)'
-#+end_src
-
-#+ATTR_HTML: :class table table-striped
-| =refname:short=              | tag name                                        |
-| =objectname=                 | id of the tag itself                            |
-| =*objectname=                | id of the tag it points to if it's a annotation |
-| =creatordate:iso8601-strict= | date the tag was commited                       |
-
-#+begin_src ruby :tangle gitinfo.rb
-  # Insert into the database
-  def add_tag db, name, sha, object, created_at, author_email
-    ret = db.execute("INSERT INTO tags (name, sha, object, created_at, author_email)
-              VALUES (?, ?, ?, ?, ?)", [name, sha, object, created_at, author_email])
-  end
-
-  # Parse the output of git tag
-  def load_tags db, repo_dir
-    `(cd #{repo_dir};git tag --sort=-v:refname --format='%(refname:short):%(objectname):%(*objectname):%(creatordate:iso8601-strict)')`.each_line do |line|
-      line.chomp!
-      md = line.match( /(.*?):(.*?):(.*?):(.*)/ )
-
-      if( !md )
-          puts "Unrecognized line #{line}"
-      else
-        tag_name = md[1]
-        sha = md[2]
-        sha_object = md[3] unless md[3] == "" # have annotated tags point to the main commit
-        created_at = md[4]
-
-        tagger = db.execute( "select author_email from commits where id = (?) or id = (?)", [sha, sha_object == "" ? sha : sha_object] ).first
-
-        begin
-          add_tag db, tag_name, sha, sha_object, created_at, tagger
-        rescue SQLite3::ConstraintException
-          puts "Found existing tag, exiting"
-          return
-        end
-      end
-    end
-  end
-
-  # Match up the commits to the tags for easier querying
-  def tag_commits db
-    last_date = nil
-    db.execute( "select name, created_at from tags where created_at is not null order by created_at asc" ).each do |row|
-      if last_date.nil?
-        db.execute( "update commits set tag = (?) where author_when <= (?)", [row[0], row[1]] )
-      else
-        db.execute( "update commits set tag = (?) where author_when <= (?) and author_when > (?)", [row[0], row[1], last_date] )
-      end
-
-      last_date = row[1]
-    end
-
-    db.execute( "update commits set tag = 'HEAD' where author_when > (?)", [last_date] )
-  end
-
-  puts "Finding tags"
-  db.transaction
-  load_tags db, repo_dir
-  tag_commits db
-  db.commit
-#+end_src
-
-** Things that changed in a release
-
-Let's come up with some queries to tell us what has changed during a
-certain time period. What we are going to do applies best to repos
-that have trunk-on-main, meaning that there's a more or less basic
-branching strategy and we can just look at commits based upon
-timestamp.
-
-*** Who was involved
-
-Here we can see who contributed to a release, how many changes they
-made to how many files.
-
-#+begin_src sqlite :colnames yes
-  select
-    author_name,
-    count(distinct(commits.id)) as changes,
-    count(distinct(name)) as entities_touched
-  from commits, commit_files
-  where commits.tag = 'v1.8.0'
-  and commits.id = commit_files.id
-  group by author_name
-  order by changes desc, entities_touched desc
-#+end_src
-
-#+RESULTS:
-#+ATTR_HTML: :class table table-striped
-| author_name         | changes | entities_touched |
-|---------------------+---------+------------------|
-| James Couball       |       7 |               20 |
-| Andy Maleh          |       2 |               12 |
-| Ofir Petrushka      |       1 |              279 |
-| Peter Kovacs        |       1 |               11 |
-| Hidetaka Okita      |       1 |                4 |
-| Borislav Stanimirov |       1 |                3 |
-| Pavel Kuznetsov     |       1 |                3 |
-| Vern Burton         |       1 |                3 |
-| Gabriel Gilder      |       1 |                2 |
-| Michal Papis        |       1 |                2 |
-| Nicholas Calugar    |       1 |                2 |
-| Romain Tartière     |       1 |                2 |
-| Alex Mayer          |       1 |                1 |
-
-*** Commit Messages
-
-#+begin_src sqlite :colnames yes
-   select
-     author_name,
-     tag,
-     summary
-   from commits
-   where tag = 'v1.7.0'
-#+end_src
-
-#+RESULTS:
-#+ATTR_HTML: :class table table-striped
-| author_name       | tag    | summary                                                                        |
-|-------------------+--------+--------------------------------------------------------------------------------|
-| James Couball     | v1.7.0 | Release v1.7.0                                                                 |
-| James Couball     | v1.7.0 | Release v1.7.0 (#468)                                                          |
-| Michael Camilleri | v1.7.0 | Disable GPG Signing in Test Config (#467)                                      |
-| Agora Security    | v1.7.0 | Add no verify for commit with documentation (#454)                             |
-| Jonas Müller      | v1.7.0 | Fix hash keys in #describe (#415)                                              |
-| Alex Mayer        | v1.7.0 | README: Use SVG Badge (#457)                                                   |
-| James Bunch       | v1.7.0 | Git::Lib#normalize_encoding early return fix (#461)                            |
-| Antonio Terceiro  | v1.7.0 | Remove extraneous '--' from `git stash save -- message`                        |
-| TIT               | v1.7.0 | Ruby version compatibility conflict solution (#453)                            |
-| Marcel Hoyer      | v1.7.0 | Fix issue with color escape codes after recent update of `git` binaries (#427) |
-| Harald            | v1.7.0 | Fix describe command's dirty, abbrev, candidates, and match options (#447)     |
-| Yuta Harima       | v1.7.0 | fix broken link in a PR template again (#446)                                  |
-| Yuta Harima       | v1.7.0 | Fix broken link in a PR template (#444)                                        |
-
-*** File changes
-
-If we wanted to focus our testing on what has changed in a release,
-here's a map to get you started.
-
-#+begin_src sqlite :colnames yes
-  select
-    name,
-    count(commits.id) as changes,
-    sum( added ) as lines_added
-  from commits, commit_files
-  where commits.id = commit_files.id
-      and commits.tag = 'v1.7.0'
-  group by name
-  order by changes desc, lines_added desc
-#+end_src
-
-#+RESULTS:
-| name                               | changes | lines_added |
-|------------------------------------+---------+-------------|
-| lib/git/lib.rb                     |       6 |          23 |
-| tests/test_helper.rb               |       2 |           5 |
-| PULL_REQUEST_TEMPLATE.md           |       2 |           2 |
-| tests/units/test_lib.rb            |       1 |          31 |
-| CHANGELOG.md                       |       1 |           4 |
-| tests/files/working/dot_git/config |       1 |           4 |
-| tests/units/test_logger.rb         |       1 |           2 |
-| README.md                          |       1 |           1 |
-| lib/git/version.rb                 |       1 |           1 |
-
-* Finding authors
-
-We can look at the commits to find some information about the
-contributors.  We'll look at:
-
-#+ATTR_HTML: :class table table-striped
-| Name                     | Their reported name        |
-| Email                    | Their reported email       |
-| Number of commits        | Total over time            |
-| Number of tags           | Total over time            |
-| First Contribution       | First time we saw them     |
-| Most recent contribution | Last time we saw them      |
-| First reported timezone  | Guess as to where they are |
-
-The query is basically:
-
-#+begin_src sqlite :colnames yes
-   select
-     author_name,
-     author_email,
-     count(commits.id) as commit_count,
-     count(distinct(tag.name)) as tag_count,
-     min( author_when ) as first_contrib,
-     max( author_when ) as last_contrib
-  from commits
-     left join tags on commits.tag = tag.name
-  group by author_email
-#+end_src
-
-
-#+begin_src ruby :tangle gitinfo.rb
-  db.transaction
-
-  puts "Summarizing authors"
-  db.execute( "delete from authors" );
-
-  db.execute( "   select
-       author_name,
-       author_email,
-       count(commits.id) as commit_count,
-       count(distinct(tag)) as tag_count,
-       min( author_when ) as first_contrib,
-       max( author_when ) as last_contrib
-    from commits
-    group by author_email" ).each do |row|
-      name, email, cnt, tag_count, earliest, latest = row
-
-      ending = earliest[-6..-1] || earliest
-
-      timezone_offset = ""
-      if( ending =~ /[-+]\d\d:\d\d/ )
-        timezone_offset = ending
-      end
-
-      db.execute( "INSERT INTO authors 
-                  (email,name,total_commits,total_tags,earliest,latest,timezone_offset) 
-                  values 
-                  (?,?,?,?,?,?,?)", [email, name, cnt, tag_count, earliest, latest, timezone_offset] );
-  end
-
-  db.commit
-#+end_src
-
-Lets take a look at this table for our test repo.  Lets look at all
-the people who created a tag, ordering it by the last time they were
-active in the repo.
-
-The story this tells is the maintainership of the repo over time.
-
-#+begin_src sqlite :colnames yes
-  select name, date(earliest), date(latest), total_commits, total_tags, timezone_offset
-         from authors
-       where total_tags > 0
-       order by latest desc
-     limit 10
-#+end_src
-
-#+RESULTS:
-| name                | date(earliest) | date(latest) | total_commits | total_tags | timezone_offset |
-|---------------------+----------------+--------------+---------------+------------+-----------------|
-| yancyribbens        |     2021-03-27 |   2021-03-27 |             1 |          1 |          -05:00 |
-| James Couball       |     2019-02-17 |   2021-01-18 |            20 |          6 |          -08:00 |
-| Michal Papis        |     2020-12-23 |   2020-12-23 |             1 |          1 |          +01:00 |
-| Peter Kovacs        |     2020-12-23 |   2020-12-23 |             1 |          1 |          -05:00 |
-| Hidetaka Okita      |     2020-12-22 |   2020-12-22 |             1 |          1 |          +09:00 |
-| Gabriel Gilder      |     2020-12-23 |   2020-12-23 |             1 |          1 |          -08:00 |
-| Vern Burton         |     2018-03-07 |   2020-12-22 |             6 |          4 |          -06:00 |
-| Nicholas Calugar    |     2020-12-22 |   2020-12-22 |             1 |          1 |          -08:00 |
-| Alex Mayer          |     2020-04-05 |   2020-12-20 |             2 |          2 |          -04:00 |
-| Borislav Stanimirov |     2020-11-27 |   2020-11-27 |             1 |          1 |          +02:00 |
-
-
-We can see that the stewardship of this repo was something like:
-
-Originally Scott Chacon (West Coast) and Josua Peek (East Coast) in
-2007-2008.
-
-Josh Nichols (East Coast) in 2009-2011.
-
-Roberto Decurnex (-3 is probably Brazil?) in 2013-2014, when there was
-quite a lot of activity.
-
-Per Lundberg (+2 is probably in Europe) 2018.
-
-And currently James Couball from 2019 to 2021, hailing again from the
-West Coast.
-
-
-
-* Identifing file types
-** Using =cloc=
-Let's use the =cloc= program to try and map out what sorts of file are
-in the repository, how many lines of code vs comments vs white spaces.
-
-=cloc= can work by using a git tag or object, and it will look at the
-repository at that state.  We'll start by inventoring the current
-state, and then go back for each tag to see what that snapshot looks
-like.
-
-#+begin_src ruby :tangle gitinfo.rb
-  def import_cloc_output repo_dir, db, sha
-    puts "Finding stats for #{sha}"
-    output = `(cd #{repo_dir};cloc --skip-uniqueness --quiet --by-file --csv --git #{sha})`
-    CSV.parse(output).each do |row|
-      next if row == []
-      next if row[0] == 'language'
-      if row[0] == 'SUM'
-        return { code_lines: row[4], comment_lines: row[3], blank_lines: row[2] }
-      else
-        ret = db.execute(
-          "INSERT INTO file_stats (sha, filename, language, code_lines, comment_lines, blank_lines)
-          VALUES (?, ?, ?, ?, ?, ?)",
-          sha, row[1], row[0], row[4], row[3], row[2] )
-      end
-    end
-  end
-
-  def find_commit db, sha, obj
-    row = db.execute( "select author_name, author_email, author_when from commits where id=(?) or id=(?)", [sha, obj] ).first
-
-    return nil if row.nil?
-    return {author_name: row[0], author_email: row[1], author_when: row[2]}
-  end
-
-  def add_summary db, summary, name, sha, commit
-    commit ||= {}
-    author_name = commit[:author_name]
-    author_email = commit[:author_email]
-    author_when = commit[:author_when];
-
-    ret = db.execute(
-      "INSERT INTO file_stats_summary (sha, tag, author_name, author_email, author_when, code_lines, comment_lines, blank_lines)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-      [sha,
-       name,
-       author_name,
-       author_email,
-       author_when,
-       summary[:code_lines],
-       summary[:comment_lines],
-       summary[:blank_lines]
-      ])
-  end
-
-  db.transaction
-  summary = import_cloc_output repo_dir, db, head
-  add_summary db, summary, "HEAD", head, find_commit( db, head, head )
-
-  db.execute( "select sha, name, object from tags" ) do |row|
-    sha = row[0]
-    name = row[1]
-    object = row[2]
-    summary = import_cloc_output repo_dir, db, sha
-    add_summary db, summary, name, sha, find_commit( db, sha, object );
-  end
-  db.commit
-#+end_src
-
-** Code language line counts
-
-Here we can look at a project and see how many files are in each
-language, the numebr of code lines, and the number of comments.
-
-As a basic number I'm not sure that the number of lines means that
-much but the change over time conveys some sort of information.
-
-#+begin_src sqlite :colnames yes
-  select
-    language,
-    count(filename) as files,
-    sum(file_stats.code_lines) as code_lines,
-    sum(file_stats.comment_lines) as comment_lines
-  from file_stats, file_stats_summary
-  where file_stats.sha = file_stats_summary.sha
-    and file_stats_summary.tag = 'HEAD'
-  group by language
-  order by code_lines desc;
-#+end_src
-
-#+RESULTS:
-#+ATTR_HTML: :class table table-striped
-| language     | files | code_lines | comment_lines |
-|--------------+-------+------------+---------------|
-| Ruby         |    55 |       4323 |           883 |
-| Bourne Shell |    37 |        992 |           461 |
-| Markdown     |     7 |        516 |             0 |
-| Perl         |     1 |         65 |            30 |
-| YAML         |     2 |         46 |            10 |
-
-** Seeing code size changes over time
-
-#+begin_src sqlite :colnames yes
-    select tag, author_name, date(author_when), code_lines, comment_lines, blank_lines
-    from file_stats_summary;
-#+end_src
-
-#+RESULTS:
-#+ATTR_HTML: :class table table-striped
-| tag         | author_name      | date(author_when) | code_lines | comment_lines | blank_lines |
-|-------------+------------------+-------------------+------------+---------------+-------------|
-| HEAD        | yancyribbens     |        2021-03-27 |       5942 |          1384 |        1642 |
-| v1.8.1      | James Couball    |        2020-12-31 |       5913 |          1383 |        1635 |
-| v1.8.0      | James Couball    |        2020-12-31 |       5911 |          1383 |        1633 |
-| v1.7.0      | James Couball    |        2020-04-25 |       5134 |          1012 |        1465 |
-| v1.6.0.pre1 |                  |                   |       5023 |           994 |        1428 |
-| v1.6.0      | James Couball    |        2020-02-02 |       5109 |           994 |        1455 |
-| v1.5.0      | Per Lundberg     |        2018-08-10 |       4456 |           778 |        1286 |
-| v1.4.0      | Per Lundberg     |        2018-05-16 |       4227 |           769 |        1198 |
-| v1.3.0      | Roberto Decurnex |        2016-02-25 |       4099 |           703 |        1177 |
-| v1.2.10     | Roberto Decurnex |        2016-02-25 |       4107 |           703 |        1177 |
-| v1.2.9.1    | Roberto Decurnex |        2015-01-15 |       4056 |           703 |        1170 |
-| v1.2.9      | Roberto Decurnex |        2015-01-12 |       4048 |           703 |        1165 |
-| v1.2.8      | Roberto Decurnex |        2014-07-31 |       3759 |           628 |        1077 |
-| v1.2.7      | robertodecurnex  |        2014-06-09 |       3757 |           629 |        1076 |
-| v1.2.6      | robertodecurnex  |        2013-08-17 |       4236 |           651 |        1138 |
-| v1.2.5      | Joshua Nichols   |        2009-10-17 |       3801 |           563 |         941 |
-| v1.2.4      | Joshua Nichols   |        2009-10-02 |       3801 |           563 |         941 |
-| v1.2.3      | Joshua Nichols   |        2009-09-30 |       3801 |           563 |         941 |
-| v1.2.2      | Joshua Nichols   |        2009-08-02 |       3820 |           563 |         945 |
-| v1.2.1      | Joshua Nichols   |        2009-08-01 |       3820 |           563 |         944 |
-| v1.2.0      | Joshua Nichols   |        2009-08-01 |       3813 |           563 |         941 |
-| v1.0.7      | Scott Chacon     |        2008-05-27 |      15802 |           666 |        3532 |
-| 1.0.5.1     | Scott Chacon     |        2008-03-23 |      15724 |           660 |        3514 |
-| 1.0.5       | Joshua Peek      |        2008-03-15 |      15719 |           665 |        3515 |
-| 1.0.3       | scott Chacon     |        2007-11-16 |      13817 |           613 |        3183 |
-
-We can see that a while bunch of code was removed between 2008-2009 (I
-looked, it was the camping front end!) and overall the number of
-comments in the codeback jumped in =v1.8.0= so that implies a bit of
-difference on development styles.
 
 * Dockerfile
 
@@ -996,6 +90,650 @@ CMD bash
   done
 #+end_src
 
+* Files
+
+We'll need a =Gemfile= to include for the sqlite3 gem.
+
+#+begin_src ruby :tangle Gemfile
+  # frozen_string_literal: true
+
+  source "https://rubygems.org"
+
+  git_source(:github) {|repo_name| "https://github.com/#{repo_name}" }
+
+  gem "sqlite3", "~> 1.4"
+#+end_src
+
+* Commits
+
+Lets first populate the database with all of the commits, and files
+associated with those commits.
+
+This works off a file created with
+
+#+begin_src bash
+  git log --pretty=format:'|%H|%ae|%an|%aI|%s' --numstat
+#+end_src
+
+/Note that we are creating a =tag= attribute in commits which will we
+populate later./
+
+#+begin_src ruby :tangle 0commits.rb
+  require 'sqlite3'
+
+  def create_database filename
+    db = SQLite3::Database.new filename
+
+    rows = db.execute <<-SQL1
+         CREATE TABLE IF NOT EXISTS commits (
+                id	TEXT UNIQUE,
+                tag TEXT,
+                summary	TEXT,
+                author_name	TEXT,
+                author_email	TEXT,
+                author_when	DATETIME
+                );
+  SQL1
+
+    rows = db.execute <<-SQL2
+         CREATE TABLE IF NOT EXISTS commit_files (
+                id    TEXT,
+                name  TEXT,
+                added INT,
+                deleted INT
+                );
+  SQL2
+
+    db
+  end
+
+  def add_commit db, id, email, name, date, summary
+    ret = db.execute("INSERT INTO commits (id, summary, author_name, author_email, author_when)
+          VALUES (?, ?, ?, ?, ?)", [id, summary, name, email, date ] )
+  end
+
+  def add_file_commit db, id, file, added, deleted
+    ret = db.execute("INSERT INTO commit_files (id, name, added, deleted)
+          VALUES (?, ?, ?, ?)", [id, file, added, deleted] )
+
+  end
+
+  def parse_file db, file
+    commit = nil
+    File.open( file ).each_line do |line|
+      line.chomp!
+      if line[0] == '|'
+        md = /\|(.*?)\|(.*?)\|(.*?)\|(.*?)\|(.*)/.match( line )
+        commit = md[1]
+
+        puts line
+
+        begin
+          add_commit db, md[1], md[2], md[3], md[4], md[5]
+        rescue SQLite3::ConstraintException
+          puts "Found existing commit, exiting"
+          return
+        end
+      elsif line.length != 0
+        md = /([\d|-]*)\s*([\d|-]*)\s*(.*)/.match( line )
+        add_file_commit db, commit, md[3], md[1], md[2]
+      end
+    end
+  end
+
+  db = create_database "commits.db"
+  db.transaction
+  parse_file db, "commits_with_files.log"
+  db.commit
+#+end_src
+* Looking at Entities
+** All Entities all Authors
+
+We can look at who changed which file the most.
+
+#+begin_src sqlite :colnames yes
+  select author_name, name,
+    count(name) as times_touched,
+    sum(added) as lines_added,
+    sum(deleted) as lined_deleted,
+    date(max(author_when)) as most_recently
+  from commits, commit_files
+  where commits.id = commit_files.id
+  group by author_name, name
+  order by times_touched desc
+    limit 10;
+#+end_src
+
+#+RESULTS:
+#+ATTR_HTML: :class table table-striped
+| author_name      | name              | times_touched | lines_added | lined_deleted | most_recently |
+|------------------+-------------------+---------------+-------------+---------------+---------------|
+| scott Chacon     | lib/git/lib.rb    |            41 |         775 |           167 |    2008-01-31 |
+| scott Chacon     | lib/git/base.rb   |            28 |         504 |            49 |    2008-01-31 |
+| robertodecurnex  | lib/git/lib.rb    |            25 |         221 |           128 |    2014-06-25 |
+| scott Chacon     | camping/gitweb.rb |            18 |         667 |           112 |    2007-11-29 |
+| scott Chacon     | lib/git/object.rb |            18 |         349 |            69 |    2007-11-27 |
+| scott Chacon     | README            |            17 |         473 |           209 |    2007-11-27 |
+| scott Chacon     | lib/git.rb        |            17 |         137 |            42 |    2007-11-20 |
+| Roberto Decurnex | lib/git/lib.rb    |            16 |         386 |           243 |    2016-02-25 |
+| robertodecurnex  | lib/git/base.rb   |            14 |          95 |            28 |    2014-01-15 |
+| Roberto Decurnex | README.md         |            13 |          54 |            23 |    2016-02-25 |
+** Who touched a file the most recently
+
+We can also look at who touched a file in general, to get a sense of
+maybe who knows how it works.  If the last person who touched it is
+the person who owns it, you know who to look for.
+
+#+begin_src sqlite :colnames yes
+  select
+    name,
+    author_name,
+    date(max(author_when)) as last_touched,
+    count(name) as times_touched,
+    sum(added) as lines_added
+  from commits, commit_files
+  where commits.id = commit_files.id
+     and name = 'README.md'
+  group by author_name
+  order by last_touched desc
+  limit 100
+#+end_src
+
+#+RESULTS:
+#+ATTR_HTML: :class table table-striped
+| name      | author_name       | last_touched | times_touched | lines_added |
+|-----------+-------------------+--------------+---------------+-------------|
+| README.md | James Couball     |   2020-12-28 |             3 |          31 |
+| README.md | Hidetaka Okita    |   2020-12-22 |             1 |           1 |
+| README.md | Alex Mayer        |   2020-12-20 |             2 |         225 |
+| README.md | Ofir Petrushka    |   2020-09-05 |             1 |          15 |
+| README.md | Salim Afiune      |   2019-09-20 |             1 |           1 |
+| README.md | Evgenii Pecherkin |   2018-10-02 |             1 |           2 |
+| README.md | Kelly Stannard    |   2018-07-12 |             1 |           1 |
+| README.md | Joshua Liebowitz  |   2018-06-25 |             1 |           1 |
+| README.md | Per Lundberg      |   2018-05-16 |             2 |           4 |
+| README.md | Roberto Decurnex  |   2016-02-25 |            13 |          54 |
+| README.md | Guy Hughes        |   2014-05-21 |             1 |           2 |
+| README.md | robertodecurnex   |   2014-01-15 |             2 |          17 |
+| README.md | Andy Schrage      |   2013-12-17 |             1 |           1 |
+| README.md | schneems          |   2011-10-19 |             1 |         251 |
+
+* Tags
+
+Now lets populate the tag information.  We are banking on the idea
+that a lot of projects will automatically tag a release as part of
+their build scripts.
+
+This file is created with:
+
+#+begin_src bash
+  git tag --sort=-v:refname --format='%(refname:short):%(objectname):%(*objectname):%(creatordate:iso8601-strict)'
+#+end_src
+
+#+begin_src ruby :tangle 1tags.rb
+  require 'sqlite3'
+
+  def create_database filename
+    db = SQLite3::Database.new filename
+
+    rows = db.execute <<-SQL1
+         CREATE TABLE IF NOT EXISTS tags (
+                name TEXT UNIQUE,
+                sha TEXT,
+                object TEXT,
+                author_email TEXT,
+                created_at DATETIME
+                );
+  SQL1
+
+    return db
+  end
+
+  def add_tag db, name, sha, object, created_at, author_email
+    ret = db.execute("INSERT INTO tags (name, sha, object, created_at, author_email)
+              VALUES (?, ?, ?, ?, ?)", [name, sha, object, created_at, author_email])
+  end
+
+  def parse_file db, file
+    commit = nil
+    File.open( file ).each_line do |line|
+      line.chomp!
+      md = line.match( /(.*?):(.*?):(.*?):(.*)/ )
+
+      if( !md )
+          puts "Unrecognized line #{line}"
+      else
+        tag_name = md[1]
+        sha = md[2]
+        sha_object = md[3] unless md[3] == "" # have annotated tags point to the main commit
+        created_at = md[4]
+
+        tagger = db.execute( "select author_email from commits where id = (?) or id = (?)", [sha, sha_object == "" ? sha : sha_object] ).first
+
+        begin
+          add_tag db, tag_name, sha, sha_object, created_at, tagger
+        rescue SQLite3::ConstraintException
+          puts "Found existing tag, exiting"
+          return
+        end
+      end
+    end
+  end
+
+  def tag_commits db
+    last_date = nil
+    db.execute( "select name, created_at from tags where created_at is not null order by created_at asc" ).each do |row|
+      if last_date.nil?
+        db.execute( "update commits set tag = (?) where author_when <= (?)", [row[0], row[1]] )
+      else
+        db.execute( "update commits set tag = (?) where author_when <= (?) and author_when > (?)", [row[0], row[1], last_date] )
+      end
+
+      last_date = row[1]
+    end
+
+    db.execute( "update commits set tag = 'HEAD' where author_when > (?)", [last_date] )
+  end
+
+  db = create_database "commits.db"
+  db.transaction
+  parse_file db, "tags.log"
+  tag_commits db
+  db.commit
+#+end_src
+
+So if you wanted to find out who tagged what when you could use the query:
+
+#+begin_src sqlite :colnames yes
+  select id, name, summary, author_name, created_at
+  from tags, commits
+  where id=object or id=sha
+  order by created_at desc;
+#+end_src
+
+* Things that changed in a release
+
+Let's come up with some queries to tell us what has changed during a
+certain time period. What we are going to do applies best to repos
+that have trunk-on-main, meaning that there's a more or less basic
+branching strategy and we can just look at commits based upon
+timestamp.
+
+** Commit Messages
+
+#+begin_src sqlite :colnames yes
+   select
+     author_name,
+     tag,
+     summary
+   from commits
+   where tag = 'v1.8.1'
+   
+#+end_src
+
+#+RESULTS:
+| author_name   | tag    | summary                                                       |
+|---------------+--------+---------------------------------------------------------------|
+| James Couball | v1.8.1 | Release v1.8.1 (#508)                                         |
+| James Couball | v1.8.1 | Add all appropriate files (excluding tests) to the gem (#507) |
+
+** File changes
+
+If we wanted to focus our testing on what has changed in a release,
+here's a map to get you started.
+
+#+begin_src sqlite :colnames yes
+  select
+    author_name,
+    name,
+    count(commits.id) as changes,
+    sum( added ) as lines_added
+  from commits, commit_files
+  where commits.id = commit_files.id
+      and commits.tag = 'v1.8.1'
+  group by name, author_name
+  order by name
+#+end_src
+
+#+RESULTS:
+| author_name   | name               | changes | lines_added |
+|---------------+--------------------+---------+-------------|
+| James Couball | CHANGELOG.md       |       1 |           4 |
+| James Couball | git.gemspec        |       1 |           5 |
+| James Couball | lib/git/version.rb |       1 |           1 |
+
+Which can we verify by [[https://github.com/ruby-git/ruby-git/compare/v1.8.0...v1.8.1][looking at github]].
+
+* Finding authors
+
+We can look at the commits to find some information about the
+contributors.  We'll look at:
+
+#+ATTR_HTML: :class table table-striped
+| Name                     | Their reported name        |
+| Email                    | Their reported email       |
+| Number of commits        | Total over time            |
+| Number of tags           | Total over time            |
+| First Contribution       | First time we saw them     |
+| Most recent contribution | Last time we saw them      |
+| First reported timezone  | Guess as to where they are |
+
+The query is basically:
+
+#+begin_src sqlite :colnames yes
+  select
+    author_name,
+    count(*) as cnt,
+    date(min(author_when)) as earliest,
+    date(max(author_when)) as latest
+  from commits
+  group by author_email
+  having cnt > 2
+  order by count(*) desc
+#+end_src
+
+#+RESULTS:
+#+ATTR_HTML: :class table table-striped
+| author_name      | cnt |   earliest |     latest |
+|------------------+-----+------------+------------|
+| Roberto Decurnex | 147 | 2013-04-03 | 2016-02-25 |
+| scott Chacon     |  47 | 2007-11-10 | 2008-01-31 |
+| scott Chacon     |  34 | 2007-11-07 | 2007-11-29 |
+| Josh Nichols     |  24 | 2009-04-27 | 2011-09-02 |
+| schacon          |  21 | 2008-03-03 | 2009-08-10 |
+| James Couball    |  20 | 2019-02-17 | 2021-01-18 |
+| Daniel Mendler   |   8 | 2009-02-07 | 2009-02-12 |
+| Per Lundberg     |   8 | 2018-01-10 | 2018-08-10 |
+| Roberto Decurnex |   8 | 2014-06-09 | 2014-09-29 |
+| Vern Burton      |   6 | 2018-03-07 | 2020-12-22 |
+| elliottcable     |   4 | 2009-02-12 | 2009-02-12 |
+| James Rosen      |   4 | 2008-12-21 | 2008-12-21 |
+| Kelly Stannard   |   4 | 2014-08-06 | 2014-08-07 |
+| Yuichi Tateno    |   3 | 2008-07-25 | 2008-07-25 |
+| Jorge Bernal     |   3 | 2008-05-05 | 2008-05-06 |
+| Michael Mallete  |   3 | 2013-05-23 | 2013-05-24 |
+
+#+begin_src ruby :tangle 2authors.rb
+  require 'sqlite3'
+
+  def create_database filename
+    db = SQLite3::Database.new filename
+
+    rows = db.execute <<-SQL1
+         CREATE TABLE IF NOT EXISTS authors (
+                email text unique,
+                name text,
+                total_commits integer,
+                total_tags integer default 0,
+                earliest DATETIME,
+                latest DATETIME,
+                timezone_offset text
+                );
+  SQL1
+    rows = db.execute( "DELETE FROM authors;" );
+    return db;
+  end
+
+  db = create_database "commits.db"
+  db.transaction
+
+  # Preload the tag counts
+  tag_counts = {}
+  db.execute(
+    "select commits.author_email, count(name) from tags, commits where id=object or id=sha group by commits.author_email"
+  ).each do |row|
+    tag_counts[row[0]] = row[1]
+  end
+
+  db.execute( "select
+      author_email,
+      author_name,
+      count(*) as cnt,
+      min(author_when) as earliest,
+      max(author_when) as latest
+    from commits
+    group by author_email
+    order by count(*) desc" ).each do |row|
+      email, name, cnt, earliest, latest = row
+      tag_count = tag_counts[email] || 0
+
+      ending = earliest[-6..-1] || earliest
+
+      timezone_offset = ""
+      if( ending =~ /[-+]\d\d:\d\d/ )
+        timezone_offset = ending
+      end
+
+      db.execute( "INSERT INTO authors 
+                  (email,name,total_commits,total_tags,earliest,latest,timezone_offset) 
+                  values 
+                  (?,?,?,?,?,?,?)", [email, name, cnt, tag_count, earliest, latest, timezone_offset] );
+  end
+
+  db.commit
+#+end_src
+
+Lets take a look at this table for our test repo.  Lets look at all
+the people who created a tag, ordering it by the last time they were
+active in the repo.
+
+The story this tells is the maintainership of the repo over time.
+
+#+begin_src sqlite :colnames yes
+  select name, date(earliest), date(latest), total_commits, total_tags, timezone_offset
+         from authors
+       where total_tags > 0
+       order by latest desc
+#+end_src
+
+#+RESULTS:
+#+ATTR_HTML: :class table table-striped
+| name             | date(earliest) | date(latest) | total_commits | total_tags | timezone_offset |
+|------------------+----------------+--------------+---------------+------------+-----------------|
+| James Couball    |     2019-02-17 |   2021-01-18 |            20 |          3 |          -08:00 |
+| James Couball    |     2020-04-25 |   2020-04-25 |             1 |          1 |          -07:00 |
+| Per Lundberg     |     2018-01-10 |   2018-08-10 |             8 |          2 |          +02:00 |
+| Roberto Decurnex |     2013-04-03 |   2016-02-25 |           147 |          5 |          -03:00 |
+| Roberto Decurnex |     2014-06-09 |   2014-09-29 |             8 |          2 |          -03:00 |
+| Josh Nichols     |     2009-04-27 |   2011-09-02 |            24 |          6 |          -04:00 |
+| schacon          |     2008-03-03 |   2009-08-10 |            21 |          2 |          -08:00 |
+| Joshua Peek      |     2008-03-15 |   2008-03-15 |             1 |          1 |          -05:00 |
+| scott Chacon     |     2007-11-10 |   2008-01-31 |            47 |          1 |          -08:00 |
+
+
+We can see that the stewardship of this repo was something like:
+
+Originally Scott Chacon (West Coast) and Josua Peek (East Coast) in
+2007-2008.
+
+Josh Nichols (East Coast) in 2009-2011.
+
+Roberto Decurnex (-3 is probably Brazil?) in 2013-2014, when there was
+quite a lot of activity.
+
+Per Lundberg (+2 is probably in Europe) 2018.
+
+And currently James Couball from 2019 to 2021, hailing again from the
+West Coast.
+
+* Identifing file types
+** Using =cloc=
+Let's use the =cloc= program to try and map out what sorts of file are
+in the repository, how many lines of code vs comments vs white spaces.
+
+=cloc= can work by using a git tag or object, and it will look at the
+repository at that state.  We'll start by inventoring the current
+state, and then go back for each tag to see what that snapshot looks
+like.
+
+#+begin_src ruby :tangle 3cloc.rb
+  require 'sqlite3'
+  require 'csv'
+  exit
+  def create_database filename
+    db = SQLite3::Database.new filename
+
+    rows = db.execute <<-SQL1
+         CREATE TABLE IF NOT EXISTS file_stats_summary (
+                sha text,
+                tag text,
+                author_name text,
+                author_email text,
+                author_when text,
+                code_lines integer,
+                comment_lines integer,
+                blank_lines integer
+                );
+  SQL1
+    rows = db.execute "delete from file_stats_summary";
+
+    rows = db.execute <<-SQL1
+         CREATE TABLE IF NOT EXISTS file_stats (
+                sha text,
+                filename text,
+                language text,
+                code_lines integer,
+                comment_lines integer,
+                blank_lines integer
+                );
+  SQL1
+    rows = db.execute "delete from file_stats";
+    return db;
+  end
+
+  def import_cloc_output db, sha
+    puts "Finding stats for #{sha}"
+    output = `(cd #{ENV['REPO_WORK_DIR']};cloc --skip-uniqueness --quiet --by-file --csv --git #{sha})`
+    CSV.parse(output).each do |row|
+      next if row == []
+      next if row[0] == 'language'
+      if row[0] == 'SUM'
+        return { code_lines: row[4], comment_lines: row[3], blank_lines: row[2] }
+      else
+        ret = db.execute(
+          "INSERT INTO file_stats (sha, filename, language, code_lines, comment_lines, blank_lines)
+          VALUES (?, ?, ?, ?, ?, ?)",
+          sha, row[1], row[0], row[4], row[3], row[2] )
+      end
+    end
+  end
+
+  def find_commit db, sha, obj
+    row = db.execute( "select author_name, author_email, author_when from commits where id=(?) or id=(?)", [sha, obj] ).first
+
+    return nil if row.nil?
+    return {author_name: row[0], author_email: row[1], author_when: row[2]}
+  end
+
+  def add_summary db, summary, name, sha, commit
+    commit ||= {}
+    author_name = commit[:author_name]
+    author_email = commit[:author_email]
+    author_when = commit[:author_when];
+
+    ret = db.execute(
+      "INSERT INTO file_stats_summary (sha, tag, author_name, author_email, author_when, code_lines, comment_lines, blank_lines)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      [sha,
+       name,
+       author_name,
+       author_email,
+       author_when,
+       summary[:code_lines],
+       summary[:comment_lines],
+       summary[:blank_lines]
+      ])
+  end
+
+  db = create_database "commits.db"
+
+  db.transaction
+  head = `(cd #{ENV['REPO_WORK_DIR']};git rev-parse HEAD)`.chomp
+  summary = import_cloc_output db, head
+  add_summary db, summary, "HEAD", head, find_commit( db, head, head )
+
+  db.execute( "select sha, name, object from tags" ) do |row|
+    sha = row[0]
+    name = row[1]
+    object = row[2]
+    summary = import_cloc_output db, sha
+    add_summary db, summary, name, sha, find_commit( db, sha, object );
+  end
+  db.commit
+#+end_src
+
+** Code language line counts
+
+Here we can look at a project and see how many files are in each
+language, the numebr of code lines, and the number of comments.
+
+As a basic number I'm not sure that the number of lines means that
+much but the change over time conveys some sort of information.
+
+#+begin_src sqlite :colnames yes
+  select
+    language,
+    count(filename) as files,
+    sum(file_stats.code_lines) as code_lines,
+    sum(file_stats.comment_lines) as comment_lines
+  from file_stats, file_stats_summary
+  where file_stats.sha = file_stats_summary.sha
+    and file_stats_summary.tag = 'HEAD'
+  group by language
+  order by code_lines desc;
+#+end_src
+
+#+RESULTS:
+#+ATTR_HTML: :class table table-striped
+| language     | files | code_lines | comment_lines |
+|--------------+-------+------------+---------------|
+| Ruby         |    55 |       4323 |           883 |
+| Bourne Shell |    37 |        992 |           461 |
+| Markdown     |     7 |        516 |             0 |
+| Perl         |     1 |         65 |            30 |
+| YAML         |     2 |         46 |            10 |
+
+** Seeing code size changes over time
+
+#+begin_src sqlite :colnames yes
+    select tag, author_name, date(author_when), code_lines, comment_lines, blank_lines
+    from file_stats_summary;
+#+end_src
+
+#+RESULTS:
+#+ATTR_HTML: :class table table-striped
+| tag         | author_name      | date(author_when) | code_lines | comment_lines | blank_lines |
+|-------------+------------------+-------------------+------------+---------------+-------------|
+| HEAD        | yancyribbens     |        2021-03-27 |       5942 |          1384 |        1642 |
+| v1.8.1      | James Couball    |        2020-12-31 |       5913 |          1383 |        1635 |
+| v1.8.0      | James Couball    |        2020-12-31 |       5911 |          1383 |        1633 |
+| v1.7.0      | James Couball    |        2020-04-25 |       5134 |          1012 |        1465 |
+| v1.6.0.pre1 |                  |                   |       5023 |           994 |        1428 |
+| v1.6.0      | James Couball    |        2020-02-02 |       5109 |           994 |        1455 |
+| v1.5.0      | Per Lundberg     |        2018-08-10 |       4456 |           778 |        1286 |
+| v1.4.0      | Per Lundberg     |        2018-05-16 |       4227 |           769 |        1198 |
+| v1.3.0      | Roberto Decurnex |        2016-02-25 |       4099 |           703 |        1177 |
+| v1.2.10     | Roberto Decurnex |        2016-02-25 |       4107 |           703 |        1177 |
+| v1.2.9.1    | Roberto Decurnex |        2015-01-15 |       4056 |           703 |        1170 |
+| v1.2.9      | Roberto Decurnex |        2015-01-12 |       4048 |           703 |        1165 |
+| v1.2.8      | Roberto Decurnex |        2014-07-31 |       3759 |           628 |        1077 |
+| v1.2.7      | robertodecurnex  |        2014-06-09 |       3757 |           629 |        1076 |
+| v1.2.6      | robertodecurnex  |        2013-08-17 |       4236 |           651 |        1138 |
+| v1.2.5      | Joshua Nichols   |        2009-10-17 |       3801 |           563 |         941 |
+| v1.2.4      | Joshua Nichols   |        2009-10-02 |       3801 |           563 |         941 |
+| v1.2.3      | Joshua Nichols   |        2009-09-30 |       3801 |           563 |         941 |
+| v1.2.2      | Joshua Nichols   |        2009-08-02 |       3820 |           563 |         945 |
+| v1.2.1      | Joshua Nichols   |        2009-08-01 |       3820 |           563 |         944 |
+| v1.2.0      | Joshua Nichols   |        2009-08-01 |       3813 |           563 |         941 |
+| v1.0.7      | Scott Chacon     |        2008-05-27 |      15802 |           666 |        3532 |
+| 1.0.5.1     | Scott Chacon     |        2008-03-23 |      15724 |           660 |        3514 |
+| 1.0.5       | Joshua Peek      |        2008-03-15 |      15719 |           665 |        3515 |
+| 1.0.3       | scott Chacon     |        2007-11-16 |      13817 |           613 |        3183 |
+
+We can see that a while bunch of code was removed between 2008-2009 (I
+looked, it was the camping front end!) and overall the number of
+comments in the codeback jumped in =v1.8.0= so that implies a bit of
+difference on development styles.
 
 * Producing a timeline
 
