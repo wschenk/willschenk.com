@@ -1,0 +1,432 @@
+<!doctype html><html><head><title>Controlling docker in golang</title><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><link rel=stylesheet href=../../../css/theme.css><link rel=stylesheet href=../../../css/syntax.css><script type=application/javascript>var doNotTrack=false;if(!doNotTrack){window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;ga('create','UA-56296045-1','auto');ga('send','pageview');}</script><script async src=https://www.google-analytics.com/analytics.js></script><script async defer data-domain=willschenk.com src=https://plausible.io/js/plausible.js></script><meta property="og:title" content="Controlling docker in golang"><meta property="og:description" content="I've been thinking about running different ephemeral jobs with attached volumes, volumes that I could garbage collect as needed. This is a non-standard way of using docker, but I wanted to look to see how I could interact with the docker daemon programatically.  The use case is:    Create a docker volume for a container    Start up a docker container, with a specified environment    Monitor the running of the container, kill if its running for too long    Capture the output of the container    Clean up the container    Pull data from the volume    Clean up the volume   Setting up go environemnt   First we need to setup a go project and create the go."><meta property="og:type" content="article"><meta property="og:url" content="https://willschenk.com/articles/2021/controlling_docker_in_golang/"><meta property="article:published_time" content="2021-05-15T00:00:00+00:00"><meta property="article:modified_time" content="2021-05-15T00:00:00+00:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Controlling docker in golang"><meta name=twitter:description content="I've been thinking about running different ephemeral jobs with attached volumes, volumes that I could garbage collect as needed. This is a non-standard way of using docker, but I wanted to look to see how I could interact with the docker daemon programatically.  The use case is:    Create a docker volume for a container    Start up a docker container, with a specified environment    Monitor the running of the container, kill if its running for too long    Capture the output of the container    Clean up the container    Pull data from the volume    Clean up the volume   Setting up go environemnt   First we need to setup a go project and create the go."><meta name=twitter:site content="@wschenk"><style>.article p,.article ul,.article ol,.article table{max-width:45em}.article pre p{max-width:none;margin-top:-1.5rem}article.article p:first-child,.article blockquote{font-size:1.25em;font-weight:300;max-width:36em}.half-height-scroll{max-height:32em;overflow:scroll}</style></head><body><nav class="container my-5"><h1 class="pt-md-5 display-3"><a class=text-dark href=../../../>Will Schenk</a></h1><p><a class="text-dark h4 mr-3 font-weight-light" href=../../../articles/>Articles</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../contact>Contact</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../tags/>Tags</a>
+<a href=../../../feed.xml class="mr-3 h4 text-light"><img src=../../../img/rss.svg alt=rss height=20 width=20></a>
+<a href=https://twitter.com/@wschenk class="mr-3 h4 text-light"><img src=../../../img/twitter.svg alt=twitter height=20 width=20></a>
+<a href=https://instagram.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/instagram.svg alt=instagram height=20 width=20></a>
+<a href=https://github.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/github.svg alt=github height=20 width=20></a>
+<a href=https://linkedin.com/in/will-schenk-420266 class="mr-3 h4 text-light"><img src=../../../img/linkedin.svg alt=linkedin height=20 width=20></a></p></nav><div class=container><h1 class=mt-5>Controlling docker in golang</h1><h2 class="font-weight-light font-italic mb-3">So meta</h2><p class="text-muted mt-3"><a class=text-muted href=https://willschenk.com/articles/2021/controlling_docker_in_golang/>Published May 15, 2021</a>
+<a class=text-muted href=../../../tags/golang>#golang,</a>
+<a class=text-muted href=../../../tags/docker>#docker</a></p><article class="article mt-5"><p>I've been thinking about running different ephemeral jobs with
+attached volumes, volumes that I could garbage collect as needed.
+This is a non-standard way of using docker, but I wanted to look to
+see how I could interact with the docker daemon programatically.</p><p>The use case is:</p><ol><li><p>Create a docker volume for a container</p></li><li><p>Start up a docker container, with a specified environment</p></li><li><p>Monitor the running of the container, kill if its running for too long</p></li><li><p>Capture the output of the container</p></li><li><p>Clean up the container</p></li><li><p>Pull data from the volume</p></li><li><p>Clean up the volume</p></li></ol><h2 id=headline-1>Setting up go environemnt</h2><p>First we need to setup a go project and create the <code class=verbatim>go.mod</code> file.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  mkdir dockeringo
+  <span class=nb>cd</span> dockeringo
+  go mod init dockeringo</code></pre></div></div><p>Then we can add the modules that we'll need. In our case, our <code class=verbatim>go.mod</code> file should look like:</p><div class="src src-go"><div class=highlight><pre class=chroma><code class=language-go data-lang=go><span class=nx>module</span> <span class=nx>dockeringo</span>
+
+<span class=k>go</span> <span class=mf>1.16</span>
+
+<span class=nf>require</span> <span class=p>(</span>
+	<span class=nx>github</span><span class=p>.</span><span class=nx>com</span><span class=o>/</span><span class=nx>containerd</span><span class=o>/</span><span class=nx>containerd</span> <span class=nx>v1</span><span class=mf>.5.1</span> <span class=c1>// indirect
+</span><span class=c1></span>	<span class=nx>github</span><span class=p>.</span><span class=nx>com</span><span class=o>/</span><span class=nx>docker</span><span class=o>/</span><span class=nx>docker</span> <span class=nx>v20</span><span class=mf>.10.6</span><span class=o>+</span><span class=nx>incompatible</span> <span class=c1>// indirect
+</span><span class=c1></span>	<span class=nx>github</span><span class=p>.</span><span class=nx>com</span><span class=o>/</span><span class=nx>docker</span><span class=o>/</span><span class=k>go</span><span class=o>-</span><span class=nx>connections</span> <span class=nx>v0</span><span class=mf>.4.0</span> <span class=c1>// indirect
+</span><span class=c1></span>	<span class=nx>github</span><span class=p>.</span><span class=nx>com</span><span class=o>/</span><span class=nx>sirupsen</span><span class=o>/</span><span class=nx>logrus</span> <span class=nx>v1</span><span class=mf>.8.1</span> <span class=c1>// indirect
+</span><span class=c1></span>	<span class=nx>google</span><span class=p>.</span><span class=nx>golang</span><span class=p>.</span><span class=nx>org</span><span class=o>/</span><span class=nx>grpc</span> <span class=nx>v1</span><span class=mf>.37.1</span> <span class=c1>// indirect
+</span><span class=c1></span><span class=p>)</span></code></pre></div></div><p>And we can get those modules by</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>go mod download</code></pre></div></div><p>This will create a <code class=verbatim>go.sum</code> file that is basically your dependancies.</p><h2 id=headline-2>Our types</h2><p>We are going to build a simple controller type to hang our methods off
+of. Create a <code class=verbatim>types.go</code> file:</p><div class="src src-go"><div class=highlight><pre class=chroma><code class=language-go data-lang=go>  <span class=kn>package</span> <span class=nx>dockeringo</span>
+
+  <span class=kn>import</span> <span class=p>(</span>
+    <span class=s>&#34;github.com/docker/docker/api/types&#34;</span>
+    <span class=s>&#34;github.com/docker/docker/client&#34;</span>
+  <span class=p>)</span>
+
+  <span class=kd>type</span> <span class=nx>Controller</span> <span class=kd>struct</span> <span class=p>{</span>
+    <span class=nx>cli</span> <span class=o>*</span><span class=nx>client</span><span class=p>.</span><span class=nx>Client</span>
+  <span class=p>}</span>
+
+  <span class=kd>type</span> <span class=nx>VolumeMount</span> <span class=kd>struct</span> <span class=p>{</span>
+    <span class=nx>HostPath</span> <span class=kt>string</span>
+    <span class=nx>Volume</span>   <span class=o>*</span><span class=nx>types</span><span class=p>.</span><span class=nx>Volume</span>
+  <span class=p>}</span>
+
+  <span class=kd>func</span> <span class=nf>NewController</span><span class=p>()</span> <span class=p>(</span><span class=nx>c</span> <span class=o>*</span><span class=nx>Controller</span><span class=p>,</span> <span class=nx>err</span> <span class=kt>error</span><span class=p>)</span> <span class=p>{</span>
+    <span class=nx>c</span> <span class=p>=</span> <span class=nb>new</span><span class=p>(</span><span class=nx>Controller</span><span class=p>)</span>
+
+    <span class=nx>c</span><span class=p>.</span><span class=nx>cli</span><span class=p>,</span> <span class=nx>err</span> <span class=p>=</span> <span class=nx>client</span><span class=p>.</span><span class=nf>NewClientWithOpts</span><span class=p>(</span><span class=nx>client</span><span class=p>.</span><span class=nx>FromEnv</span><span class=p>)</span>
+
+    <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+      <span class=k>return</span> <span class=kc>nil</span><span class=p>,</span> <span class=nx>err</span>
+    <span class=p>}</span>
+    <span class=k>return</span> <span class=nx>c</span><span class=p>,</span> <span class=kc>nil</span>
+  <span class=p>}</span></code></pre></div></div><h2 id=headline-3>Images</h2><div class="src src-go"><div class=highlight><pre class=chroma><code class=language-go data-lang=go><span class=kn>package</span> <span class=nx>dockeringo</span>
+
+<span class=kn>import</span> <span class=p>(</span>
+	<span class=s>&#34;context&#34;</span>
+	<span class=s>&#34;io&#34;</span>
+	<span class=s>&#34;os&#34;</span>
+
+	<span class=s>&#34;github.com/docker/docker/api/types&#34;</span>
+<span class=p>)</span>
+
+<span class=c1>//https://gist.github.com/miguelmota/4980b18d750fb3b1eb571c3e207b1b92
+</span><span class=c1></span><span class=kd>func</span> <span class=p>(</span><span class=nx>c</span> <span class=o>*</span><span class=nx>Controller</span><span class=p>)</span> <span class=nf>EnsureImage</span><span class=p>(</span><span class=nx>image</span> <span class=kt>string</span><span class=p>)</span> <span class=p>(</span><span class=nx>err</span> <span class=kt>error</span><span class=p>)</span> <span class=p>{</span>
+	<span class=nx>reader</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>c</span><span class=p>.</span><span class=nx>cli</span><span class=p>.</span><span class=nf>ImagePull</span><span class=p>(</span><span class=nx>context</span><span class=p>.</span><span class=nf>Background</span><span class=p>(),</span> <span class=nx>image</span><span class=p>,</span> <span class=nx>types</span><span class=p>.</span><span class=nx>ImagePullOptions</span><span class=p>{})</span>
+
+	<span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+		<span class=k>return</span> <span class=nx>err</span>
+	<span class=p>}</span>
+	<span class=k>defer</span> <span class=nx>reader</span><span class=p>.</span><span class=nf>Close</span><span class=p>()</span>
+	<span class=nx>io</span><span class=p>.</span><span class=nf>Copy</span><span class=p>(</span><span class=nx>os</span><span class=p>.</span><span class=nx>Stdout</span><span class=p>,</span> <span class=nx>reader</span><span class=p>)</span>
+	<span class=k>return</span> <span class=kc>nil</span>
+<span class=p>}</span></code></pre></div></div><p>Then create a simple test in <code class=verbatim>images_test.go</code>:</p><div class="src src-go"><div class=highlight><pre class=chroma><code class=language-go data-lang=go><span class=kn>package</span> <span class=nx>dockeringo</span>
+
+<span class=kn>import</span> <span class=s>&#34;testing&#34;</span>
+
+<span class=kd>func</span> <span class=nf>TestEnsureImage</span><span class=p>(</span><span class=nx>t</span> <span class=o>*</span><span class=nx>testing</span><span class=p>.</span><span class=nx>T</span><span class=p>)</span> <span class=p>{</span>
+	<span class=nx>c</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nf>NewController</span><span class=p>()</span>
+
+	<span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+		<span class=nx>t</span><span class=p>.</span><span class=nf>Error</span><span class=p>(</span><span class=nx>err</span><span class=p>)</span>
+		<span class=nx>t</span><span class=p>.</span><span class=nf>FailNow</span><span class=p>()</span>
+	<span class=p>}</span>
+
+	<span class=nx>err</span> <span class=p>=</span> <span class=nx>c</span><span class=p>.</span><span class=nf>EnsureImage</span><span class=p>(</span><span class=s>&#34;alpine&#34;</span><span class=p>)</span>
+
+	<span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+		<span class=nx>t</span><span class=p>.</span><span class=nf>Error</span><span class=p>(</span><span class=nx>err</span><span class=p>)</span>
+	<span class=p>}</span>
+<span class=p>}</span></code></pre></div></div><p>We can run the test with:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>go <span class=nb>test</span> --run Image</code></pre></div></div><pre class=example>
+{&#34;status&#34;:&#34;Pulling from library/alpine&#34;,&#34;id&#34;:&#34;latest&#34;}
+{&#34;status&#34;:&#34;Digest: sha256:69e70a79f2d41ab5d637de98c1e0b055206ba40a8145e7bddb55ccc04e13cf8f&#34;}
+{&#34;status&#34;:&#34;Status: Image is up to date for alpine:latest&#34;}
+PASS
+ok  	dockeringo	0.685s
+</pre><p>This makes sure that we have the image we want to run on our machine.</p><h2 id=headline-4>Container logs</h2><p>Let's write a simple way to get the logs of a container. We won't
+write a test for this here, since we need to write the container run
+examples first.</p><p><code class=verbatim>container_log.go</code>:</p><div class="src src-go"><div class=highlight><pre class=chroma><code class=language-go data-lang=go>  <span class=kn>package</span> <span class=nx>dockeringo</span>
+
+  <span class=kn>import</span> <span class=p>(</span>
+    <span class=s>&#34;context&#34;</span>
+    <span class=s>&#34;io&#34;</span>
+    <span class=s>&#34;time&#34;</span>
+
+    <span class=s>&#34;github.com/docker/docker/api/types&#34;</span>
+  <span class=p>)</span>
+
+  <span class=kd>func</span> <span class=p>(</span><span class=nx>c</span> <span class=o>*</span><span class=nx>Controller</span><span class=p>)</span> <span class=nf>ContainerLog</span><span class=p>(</span><span class=nx>id</span> <span class=kt>string</span><span class=p>)</span> <span class=p>(</span><span class=nx>result</span> <span class=kt>string</span><span class=p>,</span> <span class=nx>err</span> <span class=kt>error</span><span class=p>)</span> <span class=p>{</span>
+    <span class=nx>ctx</span><span class=p>,</span> <span class=nx>cancel</span> <span class=o>:=</span> <span class=nx>context</span><span class=p>.</span><span class=nf>WithTimeout</span><span class=p>(</span><span class=nx>context</span><span class=p>.</span><span class=nf>Background</span><span class=p>(),</span> <span class=mi>10</span><span class=o>*</span><span class=nx>time</span><span class=p>.</span><span class=nx>Second</span><span class=p>)</span>
+    <span class=k>defer</span> <span class=nf>cancel</span><span class=p>()</span>
+
+    <span class=nx>reader</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>c</span><span class=p>.</span><span class=nx>cli</span><span class=p>.</span><span class=nf>ContainerLogs</span><span class=p>(</span><span class=nx>ctx</span><span class=p>,</span> <span class=nx>id</span><span class=p>,</span> <span class=nx>types</span><span class=p>.</span><span class=nx>ContainerLogsOptions</span><span class=p>{</span>
+      <span class=nx>ShowStdout</span><span class=p>:</span> <span class=kc>true</span><span class=p>,</span>
+      <span class=nx>ShowStderr</span><span class=p>:</span> <span class=kc>true</span><span class=p>})</span>
+
+    <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+      <span class=k>return</span> <span class=s>&#34;&#34;</span><span class=p>,</span> <span class=nx>err</span>
+    <span class=p>}</span>
+
+    <span class=nx>buffer</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>io</span><span class=p>.</span><span class=nf>ReadAll</span><span class=p>(</span><span class=nx>reader</span><span class=p>)</span>
+
+    <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=o>&amp;&amp;</span> <span class=nx>err</span> <span class=o>!=</span> <span class=nx>io</span><span class=p>.</span><span class=nx>EOF</span> <span class=p>{</span>
+      <span class=k>return</span> <span class=s>&#34;&#34;</span><span class=p>,</span> <span class=nx>err</span>
+    <span class=p>}</span>
+
+    <span class=k>return</span> <span class=nb>string</span><span class=p>(</span><span class=nx>buffer</span><span class=p>),</span> <span class=kc>nil</span>
+  <span class=p>}</span></code></pre></div></div><h2 id=headline-5>Running a container</h2><p><code class=verbatim>container_run.go</code>:</p><div class="src src-go"><div class=highlight><pre class=chroma><code class=language-go data-lang=go>  <span class=kn>package</span> <span class=nx>dockeringo</span>
+
+  <span class=kn>import</span> <span class=p>(</span>
+    <span class=s>&#34;context&#34;</span>
+    <span class=s>&#34;fmt&#34;</span>
+
+    <span class=s>&#34;github.com/docker/docker/api/types&#34;</span>
+    <span class=s>&#34;github.com/docker/docker/api/types/container&#34;</span>
+    <span class=s>&#34;github.com/docker/docker/api/types/mount&#34;</span>
+  <span class=p>)</span>
+
+  <span class=kd>func</span> <span class=p>(</span><span class=nx>c</span> <span class=o>*</span><span class=nx>Controller</span><span class=p>)</span> <span class=nf>ContainerRun</span><span class=p>(</span><span class=nx>image</span> <span class=kt>string</span><span class=p>,</span> <span class=nx>command</span> <span class=p>[]</span><span class=kt>string</span><span class=p>,</span> <span class=nx>volumes</span> <span class=p>[]</span><span class=nx>VolumeMount</span><span class=p>)</span> <span class=p>(</span><span class=nx>id</span> <span class=kt>string</span><span class=p>,</span> <span class=nx>err</span> <span class=kt>error</span><span class=p>)</span> <span class=p>{</span>
+    <span class=nx>hostConfig</span> <span class=o>:=</span> <span class=nx>container</span><span class=p>.</span><span class=nx>HostConfig</span><span class=p>{}</span>
+
+    <span class=c1>//	hostConfig.Mounts = make([]mount.Mount,0);
+</span><span class=c1></span>
+    <span class=kd>var</span> <span class=nx>mounts</span> <span class=p>[]</span><span class=nx>mount</span><span class=p>.</span><span class=nx>Mount</span>
+
+    <span class=k>for</span> <span class=nx>_</span><span class=p>,</span> <span class=nx>volume</span> <span class=o>:=</span> <span class=k>range</span> <span class=nx>volumes</span> <span class=p>{</span>
+      <span class=nx>mount</span> <span class=o>:=</span> <span class=nx>mount</span><span class=p>.</span><span class=nx>Mount</span><span class=p>{</span>
+        <span class=nx>Type</span><span class=p>:</span>   <span class=nx>mount</span><span class=p>.</span><span class=nx>TypeVolume</span><span class=p>,</span>
+        <span class=nx>Source</span><span class=p>:</span> <span class=nx>volume</span><span class=p>.</span><span class=nx>Volume</span><span class=p>.</span><span class=nx>Name</span><span class=p>,</span>
+        <span class=nx>Target</span><span class=p>:</span> <span class=nx>volume</span><span class=p>.</span><span class=nx>HostPath</span><span class=p>,</span>
+      <span class=p>}</span>
+      <span class=nx>mounts</span> <span class=p>=</span> <span class=nb>append</span><span class=p>(</span><span class=nx>mounts</span><span class=p>,</span> <span class=nx>mount</span><span class=p>)</span>
+    <span class=p>}</span>
+
+    <span class=nx>hostConfig</span><span class=p>.</span><span class=nx>Mounts</span> <span class=p>=</span> <span class=nx>mounts</span>
+
+    <span class=nx>resp</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>c</span><span class=p>.</span><span class=nx>cli</span><span class=p>.</span><span class=nf>ContainerCreate</span><span class=p>(</span><span class=nx>context</span><span class=p>.</span><span class=nf>Background</span><span class=p>(),</span> <span class=o>&amp;</span><span class=nx>container</span><span class=p>.</span><span class=nx>Config</span><span class=p>{</span>
+      <span class=nx>Tty</span><span class=p>:</span>   <span class=kc>true</span><span class=p>,</span>
+      <span class=nx>Image</span><span class=p>:</span> <span class=nx>image</span><span class=p>,</span>
+      <span class=nx>Cmd</span><span class=p>:</span>   <span class=nx>command</span><span class=p>,</span>
+    <span class=p>},</span> <span class=o>&amp;</span><span class=nx>hostConfig</span><span class=p>,</span> <span class=kc>nil</span><span class=p>,</span> <span class=kc>nil</span><span class=p>,</span> <span class=s>&#34;&#34;</span><span class=p>)</span>
+
+    <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+      <span class=k>return</span> <span class=s>&#34;&#34;</span><span class=p>,</span> <span class=nx>err</span>
+    <span class=p>}</span>
+
+    <span class=nx>err</span> <span class=p>=</span> <span class=nx>c</span><span class=p>.</span><span class=nx>cli</span><span class=p>.</span><span class=nf>ContainerStart</span><span class=p>(</span><span class=nx>context</span><span class=p>.</span><span class=nf>Background</span><span class=p>(),</span> <span class=nx>resp</span><span class=p>.</span><span class=nx>ID</span><span class=p>,</span> <span class=nx>types</span><span class=p>.</span><span class=nx>ContainerStartOptions</span><span class=p>{})</span>
+    <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+      <span class=k>return</span> <span class=s>&#34;&#34;</span><span class=p>,</span> <span class=nx>err</span>
+    <span class=p>}</span>
+
+    <span class=k>return</span> <span class=nx>resp</span><span class=p>.</span><span class=nx>ID</span><span class=p>,</span> <span class=kc>nil</span>
+  <span class=p>}</span>
+
+  <span class=kd>func</span> <span class=p>(</span><span class=nx>c</span> <span class=o>*</span><span class=nx>Controller</span><span class=p>)</span> <span class=nf>ContainerWait</span><span class=p>(</span><span class=nx>id</span> <span class=kt>string</span><span class=p>)</span> <span class=p>(</span><span class=nx>state</span> <span class=kt>int64</span><span class=p>,</span> <span class=nx>err</span> <span class=kt>error</span><span class=p>)</span> <span class=p>{</span>
+    <span class=nx>resultC</span><span class=p>,</span> <span class=nx>errC</span> <span class=o>:=</span> <span class=nx>c</span><span class=p>.</span><span class=nx>cli</span><span class=p>.</span><span class=nf>ContainerWait</span><span class=p>(</span><span class=nx>context</span><span class=p>.</span><span class=nf>Background</span><span class=p>(),</span> <span class=nx>id</span><span class=p>,</span> <span class=s>&#34;&#34;</span><span class=p>)</span>
+    <span class=k>select</span> <span class=p>{</span>
+    <span class=k>case</span> <span class=nx>err</span> <span class=o>:=</span> <span class=o>&lt;-</span><span class=nx>errC</span><span class=p>:</span>
+      <span class=k>return</span> <span class=mi>0</span><span class=p>,</span> <span class=nx>err</span>
+    <span class=k>case</span> <span class=nx>result</span> <span class=o>:=</span> <span class=o>&lt;-</span><span class=nx>resultC</span><span class=p>:</span>
+      <span class=k>return</span> <span class=nx>result</span><span class=p>.</span><span class=nx>StatusCode</span><span class=p>,</span> <span class=kc>nil</span>
+    <span class=p>}</span>
+  <span class=p>}</span>
+
+  <span class=kd>func</span> <span class=p>(</span><span class=nx>c</span> <span class=o>*</span><span class=nx>Controller</span><span class=p>)</span> <span class=nf>ContainerRunAndClean</span><span class=p>(</span><span class=nx>image</span> <span class=kt>string</span><span class=p>,</span> <span class=nx>command</span> <span class=p>[]</span><span class=kt>string</span><span class=p>,</span> <span class=nx>volumes</span> <span class=p>[]</span><span class=nx>VolumeMount</span><span class=p>)</span> <span class=p>(</span><span class=nx>statusCode</span> <span class=kt>int64</span><span class=p>,</span> <span class=nx>body</span> <span class=kt>string</span><span class=p>,</span> <span class=nx>err</span> <span class=kt>error</span><span class=p>)</span> <span class=p>{</span>
+    <span class=c1>// Start the container
+</span><span class=c1></span>    <span class=nx>id</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>c</span><span class=p>.</span><span class=nf>ContainerRun</span><span class=p>(</span><span class=nx>image</span><span class=p>,</span> <span class=nx>command</span><span class=p>,</span> <span class=nx>volumes</span><span class=p>)</span>
+    <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+      <span class=k>return</span> <span class=nx>statusCode</span><span class=p>,</span> <span class=nx>body</span><span class=p>,</span> <span class=nx>err</span>
+    <span class=p>}</span>
+
+    <span class=c1>// Wait for it to finish
+</span><span class=c1></span>    <span class=nx>statusCode</span><span class=p>,</span> <span class=nx>err</span> <span class=p>=</span> <span class=nx>c</span><span class=p>.</span><span class=nf>ContainerWait</span><span class=p>(</span><span class=nx>id</span><span class=p>)</span>
+    <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+      <span class=k>return</span> <span class=nx>statusCode</span><span class=p>,</span> <span class=nx>body</span><span class=p>,</span> <span class=nx>err</span>
+    <span class=p>}</span>
+
+    <span class=c1>// Get the log
+</span><span class=c1></span>    <span class=nx>body</span><span class=p>,</span> <span class=nx>_</span> <span class=p>=</span> <span class=nx>c</span><span class=p>.</span><span class=nf>ContainerLog</span><span class=p>(</span><span class=nx>id</span><span class=p>)</span>
+
+    <span class=nx>err</span> <span class=p>=</span> <span class=nx>c</span><span class=p>.</span><span class=nx>cli</span><span class=p>.</span><span class=nf>ContainerRemove</span><span class=p>(</span><span class=nx>context</span><span class=p>.</span><span class=nf>Background</span><span class=p>(),</span> <span class=nx>id</span><span class=p>,</span> <span class=nx>types</span><span class=p>.</span><span class=nx>ContainerRemoveOptions</span><span class=p>{})</span>
+
+    <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+      <span class=nx>fmt</span><span class=p>.</span><span class=nf>Printf</span><span class=p>(</span><span class=s>&#34;Unable to remove container %q: %q\n&#34;</span><span class=p>,</span> <span class=nx>id</span><span class=p>,</span> <span class=nx>err</span><span class=p>)</span>
+    <span class=p>}</span>
+
+    <span class=k>return</span> <span class=nx>statusCode</span><span class=p>,</span> <span class=nx>body</span><span class=p>,</span> <span class=nx>err</span>
+  <span class=p>}</span></code></pre></div></div><p>Now we can write a test to see if everything is running:</p><p><code class=verbatim>container_run_test.go</code>:</p><div class="src src-go"><div class=highlight><pre class=chroma><code class=language-go data-lang=go>  <span class=kn>package</span> <span class=nx>dockeringo</span>
+
+  <span class=kn>import</span> <span class=p>(</span>
+    <span class=s>&#34;testing&#34;</span>
+  <span class=p>)</span>
+
+  <span class=kd>func</span> <span class=nf>TestContainerRun</span><span class=p>(</span><span class=nx>t</span> <span class=o>*</span><span class=nx>testing</span><span class=p>.</span><span class=nx>T</span><span class=p>)</span> <span class=p>{</span>
+    <span class=nx>c</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nf>NewController</span><span class=p>()</span>
+
+    <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+      <span class=nx>t</span><span class=p>.</span><span class=nf>Error</span><span class=p>(</span><span class=nx>err</span><span class=p>)</span>
+    <span class=p>}</span>
+
+    <span class=nx>statusCode</span><span class=p>,</span> <span class=nx>body</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>c</span><span class=p>.</span><span class=nf>ContainerRunAndClean</span><span class=p>(</span><span class=s>&#34;alpine&#34;</span><span class=p>,</span> <span class=p>[]</span><span class=kt>string</span><span class=p>{</span><span class=s>&#34;echo&#34;</span><span class=p>,</span> <span class=s>&#34;hello world&#34;</span><span class=p>},</span> <span class=p>[]</span><span class=nx>VolumeMount</span><span class=p>{})</span>
+
+    <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+      <span class=nx>t</span><span class=p>.</span><span class=nf>Error</span><span class=p>(</span><span class=nx>err</span><span class=p>)</span>
+      <span class=nx>t</span><span class=p>.</span><span class=nf>FailNow</span><span class=p>()</span>
+    <span class=p>}</span>
+
+    <span class=k>if</span> <span class=nx>body</span> <span class=o>!=</span> <span class=s>&#34;hello world\r\n&#34;</span> <span class=p>{</span>
+      <span class=nx>t</span><span class=p>.</span><span class=nf>Errorf</span><span class=p>(</span><span class=s>&#34;Expected &#39;hello world&#39;; received %q\n&#34;</span><span class=p>,</span> <span class=nx>body</span><span class=p>)</span>
+    <span class=p>}</span>
+
+    <span class=k>if</span> <span class=nx>statusCode</span> <span class=o>!=</span> <span class=mi>0</span> <span class=p>{</span>
+      <span class=nx>t</span><span class=p>.</span><span class=nf>Errorf</span><span class=p>(</span> <span class=s>&#34;Expect status to be 0; received %q\n&#34;</span><span class=p>,</span> <span class=nx>statusCode</span><span class=p>);</span>
+    <span class=p>}</span>
+  <span class=p>}</span></code></pre></div></div><p>And the run the test:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>go <span class=nb>test</span> --run Container</code></pre></div></div><pre class=example>
+PASS
+ok  	dockeringo	1.414s
+</pre><p>I'm not saying that it's a great test, but it does test something!</p><h2 id=headline-6>Volumes</h2><p>Containers have volumes, lets look at how to create them:</p><p><code class=verbatim>volumes.go</code>:</p><div class="src src-go"><div class=highlight><pre class=chroma><code class=language-go data-lang=go>  <span class=kn>package</span> <span class=nx>dockeringo</span>
+
+  <span class=kn>import</span> <span class=p>(</span>
+    <span class=s>&#34;context&#34;</span>
+
+    <span class=s>&#34;github.com/docker/docker/api/types&#34;</span>
+    <span class=s>&#34;github.com/docker/docker/api/types/filters&#34;</span>
+    <span class=nx>volumetypes</span> <span class=s>&#34;github.com/docker/docker/api/types/volume&#34;</span>
+  <span class=p>)</span>
+
+  <span class=kd>func</span> <span class=p>(</span><span class=nx>c</span> <span class=o>*</span><span class=nx>Controller</span><span class=p>)</span> <span class=nf>FindVolume</span><span class=p>(</span><span class=nx>name</span> <span class=kt>string</span><span class=p>)</span> <span class=p>(</span><span class=nx>volume</span> <span class=o>*</span><span class=nx>types</span><span class=p>.</span><span class=nx>Volume</span><span class=p>,</span> <span class=nx>err</span> <span class=kt>error</span><span class=p>)</span> <span class=p>{</span>
+    <span class=nx>volumes</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>c</span><span class=p>.</span><span class=nx>cli</span><span class=p>.</span><span class=nf>VolumeList</span><span class=p>(</span><span class=nx>context</span><span class=p>.</span><span class=nf>Background</span><span class=p>(),</span> <span class=nx>filters</span><span class=p>.</span><span class=nf>NewArgs</span><span class=p>())</span>
+
+    <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+      <span class=k>return</span> <span class=kc>nil</span><span class=p>,</span> <span class=nx>err</span>
+    <span class=p>}</span>
+
+    <span class=k>for</span> <span class=nx>_</span><span class=p>,</span> <span class=nx>v</span> <span class=o>:=</span> <span class=k>range</span> <span class=nx>volumes</span><span class=p>.</span><span class=nx>Volumes</span> <span class=p>{</span>
+      <span class=k>if</span> <span class=nx>v</span><span class=p>.</span><span class=nx>Name</span> <span class=o>==</span> <span class=nx>name</span> <span class=p>{</span>
+        <span class=k>return</span> <span class=nx>v</span><span class=p>,</span> <span class=kc>nil</span>
+      <span class=p>}</span>
+    <span class=p>}</span>
+    <span class=k>return</span> <span class=kc>nil</span><span class=p>,</span> <span class=kc>nil</span>
+  <span class=p>}</span>
+
+  <span class=kd>func</span> <span class=p>(</span><span class=nx>c</span> <span class=o>*</span><span class=nx>Controller</span><span class=p>)</span> <span class=nf>EnsureVolume</span><span class=p>(</span><span class=nx>name</span> <span class=kt>string</span><span class=p>)</span> <span class=p>(</span><span class=nx>created</span> <span class=kt>bool</span><span class=p>,</span> <span class=nx>volume</span> <span class=o>*</span><span class=nx>types</span><span class=p>.</span><span class=nx>Volume</span><span class=p>,</span> <span class=nx>err</span> <span class=kt>error</span><span class=p>)</span> <span class=p>{</span>
+    <span class=nx>volume</span><span class=p>,</span> <span class=nx>err</span> <span class=p>=</span> <span class=nx>c</span><span class=p>.</span><span class=nf>FindVolume</span><span class=p>(</span><span class=nx>name</span><span class=p>)</span>
+
+    <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+      <span class=k>return</span> <span class=kc>false</span><span class=p>,</span> <span class=kc>nil</span><span class=p>,</span> <span class=nx>err</span>
+    <span class=p>}</span>
+
+    <span class=k>if</span> <span class=nx>volume</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+      <span class=k>return</span> <span class=kc>false</span><span class=p>,</span> <span class=nx>volume</span><span class=p>,</span> <span class=kc>nil</span>
+    <span class=p>}</span>
+
+    <span class=nx>vol</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>c</span><span class=p>.</span><span class=nx>cli</span><span class=p>.</span><span class=nf>VolumeCreate</span><span class=p>(</span><span class=nx>context</span><span class=p>.</span><span class=nf>Background</span><span class=p>(),</span> <span class=nx>volumetypes</span><span class=p>.</span><span class=nx>VolumeCreateBody</span><span class=p>{</span>
+      <span class=nx>Driver</span><span class=p>:</span> <span class=s>&#34;local&#34;</span><span class=p>,</span>
+      <span class=c1>//		DriverOpts: map[string]string{},
+</span><span class=c1></span>      <span class=c1>//		Labels:     map[string]string{},
+</span><span class=c1></span>      <span class=nx>Name</span><span class=p>:</span> <span class=nx>name</span><span class=p>,</span>
+    <span class=p>})</span>
+
+    <span class=k>return</span> <span class=kc>true</span><span class=p>,</span> <span class=o>&amp;</span><span class=nx>vol</span><span class=p>,</span> <span class=nx>err</span>
+  <span class=p>}</span>
+
+  <span class=kd>func</span> <span class=p>(</span><span class=nx>c</span> <span class=o>*</span><span class=nx>Controller</span><span class=p>)</span> <span class=nf>RemoveVolume</span><span class=p>(</span><span class=nx>name</span> <span class=kt>string</span><span class=p>)</span> <span class=p>(</span><span class=nx>removed</span> <span class=kt>bool</span><span class=p>,</span> <span class=nx>err</span> <span class=kt>error</span><span class=p>)</span> <span class=p>{</span>
+    <span class=nx>vol</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>c</span><span class=p>.</span><span class=nf>FindVolume</span><span class=p>(</span><span class=nx>name</span><span class=p>)</span>
+
+    <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+      <span class=k>return</span> <span class=kc>false</span><span class=p>,</span> <span class=nx>err</span>
+    <span class=p>}</span>
+	
+    <span class=k>if</span> <span class=nx>vol</span> <span class=o>==</span> <span class=kc>nil</span> <span class=p>{</span>
+      <span class=k>return</span> <span class=kc>false</span><span class=p>,</span> <span class=kc>nil</span>
+    <span class=p>}</span>
+
+    <span class=nx>err</span> <span class=p>=</span> <span class=nx>c</span><span class=p>.</span><span class=nx>cli</span><span class=p>.</span><span class=nf>VolumeRemove</span><span class=p>(</span><span class=nx>context</span><span class=p>.</span><span class=nf>Background</span><span class=p>(),</span> <span class=nx>name</span><span class=p>,</span> <span class=kc>true</span><span class=p>)</span>
+
+    <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+      <span class=k>return</span> <span class=kc>false</span><span class=p>,</span> <span class=nx>err</span>
+    <span class=p>}</span>
+
+    <span class=k>return</span> <span class=kc>true</span><span class=p>,</span> <span class=kc>nil</span>
+  <span class=p>}</span></code></pre></div></div><p>And lets write some tests:</p><p><code class=verbatim>volumes_test.go</code>:</p><div class="src src-go"><div class=highlight><pre class=chroma><code class=language-go data-lang=go>  <span class=kn>package</span> <span class=nx>dockeringo</span>
+
+  <span class=kn>import</span> <span class=p>(</span>
+    <span class=s>&#34;testing&#34;</span>
+  <span class=p>)</span>
+
+  <span class=kd>func</span> <span class=nf>TestSingleCreate</span><span class=p>(</span><span class=nx>t</span> <span class=o>*</span><span class=nx>testing</span><span class=p>.</span><span class=nx>T</span><span class=p>)</span> <span class=p>{</span>
+    <span class=nx>c</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nf>NewController</span><span class=p>()</span>
+
+    <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+      <span class=nx>t</span><span class=p>.</span><span class=nf>Error</span><span class=p>(</span><span class=nx>err</span><span class=p>)</span>
+    <span class=p>}</span>
+
+    <span class=nx>created</span><span class=p>,</span> <span class=nx>_</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>c</span><span class=p>.</span><span class=nf>EnsureVolume</span><span class=p>(</span><span class=s>&#34;myvolume&#34;</span><span class=p>)</span>
+    <span class=k>if</span> <span class=nx>created</span> <span class=o>!=</span> <span class=kc>true</span> <span class=p>{</span>
+      <span class=nx>t</span><span class=p>.</span><span class=nf>Errorf</span><span class=p>(</span><span class=s>&#34;Should have created the volume the first time&#34;</span><span class=p>)</span>
+    <span class=p>}</span>
+
+    <span class=nx>created</span><span class=p>,</span> <span class=nx>_</span><span class=p>,</span> <span class=nx>err</span> <span class=p>=</span> <span class=nx>c</span><span class=p>.</span><span class=nf>EnsureVolume</span><span class=p>(</span><span class=s>&#34;myvolume&#34;</span><span class=p>)</span>
+    <span class=k>if</span> <span class=nx>created</span> <span class=o>!=</span> <span class=kc>false</span> <span class=p>{</span>
+      <span class=nx>t</span><span class=p>.</span><span class=nf>Errorf</span><span class=p>(</span><span class=s>&#34;Should not have created the volume the second time&#34;</span><span class=p>)</span>
+    <span class=p>}</span>
+
+    <span class=nx>removed</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>c</span><span class=p>.</span><span class=nf>RemoveVolume</span><span class=p>(</span><span class=s>&#34;myvolume&#34;</span><span class=p>)</span>
+    <span class=k>if</span> <span class=nx>removed</span> <span class=o>!=</span> <span class=kc>true</span> <span class=p>{</span>
+      <span class=nx>t</span><span class=p>.</span><span class=nf>Errorf</span><span class=p>(</span><span class=s>&#34;Should have removed the volume&#34;</span><span class=p>)</span>
+    <span class=p>}</span>
+  <span class=p>}</span>
+
+  <span class=kd>func</span> <span class=nf>TestEnsureVolume</span><span class=p>(</span><span class=nx>t</span> <span class=o>*</span><span class=nx>testing</span><span class=p>.</span><span class=nx>T</span><span class=p>)</span> <span class=p>{</span>
+    <span class=nx>c</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nf>NewController</span><span class=p>()</span>
+
+    <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+      <span class=nx>t</span><span class=p>.</span><span class=nf>Error</span><span class=p>(</span><span class=nx>err</span><span class=p>)</span>
+    <span class=p>}</span>
+
+    <span class=nx>_</span><span class=p>,</span> <span class=nx>volume</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>c</span><span class=p>.</span><span class=nf>EnsureVolume</span><span class=p>(</span><span class=s>&#34;myvolume&#34;</span><span class=p>)</span>
+
+    <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+      <span class=nx>t</span><span class=p>.</span><span class=nf>Error</span><span class=p>(</span><span class=nx>err</span><span class=p>)</span>
+    <span class=p>}</span>
+
+    <span class=k>if</span> <span class=nx>volume</span><span class=p>.</span><span class=nx>Name</span> <span class=o>!=</span> <span class=s>&#34;myvolume&#34;</span> <span class=p>{</span>
+      <span class=nx>t</span><span class=p>.</span><span class=nf>Errorf</span><span class=p>(</span><span class=s>&#34;Expected volume name to be %s; got %s\n&#34;</span><span class=p>,</span> <span class=s>&#34;myvolume&#34;</span><span class=p>,</span> <span class=nx>volume</span><span class=p>.</span><span class=nx>Name</span><span class=p>)</span>
+      <span class=nx>t</span><span class=p>.</span><span class=nf>FailNow</span><span class=p>()</span>
+    <span class=p>}</span>
+
+    <span class=nx>removed</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>c</span><span class=p>.</span><span class=nf>RemoveVolume</span><span class=p>(</span><span class=s>&#34;myvolume&#34;</span><span class=p>)</span>
+
+    <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+      <span class=nx>t</span><span class=p>.</span><span class=nf>Error</span><span class=p>(</span><span class=nx>err</span><span class=p>)</span>
+    <span class=p>}</span>
+
+    <span class=k>if</span> <span class=nx>removed</span> <span class=o>!=</span> <span class=kc>true</span> <span class=p>{</span>
+      <span class=nx>t</span><span class=p>.</span><span class=nf>Errorf</span><span class=p>(</span><span class=s>&#34;Volume should have been removed but wasn&#39;t&#34;</span><span class=p>)</span>
+    <span class=p>}</span>
+
+  <span class=p>}</span></code></pre></div></div><p>And now we can run the tests:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>go <span class=nb>test</span> --run Volume</code></pre></div></div><pre class=example>
+PASS
+ok  	dockeringo	3.245s
+</pre><h2 id=headline-7>Testing persisent volumes</h2><p>Lets first create a simple script that will look for a file, and if it
+finds it prints it out and exits with a success. If it doesn't find
+it, it created it with the current date, prints it out, and exits with
+a failure.</p><p>Call this <code class=verbatim>script.sh</code>:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  <span class=k>if</span> <span class=o>[</span> ! -f <span class=s2>&#34;output&#34;</span> <span class=o>]</span><span class=p>;</span> <span class=k>then</span>
+      date &gt; output
+      cat output
+      <span class=nb>exit</span> <span class=m>1</span>
+  <span class=k>fi</span>
+
+  cat output
+  <span class=nb>exit</span> <span class=m>0</span></code></pre></div></div><p>Now lets create a <code class=verbatim>Dockerfile</code> that runs this:</p><div class="src src-dockerfile"><div class=highlight><pre class=chroma><code class=language-dockerfile data-lang=dockerfile><span class=k>FROM</span><span class=s> debian:10</span><span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>COPY</span> script.sh /usr/bin/<span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>WORKDIR</span><span class=s> /volume</span><span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>CMD</span> <span class=s2>&#34;bash&#34;</span> <span class=s2>&#34;/usr/bin/script.sh&#34;</span></code></pre></div></div><p>And we'll build this with</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>docker build . -t testimage</code></pre></div></div><p>Now lets create a <code class=verbatim>persistent_volume_test.go</code> file, where we will</p><ol><li><p>Create a volume</p></li><li><p>Start the <code class=verbatim>testimage</code> container with the volume mounted</p></li><li><p>Run it a second time</p></li><li><p>Make sure that the output is the same</p></li><li><p>Remove the volume</p></li></ol><div class="src src-go"><div class=highlight><pre class=chroma><code class=language-go data-lang=go><span class=kn>package</span> <span class=nx>dockeringo</span>
+
+<span class=kn>import</span> <span class=s>&#34;testing&#34;</span>
+
+<span class=kd>func</span> <span class=nf>TestPersistentVolume</span><span class=p>(</span><span class=nx>t</span> <span class=o>*</span><span class=nx>testing</span><span class=p>.</span><span class=nx>T</span><span class=p>)</span> <span class=p>{</span>
+	<span class=nx>c</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nf>NewController</span><span class=p>()</span>
+
+	<span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+		<span class=nx>t</span><span class=p>.</span><span class=nf>Error</span><span class=p>(</span><span class=nx>err</span><span class=p>)</span>
+		<span class=nx>t</span><span class=p>.</span><span class=nf>FailNow</span><span class=p>()</span>
+	<span class=p>}</span>
+
+	<span class=nx>created</span><span class=p>,</span> <span class=nx>volume</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>c</span><span class=p>.</span><span class=nf>EnsureVolume</span><span class=p>(</span><span class=s>&#34;persistentvolume&#34;</span><span class=p>)</span>
+
+	<span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+		<span class=nx>t</span><span class=p>.</span><span class=nf>Error</span><span class=p>(</span><span class=nx>err</span><span class=p>)</span>
+		<span class=nx>t</span><span class=p>.</span><span class=nf>FailNow</span><span class=p>()</span>
+	<span class=p>}</span>
+
+	<span class=k>if</span> <span class=nx>created</span> <span class=o>!=</span> <span class=kc>true</span> <span class=p>{</span>
+		<span class=nx>t</span><span class=p>.</span><span class=nf>Errorf</span><span class=p>(</span><span class=s>&#34;Should have created a volume at the start&#34;</span><span class=p>)</span>
+	<span class=p>}</span>
+
+	<span class=nx>mounts</span> <span class=o>:=</span> <span class=p>[]</span><span class=nx>VolumeMount</span><span class=p>{</span>
+		<span class=p>{</span>
+			<span class=nx>HostPath</span><span class=p>:</span> <span class=s>&#34;/volume&#34;</span><span class=p>,</span>
+			<span class=nx>Volume</span><span class=p>:</span>   <span class=nx>volume</span><span class=p>,</span>
+		<span class=p>},</span>
+	<span class=p>}</span>
+
+	<span class=nx>statusCode</span><span class=p>,</span> <span class=nx>body1</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>c</span><span class=p>.</span><span class=nf>ContainerRunAndClean</span><span class=p>(</span><span class=s>&#34;testimage&#34;</span><span class=p>,</span> <span class=p>[]</span><span class=kt>string</span><span class=p>{},</span> <span class=nx>mounts</span><span class=p>)</span>
+
+	<span class=c1>// Second run
+</span><span class=c1></span>
+	<span class=nx>statusCode</span><span class=p>,</span> <span class=nx>body2</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>c</span><span class=p>.</span><span class=nf>ContainerRunAndClean</span><span class=p>(</span><span class=s>&#34;testimage&#34;</span><span class=p>,</span> <span class=p>[]</span><span class=kt>string</span><span class=p>{},</span> <span class=nx>mounts</span><span class=p>)</span>
+
+	<span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+		<span class=nx>t</span><span class=p>.</span><span class=nf>Error</span><span class=p>(</span><span class=nx>err</span><span class=p>)</span>
+		<span class=nx>t</span><span class=p>.</span><span class=nf>FailNow</span><span class=p>()</span>
+	<span class=p>}</span>
+
+	<span class=k>if</span> <span class=nx>statusCode</span> <span class=o>!=</span> <span class=mi>0</span> <span class=p>{</span>
+		<span class=nx>t</span><span class=p>.</span><span class=nf>Error</span><span class=p>(</span><span class=s>&#34;Second run should not have created a file&#34;</span><span class=p>)</span>
+	<span class=p>}</span>
+
+	<span class=k>if</span> <span class=nx>body1</span> <span class=o>!=</span> <span class=nx>body2</span> <span class=p>{</span>
+		<span class=nx>t</span><span class=p>.</span><span class=nf>Errorf</span><span class=p>(</span><span class=s>&#34;%s\nShould have been equal to:\n%s\n&#34;</span><span class=p>,</span> <span class=nx>body1</span><span class=p>,</span> <span class=nx>body2</span><span class=p>)</span>
+	<span class=p>}</span>
+
+	<span class=nx>c</span><span class=p>.</span><span class=nf>RemoveVolume</span><span class=p>(</span><span class=s>&#34;persistentvolume&#34;</span><span class=p>)</span>
+<span class=p>}</span></code></pre></div></div><p>And now, lets run it:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>go <span class=nb>test</span> --run Persistent</code></pre></div></div><pre class=example>
+PASS
+ok  	dockeringo	4.186s
+</pre><h2 id=headline-8>Final thoughts</h2><p>Docker is cool.</p><h2 id=headline-9>References</h2><ol><li><p><a href=https://stackoverflow.com/questions/48470194/defining-a-mount-point-for-volumes-in-golang-docker-sdk>https://stackoverflow.com/questions/48470194/defining-a-mount-point-for-volumes-in-golang-docker-sdk</a></p></li></ol></article></div><div class="bg-light py-5"><div class=container><h2 class=text-center>Read next</h2><div class=row><div class="col-md-6 text-center"></div><div class="col-md-6 text-center">Previous Post:
+<a href=../../../articles/2021/sql_in_org_mode/>SQL in Org-Mode</a></div></div></div></div><div class="container mt-5"><h2 class=text-center>See also</h2><div class=row><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2021/docker_one_liners/>Docker One Liners</a></p><p class="lead font-italic mb-0">Why install</p><div class="font-weight-light mt-3"><p>I use docker in my workflow as an application and environment manager. I switch between multiple physical computers a lot, and like to have things self contained within work spaces that I can move from one computer to another easily, normally using `git`. Here are a few tricks that I use to have the lightest touch on my local installation as possible. Orientation If you want to install a specific set of software, you use a `Dockerfile` to create an `image`.</p></div><a href=../../../articles/2021/docker_one_liners/ class="btn btn-primary">Read more</a></div><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2020/developing_react_inside_docker/>Developing React Inside Docker</a></p><p class="lead font-italic mb-0">Clean up after your mess</p><div class="font-weight-light mt-3"><p>Can we build a node application without installing node locally? We sure can! Lets walk through the process.
+First make sure that docker is installed. This is handy if you are working on a remote server for example.
+Bootstrap Then lets start building out the Dockerfile that we will use.
+mkdir testapp cd testapp Create a Dockerfile.initial that has node:14 in it. Start up the container with Dockerfile.initial FROMnode:14WORKDIR/appCMD bash</p></div><a href=../../../articles/2020/developing_react_inside_docker/ class="btn btn-primary">Read more</a></div><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2020/tramp_tricks/>Emacs Tramp tricks</a></p><p class="lead font-italic mb-0">Replacing terminals with emacs</p><div class="font-weight-light mt-3"><p>Emacs is amazing. It&rsquo;s a very different sort of thing than a code text editor like Vim or an IDE like VSCode. It&rsquo;s a different way of thinking of how to interact with a computer, where you build up techniques on top of simple tricks that let you get amazing things done. Of course, part of the appeal/challenge is that you need to figure out how to make it work yourself.</p></div><a href=../../../articles/2020/tramp_tricks/ class="btn btn-primary">Read more</a></div></div></div><footer class="footer bg-dark text-light mt-3"><div class=container><h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2></div></footer></body></html>
