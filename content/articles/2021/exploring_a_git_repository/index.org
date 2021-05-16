@@ -27,17 +27,19 @@ We are going to use ruby the sqlite3 gem:
   git_source(:github) {|repo_name| "https://github.com/#{repo_name}" }
 
   gem "sqlite3", "~> 1.4"
+  gem 'semver2', '3.4.2', require: 'semver'
 #+end_src
 
 #+begin_src ruby :tangle gitinfo.rb
   require 'sqlite3'
   require 'csv'
+  require 'semver'
 #+end_src
 * First, the schema
 
 ** Commits
 
-=commits= is the main table..
+=commits= is the main table.
 
 #+ATTR_HTML: :class table table-striped
 | commits      |                                                |
@@ -90,13 +92,17 @@ commit.
 =tags= stores which tags were created, and which commit they point to.
 
 #+ATTR_HTML: :class table table-striped
-| tags         |                                      |
-|--------------+--------------------------------------|
-| name         | tag short name                       |
-| sha          | sha of the tag if its a full commit  |
-| object       | sha of the tag if it's an annotation |
-| author_email | best guess as to who tagged it       |
-| created_at   | when the tag was created             |
+| tags          |                                      |
+|---------------+--------------------------------------|
+| name          | tag short name                       |
+| sha           | sha of the tag if its a full commit  |
+| object        | sha of the tag if it's an annotation |
+| author_email  | best guess as to who tagged it       |
+| major_version | guess at the major version           |
+| minor_version | guess at the minor version           |
+| patch_version | guess at the patch version           |
+| rc_version    | guess at the patch version           |
+| created_at    | when the tag was created             |
 
 #+begin_src ruby :tangle gitinfo.rb
   def create_tags_table db
@@ -106,6 +112,10 @@ commit.
                 sha TEXT,
                 object TEXT,
                 author_email TEXT,
+                major_version INTEGER,
+                minor_version INTEGER,
+                patch_version INTEGER,
+                rc_version INTEGER,
                 created_at DATETIME
                 );
   SQL3
@@ -201,6 +211,52 @@ mainly language but also number of lines of code.
   end
 
 #+end_src
+
+** Event timeline
+
+We can also roll up all of the interesting things that happened in the
+project.
+
+#+ATTR_HTML: :class table table-striped
+| project.start      | First commit                                 |
+| project.mostrecent | Most recent commit                           |
+| contrib.start      | When a person started commiting to a project |
+| contrib.latest     | Their latest commit                          |
+| release.major      | A major release of the project               |
+| release.minor      | A minor release of the project               |
+| release.patch      | A patch release of the project               |
+
+And for these events, we can track additional information about the
+state of project at that time.
+
+#+ATTR_HTML: :class table table-striped
+| event_at                | when                                                                     |
+| event_verb              | the event type                                                           |
+| event_author            | Who did the trigged the event                                            |
+| event_subject           | More information about the event                                         |
+| concurrent_contributors | How many people were "active" in the project at that time                |
+| commits                 | How many commits in the release, or by the contributor in their lifetime |
+| entities_changes        | How many entities were effected                                          |
+
+The table looks like:
+#+begin_src ruby :tangle gitinfo.rb
+  def create_timeline_table db
+    db.execute <<-SQL7
+         CREATE TABLE IF NOT EXISTS timeline (
+                event_at DATETIME,
+                event_verb TEXT,
+                event_author TEXT,
+                event_subject TEXT,
+                concurrent_contributors INTEGER,
+                commits INTEGER,
+                entities_changed INTEGER
+                );
+  SQL7
+    db.execute( "DELETE FROM timeline;" );
+  end
+
+#+end_src
+
 * Then, the repo
 
 Eventually we are going to wrap this up as a docker container so that
@@ -235,6 +291,7 @@ in the environment.
   create_tags_table db
   create_authors_table db
   create_file_stats_table db
+  create_timeline_table db
 #+end_src
 
 Which we can test with
@@ -503,10 +560,29 @@ This file is created with:
 | =creatordate:iso8601-strict= | date the tag was commited                       |
 
 #+begin_src ruby :tangle gitinfo.rb
+  # figure out the major/minor
+
+  def guess_version tag_name
+    version = SemVer.parse_rubygems tag_name
+
+    return { major_version: version.major,
+      minor_version: version.minor,
+      patch_version: version.patch,
+      rc_version: version.special }
+  end
+
+
   # Insert into the database
   def add_tag db, name, sha, object, created_at, author_email
-    ret = db.execute("INSERT INTO tags (name, sha, object, created_at, author_email)
-              VALUES (?, ?, ?, ?, ?)", [name, sha, object, created_at, author_email])
+    version = guess_version name
+  
+    ret = db.execute("INSERT INTO tags
+  (name, sha, object, created_at, author_email, 
+  major_version, minor_version, patch_version, rc_version)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                     [name, sha, object, created_at, author_email,
+                      version[:major_version], version[:minor_version],
+                      version[:patch_version], version[:rc_version]])
   end
 
   # Parse the output of git tag
@@ -553,12 +629,13 @@ This file is created with:
 
   puts "Finding tags"
   db.transaction
+  db.execute( "delete from tags" );
   load_tags db, repo_dir
   tag_commits db
   db.commit
 #+end_src
 
-** Things that changed in a release
+** Tag related queries
 
 Let's come up with some queries to tell us what has changed during a
 certain time period. What we are going to do applies best to repos
@@ -659,6 +736,36 @@ here's a map to get you started.
 | tests/units/test_logger.rb         |       1 |           2 |
 | README.md                          |       1 |           1 |
 | lib/git/version.rb                 |       1 |           1 |
+
+*** Version changes
+
+Highest version:
+
+#+begin_src sqlite :colnames yes
+  select name, created_at, major_version, minor_version, patch_version from tags
+       order by major_version desc, minor_version desc, patch_version desc limit 1
+#+end_src
+
+#+RESULTS:
+#+ATTR_HTML: :class table table-striped
+| name   | created_at                | major_version | minor_version | patch_version |
+|--------+---------------------------+---------------+---------------+---------------|
+| v1.8.1 | 2020-12-31T13:01:10-08:00 |             1 |             8 |             1 |
+
+Latest patch release for the 1.2 series
+
+#+begin_src sqlite :colnames yes
+  select name, created_at, major_version, minor_version, patch_version from tags
+  where major_version = 1 and minor_version = 2
+  order by major_version desc, minor_version desc, patch_version desc limit 1
+
+#+end_src
+
+#+RESULTS:
+#+ATTR_HTML: :class table table-striped
+| name    | created_at                | major_version | minor_version | patch_version |
+|---------+---------------------------+---------------+---------------+---------------|
+| v1.2.10 | 2016-02-25T19:16:29-03:00 |             1 |             2 |            10 |
 
 * Finding authors
 
@@ -766,7 +873,6 @@ Per Lundberg (+2 is probably in Europe) 2018.
 
 And currently James Couball from 2019 to 2021, hailing again from the
 West Coast.
-
 
 
 * Identifing file types
@@ -911,6 +1017,210 @@ looked, it was the camping front end!) and overall the number of
 comments in the codeback jumped in =v1.8.0= so that implies a bit of
 difference on development styles.
 
+* Producing a timeline
+
+Let's also produce a summary timeline of what is going on with the
+project.  We can track:
+
+#+ATTR_HTML :class table table-striped
+| When a project starts            | First commit                             |
+| When a contributor first appears | First commit by author                   |
+| When a contributor leaves        | Last commit by author                    |
+| Is a contributor active?         | Commit with in time period, say 3 months |
+| Releases                         | Tag creation                             |
+| Major release                    | Semvar change                            |
+| Minor release                    | Semvar change                            |
+| Patch release                    | Semvar change                            |
+
+Another thing to look at is the state of knowledge of the project.  We
+will assume that working knowledge of a file will slowly decay, and so
+if a file hasn't recently been touched by a person who is active on a
+project, then the working knowledge of that file, why certain
+trade-offs were made, etc has been lost and /archeology will occur/.
+
+| Stale knowledge    | No contributors who touched a file are active |
+| Regained knowledge | Contribution to a forgotten file              |
+
+#+begin_src ruby :tangle gitinfo.rb
+  def concurrent_contribs db, at
+    return db.execute( "select count(*) from authors where earliest <= (?) and date(latest,'+90 days') >= (?)", [at, at]).first
+  end
+
+  def add_event db, at, verb, author, subject
+    concurrent = concurrent_contribs db, at
+
+    commits = db.execute( "select count(*) from commits where author_email = (?)", [author] ).first
+    entities_changed = db.execute( "select count(distinct(name)) from commits, commit_files where commits.id = commit_files.id and author_email = (?)", [author]).first
+
+    db.execute( "INSERT INTO timeline (event_at, event_verb, event_author, event_subject, concurrent_contributors, commits, entities_changed)
+    VALUES (?, ?, ?, ?, ?, ?, ?)",
+                [at, verb, author, subject, concurrent, commits, entities_changed] );
+  end
+
+  def project_start_stop db
+    row = db.execute( "select author_name, author_email, author_when from commits order by author_when asc limit 1" ).first
+
+    add_event db, row[2], "project.start", row[1], "#{row[0]} made first commit"
+
+    row = db.execute( "select author_name, author_email, author_when from commits order by author_when desc limit 1" ).first
+
+    add_event db, row[2], "project.mostrecent", row[1], "#{row[0]} made most recent"
+  end
+
+  def contributors db
+    # Look through all the authors to add when the started and stopped.
+    rows= db.execute( "select email, name, earliest, latest from authors" )
+    rows.each do |row|
+      if row[2] != row[3]
+        add_event db, row[2], "contrib.start", row[0], row[1]
+        # only add latest if it was 45 at least 45 days ago
+        add_event db, row[3], "contrib.latest", row[0], row[1]
+      end
+    end
+  end
+
+  def releases db
+    db.execute( "
+    select tag,
+    count(distinct(commits.author_email)) as contributors,
+    count(*) as commits,
+    count(distinct(commit_files.name)) as entities,
+    tags.name,
+    tags.author_email,
+    max(author_when)
+    from commits, commit_files
+    left join tags on tags.name = commits.tag
+    where commits.id = commit_files.id 
+    group by tag
+    order by max(author_when)
+  " ).each do |row|
+      tag, contributors, commits, entities, name, author_email, author_when = row
+
+      db.execute( "INSERT INTO timeline 
+  (event_at, event_verb, event_author, event_subject, concurrent_contributors, entities_changed, commits)
+  VALUES
+  (?, ?, ?, ?, ?, ?, ?)",
+                  [author_when, 'project.release', author_email, tag, contributors, entities, commits] )
+    end
+  end
+
+  db.transaction
+
+  project_start_stop db
+  contributors db
+  releases db
+
+  db.commit
+#+end_src
+
+
+#+begin_src sqlite :colnames yes
+  select tag,
+  count(distinct(commits.author_email)) as contributors,
+  count(*) as commits,
+  count(distinct(commit_files.name)) as entities,
+  tags.name,
+  tags.author_email,
+  max(author_when)
+  from commits, commit_files
+  left join tags on tags.name = commits.tag
+  where commits.id = commit_files.id 
+  group by tag
+  order by max(author_when)
+#+end_src
+
+
+#+begin_src sqlite :colnames yes
+select * from timeline  order by event_at desc limit 100
+#+end_src
+
+#+RESULTS:
+| event_at                  | event_verb         | event_author                              | event_subject                  | concurrent_contributors | commits | entities_changed |
+|---------------------------+--------------------+-------------------------------------------+--------------------------------+-------------------------+---------+------------------|
+| 2021-03-27T16:02:19-05:00 | project.mostrecent | yancy.ribbens@gmail.com                   | yancyribbens made most recent  |                       2 |       1 |                1 |
+| 2021-03-27T16:02:19-05:00 | project.release    |                                           | HEAD                           |                       2 |       6 |                5 |
+| 2021-01-18T12:48:26-08:00 | contrib.latest     | jcouball@yahoo.com                        | James Couball                  |                      11 |      20 |               55 |
+| 2020-12-31T13:01:10-08:00 | project.release    | jcouball@yahoo.com                        | v1.8.1                         |                       1 |       3 |                3 |
+| 2020-12-31T10:32:06-08:00 | project.release    | jcouball@yahoo.com                        | v1.8.0                         |                      13 |     353 |              315 |
+| 2020-12-22T16:26:24-06:00 | contrib.latest     | me@vernburton.com                         | Vern Burton                    |                       7 |       6 |               15 |
+| 2020-12-20T15:19:54-05:00 | contrib.latest     | amayer5125@gmail.com                      | Alex Mayer                     |                       6 |       2 |                1 |
+| 2020-10-25T13:44:45-04:00 | contrib.latest     | 23052+AndyObtiva@users.noreply.github.com | Andy Maleh                     |                       6 |       2 |               12 |
+| 2020-08-31T12:03:13-04:00 | contrib.start      | 23052+AndyObtiva@users.noreply.github.com | Andy Maleh                     |                       4 |       2 |               12 |
+| 2020-04-25T14:37:59-07:00 | project.release    | couballj@verizonmedia.com                 | v1.7.0                         |                      10 |      16 |                9 |
+| 2020-04-05T20:33:35+03:00 | contrib.latest     | sblohin@yandex.ru                         | TIT                            |                      12 |       2 |                1 |
+| 2020-04-05T17:50:17-04:00 | contrib.start      | amayer5125@gmail.com                      | Alex Mayer                     |                      12 |       2 |                1 |
+| 2020-02-05T00:20:01+09:00 | contrib.latest     | yuu725@gmail.com                          | Yuta Harima                    |                       6 |       2 |                1 |
+| 2020-02-04T03:31:12+09:00 | contrib.start      | yuu725@gmail.com                          | Yuta Harima                    |                       6 |       2 |                1 |
+| 2020-02-02T08:06:19-08:00 | project.release    | jcouball@yahoo.com                        | v1.6.0                         |                       2 |       7 |                7 |
+| 2020-01-20T09:04:35-08:00 | project.release    |                                           | v1.6.0.pre1                    |                       6 |      50 |               45 |
+| 2019-02-17T11:16:47-08:00 | contrib.start      | jcouball@yahoo.com                        | James Couball                  |                       3 |      20 |               55 |
+| 2018-08-10T09:57:26+02:00 | contrib.latest     | per.lundberg@ecraft.com                   | Per Lundberg                   |                       9 |       8 |               10 |
+| 2018-08-10T09:57:26+02:00 | project.release    | per.lundberg@ecraft.com                   | v1.5.0                         |                       8 |      28 |               20 |
+| 2018-06-25T11:46:53-07:00 | contrib.latest     | taquitos@users.noreply.github.com         | Joshua Liebowitz               |                      10 |       2 |                3 |
+| 2018-06-25T11:45:38-07:00 | contrib.start      | taquitos@users.noreply.github.com         | Joshua Liebowitz               |                      10 |       2 |                3 |
+| 2018-05-16T09:49:34+03:00 | project.release    | per.lundberg@ecraft.com                   | v1.4.0                         |                       7 |      24 |               16 |
+| 2018-03-07T11:33:27-06:00 | contrib.start      | me@vernburton.com                         | Vern Burton                    |                       3 |       6 |               15 |
+| 2018-01-10T08:28:55+02:00 | contrib.start      | per.lundberg@ecraft.com                   | Per Lundberg                   |                       2 |       8 |               10 |
+| 2016-02-25T19:22:08-03:00 | contrib.latest     | decurnex.roberto@gmail.com                | Roberto Decurnex               |                       3 |     147 |               60 |
+| 2016-02-25T19:22:08-03:00 | project.release    | decurnex.roberto@gmail.com                | v1.3.0                         |                       1 |       5 |                5 |
+| 2016-02-25T16:16:06-03:00 | project.release    | decurnex.roberto@gmail.com                | v1.2.10                        |                       3 |      16 |                8 |
+| 2015-01-15T14:15:46-03:00 | project.release    | decurnex.roberto@gmail.com                | v1.2.9.1                       |                       2 |       6 |                6 |
+| 2015-01-12T16:51:41-03:00 | project.release    | decurnex.roberto@gmail.com                | v1.2.9                         |                       9 |      90 |               36 |
+| 2014-09-29T17:15:13-03:00 | contrib.latest     | roberto.decurnex@avature.net              | Roberto Decurnex               |                       7 |       8 |                9 |
+| 2014-08-07T11:30:40-04:00 | contrib.latest     | kelly.stannard@lendkey.com                | Kelly Stannard                 |                       7 |       4 |                1 |
+| 2014-08-06T16:00:16-04:00 | contrib.start      | kelly.stannard@lendkey.com                | Kelly Stannard                 |                       7 |       4 |                1 |
+| 2014-07-31T16:57:57-03:00 | project.release    | roberto.decurnex@avature.net              | v1.2.8                         |                       4 |      15 |               10 |
+| 2014-07-08T03:18:02+09:00 | contrib.latest     | yuya@j96.org                              | Yuya.Nishida                   |                       5 |       2 |                7 |
+| 2014-07-08T03:16:57+09:00 | contrib.start      | yuya@j96.org                              | Yuya.Nishida                   |                       5 |       2 |                7 |
+| 2014-06-09T17:06:42-03:00 | contrib.start      | roberto.decurnex@avature.net              | Roberto Decurnex               |                       4 |       8 |                9 |
+| 2014-06-09T17:06:42-03:00 | project.release    | roberto.decurnex@avature.net              | v1.2.7                         |                       9 |      47 |               23 |
+| 2014-01-28T12:47:08+11:00 | contrib.latest     | cameron.walsh@bigcommerce.com             | Cameron Walsh                  |                       6 |       2 |                5 |
+| 2014-01-06T16:58:31+11:00 | contrib.start      | cameron.walsh@bigcommerce.com             | Cameron Walsh                  |                       5 |       2 |                5 |
+| 2013-08-17T04:23:53-03:00 | project.release    | decurnex.roberto@gmail.com                | v1.2.6                         |                      10 |     124 |               37 |
+| 2013-05-24T21:45:56+08:00 | contrib.latest     | mrmallete@gmail.com                       | Michael Mallete                |                       4 |       3 |                3 |
+| 2013-05-23T16:42:56+08:00 | contrib.start      | mrmallete@gmail.com                       | Michael Mallete                |                       4 |       3 |                3 |
+| 2013-04-29T11:35:07-04:00 | contrib.latest     | joe.moore@gmail.com                       | Joe Moore                      |                       3 |       2 |                3 |
+| 2013-04-29T11:21:32-04:00 | contrib.start      | joe.moore@gmail.com                       | Joe Moore                      |                       3 |       2 |                3 |
+| 2013-04-03T15:48:03-03:00 | contrib.start      | decurnex.roberto@gmail.com                | Roberto Decurnex               |                       2 |     147 |               60 |
+| 2013-01-19T18:38:23+04:00 | contrib.start      | sblohin@yandex.ru                         | TIT                            |                       1 |       2 |                1 |
+| 2011-09-02T15:17:26-07:00 | contrib.latest     | josh@technicalpickles.com                 | Josh Nichols                   |                       2 |      24 |                9 |
+| 2009-10-17T11:00:26-04:00 | project.release    | josh@technicalpickles.com                 | v1.2.5                         |                       2 |       4 |                4 |
+| 2009-10-01T23:24:44-04:00 | project.release    | josh@technicalpickles.com                 | v1.2.4                         |                       2 |       3 |                3 |
+| 2009-09-30T02:46:02-04:00 | project.release    | josh@technicalpickles.com                 | v1.2.3                         |                       2 |       6 |                5 |
+| 2009-08-10T08:08:42-07:00 | contrib.latest     | schacon@gmail.com                         | schacon                        |                       2 |      21 |               27 |
+| 2009-08-02T04:06:03-04:00 | project.release    | josh@technicalpickles.com                 | v1.2.2                         |                       1 |       3 |                3 |
+| 2009-08-01T19:01:35-04:00 | project.release    | josh@technicalpickles.com                 | v1.2.1                         |                       1 |       4 |                4 |
+| 2009-08-01T18:17:54-04:00 | project.release    | josh@technicalpickles.com                 | v1.2.0                         |                      11 |     270 |              226 |
+| 2009-04-26T22:57:14-04:00 | contrib.start      | josh@technicalpickles.com                 | Josh Nichols                   |                       5 |      24 |                9 |
+| 2009-03-17T11:26:01-04:00 | contrib.latest     | gianni@runlevel6.org                      | Gianni Chiappetta              |                       6 |       2 |                2 |
+| 2009-03-12T14:52:58-04:00 | contrib.start      | gianni@runlevel6.org                      | Gianni Chiappetta              |                       6 |       2 |                2 |
+| 2009-02-12T17:41:19+01:00 | contrib.latest     | minad@slizer.hadiko.de                    | Daniel Mendler                 |                       5 |       8 |               12 |
+| 2009-02-12T06:49:18-09:00 | contrib.latest     | git@elliottcable.name                     | elliottcable                   |                       5 |       4 |                3 |
+| 2009-02-12T06:33:51-09:00 | contrib.start      | git@elliottcable.name                     | elliottcable                   |                       5 |       4 |                3 |
+| 2009-02-07T02:41:05+01:00 | contrib.start      | minad@slizer.hadiko.de                    | Daniel Mendler                 |                       4 |       8 |               12 |
+| 2008-12-24T08:08:19+08:00 | contrib.latest     | jon335@gmail.com                          | Jonathan Rudenberg             |                       4 |       2 |              200 |
+| 2008-12-21T11:28:20+08:00 | contrib.latest     | james.a.rosen@gmail.com                   | James Rosen                    |                       4 |       4 |               16 |
+| 2008-12-21T11:08:15+08:00 | contrib.start      | james.a.rosen@gmail.com                   | James Rosen                    |                       4 |       4 |               16 |
+| 2008-12-21T04:59:09+08:00 | contrib.start      | jon335@gmail.com                          | Jonathan Rudenberg             |                       3 |       2 |              200 |
+| 2008-07-25T12:54:30+08:00 | contrib.latest     | hotchpotch@gmail.com                      | Yuichi Tateno                  |                       5 |       3 |                6 |
+| 2008-07-25T12:44:32+08:00 | contrib.start      | hotchpotch@gmail.com                      | Yuichi Tateno                  |                       5 |       3 |                6 |
+| 2008-05-27T12:59:54-07:00 | project.release    | schacon@gmail.com                         | v1.0.7                         |                       3 |      24 |               13 |
+| 2008-05-07T01:06:40+08:00 | contrib.latest     | jbernal@warp.es                           | Jorge Bernal                   |                       4 |       3 |                2 |
+| 2008-05-05T22:52:08+08:00 | contrib.start      | jbernal@warp.es                           | Jorge Bernal                   |                       4 |       3 |                2 |
+| 2008-03-23T13:32:52-07:00 | project.release    | schacon@gmail.com                         | 1.0.5.1                        |                       1 |       1 |                1 |
+| 2008-03-14T22:21:21-05:00 | project.release    | josh@joshpeek.com                         | 1.0.5                          |                       5 |     189 |               63 |
+| 2008-03-05T18:09:33-08:00 | contrib.latest     | eric@ericgoodwin.com                      | Eric Goodwin                   |                       3 |       2 |                7 |
+| 2008-03-03T13:00:08-08:00 | contrib.start      | schacon@gmail.com                         | schacon                        |                       3 |      21 |               27 |
+| 2008-03-03T10:49:28-08:00 | contrib.start      | eric@ericgoodwin.com                      | Eric Goodwin                   |                       2 |       2 |                7 |
+| 2008-01-31T09:52:24-08:00 | contrib.latest     | schacon@agadorsparticus.(none)            | scott Chacon                   |                       2 |      47 |              497 |
+| 2007-11-29T11:16:14-08:00 | contrib.latest     | schacon@agadorsparticus.corp.reactrix.com | scott Chacon                   |                       2 |      34 |              313 |
+| 2007-11-16T11:48:45-08:00 | project.release    | schacon@agadorsparticus.(none)            | 1.0.3                          |                       2 |     980 |              738 |
+| 2007-11-10T12:43:33-08:00 | contrib.start      | schacon@agadorsparticus.(none)            | scott Chacon                   |                       2 |      47 |              497 |
+| 2007-11-07T12:54:26-08:00 | project.start      | schacon@agadorsparticus.corp.reactrix.com | scott Chacon made first commit |                       1 |      34 |              313 |
+| 2007-11-07T12:54:26-08:00 | contrib.start      | schacon@agadorsparticus.corp.reactrix.com | scott Chacon                   |                       1 |      34 |              313 |
+
+
+
 * Dockerfile
 
 #+begin_src Dockerfile :tangle Dockerfile
@@ -996,144 +1306,6 @@ CMD bash
   done
 #+end_src
 
-
-* Producing a timeline
-
-Let's also produce a summary timeline of what is going on with the
-project.  We can track:
-
-#+ATTR_HTML :class table table-striped
-| When a project starts            | First commit                             |
-| When a contributor first appears | First commit by author                   |
-| When a contributor leaves        | Last commit by author                    |
-| Is a contributor active?         | Commit with in time period, say 3 months |
-| Releases                         | Tag creation                             |
-| Major release                    | Semvar change                            |
-| Minor release                    | Semvar change                            |
-| Patch release                    | Semvar change                            |
-
-Another thing to look at is the state of knowledge of the project.  We
-will assume that working knowledge of a file will slowly decay, and so
-if a file hasn't recently been touched by a person who is active on a
-project, then the working knowledge of that file, why certain
-trade-offs were made, etc has been lost and /archeology will occur/.
-
-| Stale knowledge    | No contributors who touched a file are active |
-| Regained knowledge | Contribution to a forgotten file              |
-
-#+begin_src ruby :tangle 4timeline.rb
-  require 'sqlite3'
-
-  def create_database filename
-    db = SQLite3::Database.new filename
-
-    rows = db.execute <<-SQL1
-         CREATE TABLE IF NOT EXISTS timeline (
-                event_at DATETIME,
-                event_verb TEXT,
-                event_author TEXT,
-                event_subject TEXT,
-                concurrent_contributors INTEGER,
-                commits INTEGER,
-                entities_changed INTEGER
-                );
-  SQL1
-    rows = db.execute( "DELETE FROM timeline;" );
-    return db;
-  end
-
-  def concurrent_contribs db, at
-    return db.execute( "select count(*) from authors where earliest <= (?) and date(latest,'+90 days') >= (?)", [at, at]).first
-  end
-
-  def add_event db, at, verb, author, subject
-    concurrent = concurrent_contribs db, at
-
-    commits = db.execute( "select count(*) from commits where author_email = (?)", [author] ).first
-    entities_changed = db.execute( "select count(distinct(name)) from commits, commit_files where commits.id = commit_files.id and author_email = (?)", [author]).first
-
-    db.execute( "INSERT INTO timeline (event_at, event_verb, event_author, event_subject, concurrent_contributors, commits, entities_changed)
-    VALUES (?, ?, ?, ?, ?, ?, ?)",
-                [at, verb, author, subject, concurrent, commits, entities_changed] );
-  end
-
-  def project_start_stop db
-    row = db.execute( "select author_name, author_email, author_when from commits order by author_when asc limit 1" ).first
-
-    add_event db, row[2], "project.start", row[1], "#{row[0]} made first commit"
-
-    row = db.execute( "select author_name, author_email, author_when from commits order by author_when desc limit 1" ).first
-
-    add_event db, row[2], "project.mostrecent", row[1], "#{row[0]} made most recent"
-  end
-
-  def contributors db
-    # Look through all the authors to add when the started and stopped.
-    rows= db.execute( "select email, name, earliest, latest from authors" )
-    rows.each do |row|
-      if row[2] != row[3]
-        add_event db, row[2], "contrib.start", row[0], row[1]
-        # only add latest if it was 45 at least 45 days ago
-        add_event db, row[3], "contrib.latest", row[0], row[1]
-      end
-    end
-  end
-
-  def releases db
-    db.execute( "
-    select tag,
-    count(distinct(commits.author_email)) as contributors,
-    count(*) as commits,
-    count(distinct(commit_files.name)) as entities,
-    tags.name,
-    tags.author_email,
-    max(author_when)
-    from commits, commit_files
-    left join tags on tags.name = commits.tag
-    where commits.id = commit_files.id 
-    group by tag
-    order by max(author_when)
-  " ).each do |row|
-      tag, contributors, commits, entities, name, author_email, author_when = row
-
-      db.execute( "INSERT INTO timeline 
-  (event_at, event_verb, event_author, event_subject, concurrent_contributors, entities_changed, commits)
-  VALUES
-  (?, ?, ?, ?, ?, ?, ?)",
-                  [author_when, 'project.release', author_email, tag, contributors, entities, commits] )
-    end
-  end
-
-  db = create_database "commits.db"
-  db.transaction
-
-  project_start_stop db
-  contributors db
-  releases db
-
-  db.commit
-#+end_src
-
-
-#+begin_src sqlite :colnames yes
-  select tag,
-  count(distinct(commits.author_email)) as contributors,
-  count(*) as commits,
-  count(distinct(commit_files.name)) as entities,
-  tags.name,
-  tags.author_email,
-  max(author_when)
-  from commits, commit_files
-  left join tags on tags.name = commits.tag
-  where commits.id = commit_files.id 
-  group by tag
-  order by max(author_when)
-#+end_src
-
-
-#+begin_src sqlite :colnames yes
-select * from timeline  order by event_at desc limit 100
-#+end_src
 
 
 * References
