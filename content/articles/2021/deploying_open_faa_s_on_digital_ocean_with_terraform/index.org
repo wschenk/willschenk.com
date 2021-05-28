@@ -1,0 +1,168 @@
+#+title: Deploying OpenFaaS on Digital Ocean with Terraform
+#+date: 2021-05-28
+#+draft: true
+
+* Install OpenFaaS
+
+#+begin_src bash
+curl -sL https://cli.openfaas.com | sudo sh
+#+end_src
+
+* Install terraform
+
+On Debian:
+
+#+begin_src bash
+sudo apt-get install apt-transport-https --yes
+curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
+sudo apt-add-repository "deb [arch=$(dpkg --print-architecture)] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+sudo apt update
+sudo apt install terraform
+#+end_src
+
+* Install kubectl
+
+On debian:
+
+#+begin_src bash
+sudo curl -fsSLo /usr/share/keyrings/kubernetes-archive-keyring.gpg https://packages.cloud.google.com/apt/doc/apt-key.gpg
+echo "deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list
+sudo apt-get update
+sudo apt-get install -y kubectl
+#+end_src
+
+* Install helm
+
+#+begin_src bash
+curl https://baltocdn.com/helm/signing.asc | sudo apt-key add -
+echo "deb https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+sudo apt-get update
+sudo apt-get install helm
+#+end_src
+
+* Write terraform
+
+#+begin_src terraform
+  resource "digitalocean_kubernetes_cluster" "gratitude" {
+    name    = "gratitude"
+    region  = "nyc1"
+    version = "1.20.2-do.0"
+
+    node_pool {
+      name       = "worker-pool"
+      size       = "s-2vcpu-2gb"
+      node_count = 2
+    }
+  }
+
+  output "cluster-id" {
+    value = "${digitalocean_kubernetes_cluster.gratitude.id}"
+  }
+#+end_src
+
+Now run =terraform apply= to setup the cluster.  This took a 6 minutes for me.
+
+* Setup =kubectl=
+
+#+begin_src bash
+  export CLUSTER_ID=$(terraform output -raw cluster-id)
+  mkdir -p ~/.kube/
+  curl -X GET \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${TF_VAR_do_token}" \
+  "https://api.digitalocean.com/v2/kubernetes/clusters/$CLUSTER_ID/kubeconfig" \
+  > ~/.kube/config
+#+end_src
+
+If you have your =TF_VAR_do_token= setup correctly, it should create a
+valid =config= file.
+
+Test this with
+
+#+begin_src bash :results output
+kubectl cluster-info
+#+end_src
+
+#+RESULTS:
+: Kubernetes control plane is running at https://d5f02061-2666-4107-af17-ff9a9326482c.k8s.ondigitalocean.com
+: CoreDNS is running at https://d5f02061-2666-4107-af17-ff9a9326482c.k8s.ondigitalocean.com/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
+: 
+: To further debug and diagnose cluster problems, use 'kubectl cluster-info dump'.
+
+* Installing OpenFaaS
+
+First lets add the OpenFaaS namespaces:
+
+#+begin_src bash
+  kubectl apply -f https://raw.githubusercontent.com/openfaas/faas-netes/master/namespaces.yml
+#+end_src
+
+Get the =helm= chart:
+
+#+begin_src bash
+  helm repo add openfaas https://openfaas.github.io/faas-netes/
+  helm repo update
+#+end_src
+
+Then add deploy the configuration:
+
+#+begin_src bash
+  helm upgrade openfaas --install openfaas/openfaas \
+       --namespace openfaas  \
+       --set functionNamespace=openfaas-fn \
+       --set generateBasicAuth=true 
+#+end_src
+
+We can then verify the deploy with:
+
+#+begin_src bash
+kubectl -n openfaas get deployments -l "release=openfaas, app=openfaas"
+#+end_src
+
+#+RESULTS:
+| NAME              | READY | UP-TO-DATE | AVAILABLE | AGE |
+| alertmanager      | 1/1   |          1 |         1 | 46s |
+| basic-auth-plugin | 1/1   |          1 |         1 | 46s |
+| gateway           | 1/1   |          1 |         1 | 46s |
+| nats              | 1/1   |          1 |         1 | 46s |
+| prometheus        | 1/1   |          1 |         1 | 46s |
+| queue-worker      | 1/1   |          1 |         1 | 46s |
+
+* Open up the connection to OpenFaaS locally
+
+#+begin_src bash
+kubectl port-forward svc/gateway -n openfaas 8080:8080
+#+end_src
+
+* Get the OpenFaaS login credentials and login
+
+#+begin_src bash
+# This command retrieves your password
+PASSWORD=$(kubectl get secret -n openfaas basic-auth -o jsonpath="{.data.basic-auth-password}" | base64 --decode; echo)
+
+# This command logs in and saves a file to ~/.openfaas/config.yml
+echo -n $PASSWORD | faas-cli login --username admin --password-stdin
+#+end_src
+
+And now we can list out our deployed functions:
+
+#+begin_src bash
+faas-cli list
+#+end_src
+
+#+RESULTS:
+| Function | Invocations | Replicas |
+
+Not a whole lot there yet.
+
+
+* References
+
+1. https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/#install-using-native-package-management
+2. https://ponderosa.io/blog/kubernetes/2019/03/13/terraform-cluster-create/
+3. https://github.com/openfaas/faas-netes/blob/master/chart/openfaas/README.md
+4. https://github.com/openfaas/workshop/blob/master/lab1b.md#run-on-digitaloceans-kubernetes-service
+      
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
