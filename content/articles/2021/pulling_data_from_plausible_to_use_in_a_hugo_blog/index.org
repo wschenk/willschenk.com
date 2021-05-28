@@ -1,0 +1,109 @@
+#+title: Pulling Data from Plausible to use in a hugo blog
+#+date: 2021-05-15
+#+draft: true
+
+First get a key
+
+APIs
+
+put them together
+
+1. Download top pages for last week
+   Download top pages for last year
+2. Look at referals
+   Look at referals for time slices
+   Show new referals on each time frame
+   Filter out googles
+
+ Generate json data file
+
+* Setting up deno & emacs
+
+#+begin_src bash
+deno -V
+#+end_src
+
+#+RESULTS:
+: deno 1.8.3
+
+#+begin_src bash
+  npm init -y
+  npm install --save-dev typescript-deno-plugin typescript
+#+end_src
+
+#+begin_src json :tangle tsconfig.json
+  { 
+      "compilerOptions": {
+          "lib": [
+            "es6",
+          ],
+          "plugins": [
+              {
+                  "name": "typescript-deno-plugin",
+                  "enable": true, // default is `true`
+                  "importmap": "import_map.json"
+              }
+          ]
+      }
+  }
+#+end_src
+
+* Get an API from plausible
+
+Follow the instructions here, and make note of the API key.  Then
+create a =.env= file with =PLAUSIBLE_API= and =SITE_ID= to your site.
+
+
+* Query
+
+#+begin_src bash :results output
+curl https://plausible.io/api/v1/stats/realtime/visitors?site_id=$SITE_ID \
+  -H "Authorization: Bearer ${PLAUSIBLE_API}"
+#+end_src
+
+#+RESULTS:
+: 1
+
+#+begin_src bash :results output
+  curl "https://plausible.io/api/v1/stats/breakdown?site_id=${SITE_ID}&period=6mo&property=event:page&limit=10" \
+       -H "Authorization: Bearer ${PLAUSIBLE_API}" | jq '.results[] | [.page, .visitors] | @csv'
+
+#+end_src
+
+#+RESULTS:
+
+
+#+begin_src bash :results output
+  curl "https://plausible.io/api/v1/stats/breakdown?site_id=${SITE_ID}&period=custom&date=2020-01-01,2021-06-01&property=event:page&limit=10" \
+       -H "Authorization: Bearer ${PLAUSIBLE_API}" | jq '.results[] | [.page, .visitors] | @csv'
+
+#+end_src
+
+#+RESULTS:
+#+begin_example
+"\"/articles/2020/using_askgit/\",8599"
+"\"/articles/2018/adding_facebook_login_with_react/\",4361"
+"\"/articles/2018/building-a-hugo-site/\",3631"
+"\"/articles/2020/tramp_tricks/\",2034"
+"\"/articles/2019/reverse_engineering_apis_using_chrome/\",1936"
+"\"/articles/2019/controlling_ikea_tradfri_with_node/\",1794"
+"\"/articles/2019/using_org_mode_in_hugo/\",1503"
+"\"/articles/2020/styling_tables_with_hugo/\",1419"
+"\"/articles/2020/gitlog_in_sqlite/\",1254"
+"\"/articles/2015/receiving-posted-json-with-sinatra/\",1226"
+#+end_example
+
+* Running
+
+#+begin_src bash
+deno run --allow-read --allow-env --allow-net query.ts 
+#+end_src
+
+* References
+
+1. https://www.sitepoint.com/deno-fetch-data-third-party-api/
+2. https://plausible.io/docs/stats-api#time-periods
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
