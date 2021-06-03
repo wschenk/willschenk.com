@@ -1,4 +1,677 @@
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Wed, 19 May 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Sending files with wormhole</title><link>https://willschenk.com/articles/2021/sending_files_with_wormhole/</link><pubDate>Wed, 19 May 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/sending_files_with_wormhole/</guid><description>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Wed, 02 Jun 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Deploying OpenFaaS on Digital Ocean with Terraform</title><link>https://willschenk.com/articles/2021/deploying_open_faa_s_on_digital_ocean_with_terraform/</link><pubDate>Wed, 02 Jun 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/deploying_open_faa_s_on_digital_ocean_with_terraform/</guid><description>
+&lt;p>
+We are going to look at how to use Terraform to deploy a Kubernetes
+cluster on Digital Ocean, add a managed postgres database, and redis
+and OpenFaaS in kubernetes. This will show how to use Terraform to
+manage the configuration and how we can access both cloud and
+kubernetes managed services from OpenFaaS functions.
+&lt;/p>
+&lt;p>
+We are going to use the &lt;a href="https://registry.terraform.io/providers/digitalocean/digitalocean/latest/docs">digitalocean&lt;/a>, &lt;a href="https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs">kubernetes&lt;/a>, and &lt;a href="https://registry.terraform.io/providers/hashicorp/helm/latest">helm&lt;/a> terraform
+providers.
+&lt;/p>
+&lt;h2 id="headline-1">
+The plan
+&lt;/h2>
+&lt;ol>
+&lt;li>
+&lt;p>
+Provision a &lt;code class="verbatim">digitalocean_kubernetes_cluster&lt;/code>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+Provision a &lt;code class="verbatim">digitalocean_database_cluster&lt;/code>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+Provision 2 &lt;code class="verbatim">kubernetes_namespace&lt;/code> for &lt;code class="verbatim">openfaas&lt;/code> and &lt;code class="verbatim">openfass-fn&lt;/code>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+Provision a &lt;code class="verbatim">helm_release&lt;/code> for &lt;code class="verbatim">openfaas&lt;/code>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+Provision a &lt;code class="verbatim">helm_release&lt;/code> for &lt;code class="verbatim">redis&lt;/code>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+Provision 2 &lt;code class="verbatim">kubernetes_secret&lt;/code> to point to the databases
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+Deploy an OpenFaaS function that reads those secrets and talks to the database.
+&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;p>
+Let&amp;#39;s go.
+&lt;/p>
+&lt;h2 id="headline-2">
+Install the software
+&lt;/h2>
+&lt;p>
+I&amp;#39;m using Debian, your mileage may vary.
+&lt;/p>
+&lt;h3 id="headline-3">
+OpenFaaS
+&lt;/h3>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">curl -sL https://cli.openfaas.com &lt;span class="p">|&lt;/span> sudo sh&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-4">
+Terraform
+&lt;/h3>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">sudo apt-get install apt-transport-https --yes
+curl -fsSL https://apt.releases.hashicorp.com/gpg &lt;span class="p">|&lt;/span> sudo apt-key add -
+sudo apt-add-repository &lt;span class="s2">&amp;#34;deb [arch=&lt;/span>&lt;span class="k">$(&lt;/span>dpkg --print-architecture&lt;span class="k">)&lt;/span>&lt;span class="s2">] https://apt.releases.hashicorp.com &lt;/span>&lt;span class="k">$(&lt;/span>lsb_release -cs&lt;span class="k">)&lt;/span>&lt;span class="s2"> main&amp;#34;&lt;/span>
+sudo apt update
+sudo apt install terraform&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-5">
+kubectl
+&lt;/h3>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">sudo curl -fsSLo /usr/share/keyrings/kubernetes-archive-keyring.gpg https://packages.cloud.google.com/apt/doc/apt-key.gpg
+&lt;span class="nb">echo&lt;/span> &lt;span class="s2">&amp;#34;deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main&amp;#34;&lt;/span> &lt;span class="p">|&lt;/span> sudo tee /etc/apt/sources.list.d/kubernetes.list
+sudo apt-get update
+sudo apt-get install -y kubectl&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-6">
+helm
+&lt;/h3>
+&lt;p>
+This is optional since we are using terraform, but here for reference.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">curl https://baltocdn.com/helm/signing.asc &lt;span class="p">|&lt;/span> sudo apt-key add -
+&lt;span class="nb">echo&lt;/span> &lt;span class="s2">&amp;#34;deb https://baltocdn.com/helm/stable/debian/ all main&amp;#34;&lt;/span> &lt;span class="p">|&lt;/span> sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+sudo apt-get update
+sudo apt-get install helm&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-7">
+Terraform
+&lt;/h2>
+&lt;h3 id="headline-8">
+Providers
+&lt;/h3>
+&lt;p>
+First we need to define out providers, which we will do in &lt;code class="verbatim">providers.tf&lt;/code>:
+&lt;/p>
+&lt;div class="src src-terraform">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-terraform" data-lang="terraform"> &lt;span class="err">terraform&lt;/span> {
+&lt;span class="err">required_providers&lt;/span> {
+&lt;span class="na"> digitalocean&lt;/span> &lt;span class="o">=&lt;/span> {
+&lt;span class="na"> source&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;digitalocean/digitalocean&amp;#34;&lt;/span>
+&lt;span class="na"> version&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;~&amp;gt; 2.0&amp;#34;&lt;/span>
+}
+}
+}
+&lt;span class="kr">variable&lt;/span> &lt;span class="s">&amp;#34;do_token&amp;#34;&lt;/span> {
+&lt;span class="na"> description&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;digitalocean access token&amp;#34;&lt;/span>
+&lt;span class="na"> type&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">string&lt;/span>
+}
+&lt;span class="kr">provider&lt;/span> &lt;span class="s">&amp;#34;digitalocean&amp;#34;&lt;/span> {
+&lt;span class="na"> token&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">var&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">do_token&lt;/span>
+}&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Then run
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">terraform init&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+To load them locally.
+&lt;/p>
+&lt;p>
+Also, you should define your do_token perhaps in an environment
+variable &lt;code class="verbatim">TF_VAR_do_token&lt;/code>.
+&lt;/p>
+&lt;h3 id="headline-9">
+Digital Ocean Resources
+&lt;/h3>
+&lt;p>
+Define &lt;code class="verbatim">digitalocean.tf&lt;/code>:
+&lt;/p>
+&lt;div class="src src-terraform">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-terraform" data-lang="terraform"> &lt;span class="kr">resource&lt;/span> &lt;span class="s">&amp;#34;digitalocean_kubernetes_cluster&amp;#34; &amp;#34;gratitude&amp;#34;&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;gratitude&amp;#34;&lt;/span>
+&lt;span class="na"> region&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;nyc1&amp;#34;&lt;/span>
+&lt;span class="na"> version&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;1.20.2-do.0&amp;#34;&lt;/span>
+&lt;span class="err">node_pool&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;worker-pool&amp;#34;&lt;/span>
+&lt;span class="na"> size&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;s-2vcpu-2gb&amp;#34;&lt;/span>
+&lt;span class="na"> node_count&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="m">3&lt;/span>
+}
+}
+&lt;span class="kr">resource&lt;/span> &lt;span class="s">&amp;#34;digitalocean_database_cluster&amp;#34; &amp;#34;gratitude-postgres&amp;#34;&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;gratitude-postgres-cluster&amp;#34;&lt;/span>
+&lt;span class="na"> engine&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;pg&amp;#34;&lt;/span>
+&lt;span class="na"> version&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;11&amp;#34;&lt;/span>
+&lt;span class="na"> size&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;db-s-1vcpu-1gb&amp;#34;&lt;/span>
+&lt;span class="na"> region&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;nyc1&amp;#34;&lt;/span>
+&lt;span class="na"> node_count&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="m">1&lt;/span>
+}
+&lt;span class="err">output&lt;/span> &lt;span class="s2">&amp;#34;cluster-id&amp;#34;&lt;/span> {
+&lt;span class="na"> value&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;${digitalocean_kubernetes_cluster.gratitude.id}&amp;#34;&lt;/span>
+}&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+We can spin these up using &lt;code class="verbatim">terraform apply&lt;/code>. This takes about 6
+minutes for me.
+&lt;/p>
+&lt;h3 id="headline-10">
+Kubernetes
+&lt;/h3>
+&lt;p>
+Now we can add our kubernetes namespaces. In another file called &lt;code class="verbatim">kubernetes.tf&lt;/code>:
+&lt;/p>
+&lt;div class="src src-terraform">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-terraform" data-lang="terraform"> &lt;span class="kr">provider&lt;/span> &lt;span class="s">&amp;#34;kubernetes&amp;#34;&lt;/span> {
+&lt;span class="na"> host&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">digitalocean_kubernetes_cluster&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">gratitude&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">endpoint&lt;/span>
+&lt;span class="na"> token&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">digitalocean_kubernetes_cluster&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">gratitude&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">kube_config&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="m">0&lt;/span>&lt;span class="p">].&lt;/span>&lt;span class="err">token&lt;/span>
+&lt;span class="na"> cluster_ca_certificate&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">base&lt;/span>&lt;span class="m">64&lt;/span>&lt;span class="err">decode&lt;/span>&lt;span class="p">(&lt;/span>
+&lt;span class="err">digitalocean_kubernetes_cluster&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">gratitude&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">kube_config&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="m">0&lt;/span>&lt;span class="p">].&lt;/span>&lt;span class="err">cluster_ca_certificate&lt;/span>
+&lt;span class="p">)&lt;/span>
+}
+&lt;span class="kr">resource&lt;/span> &lt;span class="s">&amp;#34;kubernetes_namespace&amp;#34; &amp;#34;openfaas&amp;#34;&lt;/span> {
+&lt;span class="err">metadata&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;openfaas&amp;#34;&lt;/span>
+&lt;span class="na"> labels&lt;/span> &lt;span class="o">=&lt;/span> {
+&lt;span class="na"> role&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;openfaas-system&amp;#34;&lt;/span>
+&lt;span class="na"> access&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;openfaas-system&amp;#34;&lt;/span>
+&lt;span class="na"> istio-injection&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;enabled&amp;#34;&lt;/span>
+}
+}
+}
+&lt;span class="kr">resource&lt;/span> &lt;span class="s">&amp;#34;kubernetes_namespace&amp;#34; &amp;#34;openfaas-fn&amp;#34;&lt;/span> {
+&lt;span class="err">metadata&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;openfaas-fn&amp;#34;&lt;/span>
+&lt;span class="na"> labels&lt;/span> &lt;span class="o">=&lt;/span> {
+&lt;span class="na"> role&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;openfaas-fn&amp;#34;&lt;/span>
+&lt;span class="na"> istio-injection&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;enabled&amp;#34;&lt;/span>
+}
+}
+}&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+We&amp;#39;ll need to run &lt;code class="verbatim">terraform init&lt;/code> again since we added a provider, and
+then we can &lt;code class="verbatim">terraform apply&lt;/code>.
+&lt;/p>
+&lt;h3 id="headline-11">
+Helm
+&lt;/h3>
+&lt;div class="src src-terraform">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-terraform" data-lang="terraform"> &lt;span class="kr">provider&lt;/span> &lt;span class="s">&amp;#34;helm&amp;#34;&lt;/span> {
+&lt;span class="err">kubernetes&lt;/span> {
+&lt;span class="na"> host&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">digitalocean_kubernetes_cluster&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">gratitude&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">endpoint&lt;/span>
+&lt;span class="na"> cluster_ca_certificate&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">base&lt;/span>&lt;span class="m">64&lt;/span>&lt;span class="err">decode&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="err">digitalocean_kubernetes_cluster&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">gratitude&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">kube_config&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="m">0&lt;/span>&lt;span class="p">].&lt;/span>&lt;span class="err">cluster_ca_certificate&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="na"> token&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">digitalocean_kubernetes_cluster&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">gratitude&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">kube_config&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="m">0&lt;/span>&lt;span class="p">].&lt;/span>&lt;span class="err">token&lt;/span>
+}
+}
+&lt;span class="kr">resource&lt;/span> &lt;span class="s">&amp;#34;helm_release&amp;#34; &amp;#34;openfaas&amp;#34;&lt;/span> {
+&lt;span class="na"> repository&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;https://openfaas.github.io/faas-netes&amp;#34;&lt;/span>
+&lt;span class="na"> chart&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;openfaas&amp;#34;&lt;/span>
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;openfaas&amp;#34;&lt;/span>
+&lt;span class="na"> namespace&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;openfaas&amp;#34;&lt;/span>
+&lt;span class="err">set&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;functionalNamepsace&amp;#34;&lt;/span>
+&lt;span class="na"> value&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;openfaas-fn&amp;#34;&lt;/span>
+}
+&lt;span class="err">set&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;generateBasicAuth&amp;#34;&lt;/span>
+&lt;span class="na"> value&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;true&amp;#34;&lt;/span>
+}
+&lt;span class="err">set&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;ingress.enabled&amp;#34;&lt;/span>
+&lt;span class="na"> value&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;true&amp;#34;&lt;/span>
+}
+}
+&lt;span class="kr">resource&lt;/span> &lt;span class="s">&amp;#34;random_password&amp;#34; &amp;#34;redis_password&amp;#34;&lt;/span> {
+&lt;span class="na"> length&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="m">16&lt;/span>
+&lt;span class="na"> special&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="kt">true&lt;/span>
+&lt;span class="na"> override_special&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;_%@&amp;#34;&lt;/span>
+}
+&lt;span class="kr">resource&lt;/span> &lt;span class="s">&amp;#34;helm_release&amp;#34; &amp;#34;redis&amp;#34;&lt;/span> {
+&lt;span class="na"> repository&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;https://charts.bitnami.com/bitnami&amp;#34;&lt;/span>
+&lt;span class="na"> chart&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;redis&amp;#34;&lt;/span>
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;redis&amp;#34;&lt;/span>
+&lt;span class="err">set&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;auth.password&amp;#34;&lt;/span>
+&lt;span class="na"> value&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">random_password&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">redis_password&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">result&lt;/span>
+}
+&lt;span class="err">set&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;architecture&amp;#34;&lt;/span>
+&lt;span class="na"> value&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;standalone&amp;#34;&lt;/span>
+}
+}&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Once you have this file, do &lt;code class="verbatim">terraform init&lt;/code> and then &lt;code class="verbatim">terraform apply&lt;/code>
+and both OpenFaaS and Redis should be deployed to your cluster.
+&lt;/p>
+&lt;h3 id="headline-12">
+Secrets
+&lt;/h3>
+&lt;div class="src src-terraform">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-terraform" data-lang="terraform"> &lt;span class="kr">resource&lt;/span> &lt;span class="s">&amp;#34;kubernetes_secret&amp;#34; &amp;#34;redispassword&amp;#34;&lt;/span> {
+&lt;span class="err">metadata&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;redispassword&amp;#34;&lt;/span>
+&lt;span class="na"> namespace&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;openfaas-fn&amp;#34;&lt;/span>
+}
+&lt;span class="na"> data&lt;/span> &lt;span class="o">=&lt;/span> {
+&lt;span class="na"> password&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">random_password&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">redis_password&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">result&lt;/span>
+}
+}
+&lt;span class="kr">resource&lt;/span> &lt;span class="s">&amp;#34;kubernetes_secret&amp;#34; &amp;#34;postgresconnection&amp;#34;&lt;/span> {
+&lt;span class="err">metadata&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;postgresconnection&amp;#34;&lt;/span>
+&lt;span class="na"> namespace&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;openfaas-fn&amp;#34;&lt;/span>
+}
+&lt;span class="na"> data&lt;/span> &lt;span class="o">=&lt;/span> {
+&lt;span class="na"> host&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">digitalocean_database_cluster&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">gratitude-postgres&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">private_uri&lt;/span>
+}
+}&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-13">
+Verifying the deployment
+&lt;/h2>
+&lt;h3 id="headline-14">
+Setup &lt;code class="verbatim">kubectl&lt;/code>
+&lt;/h3>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> &lt;span class="nb">export&lt;/span> &lt;span class="nv">CLUSTER_ID&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="k">$(&lt;/span>terraform output -raw cluster-id&lt;span class="k">)&lt;/span>
+mkdir -p ~/.kube/
+curl -X GET &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> -H &lt;span class="s2">&amp;#34;Content-Type: application/json&amp;#34;&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> -H &lt;span class="s2">&amp;#34;Authorization: Bearer &lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">TF_VAR_do_token&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> &lt;span class="s2">&amp;#34;https://api.digitalocean.com/v2/kubernetes/clusters/&lt;/span>&lt;span class="nv">$CLUSTER_ID&lt;/span>&lt;span class="s2">/kubeconfig&amp;#34;&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> &amp;gt; ~/.kube/config&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+If you have your &lt;code class="verbatim">TF_VAR_do_token&lt;/code> setup correctly, it should create a
+valid &lt;code class="verbatim">config&lt;/code> file.
+&lt;/p>
+&lt;p>
+Test this with
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">kubectl cluster-info&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Kubernetes control plane is running at https://39cef8c8-ca33-40f1-9454-3373707a22ef.k8s.ondigitalocean.com
+CoreDNS is running at https://39cef8c8-ca33-40f1-9454-3373707a22ef.k8s.ondigitalocean.com/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
+To further debug and diagnose cluster problems, use &amp;#39;kubectl cluster-info dump&amp;#39;.
+&lt;/pre>
+&lt;h3 id="headline-15">
+Verifying OpenFaaS
+&lt;/h3>
+&lt;p>
+We can then verify the deploy with:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">kubectl -n openfaas get deployments -l &lt;span class="s2">&amp;#34;release=openfaas, app=openfaas&amp;#34;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;table>
+&lt;tbody>
+&lt;tr>
+&lt;td>NAME&lt;/td>
+&lt;td>READY&lt;/td>
+&lt;td class="align-right">UP-TO-DATE&lt;/td>
+&lt;td class="align-right">AVAILABLE&lt;/td>
+&lt;td>AGE&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>alertmanager&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td class="align-right">1&lt;/td>
+&lt;td class="align-right">1&lt;/td>
+&lt;td>19m&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>basic-auth-plugin&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td class="align-right">1&lt;/td>
+&lt;td class="align-right">1&lt;/td>
+&lt;td>19m&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>gateway&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td class="align-right">1&lt;/td>
+&lt;td class="align-right">1&lt;/td>
+&lt;td>19m&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>nats&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td class="align-right">1&lt;/td>
+&lt;td class="align-right">1&lt;/td>
+&lt;td>19m&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>prometheus&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td class="align-right">1&lt;/td>
+&lt;td class="align-right">1&lt;/td>
+&lt;td>19m&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>queue-worker&lt;/td>
+&lt;td>1/1&lt;/td>
+&lt;td class="align-right">1&lt;/td>
+&lt;td class="align-right">1&lt;/td>
+&lt;td>19m&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;h2 id="headline-16">
+Connecting to OpenFaaS
+&lt;/h2>
+&lt;h3 id="headline-17">
+Setup the proxy
+&lt;/h3>
+&lt;p>
+In a new window, lets setup port forwarding from your local machine to
+connect to the openfaas gateway in kubernetes.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">kubectl port-forward svc/gateway -n openfaas 8080:8080&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-18">
+Get the OpenFaaS login credentials and login
+&lt;/h3>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="c1"># This command retrieves your password&lt;/span>
+&lt;span class="nv">PASSWORD&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="k">$(&lt;/span>kubectl get secret -n openfaas basic-auth -o &lt;span class="nv">jsonpath&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;{.data.basic-auth-password}&amp;#34;&lt;/span> &lt;span class="p">|&lt;/span> base64 --decode&lt;span class="p">;&lt;/span> &lt;span class="nb">echo&lt;/span>&lt;span class="k">)&lt;/span>
+&lt;span class="c1"># This command logs in and saves a file to ~/.openfaas/config.yml&lt;/span>
+&lt;span class="nb">echo&lt;/span> -n &lt;span class="nv">$PASSWORD&lt;/span> &lt;span class="p">|&lt;/span> faas-cli login --username admin --password-stdin&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Calling the OpenFaaS server to validate the credentials...
+credentials saved for admin http://127.0.0.1:8080
+&lt;/pre>
+&lt;p>
+And now we can list out our deployed functions:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">faas-cli list&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;table>
+&lt;tbody>
+&lt;tr>
+&lt;td>Function&lt;/td>
+&lt;td>Invocations&lt;/td>
+&lt;td>Replicas&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;p>
+Not a whole lot there yet.
+&lt;/p>
+&lt;h3 id="headline-19">
+Testing out deploying a function
+&lt;/h3>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">faas-cli store deploy nodeinfo
+&lt;span class="nb">echo&lt;/span> &lt;span class="p">|&lt;/span> faas-cli invoke nodeinfo&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Deployed. 202 Accepted.
+URL: http://127.0.0.1:8080/function/nodeinfo
+Hostname: nodeinfo-8545846564-wpqm6
+Arch: x64
+CPUs: 2
+Total mem: 1995MB
+Platform: linux
+Uptime: 361
+&lt;/pre>
+&lt;h2 id="headline-20">
+Writing a OpenFaaS function that talks to Redis
+&lt;/h2>
+&lt;h3 id="headline-21">
+Get the template running
+&lt;/h3>
+&lt;p>
+Lets create our first function. We need to pull the templates locally, so lets do that with:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">faas-cli template pull&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Fetch templates from repository: https://github.com/openfaas/templates.git at
+&lt;/pre>
+&lt;p>
+And create our function, I&amp;#39;m going to use ruby.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">faas-cli new --lang ruby rubyredis&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Change the &lt;code class="verbatim">image&lt;/code> in &lt;code class="verbatim">rubyredis.yml&lt;/code> to be your Docker hub user name, and
+then lets deploy it:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">faas-cli up -f rubyredis.yml&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+And if that&amp;#39;s successful, we can invoke it with:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="nb">echo&lt;/span> &lt;span class="p">|&lt;/span> faas-cli invoke rubyredis&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Hello world from the Ruby template
+&lt;/pre>
+&lt;h3 id="headline-22">
+Adding redis
+&lt;/h3>
+&lt;p>
+Now that we have it working, lets add redis to the picture.
+&lt;/p>
+&lt;p>
+First we need to add the secret to the &lt;code class="verbatim">rubyredis.yml&lt;/code> file, so that it
+references the secret we defined above in terraform:
+&lt;/p>
+&lt;div class="src src-yaml">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="w"> &lt;/span>&lt;span class="k">version&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">1.0&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">provider&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>openfaas&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">gateway&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>http&lt;span class="p">:&lt;/span>//&lt;span class="m">127.0.0.1&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="m">8080&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">functions&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">rubyredis&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">lang&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>ruby&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">handler&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>./rubyredis&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">image&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>wschenk/rubyredis&lt;span class="p">:&lt;/span>latest&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">secrets&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- redispassword&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+In the &lt;code class="verbatim">Gemfile&lt;/code> add the &lt;code class="verbatim">redis&lt;/code> gem:
+&lt;/p>
+&lt;div class="src src-ruby">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-ruby" data-lang="ruby">&lt;span class="n">source&lt;/span> &lt;span class="s1">&amp;#39;https://rubygems.org&amp;#39;&lt;/span>
+&lt;span class="n">gem&lt;/span> &lt;span class="s2">&amp;#34;redis&amp;#34;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Now we need to change &lt;code class="verbatim">handler.rb&lt;/code> to conenct to the redis service on
+the cluster, which is &lt;code class="verbatim">redis-master.default&lt;/code> (default is the namespace
+that it&amp;#39;s in) with the password that we load from
+&lt;code class="verbatim">/var/openfass/secrets/password&lt;/code>.
+&lt;/p>
+&lt;div class="src src-ruby">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-ruby" data-lang="ruby"> &lt;span class="nb">require&lt;/span> &lt;span class="s1">&amp;#39;redis&amp;#39;&lt;/span>
+&lt;span class="k">class&lt;/span> &lt;span class="nc">Handler&lt;/span>
+&lt;span class="k">def&lt;/span> &lt;span class="nf">run&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">req&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="vi">@redis&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="no">Redis&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">new&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="ss">host&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;redis-master.default&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="ss">password&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="no">File&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">read&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s1">&amp;#39;/var/openfaas/secrets/password&amp;#39;&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="vi">@redis&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">incr&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s1">&amp;#39;mykey&amp;#39;&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="k">end&lt;/span>
+&lt;span class="k">end&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+We can then redeploy using
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">faas-cli up -f rubyredis.yml&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+And we can invoke it now using
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="nb">echo&lt;/span> &lt;span class="p">|&lt;/span> faas-cli invoke rubyredis&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Each time you run this you should see the result increment.
+&lt;/p>
+&lt;h2 id="headline-23">
+Writing a OpenFaaS function that talk to Postgres
+&lt;/h2>
+&lt;h3 id="headline-24">
+Start a remplate
+&lt;/h3>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">faas-cli new --lang ruby rubypostgres&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Then lets tweak the &lt;code class="verbatim">rubypostgres.yml&lt;/code> file to add the secret (and
+docker username!)
+&lt;/p>
+&lt;div class="src src-yaml">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="w"> &lt;/span>&lt;span class="k">version&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">1.0&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">provider&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>openfaas&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">gateway&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>http&lt;span class="p">:&lt;/span>//&lt;span class="m">127.0.0.1&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="m">8080&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">functions&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">rubypostgres&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">lang&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>ruby&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">handler&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>./rubypostgres&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">image&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>wschenk/rubypostgres&lt;span class="p">:&lt;/span>latest&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">build_args&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">ADDITIONAL_PACKAGE&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>build-base&lt;span class="w"> &lt;/span>postgresql-dev&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">secrets&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- postgresconnection&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Then we need to add the &amp;#39;pg&amp;#39; gem:
+&lt;/p>
+&lt;div class="src src-ruby">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-ruby" data-lang="ruby"> &lt;span class="n">source&lt;/span> &lt;span class="s1">&amp;#39;https://rubygems.org&amp;#39;&lt;/span>
+&lt;span class="n">gem&lt;/span> &lt;span class="s2">&amp;#34;pg&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s2">&amp;#34;~&amp;gt; 1.2&amp;#34;&lt;/span>
+&lt;span class="n">gem&lt;/span> &lt;span class="s2">&amp;#34;database_url&amp;#34;&lt;/span>
+&lt;span class="n">gem&lt;/span> &lt;span class="s2">&amp;#34;json&amp;#34;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Then in the handler
+&lt;/p>
+&lt;div class="src src-ruby">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-ruby" data-lang="ruby"> &lt;span class="nb">require&lt;/span> &lt;span class="s1">&amp;#39;json&amp;#39;&lt;/span>
+&lt;span class="nb">require&lt;/span> &lt;span class="s1">&amp;#39;database_url&amp;#39;&lt;/span>
+&lt;span class="nb">require&lt;/span> &lt;span class="s1">&amp;#39;pg&amp;#39;&lt;/span>
+&lt;span class="k">class&lt;/span> &lt;span class="nc">Handler&lt;/span>
+&lt;span class="k">def&lt;/span> &lt;span class="nf">run&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">req&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="n">c&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="no">DatabaseUrl&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">to_active_record_hash&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="no">File&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">read&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s1">&amp;#39;/var/openfaas/secrets/host&amp;#39;&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="c1"># {&amp;#34;adapter&amp;#34;:&amp;#34;postgresql&amp;#34;,&amp;#34;host&amp;#34;:&amp;#34;private-gratitude-postgres-cluster-do-user-1078430-0.b.db.ondigitalocean.com&amp;#34;,&amp;#34;database&amp;#34;:&amp;#34;defaultdb&amp;#34;,&amp;#34;port&amp;#34;:25060,&amp;#34;user&amp;#34;:&amp;#34;doadmin&amp;#34;,&amp;#34;password&amp;#34;:&amp;#34;ievezzbyz0a1stxa&amp;#34;}&lt;/span>
+&lt;span class="c1"># Output a table of current connections to the DB&lt;/span>
+&lt;span class="n">conn&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="no">PG&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">connect&lt;/span>&lt;span class="p">(&lt;/span>
+&lt;span class="n">c&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="ss">:host&lt;/span>&lt;span class="o">]&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="n">c&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="ss">:port&lt;/span>&lt;span class="o">]&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="kp">nil&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="kp">nil&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="n">c&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="ss">:database&lt;/span>&lt;span class="o">]&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="n">c&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="ss">:user&lt;/span>&lt;span class="o">]&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="n">c&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="ss">:password&lt;/span>&lt;span class="o">]&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="n">r&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="o">[]&lt;/span>
+&lt;span class="n">conn&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">exec&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s2">&amp;#34;SELECT * FROM pg_stat_activity&amp;#34;&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="k">do&lt;/span> &lt;span class="o">|&lt;/span>&lt;span class="n">result&lt;/span>&lt;span class="o">|&lt;/span>
+&lt;span class="n">r&lt;/span> &lt;span class="o">&amp;lt;&amp;lt;&lt;/span> &lt;span class="s2">&amp;#34; PID | User | Query&amp;#34;&lt;/span>
+&lt;span class="n">result&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">each&lt;/span> &lt;span class="k">do&lt;/span> &lt;span class="o">|&lt;/span>&lt;span class="n">row&lt;/span>&lt;span class="o">|&lt;/span>
+&lt;span class="n">r&lt;/span> &lt;span class="o">&amp;lt;&amp;lt;&lt;/span> &lt;span class="s2">&amp;#34; %7d | %-16s | %s &amp;#34;&lt;/span> &lt;span class="o">%&lt;/span>
+&lt;span class="n">row&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">values_at&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s1">&amp;#39;pid&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s1">&amp;#39;usename&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s1">&amp;#39;query&amp;#39;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="n">r&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">join&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="se">\n&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="p">);&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="k">end&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Now we build it:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">faas-cli up -f rubypostgres.yml&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+And invoke:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="nb">echo&lt;/span> &lt;span class="p">|&lt;/span> faas-cli invoke rubypostgres&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+PID | User | Query
+76 | postgres | &lt;insufficient privilege>
+69 | postgres | &lt;insufficient privilege>
+65 | | &lt;insufficient privilege>
+67 | postgres | &lt;insufficient privilege>
+72 | postgres | &lt;insufficient privilege>
+78 | _dodb | &lt;insufficient privilege>
+22113 | doadmin | SELECT * FROM pg_stat_activity
+63 | | &lt;insufficient privilege>
+62 | | &lt;insufficient privilege>
+64 | | &lt;insufficient privilege>
+&lt;/pre>
+&lt;h2 id="headline-25">
+Conclusion
+&lt;/h2>
+&lt;p>
+When you are done, you can use &lt;code class="verbatim">terraform destroy&lt;/code> to remove everything.
+Don&amp;#39;t do that for production!!!
+&lt;/p>
+&lt;p>
+Terraform is pretty nifty in that it lets you spin up the whole
+environment easily, and OpenFaaS is a very nice way to work with
+functions easily. Kubernetes is a bit daunting but once it&amp;#39;s up and
+running gives you a great way to scale things up and down.
+&lt;/p>
+&lt;p>
+We setup the cluster and on it deployed OpenFaaS as well as redis. We
+showed how to connect to redis from OpenFaaS, as well as how to
+connection to a managed postgres install using an OpenFaaS function.
+&lt;/p>
+&lt;h2 id="headline-26">
+References
+&lt;/h2>
+&lt;ol>
+&lt;li>
+&lt;p>
+&lt;a href="https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/#install-using-native-package-management">https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/#install-using-native-package-management&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://ponderosa.io/blog/kubernetes/2019/03/13/terraform-cluster-create/">https://ponderosa.io/blog/kubernetes/2019/03/13/terraform-cluster-create/&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://github.com/openfaas/faas-netes/blob/master/chart/openfaas/README.md">https://github.com/openfaas/faas-netes/blob/master/chart/openfaas/README.md&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://github.com/openfaas/workshop/blob/master/lab1b.md#run-on-digitaloceans-kubernetes-service">https://github.com/openfaas/workshop/blob/master/lab1b.md#run-on-digitaloceans-kubernetes-service&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://github.com/christi3k/oscon-2019-deploying-with-terraform/blob/master/02-open-faas.md">https://github.com/christi3k/oscon-2019-deploying-with-terraform/blob/master/02-open-faas.md&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;/ol></description></item><item><title>Sending files with wormhole</title><link>https://willschenk.com/articles/2021/sending_files_with_wormhole/</link><pubDate>Wed, 19 May 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/sending_files_with_wormhole/</guid><description>
 &lt;p>
 I saw this tweet this morning:
 &lt;/p>

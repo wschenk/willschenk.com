@@ -1,0 +1,295 @@
+<!doctype html><html><head><title>Deploying OpenFaaS on Digital Ocean with Terraform</title><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><link rel=stylesheet href=../../../css/theme.css><link rel=stylesheet href=../../../css/syntax.css><script type=application/javascript>var doNotTrack=false;if(!doNotTrack){window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;ga('create','UA-56296045-1','auto');ga('send','pageview');}</script><script async src=https://www.google-analytics.com/analytics.js></script><script async defer data-domain=willschenk.com src=https://plausible.io/js/plausible.js></script><meta property="og:title" content="Deploying OpenFaaS on Digital Ocean with Terraform"><meta property="og:description" content="We are going to look at how to use Terraform to deploy a Kubernetes cluster on Digital Ocean, add a managed postgres database, and redis and OpenFaaS in kubernetes. This will show how to use Terraform to manage the configuration and how we can access both cloud and kubernetes managed services from OpenFaaS functions.  We are going to use the digitalocean, kubernetes, and helm terraform providers. The plan     Provision a digitalocean_kubernetes_cluster    Provision a digitalocean_database_cluster    Provision 2 kubernetes_namespace for openfaas and openfass-fn    Provision a helm_release for openfaas    Provision a helm_release for redis    Provision 2 kubernetes_secret to point to the databases    Deploy an OpenFaaS function that reads those secrets and talks to the database."><meta property="og:type" content="article"><meta property="og:url" content="https://willschenk.com/articles/2021/deploying_open_faa_s_on_digital_ocean_with_terraform/"><meta property="article:published_time" content="2021-06-02T00:00:00+00:00"><meta property="article:modified_time" content="2021-06-02T00:00:00+00:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Deploying OpenFaaS on Digital Ocean with Terraform"><meta name=twitter:description content="We are going to look at how to use Terraform to deploy a Kubernetes cluster on Digital Ocean, add a managed postgres database, and redis and OpenFaaS in kubernetes. This will show how to use Terraform to manage the configuration and how we can access both cloud and kubernetes managed services from OpenFaaS functions.  We are going to use the digitalocean, kubernetes, and helm terraform providers. The plan     Provision a digitalocean_kubernetes_cluster    Provision a digitalocean_database_cluster    Provision 2 kubernetes_namespace for openfaas and openfass-fn    Provision a helm_release for openfaas    Provision a helm_release for redis    Provision 2 kubernetes_secret to point to the databases    Deploy an OpenFaaS function that reads those secrets and talks to the database."><meta name=twitter:site content="@wschenk"><style>.article p,.article ul,.article ol,.article table{max-width:45em}.article pre p{max-width:none;margin-top:-1.5rem}article.article p:first-child,.article blockquote{font-size:1.25em;font-weight:300;max-width:36em}.half-height-scroll{max-height:32em;overflow:scroll}</style></head><body><nav class="container my-5"><h1 class="pt-md-5 display-3"><a class=text-dark href=../../../>Will Schenk</a></h1><p><a class="text-dark h4 mr-3 font-weight-light" href=../../../articles/>Articles</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../contact>Contact</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../tags/>Tags</a>
+<a href=../../../feed.xml class="mr-3 h4 text-light"><img src=../../../img/rss.svg alt=rss height=20 width=20></a>
+<a href=https://twitter.com/@wschenk class="mr-3 h4 text-light"><img src=../../../img/twitter.svg alt=twitter height=20 width=20></a>
+<a href=https://instagram.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/instagram.svg alt=instagram height=20 width=20></a>
+<a href=https://github.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/github.svg alt=github height=20 width=20></a>
+<a href=https://linkedin.com/in/will-schenk-420266 class="mr-3 h4 text-light"><img src=../../../img/linkedin.svg alt=linkedin height=20 width=20></a></p></nav><div class=container><h1 class=mt-5>Deploying OpenFaaS on Digital Ocean with Terraform</h1><h2 class="font-weight-light font-italic mb-3">Everything functional</h2><p class="text-muted mt-3"><a class=text-muted href=https://willschenk.com/articles/2021/deploying_open_faa_s_on_digital_ocean_with_terraform/>Published June 2, 2021</a>
+<a class=text-muted href=../../../tags/openfaas>#openfaas,</a>
+<a class=text-muted href=../../../tags/kubernetes>#kubernetes,</a>
+<a class=text-muted href=../../../tags/terraform>#terraform,</a>
+<a class=text-muted href=../../../tags/helm>#helm</a></p><article class="article mt-5"><p>We are going to look at how to use Terraform to deploy a Kubernetes
+cluster on Digital Ocean, add a managed postgres database, and redis
+and OpenFaaS in kubernetes. This will show how to use Terraform to
+manage the configuration and how we can access both cloud and
+kubernetes managed services from OpenFaaS functions.</p><p>We are going to use the <a href=https://registry.terraform.io/providers/digitalocean/digitalocean/latest/docs>digitalocean</a>, <a href=https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs>kubernetes</a>, and <a href=https://registry.terraform.io/providers/hashicorp/helm/latest>helm</a> terraform
+providers.</p><h2 id=headline-1>The plan</h2><ol><li><p>Provision a <code class=verbatim>digitalocean_kubernetes_cluster</code></p></li><li><p>Provision a <code class=verbatim>digitalocean_database_cluster</code></p></li><li><p>Provision 2 <code class=verbatim>kubernetes_namespace</code> for <code class=verbatim>openfaas</code> and <code class=verbatim>openfass-fn</code></p></li><li><p>Provision a <code class=verbatim>helm_release</code> for <code class=verbatim>openfaas</code></p></li><li><p>Provision a <code class=verbatim>helm_release</code> for <code class=verbatim>redis</code></p></li><li><p>Provision 2 <code class=verbatim>kubernetes_secret</code> to point to the databases</p></li><li><p>Deploy an OpenFaaS function that reads those secrets and talks to the database.</p></li></ol><p>Let's go.</p><h2 id=headline-2>Install the software</h2><p>I'm using Debian, your mileage may vary.</p><h3 id=headline-3>OpenFaaS</h3><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>curl -sL https://cli.openfaas.com <span class=p>|</span> sudo sh</code></pre></div></div><h3 id=headline-4>Terraform</h3><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>sudo apt-get install apt-transport-https --yes
+curl -fsSL https://apt.releases.hashicorp.com/gpg <span class=p>|</span> sudo apt-key add -
+sudo apt-add-repository <span class=s2>&#34;deb [arch=</span><span class=k>$(</span>dpkg --print-architecture<span class=k>)</span><span class=s2>] https://apt.releases.hashicorp.com </span><span class=k>$(</span>lsb_release -cs<span class=k>)</span><span class=s2> main&#34;</span>
+sudo apt update
+sudo apt install terraform</code></pre></div></div><h3 id=headline-5>kubectl</h3><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>sudo curl -fsSLo /usr/share/keyrings/kubernetes-archive-keyring.gpg https://packages.cloud.google.com/apt/doc/apt-key.gpg
+<span class=nb>echo</span> <span class=s2>&#34;deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main&#34;</span> <span class=p>|</span> sudo tee /etc/apt/sources.list.d/kubernetes.list
+sudo apt-get update
+sudo apt-get install -y kubectl</code></pre></div></div><h3 id=headline-6>helm</h3><p>This is optional since we are using terraform, but here for reference.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>curl https://baltocdn.com/helm/signing.asc <span class=p>|</span> sudo apt-key add -
+<span class=nb>echo</span> <span class=s2>&#34;deb https://baltocdn.com/helm/stable/debian/ all main&#34;</span> <span class=p>|</span> sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+sudo apt-get update
+sudo apt-get install helm</code></pre></div></div><h2 id=headline-7>Terraform</h2><h3 id=headline-8>Providers</h3><p>First we need to define out providers, which we will do in <code class=verbatim>providers.tf</code>:</p><div class="src src-terraform"><div class=highlight><pre class=chroma><code class=language-terraform data-lang=terraform>  <span class=err>terraform</span> {
+    <span class=err>required_providers</span> {
+<span class=na>      digitalocean</span> <span class=o>=</span> {
+<span class=na>        source</span> <span class=o>=</span> <span class=s2>&#34;digitalocean/digitalocean&#34;</span>
+<span class=na>        version</span> <span class=o>=</span> <span class=s2>&#34;~&gt; 2.0&#34;</span>
+      }
+    }
+  }
+
+  <span class=kr>variable</span> <span class=s>&#34;do_token&#34;</span> {
+<span class=na>    description</span> <span class=o>=</span> <span class=s2>&#34;digitalocean access token&#34;</span>
+<span class=na>    type</span>        <span class=o>=</span> <span class=err>string</span>
+  }
+
+  <span class=kr>provider</span> <span class=s>&#34;digitalocean&#34;</span> {
+<span class=na>    token</span>             <span class=o>=</span> <span class=err>var</span><span class=p>.</span><span class=err>do_token</span>
+  }</code></pre></div></div><p>Then run</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>terraform init</code></pre></div></div><p>To load them locally.</p><p>Also, you should define your do_token perhaps in an environment
+variable <code class=verbatim>TF_VAR_do_token</code>.</p><h3 id=headline-9>Digital Ocean Resources</h3><p>Define <code class=verbatim>digitalocean.tf</code>:</p><div class="src src-terraform"><div class=highlight><pre class=chroma><code class=language-terraform data-lang=terraform>  <span class=kr>resource</span> <span class=s>&#34;digitalocean_kubernetes_cluster&#34; &#34;gratitude&#34;</span> {
+<span class=na>    name</span>    <span class=o>=</span> <span class=s2>&#34;gratitude&#34;</span>
+<span class=na>    region</span>  <span class=o>=</span> <span class=s2>&#34;nyc1&#34;</span>
+<span class=na>    version</span> <span class=o>=</span> <span class=s2>&#34;1.20.2-do.0&#34;</span>
+
+    <span class=err>node_pool</span> {
+<span class=na>      name</span>       <span class=o>=</span> <span class=s2>&#34;worker-pool&#34;</span>
+<span class=na>      size</span>       <span class=o>=</span> <span class=s2>&#34;s-2vcpu-2gb&#34;</span>
+<span class=na>      node_count</span> <span class=o>=</span> <span class=m>3</span>
+    }
+  }
+
+  <span class=kr>resource</span> <span class=s>&#34;digitalocean_database_cluster&#34; &#34;gratitude-postgres&#34;</span> {
+<span class=na>    name</span>       <span class=o>=</span> <span class=s2>&#34;gratitude-postgres-cluster&#34;</span>
+<span class=na>    engine</span>     <span class=o>=</span> <span class=s2>&#34;pg&#34;</span>
+<span class=na>    version</span>    <span class=o>=</span> <span class=s2>&#34;11&#34;</span>
+<span class=na>    size</span>       <span class=o>=</span> <span class=s2>&#34;db-s-1vcpu-1gb&#34;</span>
+<span class=na>    region</span>     <span class=o>=</span> <span class=s2>&#34;nyc1&#34;</span>
+<span class=na>    node_count</span> <span class=o>=</span> <span class=m>1</span>
+  }
+
+  <span class=err>output</span> <span class=s2>&#34;cluster-id&#34;</span> {
+<span class=na>    value</span> <span class=o>=</span> <span class=s2>&#34;${digitalocean_kubernetes_cluster.gratitude.id}&#34;</span>
+  }</code></pre></div></div><p>We can spin these up using <code class=verbatim>terraform apply</code>. This takes about 6
+minutes for me.</p><h3 id=headline-10>Kubernetes</h3><p>Now we can add our kubernetes namespaces. In another file called <code class=verbatim>kubernetes.tf</code>:</p><div class="src src-terraform"><div class=highlight><pre class=chroma><code class=language-terraform data-lang=terraform>  <span class=kr>provider</span> <span class=s>&#34;kubernetes&#34;</span> {
+<span class=na>    host</span>             <span class=o>=</span> <span class=err>digitalocean_kubernetes_cluster</span><span class=p>.</span><span class=err>gratitude</span><span class=p>.</span><span class=err>endpoint</span>
+<span class=na>    token</span>            <span class=o>=</span> <span class=err>digitalocean_kubernetes_cluster</span><span class=p>.</span><span class=err>gratitude</span><span class=p>.</span><span class=err>kube_config</span><span class=p>[</span><span class=m>0</span><span class=p>].</span><span class=err>token</span>
+<span class=na>    cluster_ca_certificate</span> <span class=o>=</span> <span class=err>base</span><span class=m>64</span><span class=err>decode</span><span class=p>(</span>
+      <span class=err>digitalocean_kubernetes_cluster</span><span class=p>.</span><span class=err>gratitude</span><span class=p>.</span><span class=err>kube_config</span><span class=p>[</span><span class=m>0</span><span class=p>].</span><span class=err>cluster_ca_certificate</span>
+    <span class=p>)</span>
+  }
+
+  <span class=kr>resource</span> <span class=s>&#34;kubernetes_namespace&#34; &#34;openfaas&#34;</span> {
+    <span class=err>metadata</span> {
+<span class=na>      name</span> <span class=o>=</span> <span class=s2>&#34;openfaas&#34;</span>
+<span class=na>      labels</span> <span class=o>=</span> {
+<span class=na>        role</span> <span class=o>=</span> <span class=s2>&#34;openfaas-system&#34;</span>
+<span class=na>        access</span> <span class=o>=</span> <span class=s2>&#34;openfaas-system&#34;</span>
+<span class=na>        istio-injection</span> <span class=o>=</span> <span class=s2>&#34;enabled&#34;</span>
+      }
+    }
+  }
+
+  <span class=kr>resource</span> <span class=s>&#34;kubernetes_namespace&#34; &#34;openfaas-fn&#34;</span> {
+    <span class=err>metadata</span> {
+<span class=na>      name</span> <span class=o>=</span> <span class=s2>&#34;openfaas-fn&#34;</span>
+<span class=na>      labels</span> <span class=o>=</span> {
+<span class=na>        role</span> <span class=o>=</span> <span class=s2>&#34;openfaas-fn&#34;</span>
+<span class=na>        istio-injection</span> <span class=o>=</span> <span class=s2>&#34;enabled&#34;</span>
+      }
+    }
+  }</code></pre></div></div><p>We'll need to run <code class=verbatim>terraform init</code> again since we added a provider, and
+then we can <code class=verbatim>terraform apply</code>.</p><h3 id=headline-11>Helm</h3><div class="src src-terraform"><div class=highlight><pre class=chroma><code class=language-terraform data-lang=terraform>  <span class=kr>provider</span> <span class=s>&#34;helm&#34;</span> {
+    <span class=err>kubernetes</span> {
+<span class=na>      host</span> <span class=o>=</span> <span class=err>digitalocean_kubernetes_cluster</span><span class=p>.</span><span class=err>gratitude</span><span class=p>.</span><span class=err>endpoint</span>
+<span class=na>      cluster_ca_certificate</span> <span class=o>=</span> <span class=err>base</span><span class=m>64</span><span class=err>decode</span><span class=p>(</span> <span class=err>digitalocean_kubernetes_cluster</span><span class=p>.</span><span class=err>gratitude</span><span class=p>.</span><span class=err>kube_config</span><span class=p>[</span><span class=m>0</span><span class=p>].</span><span class=err>cluster_ca_certificate</span> <span class=p>)</span>
+<span class=na>      token</span> <span class=o>=</span> <span class=err>digitalocean_kubernetes_cluster</span><span class=p>.</span><span class=err>gratitude</span><span class=p>.</span><span class=err>kube_config</span><span class=p>[</span><span class=m>0</span><span class=p>].</span><span class=err>token</span>
+    }
+  }
+
+  <span class=kr>resource</span> <span class=s>&#34;helm_release&#34; &#34;openfaas&#34;</span> {
+<span class=na>    repository</span> <span class=o>=</span> <span class=s2>&#34;https://openfaas.github.io/faas-netes&#34;</span>
+<span class=na>    chart</span> <span class=o>=</span> <span class=s2>&#34;openfaas&#34;</span>
+<span class=na>    name</span> <span class=o>=</span> <span class=s2>&#34;openfaas&#34;</span>
+<span class=na>    namespace</span> <span class=o>=</span> <span class=s2>&#34;openfaas&#34;</span>
+
+    <span class=err>set</span> {
+<span class=na>      name</span> <span class=o>=</span> <span class=s2>&#34;functionalNamepsace&#34;</span>
+<span class=na>      value</span> <span class=o>=</span> <span class=s2>&#34;openfaas-fn&#34;</span>
+    }
+
+    <span class=err>set</span> {
+<span class=na>      name</span> <span class=o>=</span> <span class=s2>&#34;generateBasicAuth&#34;</span>
+<span class=na>      value</span> <span class=o>=</span> <span class=s2>&#34;true&#34;</span>
+    }
+
+    <span class=err>set</span> {
+<span class=na>      name</span> <span class=o>=</span> <span class=s2>&#34;ingress.enabled&#34;</span>
+<span class=na>      value</span> <span class=o>=</span> <span class=s2>&#34;true&#34;</span>
+    }
+  }
+
+  <span class=kr>resource</span> <span class=s>&#34;random_password&#34; &#34;redis_password&#34;</span> {
+<span class=na>    length</span>           <span class=o>=</span> <span class=m>16</span>
+<span class=na>    special</span>          <span class=o>=</span> <span class=kt>true</span>
+<span class=na>    override_special</span> <span class=o>=</span> <span class=s2>&#34;_%@&#34;</span>
+  }
+
+  <span class=kr>resource</span> <span class=s>&#34;helm_release&#34; &#34;redis&#34;</span> {
+<span class=na>    repository</span> <span class=o>=</span> <span class=s2>&#34;https://charts.bitnami.com/bitnami&#34;</span>
+<span class=na>    chart</span> <span class=o>=</span> <span class=s2>&#34;redis&#34;</span>
+<span class=na>    name</span> <span class=o>=</span> <span class=s2>&#34;redis&#34;</span>
+
+    <span class=err>set</span> {
+<span class=na>      name</span> <span class=o>=</span> <span class=s2>&#34;auth.password&#34;</span>
+<span class=na>      value</span> <span class=o>=</span> <span class=err>random_password</span><span class=p>.</span><span class=err>redis_password</span><span class=p>.</span><span class=err>result</span>
+    }
+
+    <span class=err>set</span> {
+<span class=na>      name</span> <span class=o>=</span> <span class=s2>&#34;architecture&#34;</span>
+<span class=na>      value</span> <span class=o>=</span> <span class=s2>&#34;standalone&#34;</span>
+    }
+  }</code></pre></div></div><p>Once you have this file, do <code class=verbatim>terraform init</code> and then <code class=verbatim>terraform apply</code>
+and both OpenFaaS and Redis should be deployed to your cluster.</p><h3 id=headline-12>Secrets</h3><div class="src src-terraform"><div class=highlight><pre class=chroma><code class=language-terraform data-lang=terraform>  <span class=kr>resource</span> <span class=s>&#34;kubernetes_secret&#34; &#34;redispassword&#34;</span> {
+    <span class=err>metadata</span> {
+<span class=na>      name</span> <span class=o>=</span> <span class=s2>&#34;redispassword&#34;</span>
+<span class=na>      namespace</span> <span class=o>=</span> <span class=s2>&#34;openfaas-fn&#34;</span>
+    }
+
+<span class=na>    data</span> <span class=o>=</span> {
+<span class=na>      password</span> <span class=o>=</span> <span class=err>random_password</span><span class=p>.</span><span class=err>redis_password</span><span class=p>.</span><span class=err>result</span>
+    }
+  }
+
+  <span class=kr>resource</span> <span class=s>&#34;kubernetes_secret&#34; &#34;postgresconnection&#34;</span> {
+    <span class=err>metadata</span> {
+<span class=na>      name</span> <span class=o>=</span> <span class=s2>&#34;postgresconnection&#34;</span>
+<span class=na>      namespace</span> <span class=o>=</span> <span class=s2>&#34;openfaas-fn&#34;</span>
+    }
+
+<span class=na>    data</span> <span class=o>=</span> {
+<span class=na>       host</span>     <span class=o>=</span> <span class=err>digitalocean_database_cluster</span><span class=p>.</span><span class=err>gratitude-postgres</span><span class=p>.</span><span class=err>private_uri</span>
+    }
+  }</code></pre></div></div><h2 id=headline-13>Verifying the deployment</h2><h3 id=headline-14>Setup <code class=verbatim>kubectl</code></h3><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  <span class=nb>export</span> <span class=nv>CLUSTER_ID</span><span class=o>=</span><span class=k>$(</span>terraform output -raw cluster-id<span class=k>)</span>
+  mkdir -p ~/.kube/
+  curl -X GET <span class=se>\
+</span><span class=se></span>  -H <span class=s2>&#34;Content-Type: application/json&#34;</span> <span class=se>\
+</span><span class=se></span>  -H <span class=s2>&#34;Authorization: Bearer </span><span class=si>${</span><span class=nv>TF_VAR_do_token</span><span class=si>}</span><span class=s2>&#34;</span> <span class=se>\
+</span><span class=se></span>  <span class=s2>&#34;https://api.digitalocean.com/v2/kubernetes/clusters/</span><span class=nv>$CLUSTER_ID</span><span class=s2>/kubeconfig&#34;</span> <span class=se>\
+</span><span class=se></span>  &gt; ~/.kube/config</code></pre></div></div><p>If you have your <code class=verbatim>TF_VAR_do_token</code> setup correctly, it should create a
+valid <code class=verbatim>config</code> file.</p><p>Test this with</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>kubectl cluster-info</code></pre></div></div><pre class=example>
+Kubernetes control plane is running at https://39cef8c8-ca33-40f1-9454-3373707a22ef.k8s.ondigitalocean.com
+CoreDNS is running at https://39cef8c8-ca33-40f1-9454-3373707a22ef.k8s.ondigitalocean.com/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
+
+To further debug and diagnose cluster problems, use &#39;kubectl cluster-info dump&#39;.
+</pre><h3 id=headline-15>Verifying OpenFaaS</h3><p>We can then verify the deploy with:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>kubectl -n openfaas get deployments -l <span class=s2>&#34;release=openfaas, app=openfaas&#34;</span></code></pre></div></div><table><tbody><tr><td>NAME</td><td>READY</td><td class=align-right>UP-TO-DATE</td><td class=align-right>AVAILABLE</td><td>AGE</td></tr><tr><td>alertmanager</td><td>1/1</td><td class=align-right>1</td><td class=align-right>1</td><td>19m</td></tr><tr><td>basic-auth-plugin</td><td>1/1</td><td class=align-right>1</td><td class=align-right>1</td><td>19m</td></tr><tr><td>gateway</td><td>1/1</td><td class=align-right>1</td><td class=align-right>1</td><td>19m</td></tr><tr><td>nats</td><td>1/1</td><td class=align-right>1</td><td class=align-right>1</td><td>19m</td></tr><tr><td>prometheus</td><td>1/1</td><td class=align-right>1</td><td class=align-right>1</td><td>19m</td></tr><tr><td>queue-worker</td><td>1/1</td><td class=align-right>1</td><td class=align-right>1</td><td>19m</td></tr></tbody></table><h2 id=headline-16>Connecting to OpenFaaS</h2><h3 id=headline-17>Setup the proxy</h3><p>In a new window, lets setup port forwarding from your local machine to
+connect to the openfaas gateway in kubernetes.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>kubectl port-forward svc/gateway -n openfaas 8080:8080</code></pre></div></div><h3 id=headline-18>Get the OpenFaaS login credentials and login</h3><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash><span class=c1># This command retrieves your password</span>
+<span class=nv>PASSWORD</span><span class=o>=</span><span class=k>$(</span>kubectl get secret -n openfaas basic-auth -o <span class=nv>jsonpath</span><span class=o>=</span><span class=s2>&#34;{.data.basic-auth-password}&#34;</span> <span class=p>|</span> base64 --decode<span class=p>;</span> <span class=nb>echo</span><span class=k>)</span>
+
+<span class=c1># This command logs in and saves a file to ~/.openfaas/config.yml</span>
+<span class=nb>echo</span> -n <span class=nv>$PASSWORD</span> <span class=p>|</span> faas-cli login --username admin --password-stdin</code></pre></div></div><pre class=example>
+Calling the OpenFaaS server to validate the credentials...
+credentials saved for admin http://127.0.0.1:8080
+</pre><p>And now we can list out our deployed functions:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>faas-cli list</code></pre></div></div><table><tbody><tr><td>Function</td><td>Invocations</td><td>Replicas</td></tr></tbody></table><p>Not a whole lot there yet.</p><h3 id=headline-19>Testing out deploying a function</h3><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>faas-cli store deploy nodeinfo
+<span class=nb>echo</span> <span class=p>|</span> faas-cli invoke nodeinfo</code></pre></div></div><pre class=example>
+
+Deployed. 202 Accepted.
+URL: http://127.0.0.1:8080/function/nodeinfo
+
+Hostname: nodeinfo-8545846564-wpqm6
+
+Arch: x64
+CPUs: 2
+Total mem: 1995MB
+Platform: linux
+Uptime: 361
+</pre><h2 id=headline-20>Writing a OpenFaaS function that talks to Redis</h2><h3 id=headline-21>Get the template running</h3><p>Lets create our first function. We need to pull the templates locally, so lets do that with:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>faas-cli template pull</code></pre></div></div><pre class=example>
+Fetch templates from repository: https://github.com/openfaas/templates.git at 
+</pre><p>And create our function, I'm going to use ruby.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>faas-cli new --lang ruby rubyredis</code></pre></div></div><p>Change the <code class=verbatim>image</code> in <code class=verbatim>rubyredis.yml</code> to be your Docker hub user name, and
+then lets deploy it:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>faas-cli up -f rubyredis.yml</code></pre></div></div><p>And if that's successful, we can invoke it with:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash><span class=nb>echo</span> <span class=p>|</span> faas-cli invoke rubyredis</code></pre></div></div><pre class=example>
+Hello world from the Ruby template
+</pre><h3 id=headline-22>Adding redis</h3><p>Now that we have it working, lets add redis to the picture.</p><p>First we need to add the secret to the <code class=verbatim>rubyredis.yml</code> file, so that it
+references the secret we defined above in terraform:</p><div class="src src-yaml"><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=w>  </span><span class=k>version</span><span class=p>:</span><span class=w> </span><span class=m>1.0</span><span class=w>
+</span><span class=w>  </span><span class=k>provider</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=k>name</span><span class=p>:</span><span class=w> </span>openfaas<span class=w>
+</span><span class=w>    </span><span class=k>gateway</span><span class=p>:</span><span class=w> </span>http<span class=p>:</span>//<span class=m>127.0.0.1</span><span class=p>:</span><span class=m>8080</span><span class=w>
+</span><span class=w>  </span><span class=k>functions</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=k>rubyredis</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=k>lang</span><span class=p>:</span><span class=w> </span>ruby<span class=w>
+</span><span class=w>      </span><span class=k>handler</span><span class=p>:</span><span class=w> </span>./rubyredis<span class=w>
+</span><span class=w>      </span><span class=k>image</span><span class=p>:</span><span class=w> </span>wschenk/rubyredis<span class=p>:</span>latest<span class=w>
+</span><span class=w>      </span><span class=k>secrets</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- redispassword</code></pre></div></div><p>In the <code class=verbatim>Gemfile</code> add the <code class=verbatim>redis</code> gem:</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby><span class=n>source</span> <span class=s1>&#39;https://rubygems.org&#39;</span>
+
+<span class=n>gem</span> <span class=s2>&#34;redis&#34;</span></code></pre></div></div><p>Now we need to change <code class=verbatim>handler.rb</code> to conenct to the redis service on
+the cluster, which is <code class=verbatim>redis-master.default</code> (default is the namespace
+that it's in) with the password that we load from
+<code class=verbatim>/var/openfass/secrets/password</code>.</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=nb>require</span> <span class=s1>&#39;redis&#39;</span>
+
+  <span class=k>class</span> <span class=nc>Handler</span>
+    <span class=k>def</span> <span class=nf>run</span><span class=p>(</span><span class=n>req</span><span class=p>)</span>
+      <span class=vi>@redis</span> <span class=o>=</span> <span class=no>Redis</span><span class=o>.</span><span class=n>new</span><span class=p>(</span> <span class=ss>host</span><span class=p>:</span> <span class=s2>&#34;redis-master.default&#34;</span><span class=p>,</span> <span class=ss>password</span><span class=p>:</span> <span class=no>File</span><span class=o>.</span><span class=n>read</span><span class=p>(</span> <span class=s1>&#39;/var/openfaas/secrets/password&#39;</span> <span class=p>)</span> <span class=p>)</span>
+
+      <span class=k>return</span> <span class=vi>@redis</span><span class=o>.</span><span class=n>incr</span><span class=p>(</span> <span class=s1>&#39;mykey&#39;</span> <span class=p>)</span> <span class=k>end</span>
+  <span class=k>end</span></code></pre></div></div><p>We can then redeploy using</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>faas-cli up -f rubyredis.yml</code></pre></div></div><p>And we can invoke it now using</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash><span class=nb>echo</span> <span class=p>|</span> faas-cli invoke rubyredis</code></pre></div></div><p>Each time you run this you should see the result increment.</p><h2 id=headline-23>Writing a OpenFaaS function that talk to Postgres</h2><h3 id=headline-24>Start a remplate</h3><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>faas-cli new --lang ruby rubypostgres</code></pre></div></div><p>Then lets tweak the <code class=verbatim>rubypostgres.yml</code> file to add the secret (and
+docker username!)</p><div class="src src-yaml"><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=w>  </span><span class=k>version</span><span class=p>:</span><span class=w> </span><span class=m>1.0</span><span class=w>
+</span><span class=w>  </span><span class=k>provider</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=k>name</span><span class=p>:</span><span class=w> </span>openfaas<span class=w>
+</span><span class=w>    </span><span class=k>gateway</span><span class=p>:</span><span class=w> </span>http<span class=p>:</span>//<span class=m>127.0.0.1</span><span class=p>:</span><span class=m>8080</span><span class=w>
+</span><span class=w>  </span><span class=k>functions</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=k>rubypostgres</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=k>lang</span><span class=p>:</span><span class=w> </span>ruby<span class=w>
+</span><span class=w>      </span><span class=k>handler</span><span class=p>:</span><span class=w> </span>./rubypostgres<span class=w>
+</span><span class=w>      </span><span class=k>image</span><span class=p>:</span><span class=w> </span>wschenk/rubypostgres<span class=p>:</span>latest<span class=w>
+</span><span class=w>      </span><span class=k>build_args</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span><span class=k>ADDITIONAL_PACKAGE</span><span class=p>:</span><span class=w> </span>build-base<span class=w> </span>postgresql-dev<span class=w>
+</span><span class=w>      </span><span class=k>secrets</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- postgresconnection</code></pre></div></div><p>Then we need to add the 'pg' gem:</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=n>source</span> <span class=s1>&#39;https://rubygems.org&#39;</span>
+
+  <span class=n>gem</span> <span class=s2>&#34;pg&#34;</span><span class=p>,</span> <span class=s2>&#34;~&gt; 1.2&#34;</span>
+  <span class=n>gem</span> <span class=s2>&#34;database_url&#34;</span>
+  <span class=n>gem</span> <span class=s2>&#34;json&#34;</span></code></pre></div></div><p>Then in the handler</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=nb>require</span> <span class=s1>&#39;json&#39;</span>
+  <span class=nb>require</span> <span class=s1>&#39;database_url&#39;</span>
+  <span class=nb>require</span> <span class=s1>&#39;pg&#39;</span>
+
+  <span class=k>class</span> <span class=nc>Handler</span>
+    <span class=k>def</span> <span class=nf>run</span><span class=p>(</span><span class=n>req</span><span class=p>)</span>
+      <span class=n>c</span> <span class=o>=</span> <span class=no>DatabaseUrl</span><span class=o>.</span><span class=n>to_active_record_hash</span><span class=p>(</span><span class=no>File</span><span class=o>.</span><span class=n>read</span><span class=p>(</span> <span class=s1>&#39;/var/openfaas/secrets/host&#39;</span> <span class=p>)</span> <span class=p>)</span>
+
+  <span class=c1>#    {&#34;adapter&#34;:&#34;postgresql&#34;,&#34;host&#34;:&#34;private-gratitude-postgres-cluster-do-user-1078430-0.b.db.ondigitalocean.com&#34;,&#34;database&#34;:&#34;defaultdb&#34;,&#34;port&#34;:25060,&#34;user&#34;:&#34;doadmin&#34;,&#34;password&#34;:&#34;ievezzbyz0a1stxa&#34;}</span>
+
+      <span class=c1># Output a table of current connections to the DB</span>
+      <span class=n>conn</span> <span class=o>=</span> <span class=no>PG</span><span class=o>.</span><span class=n>connect</span><span class=p>(</span>
+        <span class=n>c</span><span class=o>[</span><span class=ss>:host</span><span class=o>]</span><span class=p>,</span>
+        <span class=n>c</span><span class=o>[</span><span class=ss>:port</span><span class=o>]</span><span class=p>,</span>
+        <span class=kp>nil</span><span class=p>,</span>
+        <span class=kp>nil</span><span class=p>,</span>
+        <span class=n>c</span><span class=o>[</span><span class=ss>:database</span><span class=o>]</span><span class=p>,</span>
+        <span class=n>c</span><span class=o>[</span><span class=ss>:user</span><span class=o>]</span><span class=p>,</span>
+        <span class=n>c</span><span class=o>[</span><span class=ss>:password</span><span class=o>]</span> <span class=p>)</span>
+
+      <span class=n>r</span> <span class=o>=</span> <span class=o>[]</span>
+      <span class=n>conn</span><span class=o>.</span><span class=n>exec</span><span class=p>(</span> <span class=s2>&#34;SELECT * FROM pg_stat_activity&#34;</span> <span class=p>)</span> <span class=k>do</span> <span class=o>|</span><span class=n>result</span><span class=o>|</span>
+        <span class=n>r</span> <span class=o>&lt;&lt;</span> <span class=s2>&#34;     PID | User             | Query&#34;</span>
+        <span class=n>result</span><span class=o>.</span><span class=n>each</span> <span class=k>do</span> <span class=o>|</span><span class=n>row</span><span class=o>|</span>
+          <span class=n>r</span> <span class=o>&lt;&lt;</span> <span class=s2>&#34; %7d | %-16s | %s &#34;</span> <span class=o>%</span>
+               <span class=n>row</span><span class=o>.</span><span class=n>values_at</span><span class=p>(</span><span class=s1>&#39;pid&#39;</span><span class=p>,</span> <span class=s1>&#39;usename&#39;</span><span class=p>,</span> <span class=s1>&#39;query&#39;</span><span class=p>)</span>
+        <span class=k>end</span>
+      <span class=k>end</span>
+
+      <span class=k>return</span> <span class=n>r</span><span class=o>.</span><span class=n>join</span><span class=p>(</span> <span class=s2>&#34;</span><span class=se>\n</span><span class=s2>&#34;</span> <span class=p>);</span>
+    <span class=k>end</span>
+  <span class=k>end</span></code></pre></div></div><p>Now we build it:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>faas-cli up -f rubypostgres.yml</code></pre></div></div><p>And invoke:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash><span class=nb>echo</span> <span class=p>|</span> faas-cli invoke rubypostgres</code></pre></div></div><pre class=example>
+     PID | User             | Query
+      76 | postgres         | <insufficient privilege> 
+      69 | postgres         | <insufficient privilege> 
+      65 |                  | <insufficient privilege> 
+      67 | postgres         | <insufficient privilege> 
+      72 | postgres         | <insufficient privilege> 
+      78 | _dodb            | <insufficient privilege> 
+   22113 | doadmin          | SELECT * FROM pg_stat_activity 
+      63 |                  | <insufficient privilege> 
+      62 |                  | <insufficient privilege> 
+      64 |                  | <insufficient privilege>
+</pre><h2 id=headline-25>Conclusion</h2><p>When you are done, you can use <code class=verbatim>terraform destroy</code> to remove everything.
+Don't do that for production!!!</p><p>Terraform is pretty nifty in that it lets you spin up the whole
+environment easily, and OpenFaaS is a very nice way to work with
+functions easily. Kubernetes is a bit daunting but once it's up and
+running gives you a great way to scale things up and down.</p><p>We setup the cluster and on it deployed OpenFaaS as well as redis. We
+showed how to connect to redis from OpenFaaS, as well as how to
+connection to a managed postgres install using an OpenFaaS function.</p><h2 id=headline-26>References</h2><ol><li><p><a href=https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/#install-using-native-package-management>https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/#install-using-native-package-management</a></p></li><li><p><a href=https://ponderosa.io/blog/kubernetes/2019/03/13/terraform-cluster-create/>https://ponderosa.io/blog/kubernetes/2019/03/13/terraform-cluster-create/</a></p></li><li><p><a href=https://github.com/openfaas/faas-netes/blob/master/chart/openfaas/README.md>https://github.com/openfaas/faas-netes/blob/master/chart/openfaas/README.md</a></p></li><li><p><a href=https://github.com/openfaas/workshop/blob/master/lab1b.md#run-on-digitaloceans-kubernetes-service>https://github.com/openfaas/workshop/blob/master/lab1b.md#run-on-digitaloceans-kubernetes-service</a></p></li><li><p><a href=https://github.com/christi3k/oscon-2019-deploying-with-terraform/blob/master/02-open-faas.md>https://github.com/christi3k/oscon-2019-deploying-with-terraform/blob/master/02-open-faas.md</a></p></li></ol></article></div><div class="bg-light py-5"><div class=container><h2 class=text-center>Read next</h2><div class=row><div class="col-md-6 text-center"></div><div class="col-md-6 text-center">Previous Post:
+<a href=../../../articles/2021/sending_files_with_wormhole/>Sending files with wormhole</a></div></div></div></div><div class="container mt-5"><h2 class=text-center>See also</h2><div class=row><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2021/building_an_openfaas_template/>Building static OpenFaas templates</a></p><p class="lead font-italic mb-0">Packaging up the packager</p><div class="font-weight-light mt-3"><p>I've been playing with OpenFaaS recently and it's a very accessable way to starting building cloud first services. I wanted to see what I could cram in there, so I built a few templates that would let me host a static site. One that is just html, and another than can be built with something like create-react-app. Static Create the template directory: mkdir -p template/static Then add a template/static/template.</p></div><a href=../../../articles/2021/building_an_openfaas_template/ class="btn btn-primary">Read more</a></div></div></div><footer class="footer bg-dark text-light mt-3"><div class=container><h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2></div></footer></body></html>
