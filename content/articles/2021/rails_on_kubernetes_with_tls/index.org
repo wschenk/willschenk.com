@@ -1,0 +1,590 @@
+#+title: Rails on Kubernetes with TLS
+#+subtitle: certmanager
+#+tags: rails, kuberenetes, terraform
+#+date: 2021-06-04
+#+draft: true
+
+
+* Sample rails app
+
+** Build image
+
+First thing we'll do is to create a docker image that we'll use to build our rails app.
+
+=Dockerfile.build=:
+
+#+begin_src dockerfile :tangle Dockerfile.dev
+FROM ruby:3.0.1
+
+WORKDIR /app
+
+# nodejs and yarn and cloc
+RUN curl -sL https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add -
+RUN echo "deb https://dl.yarnpkg.com/debian/ stable main" | tee /etc/apt/sources.list.d/yarn.list
+RUN curl -sL https://deb.nodesource.com/setup_16.x | bash -
+RUN apt-get update && apt-get install -y nodejs yarn
+
+# install bundler
+RUN gem install bundler:2.1.4 && gem install rails
+CMD bash
+#+end_src
+
+Now we can build and run this image to generate our application:
+
+#+begin_src bash
+  docker build . -f Dockerfile.dev -t railsdev
+  docker run --rm -it -v $(pwd):/app railsdev
+#+end_src
+
+Once you are inside the image, create a new rails app:
+
+#+begin_src bash
+  rails new favoriteapp -d=postgresql
+#+end_src
+
+Then quit out of it.
+
+** Developing the app
+
+Now inside of the rails app, we'll create a =Dockerfile.dev= that will
+let us develop the app:
+
+#+begin_src dockerfile :tangle favoriteapp/Dockerfile.dev
+FROM ruby:3.0.1
+
+WORKDIR /app
+
+# nodejs and yarn and cloc
+RUN curl -sL https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add -
+RUN echo "deb https://dl.yarnpkg.com/debian/ stable main" | tee /etc/apt/sources.list.d/yarn.list
+RUN curl -sL https://deb.nodesource.com/setup_16.x | bash -
+RUN apt-get update && apt-get install -y nodejs yarn
+
+# install bundler
+RUN gem install bundler:2.1.4
+
+# Bundle gems
+COPY Gemfile* /app/
+RUN bundle install
+
+# Install node stuff
+COPY package.json yarn.lock /app/
+RUN yarn install --check-files
+COPY . /app/
+
+EXPOSE 3000
+
+CMD rm -f tmp/pids/server.pid;bundle exec rails server -b 0.0.0.0
+#+end_src
+
+Now we need to create a =docker-compose.yml= to set up the environment.
+
+#+begin_src yaml :tangle favoriteapp/docker-compose.yml
+  version: "3.7"
+
+  services:
+    postgres:
+      image: postgres:13.1
+      environment:
+        POSTGRES_PASSWORD: awesome_password
+      ports:
+        - "5432:5432"
+
+    pgadmin:
+      image: dpage/pgadmin4:5.4
+      environment:
+        PGADMIN_DEFAULT_EMAIL: admin@example.com
+        PGADMIN_DEFAULT_PASSWORD: SuperSecret
+        GUNICORN_ACCESS_LOGFILE: /dev/null
+      ports:
+        - "4000:80"
+      depends_on:
+        - postgres
+
+    favoriteapp:
+      build:
+        context: .
+        dockerfile: Dockerfile.dev
+      depends_on:
+        - postgres
+        - redis
+      volumes:
+        - type: bind
+          source: ./
+          target: /app
+      ports:
+        - "3000:3000"
+      environment:
+        - DATABASE_URL=postgresql://postgres:awesome_password@postgres:5432/favoriteapp?encoding=utf8&pool=5&timeout=5000
+        - REDIS_URL=redis://redis:6379/0
+        - RAILS_ENV=development
+
+    sidekiq:
+      build:
+        context: .
+        dockerfile: Dockerfile.dev
+      command: bundle exec sidekiq
+      depends_on:
+        - postgres
+        - redis
+      environment:
+        - DATABASE_URL=postgresql://postgres:awesome_password@postgres:5432/favoriteapp?encoding=utf8&pool=5&timeout=5000
+        - REDIS_URL=redis://redis:6379/0
+        - RAILS_ENV=development
+
+    redis:
+      image: 
+    redis:
+      image: redis:6.0.9
+      ports:
+        - '6379:6379'
+#+end_src
+
+And a nice little =.dockerignore= file:
+
+#+begin_src bash :tangle favoriteapp/.dockerignore
+# node_modules
+tmp
+#+end_src
+
+Now we start it up:
+
+#+begin_src bash
+docker-compose up --build
+#+end_src
+
+And then we need to create the database:
+
+#+begin_src bash
+  docker-compose run --rm favoriteapp rails db:migrate
+#+end_src
+
+** Develop the app
+We're going to do some basic stuff here that shows
+
+1. How to connect to a database
+2. How to connect to redis
+3. How to deploy sidekiq
+         
+First lets add the sidekiq gem:
+
+#+begin_src bash
+  docker-compose run --rm favoriteapp bundle add sidekiq
+#+end_src
+
+Then lets create a scaffold for a database object:
+
+#+begin_src bash
+  docker-compose run --rm favoriteapp rails g scaffold messages body:string processed:boolean
+  docker-compose run --rm favoriteapp rake db:setup
+  docker-compose run --rm favoriteapp rake db:migrate
+#+end_src
+
+Then lets create a simple job that will process the message.
+
+#+begin_src bash
+  docker-compose run --rm favoriteapp rails g job process_message
+#+end_src
+
+
+
+Then in =config/routes.rb=:
+
+#+begin_src ruby :tangle favoriteapp/config/routes.rb
+  require 'sidekiq/web'
+
+  Rails.application.routes.draw do
+    mount Sidekiq::Web => "/sidekiq" # mount Sidekiq::Web in your Rails app
+    resources :messages
+    root "messages#index"
+  end
+#+end_src
+
+Now you can visit [[http://localhost:3000]] to see your working rails app!
+
+** Production Image
+
+Now that we've "developed" our application locally, lets spin it up
+and deploy it.
+
+Then we need a =Dockerfile= to build the thing.  Lets create a
+=Dockerfile.prod= to make it happen.
+
+#+begin_src dockerfile :tangle favoriteapp/Dockerfile.prod
+FROM ruby:3.0.1
+
+WORKDIR /app
+
+# nodejs and yarn and cloc
+RUN curl -sL https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add -
+RUN echo "deb https://dl.yarnpkg.com/debian/ stable main" | tee /etc/apt/sources.list.d/yarn.list
+RUN curl -sL https://deb.nodesource.com/setup_16.x | bash -
+RUN apt-get update && apt-get install -y nodejs yarn
+
+# install bundler
+RUN gem install bundler:2.1.4
+
+# Set up environment
+RUN bundle config set without 'development test'
+ENV RAILS_ENV production
+ENV RAILS_SERVE_STATIC_FILES true
+ENV RAILS_LOG_TO_STDOUT true
+
+# Bundle gems
+COPY Gemfile* /app/
+RUN bundle install
+
+# Install node stuff
+COPY package.json yarn.lock /app/
+RUN yarn install --check-files
+COPY . /app/
+
+#RUN yarn install --check-files
+ARG RAILS_MASTER_KEY
+RUN bundle exec rake assets:precompile
+
+EXPOSE 3000
+
+CMD rm -f tmp/pids/server.pid;bundle exec rails server -b 0.0.0.0
+#+end_src
+
+Then build the container
+
+#+begin_src bash
+docker build . -f Dockerfile.prod -t wschenk/favoriteapp --build-arg RAILS_MASTER_KEY=$(cat config/master.key)
+#+end_src
+
+And finally push to docker hub
+
+#+begin_src bash
+docker push wschenk/favoriteapp
+#+end_src
+
+* Terraform: Provision the infrastructure
+** The providers
+#+begin_src terraform :tangle providers.tf
+  terraform {
+    required_providers {
+      digitalocean = {
+        source = "digitalocean/digitalocean"
+        version = "~> 2.0"
+      }
+      dnsimple = {
+        source = "dnsimple/dnsimple"
+      }
+    }
+  }
+
+  provider "digitalocean" {
+    token             = var.do_token
+  }
+
+  provider "dnsimple" {
+    token   = var.dnsimple_token
+    account = var.dnsimple_account_id
+  }
+
+  variable "do_token" {
+    description = "digitalocean access token"
+    type        = string
+  }
+
+  variable "dnsimple_token" {
+    description = "dnssimple api access token"
+  }
+
+  variable "dnsimple_account_id" {
+    description = "dnsimple account id"
+  }
+
+  variable "dnsimple_domain" {
+    description = "dnsimple domain"
+  }
+
+
+
+#+end_src
+** Cluster
+#+begin_src terraform :tangle cluster.tf
+  resource "digitalocean_kubernetes_cluster" "gratitude" {
+    name    = "gratitude"
+    region  = "nyc1"
+    version = "1.20.7-do.0"
+
+    node_pool {
+      name       = "worker-pool"
+      size       = "s-2vcpu-2gb"
+      node_count = 3
+    }
+  }
+
+  output "cluster-id" {
+    value = "${digitalocean_kubernetes_cluster.gratitude.id}"
+  }
+
+  provider "kubernetes" {
+    host             = digitalocean_kubernetes_cluster.gratitude.endpoint
+    token            = digitalocean_kubernetes_cluster.gratitude.kube_config[0].token
+    cluster_ca_certificate = base64decode(
+      digitalocean_kubernetes_cluster.gratitude.kube_config[0].cluster_ca_certificate
+    )
+  }
+
+  provider "helm" {
+    kubernetes {
+      host = digitalocean_kubernetes_cluster.gratitude.endpoint
+      cluster_ca_certificate = base64decode( digitalocean_kubernetes_cluster.gratitude.kube_config[0].cluster_ca_certificate )
+      token = digitalocean_kubernetes_cluster.gratitude.kube_config[0].token
+    }
+  }
+
+#+end_src
+
+** Datastores
+#+begin_src terraform :tangle datastores.tf
+  resource "random_password" "redis_password" {
+    length           = 16
+    special          = true
+    override_special = "_%@"
+  }
+
+  resource "helm_release" "redis" {
+    repository = "https://charts.bitnami.com/bitnami"
+    chart = "redis"
+    name = "redis"
+  
+    set {
+      name = "auth.password"
+      value = random_password.redis_password.result
+    }
+  
+    set {
+      name = "architecture"
+      value = "standalone"
+    }
+  }
+
+  resource "kubernetes_secret" "redispassword" {
+    metadata {
+      name = "redispassword"
+    }
+  
+    data = {
+      password = random_password.redis_password.result
+    }
+  }
+
+  resource "digitalocean_database_cluster" "favoriteapp-postgres" {
+    name       = "favoriteapp-postgres-cluster"
+    engine     = "pg"
+    version    = "11"
+    size       = "db-s-1vcpu-1gb"
+    region     = "nyc1"
+    node_count = 1
+  }
+#+end_src
+
+** Ingress Controller
+
+#+begin_src terraform :tangle ingress.tf
+  resource "helm_release" "ingress-nginx" {
+    name = "ingress-nginx"
+    repository = "https://kubernetes.github.io/ingress-nginx"
+    chart = "ingress-nginx"
+  
+  }
+
+  data "kubernetes_service" "ingress-nginx" {
+    depends_on = [ helm_release.ingress-nginx ]
+    metadata {
+      name = "ingress-nginx-controller"
+    }
+  }
+
+  output "cluster-ip" {
+    value = data.kubernetes_service.ingress-nginx.status.0.load_balancer.0.ingress.0.ip
+    #value = data.kubernetes_service.ingress-nginx.external_ips
+  }
+#+end_src
+
+** DNS
+#+begin_src terraform :tangle dns.tf
+  resource "dnsimple_record" "k8" {
+    domain = var.dnsimple_domain
+    name   = "k8"
+    value  = data.kubernetes_service.ingress-nginx.status.0.load_balancer.0.ingress.0.ip
+    type   = "A"
+    ttl    = 300
+  }
+#+end_src
+** Cert Manager
+#+begin_src terraform :tangle cert-manager.tf
+    resource "helm_release" "cert-manager" {
+      repository = "https://charts.jetstack.io"
+      chart = "cert-manager"
+      name = "cert-manager"
+      namespace = "cert-manager"
+      create_namespace = true
+  
+      set {
+        name = "installCRDs"
+        value = "true"
+      }
+    }
+
+#+end_src
+** Config
+
+#+begin_src terraform :tangle config.tf
+  resource "kubernetes_config_map" "favoriteapp-config" {
+    metadata {
+      name = "favoriteapp-config"
+    }
+
+    data = {
+      DATABASE_URL = digitalocean_database_cluster.favoriteapp-postgres.private_uri
+      REDIS_URL = "redis://user:${random_password.redis_password.result}@redis-master.default.svc.cluster.local:6379"
+    }
+  }
+#+end_src
+
+* Setup =kubectl=
+
+#+begin_src bash
+  export CLUSTER_ID=$(terraform output -raw cluster-id)
+  mkdir -p ~/.kube/
+  curl -X GET \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${TF_VAR_do_token}" \
+  "https://api.digitalocean.com/v2/kubernetes/clusters/$CLUSTER_ID/kubeconfig" \
+  > ~/.kube/config
+#+end_src
+
+* Terraform the deployment
+
+#+begin_src terraform :tangle app.tf
+  resource "kubernetes_deployment" "favoriteapp" {
+    metadata {
+      name = "favoriteapp"
+      labels = {
+        app = "favoriteapp"
+      }
+    }
+
+    spec {
+      replicas = 2
+
+      selector {
+        match_labels = {
+          app = "favoriteapp"
+        }
+      }
+
+      template {
+        metadata {
+          name = "favoriteapp"
+          labels = {
+            app = "favoriteapp"
+          }
+        }
+
+        spec {
+          container {
+            image = "wschenk/favoriteapp:latest"
+            name = "favoriteapp"
+            port {
+              container_port = 3000
+            }
+            env_from {
+              config_map_ref {
+                name = "favoriteapp-config"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  resource "kubernetes_service" "favoriteapp-service" {
+    metadata {
+      name = "favoriteapp-service"
+    }
+
+    spec {
+      port {
+        port = 80
+        target_port = 3000
+      }
+
+      selector = {
+        app = "favoriteapp"
+      }
+    }
+  }
+
+  resource "kubernetes_ingress" "favoriteapp-ingress" {
+    wait_for_load_balancer = true
+    metadata {
+      name = "favoriteapp-ingress"
+      annotations = {
+        "kubernetes.io/ingress.class" = "nginx"
+      }
+    }
+    spec {
+      rule {
+        http {
+          path {
+            path = "/"
+            backend {
+              service_name = "favoriteapp-service"
+              service_port = 80
+            }
+          }
+        }
+      }
+    }
+  }
+#+end_src
+
+* Setup the domain
+
+
+=cluster-issuer.yml=:
+
+#+begin_src yaml :tangle cluster-issuer.yml
+  apiVersion: cert-manager.io/v1
+  kind: ClusterIssuer
+  metadata:
+    name: letsencrypt-staging
+  spec:
+    acme:
+      # You must replace this email address with your own.
+      # Let's Encrypt will use this to contact you about expiring
+      # certificates, and issues related to your account.
+      email: wschenk@gmail.com
+      server: https://acme-staging-v02.api.letsencrypt.org/directory
+      privateKeySecretRef:
+        # Secret resource that will be used to store the account's private key.
+        name: example-issuer-account-key
+      # Add a single challenge solver, HTTP01 using nginx
+      solvers:
+      - http01:
+          ingress:
+            class: nginx
+#+end_src
+
+Then apply it
+
+#+begin_src bash
+  kubectl apply -f cluster-issuer.yml
+#+end_src
+* References
+
+1. https://docs.bitnami.com/tutorials/deploy-rails-application-kubernetes-helm/
+2. https://docs.openfaas.com/reference/ssl/kubernetes-with-cert-manager/
+3. https://dev.to/michaellalatkovic/deploying-on-kubernetes-part-1-a-rails-api-backend-2ojl
+         
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
