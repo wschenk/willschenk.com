@@ -1,6 +1,13 @@
+resource "kubernetes_namespace" "favoriteapp" {
+  metadata {
+    name = "favoriteapp"
+  }
+}
+
 resource "kubernetes_config_map" "favoriteapp-config" {
   metadata {
     name = "favoriteapp-config"
+    namespace = "favoriteapp"
   }
 
   data = {

@@ -4,6 +4,7 @@ resource "kubernetes_deployment" "favoriteapp" {
     labels = {
       app = "favoriteapp"
     }
+    namespace = "favoriteapp"
   }
 
   spec {
@@ -24,6 +25,16 @@ resource "kubernetes_deployment" "favoriteapp" {
       }
 
       spec {
+        init_container {
+          image = "wschenk/favoriteapp:latest"
+          name = "favoriteapp-init"
+          command = ["rake", "db:migrate"]
+          env_from {
+            config_map_ref {
+              name = "favoriteapp-config"
+            }
+          }
+        }
         container {
           image = "wschenk/favoriteapp:latest"
           name = "favoriteapp"
@@ -41,39 +52,38 @@ resource "kubernetes_deployment" "favoriteapp" {
   }
 }
 
-resource "kubernetes_service" "favoriteapp-service" {
+resource "kubernetes_deployment" "favoriteapp-workers" {
   metadata {
-    name = "favoriteapp-service"
-  }
+    name = "favoriteapp-workers"
+    namespace = "favoriteapp"
 
-  spec {
-    port {
-      port = 80
-      target_port = 3000
-    }
-
-    selector = {
-      app = "favoriteapp"
-    }
-  }
-}
-
-resource "kubernetes_ingress" "favoriteapp-ingress" {
-  wait_for_load_balancer = true
-  metadata {
-    name = "favoriteapp-ingress"
-    annotations = {
-      "kubernetes.io/ingress.class" = "nginx"
-    }
   }
   spec {
-    rule {
-      http {
-        path {
-          path = "/"
-          backend {
-            service_name = "favoriteapp-service"
-            service_port = 80
+    replicas = 1
+
+    selector {
+      match_labels = {
+        app = "favoriteapp-workers"
+      }
+    }
+
+    template {
+      metadata {
+        name = "favoriteapp-workers"
+        labels = {
+          app = "favoriteapp-workers"
+        }
+      }
+
+      spec {
+        container {
+          image = "wschenk/favoriteapp:latest"
+          name = "favoriteapp-workers"
+          command = ["sidekiq"]
+          env_from {
+            config_map_ref {
+              name = "favoriteapp-config"
+            }
           }
         }
       }

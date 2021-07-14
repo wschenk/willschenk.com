@@ -160,17 +160,14 @@ And then we need to create the database:
 #+end_src
 
 ** Develop the app
+
 We're going to do some basic stuff here that shows
 
 1. How to connect to a database
 2. How to connect to redis
 3. How to deploy sidekiq
-         
-First lets add the sidekiq gem:
 
-#+begin_src bash
-  docker-compose run --rm favoriteapp bundle add sidekiq
-#+end_src
+*** Scaffold
 
 Then lets create a scaffold for a database object:
 
@@ -180,15 +177,51 @@ Then lets create a scaffold for a database object:
   docker-compose run --rm favoriteapp rake db:migrate
 #+end_src
 
+*** Sidekiq 
+
+#+begin_src bash
+  docker-compose run --rm favoriteapp bundle add sidekiq
+#+end_src
+
+Lets turn on the =:sidekiq= adapter in =config/application.rb=:
+
+#+begin_src ruby
+  class Application < Rails::Application
+    # ...
+    config.active_job.queue_adapter = :sidekiq
+  end
+#+end_src
+
 Then lets create a simple job that will process the message.
 
 #+begin_src bash
   docker-compose run --rm favoriteapp rails g job process_message
 #+end_src
 
+And the job itself =app/jobs/process_message_job.rb=:
 
+#+begin_src ruby :tangle favoriteapp/app/jobs/process_message_job.rb
+  class ProcessMessageJob < ApplicationJob
+    queue_as :default
 
-Then in =config/routes.rb=:
+    def perform(job)
+      logger.info "Processing message #{job.id}"
+      m = Message.find( job.id )
+      m.processed = true
+      m.save
+    end
+  end
+#+end_src
+
+Then we schedule it in =app/controllers/messages_controller.rb=, inside
+of the =create= method:
+
+#+begin_src ruby
+      if @message.save
+        ProcessMessageJob.perform_later @message
+#+end_src
+
+Finally we add the routes in =config/routes.rb=:
 
 #+begin_src ruby :tangle favoriteapp/config/routes.rb
   require 'sidekiq/web'
@@ -200,7 +233,16 @@ Then in =config/routes.rb=:
   end
 #+end_src
 
-Now you can visit [[http://localhost:3000]] to see your working rails app!
+*** Testing
+
+#+begin_src bash
+docker-compose up --build
+#+end_src
+
+Now you can visit [[http://localhost:3000]] to see your working rails app.
+Add a message, you will see that it's =processed = false=, and when you
+go back to the index sidekiq should have processed in the message in
+the background.
 
 ** Production Image
 
@@ -261,7 +303,28 @@ docker push wschenk/favoriteapp
 #+end_src
 
 * Terraform: Provision the infrastructure
+
+Now that we have a working application that's packaged up in a docker
+container, lets define the infrastructure that we will deploy it on.
+We are going to use terraform to provision a kubernetes cluster and
+postgres cluster on digital ocean, and then inside that cluster we
+will setup a =deployment= of our application, a =job= to run the database
+migrations, with a =service= and =ingress= to present it to the outside
+world.  We'll use =helm= (as part of terraform) to install a =redis=
+instance, =cert-manager= to handle certificates, and =nginx-ingress= on
+the cluster to expose the application.
+
+Finally we will use =dnssimple= to make sure that our application has a
+name.
+
 ** The providers
+
+We need tokens from digital ocean and dnsimple (if that's the provider
+you use, it's easy to swap out for something else.)
+
+The section basically defines the terraform plugins that we will use
+to provision the platform.
+
 #+begin_src terraform :tangle providers.tf
   terraform {
     required_providers {
@@ -276,7 +339,7 @@ docker push wschenk/favoriteapp
   }
 
   provider "digitalocean" {
-    token             = var.do_token
+    token   = var.do_token
   }
 
   provider "dnsimple" {
@@ -300,11 +363,17 @@ docker push wschenk/favoriteapp
   variable "dnsimple_domain" {
     description = "dnsimple domain"
   }
-
-
-
 #+end_src
 ** Cluster
+
+Now we can define the cluster itself.
+
+=digitalocean_kuberenetes_cluster= defines the kubernetes cluster
+itself, and here we are creating a 3 node cluster.
+
+We also define the =kubernetes= and =helm= terraform providers here, using
+the =host= and =certificates= that we get from the digitalocean provider.
+
 #+begin_src terraform :tangle cluster.tf
   resource "digitalocean_kubernetes_cluster" "gratitude" {
     name    = "gratitude"
@@ -341,11 +410,20 @@ docker push wschenk/favoriteapp
 #+end_src
 
 ** Datastores
+
+We are going to setup 2 different datastores, one is a
+=digitalocean_database_cluster= of postgres with one node, and the other
+is redis running on the cluster that we defined (in =standalone=). We
+are using the bitnami redis helm chart.
+
+I'm also setting a password on the redis instance as an example of how
+to do this.  It's only accessible from within the cluster so I'm not
+sure it's strictly needed but it can't hurt.
+
 #+begin_src terraform :tangle datastores.tf
   resource "random_password" "redis_password" {
     length           = 16
-    special          = true
-    override_special = "_%@"
+    special          = false
   }
 
   resource "helm_release" "redis" {
@@ -386,6 +464,11 @@ docker push wschenk/favoriteapp
 
 ** Ingress Controller
 
+We are installing the =ingress-nginx= controller here, again using helm.
+This will setup the digital ocean load balanacer.  The =data= terraform
+block is there to expose the ip address of the load balancer, which we
+will use to setup the DNS name.
+
 #+begin_src terraform :tangle ingress.tf
   resource "helm_release" "ingress-nginx" {
     name = "ingress-nginx"
@@ -408,6 +491,9 @@ docker push wschenk/favoriteapp
 #+end_src
 
 ** DNS
+
+I use dnsimple for my domain, and I'm calling this site =k8=.  Why not.
+
 #+begin_src terraform :tangle dns.tf
   resource "dnsimple_record" "k8" {
     domain = var.dnsimple_domain
@@ -418,6 +504,10 @@ docker push wschenk/favoriteapp
   }
 #+end_src
 ** Cert Manager
+
+=cert-manager= keeps track of certificates as a custom resource within
+kubernetes.  We will use this to get our TLS traffic good to go.
+
 #+begin_src terraform :tangle cert-manager.tf
     resource "helm_release" "cert-manager" {
       repository = "https://charts.jetstack.io"
@@ -433,12 +523,27 @@ docker push wschenk/favoriteapp
     }
 
 #+end_src
+
 ** Config
 
+Finally, we are going to stick the data that we just got from creating
+these endpoints into a kubernetes config map that our application will
+use to wire itself up.
+
+We also create a namespace for all of our app stuff just to keep
+things organized.
+
 #+begin_src terraform :tangle config.tf
+  resource "kubernetes_namespace" "favoriteapp" {
+    metadata {
+      name = "favoriteapp"
+    }
+  }
+
   resource "kubernetes_config_map" "favoriteapp-config" {
     metadata {
       name = "favoriteapp-config"
+      namespace = "favoriteapp"
     }
 
     data = {
@@ -448,19 +553,65 @@ docker push wschenk/favoriteapp
   }
 #+end_src
 
-* Setup =kubectl=
+** =ClusterIssuer= custom resource definition
 
-#+begin_src bash
-  export CLUSTER_ID=$(terraform output -raw cluster-id)
-  mkdir -p ~/.kube/
-  curl -X GET \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer ${TF_VAR_do_token}" \
-  "https://api.digitalocean.com/v2/kubernetes/clusters/$CLUSTER_ID/kubeconfig" \
-  > ~/.kube/config
+I had some trouble with putting adding this resource before the
+cluster has started, hopefully they've fixed it in a later release.
+But in the meantime you may want to only add this file after
+everything is up.
+
+#+begin_src terraform :tangle cluster_issuer.tf
+  provider "kubernetes-alpha" {
+    load_config_file = false
+    host             = digitalocean_kubernetes_cluster.gratitude.endpoint
+    token            = digitalocean_kubernetes_cluster.gratitude.kube_config[0].token
+    cluster_ca_certificate = base64decode(
+      digitalocean_kubernetes_cluster.gratitude.kube_config[0].cluster_ca_certificate
+      )
+  }
+
+  resource "kubernetes_manifest" "cluster_issuer" {
+    depends_on = [ digitalocean_kubernetes_cluster.gratitude, helm_release.cert-manager ]
+    provider = kubernetes-alpha
+
+    manifest = {
+      apiVersion = "cert-manager.io/v1"
+      kind = "ClusterIssuer"
+      metadata = {
+        name = "letsencrypt-prod"
+      }
+      spec = {
+        acme = {
+          email = "wschenk@gmail.com"
+          server = "https://acme-v02.api.letsencrypt.org/directory"
+          privateKeySecretRef = {
+            name = "issuer-account-key"
+          }
+          solvers = [
+            {
+              http01 = {
+                ingress = {
+                  class = "nginx"
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
 #+end_src
+** App deployment
+Finally, we define our app itself.  It has to moving pieces that can
+be scaled independantly.
 
-* Terraform the deployment
+One is called =favoriteapp= that is initially set to have 2 replicas.
+We define two types of containers here, one is the =init_container= that
+basically runs on each pod startup to run the migration (=command =
+["rake", "db:migrate"]=) and the other is the container itself that
+serves the rails application on port 3000.
+
+The other is =favoriteapp-workers= which runs the =sidekiq= command.
 
 #+begin_src terraform :tangle app.tf
   resource "kubernetes_deployment" "favoriteapp" {
@@ -469,6 +620,7 @@ docker push wschenk/favoriteapp
       labels = {
         app = "favoriteapp"
       }
+      namespace = "favoriteapp"
     }
 
     spec {
@@ -489,6 +641,16 @@ docker push wschenk/favoriteapp
         }
 
         spec {
+          init_container {
+            image = "wschenk/favoriteapp:latest"
+            name = "favoriteapp-init"
+            command = ["rake", "db:migrate"]
+            env_from {
+              config_map_ref {
+                name = "favoriteapp-config"
+              }
+            }
+          }
           container {
             image = "wschenk/favoriteapp:latest"
             name = "favoriteapp"
@@ -506,9 +668,59 @@ docker push wschenk/favoriteapp
     }
   }
 
+  resource "kubernetes_deployment" "favoriteapp-workers" {
+    metadata {
+      name = "favoriteapp-workers"
+      namespace = "favoriteapp"
+
+    }
+    spec {
+      replicas = 1
+
+      selector {
+        match_labels = {
+          app = "favoriteapp-workers"
+        }
+      }
+
+      template {
+        metadata {
+          name = "favoriteapp-workers"
+          labels = {
+            app = "favoriteapp-workers"
+          }
+        }
+
+        spec {
+          container {
+            image = "wschenk/favoriteapp:latest"
+            name = "favoriteapp-workers"
+            command = ["sidekiq"]
+            env_from {
+              config_map_ref {
+                name = "favoriteapp-config"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+#+end_src
+
+Now that we have the =deployments= running, we need to expose them first
+to the cluster as a =service= (basically this gives them a name and a
+port that other kubernetes services can access).
+
+Once that service is defined, we define an =ingress= that lets the
+outside world connect to the internal service, which in turn connects
+to the pods running in the deployment.
+
+#+begin_src terraform :tangle services.tf
   resource "kubernetes_service" "favoriteapp-service" {
     metadata {
       name = "favoriteapp-service"
+      namespace = "favoriteapp"
     }
 
     spec {
@@ -529,10 +741,14 @@ docker push wschenk/favoriteapp
       name = "favoriteapp-ingress"
       annotations = {
         "kubernetes.io/ingress.class" = "nginx"
+        "cert-manager.io/cluster-issuer" = "letsencrypt-prod"
+        "cert-manager.io/acme-challenge-type" = "http01"
       }
+      namespace = "favoriteapp"
     }
     spec {
       rule {
+        host = "k8.willschenk.com"
         http {
           path {
             path = "/"
@@ -543,12 +759,76 @@ docker push wschenk/favoriteapp
           }
         }
       }
+
+      tls {
+        hosts = [ "k8.willschenk.com" ]
+        secret_name = "issuer-account-key"
+      }
     }
   }
 #+end_src
 
-* Setup the domain
+* =terraform= and =kubectl=
 
+Now we run =terraform apply= and, if you've entered in all of your
+credentials correctly, the application should start up with all of the
+correct datasources, migrations run, and the whole thing.
+
+You can walk through the flow to make sure that the app is working,
+that things get stored in the database, and that the sidekiq jobs
+processed what is needed.
+
+You can also configure =kubectl= locally so that you can examine the
+cluster.
+
+#+begin_src bash
+  export CLUSTER_ID=$(terraform output -raw cluster-id)
+  mkdir -p ~/.kube/
+  curl -X GET \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${TF_VAR_do_token}" \
+  "https://api.digitalocean.com/v2/kubernetes/clusters/$CLUSTER_ID/kubeconfig" \
+  > ~/.kube/config
+#+end_src
+
+* Looking at the deployment
+
+** Logs
+
+Webapp:
+
+#+begin_src bash
+kubectl logs --namespace favoriteapp deployment/favoriteapp
+#+end_src
+
+Workers:
+
+#+begin_src bash
+  kubectl logs --namespace favoriteapp deployment/favoriteappworker
+#+end_src
+
+Migration:
+
+#+begin_src bash
+  kubectl logs --namespace favoriteapp jobs/favoriteapp-migration
+#+end_src
+
+** Deploying a new version
+
+Build and push to the image repo:
+
+#+begin_src bash
+  docker build . -f Dockerfile.prod -t wschenk/favoriteapp --build-arg RAILS_MASTER_KEY=$(cat config/master.key)
+  docker push wschenk/favoriteapp
+#+end_src
+
+#+begin_src bash
+  kubectl rollout restart --namespace favoriteapp deployment/favoriteapp
+  kubectl rollout restart --namespace favoriteapp deployment/favoriteapp-workers
+#+end_src
+
+
+* Setup the domain
 
 =cluster-issuer.yml=:
 
@@ -556,17 +836,16 @@ docker push wschenk/favoriteapp
   apiVersion: cert-manager.io/v1
   kind: ClusterIssuer
   metadata:
-    name: letsencrypt-staging
+    name: letsencrypt-prod
   spec:
     acme:
       # You must replace this email address with your own.
       # Let's Encrypt will use this to contact you about expiring
       # certificates, and issues related to your account.
       email: wschenk@gmail.com
-      server: https://acme-staging-v02.api.letsencrypt.org/directory
+      server: https://acme-v02.api.letsencrypt.org/directory
       privateKeySecretRef:
-        # Secret resource that will be used to store the account's private key.
-        name: example-issuer-account-key
+        name: issuer-account-key
       # Add a single challenge solver, HTTP01 using nginx
       solvers:
       - http01:
@@ -579,11 +858,45 @@ Then apply it
 #+begin_src bash
   kubectl apply -f cluster-issuer.yml
 #+end_src
+
+And we can look at it like so
+
+#+begin_src bash :results output
+  kubectl describe clusterissuer letsencrypt-prod
+#+end_src
+
+
+
+#+begin_src terraform :tangle certificate.yml
+  apiVersion: cert-manager.io/v1
+  kind: Certificate
+  metadata:
+    name: nginx-tls
+    namespace: favoriteapp
+  spec:
+    secretName: nginx-tls
+    issuerRef:
+      name: letsencrypt-prod
+      kind: ClusterIssuer
+    dnsNames:
+      - 'k8.willschenk.com'
+    acme:
+      config:
+        - dns01:
+            provider: route53
+          domains:
+            - '*.YOUR.DOMAIN'
+#+end_src
+
+#+begin_src bash
+kubectl get cert
+#+end_src
 * References
 
 1. https://docs.bitnami.com/tutorials/deploy-rails-application-kubernetes-helm/
 2. https://docs.openfaas.com/reference/ssl/kubernetes-with-cert-manager/
 3. https://dev.to/michaellalatkovic/deploying-on-kubernetes-part-1-a-rails-api-backend-2ojl
+4. https://cert-manager.io/docs/tutorials/acme/ingress/
          
 # Local Variables:
 # eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)

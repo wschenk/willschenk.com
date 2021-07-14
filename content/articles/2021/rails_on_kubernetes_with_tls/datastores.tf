@@ -1,7 +1,6 @@
 resource "random_password" "redis_password" {
   length           = 16
-  special          = true
-  override_special = "_%@"
+  special          = false
 }
 
 resource "helm_release" "redis" {
