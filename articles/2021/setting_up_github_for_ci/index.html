@@ -1,0 +1,82 @@
+<!doctype html><html><head><title>Setting up GitHub Actions for Continuous Integration</title><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><link rel=stylesheet href=../../../css/theme.css><link rel=stylesheet href=../../../css/syntax.css><script type=application/javascript>var doNotTrack=false;if(!doNotTrack){window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;ga('create','UA-56296045-1','auto');ga('send','pageview');}</script><script async src=https://www.google-analytics.com/analytics.js></script><script async defer data-domain=willschenk.com src=https://plausible.io/js/plausible.js></script><meta property="og:title" content="Setting up GitHub Actions for Continuous Integration"><meta property="og:description" content="I wanted to see how to automate the creation of docker images using github actions. This is how I did it.    Create a repo    Create a docker hub api key    Create your application    Create dockerfile    Add github workflow    Push and test!    Let's go! Create a sample repo  mkdir actionstest cd actionstest git init   The roll over to GitHub and create a new repository."><meta property="og:type" content="article"><meta property="og:url" content="https://willschenk.com/articles/2021/setting_up_github_for_ci/"><meta property="article:published_time" content="2021-07-13T00:00:00+00:00"><meta property="article:modified_time" content="2021-07-13T00:00:00+00:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Setting up GitHub Actions for Continuous Integration"><meta name=twitter:description content="I wanted to see how to automate the creation of docker images using github actions. This is how I did it.    Create a repo    Create a docker hub api key    Create your application    Create dockerfile    Add github workflow    Push and test!    Let's go! Create a sample repo  mkdir actionstest cd actionstest git init   The roll over to GitHub and create a new repository."><meta name=twitter:site content="@wschenk"><style>.article p,.article ul,.article ol,.article table{max-width:45em}.article pre p{max-width:none;margin-top:-1.5rem}article.article p:first-child,.article blockquote{font-size:1.25em;font-weight:300;max-width:36em}.half-height-scroll{max-height:32em;overflow:scroll}</style></head><body><nav class="container my-5"><h1 class="pt-md-5 display-3"><a class=text-dark href=../../../>Will Schenk</a></h1><p><a class="text-dark h4 mr-3 font-weight-light" href=../../../articles/>Articles</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../contact>Contact</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../tags/>Tags</a>
+<a href=../../../feed.xml class="mr-3 h4 text-light"><img src=../../../img/rss.svg alt=rss height=20 width=20></a>
+<a href=https://twitter.com/@wschenk class="mr-3 h4 text-light"><img src=../../../img/twitter.svg alt=twitter height=20 width=20></a>
+<a href=https://instagram.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/instagram.svg alt=instagram height=20 width=20></a>
+<a href=https://github.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/github.svg alt=github height=20 width=20></a>
+<a href=https://linkedin.com/in/will-schenk-420266 class="mr-3 h4 text-light"><img src=../../../img/linkedin.svg alt=linkedin height=20 width=20></a></p></nav><div class=container><h1 class=mt-5>Setting up GitHub Actions for Continuous Integration</h1><h2 class="font-weight-light font-italic mb-3">automating all of the things</h2><p class="text-muted mt-3"><a class=text-muted href=https://willschenk.com/articles/2021/setting_up_github_for_ci/>Published July 13, 2021</a>
+<a class=text-muted href=../../../tags/github>#github,</a>
+<a class=text-muted href=../../../tags/actions>#actions,</a>
+<a class=text-muted href=../../../tags/automation>#automation</a></p><article class="article mt-5"><p>I wanted to see how to automate the creation of docker images using
+github actions. This is how I did it.</p><ol><li><p>Create a repo</p></li><li><p>Create a docker hub api key</p></li><li><p>Create your application</p></li><li><p>Create dockerfile</p></li><li><p>Add github workflow</p></li><li><p>Push and test!</p></li></ol><p>Let's go!</p><h2 id=headline-1>Create a sample repo</h2><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  mkdir actionstest
+  <span class=nb>cd</span> actionstest
+  git init</code></pre></div></div><p>The roll over to GitHub and <a href=https://github.com/new>create a new repository</a>. I'm calling mine
+<a href=https://github.com/wschenk/actionstest>wschenk/actionstest</a>.</p><p>Now we can add the remote, in my case</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  git remote add origin git@github.com:wschenk/actionstest.git</code></pre></div></div><h2 id=headline-2>Creating secrets</h2><p>First log into docker hub, and <a href=https://hub.docker.com/settings/security>create a new access token</a>. Copy this,
+and then go to the settings of your GitHub project. Then create the
+following secrets.</p><table><tbody><tr><td><code class=verbatim>DOCKERHUB_USERNAME</code></td><td>Your login</td></tr><tr><td><code class=verbatim>DOCKERHUB_TOKEN</code></td><td>The token you just created</td></tr></tbody></table><p>Inside of the workflow we can access these like <code class=verbatim>${{ secrets.DOCKERHUB_USERNAME }}</code>.</p><h2 id=headline-3>Our "application"</h2><p>This is pretty simple. We print the date and then run the <code class=verbatim>fortune</code>
+command.</p><p><code class=verbatim>app.sh</code>:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  <span class=c1>#!/bin/sh</span>
+  date
+  fortune</code></pre></div></div><p>And we'll test it, why not.</p><p><code class=verbatim>success_test.sh</code>:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  <span class=c1>#!/bin/sh</span>
+  <span class=nb>echo</span> This will succeed
+  <span class=nb>exit</span> <span class=m>0</span></code></pre></div></div><p><code class=verbatim>fail_test.sh</code>:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  <span class=c1>#!/bin/sh</span>
+  <span class=nb>echo</span> This will fail
+  <span class=nb>exit</span> <span class=m>1</span></code></pre></div></div><h2 id=headline-4>Dockerfile</h2><p>This is a pretty simple <code class=verbatim>Dockerfile</code> that just copies stuff over and
+runs the app.</p><div class="src src-dockerfile"><div class=highlight><pre class=chroma><code class=language-dockerfile data-lang=dockerfile>  FROM alpine:3.14.0<span class=err>
+</span><span class=err>
+</span><span class=err></span>  RUN apk add fortune<span class=err>
+</span><span class=err>
+</span><span class=err></span>  WORKDIR /app<span class=err>
+</span><span class=err></span>  COPY *sh /app/<span class=err>
+</span><span class=err></span>  RUN chmod +x *sh<span class=err>
+</span><span class=err>
+</span><span class=err></span>  CMD /app/app.sh</code></pre></div></div><h2 id=headline-5>Running locally</h2><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>docker build . -t test</code></pre></div></div><p>Run the test:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  docker run --rm -it <span class=nb>test</span> /app/fail_test.sh
+  <span class=nb>echo</span> <span class=nv>$?</span></code></pre></div></div><p>We can see that it "runs the tests" but returns a non-zero,
+i.e. failed status.</p><h2 id=headline-6>Build test and push action</h2><p>This action has a number of steps:</p><ol><li><p>It runs on all <code class=verbatim>push</code> actions, regardless of branch.</p></li><li><p>First it <code class=verbatim>actions/checkout@v2</code> the repo.</p></li><li><p>Then it logs into <code class=verbatim>dockerhub</code> using the secrets</p></li><li><p>It uses <code class=verbatim>docker/metadata-action</code> to find the tags and labels for which branch was committed.</p></li><li><p>Runs <code class=verbatim>docker/build-push-action</code> with <code class=verbatim>push</code> false to create the image.</p></li><li><p>It then runs the test script from the resulting image. If this fails, the action fails.</p></li><li><p>Assuming the tests pass, it "rebuilds" the image and pushes the tags to dockerhub</p></li></ol><p>Create <code class=verbatim>.github/workflows/build_test_and_push.yml:</code></p><div class="src src-yaml"><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=w>  </span><span class=k>name</span><span class=p>:</span><span class=w> </span>Build<span class=w> </span>and<span class=w> </span>Push<span class=w>
+</span><span class=w>
+</span><span class=w>  </span><span class=k>on</span><span class=p>:</span><span class=w> </span>push<span class=w>
+</span><span class=w>
+</span><span class=w>  </span><span class=k>jobs</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=k>docker</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=k>runs-on</span><span class=p>:</span><span class=w> </span>ubuntu-latest<span class=w>
+</span><span class=w>      </span><span class=k>steps</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span>- <span class=k>uses</span><span class=p>:</span><span class=w> </span>actions/checkout@v2<span class=w>
+</span><span class=w>        </span><span class=sd>-
+</span><span class=sd>          name: Login to DockerHub</span><span class=w>
+</span><span class=w>          </span><span class=k>uses</span><span class=p>:</span><span class=w> </span>docker/login-action@v1<span class=w> 
+</span><span class=w>          </span><span class=k>with</span><span class=p>:</span><span class=w>
+</span><span class=w>            </span><span class=k>username</span><span class=p>:</span><span class=w> </span>${{<span class=w> </span>secrets.DOCKERHUB_USERNAME<span class=w> </span>}}<span class=w>
+</span><span class=w>            </span><span class=k>password</span><span class=p>:</span><span class=w> </span>${{<span class=w> </span>secrets.DOCKERHUB_TOKEN<span class=w> </span>}}<span class=w>
+</span><span class=w>        </span><span class=sd>-
+</span><span class=sd>          name: Docker meta</span><span class=w>
+</span><span class=w>          </span><span class=k>id</span><span class=p>:</span><span class=w> </span>meta<span class=w>
+</span><span class=w>          </span><span class=k>uses</span><span class=p>:</span><span class=w> </span>docker/metadata-action@v3<span class=w>
+</span><span class=w>          </span><span class=k>with</span><span class=p>:</span><span class=w>
+</span><span class=w>            </span><span class=k>images</span><span class=p>:</span><span class=w> </span>wschenk/testimage<span class=w>
+</span><span class=w>        </span><span class=sd>-
+</span><span class=sd>          name: Build</span><span class=w>
+</span><span class=w>          </span><span class=k>id</span><span class=p>:</span><span class=w> </span>docker_build<span class=w>
+</span><span class=w>          </span><span class=k>uses</span><span class=p>:</span><span class=w> </span>docker/build-push-action@v2<span class=w>
+</span><span class=w>        </span><span class=sd>-
+</span><span class=sd>          name: Run Tests</span><span class=w>
+</span><span class=w>          </span><span class=k>run</span><span class=p>:</span><span class=w> </span>docker<span class=w> </span>run<span class=w> </span>${{<span class=w> </span>steps.docker_build.outputs.digest<span class=w> </span>}}<span class=w> </span>sh<span class=w> </span>/app/fail_test.sh<span class=w>
+</span><span class=w>        </span><span class=sd>-
+</span><span class=sd>          name: Build and push</span><span class=w>
+</span><span class=w>          </span><span class=k>id</span><span class=p>:</span><span class=w> </span>docker_push<span class=w>
+</span><span class=w>          </span><span class=k>uses</span><span class=p>:</span><span class=w> </span>docker/build-push-action@v2<span class=w>
+</span><span class=w>          </span><span class=k>with</span><span class=p>:</span><span class=w>
+</span><span class=w>            </span><span class=k>push</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span><span class=w>            </span><span class=k>tags</span><span class=p>:</span><span class=w> </span>${{<span class=w> </span>steps.meta.outputs.tags<span class=w> </span>}}<span class=w>
+</span><span class=w>            </span><span class=k>labels</span><span class=p>:</span><span class=w> </span>${{<span class=w> </span>steps.meta.outputs.labels<span class=w> </span>}}</code></pre></div></div><h2 id=headline-7>Test it out</h2><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  git add .
+  git commit -m <span class=s2>&#34;Initial import&#34;</span>
+  git push origin master</code></pre></div></div><p>Since we have the <code class=verbatim>fail_test.sh</code> script being run as part of the action,
+it should build the image and then abort on the <code class=verbatim>Run Test</code> part of the
+run. If you go to your repository, click on <code class=verbatim>Actions</code>, you should see
+the failed run.</p><p>Lets create a staging branch to fix it:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>git checkout -b staging</code></pre></div></div><p>Then change like <code class=verbatim>28</code> inside of <code class=verbatim>build_test_and_push.sh</code> to run
+<code class=verbatim>/app/success_test.sh</code> instead. Commit, and then push to the staging
+branch:</p><div class="src src-text"><div class=highlight><pre class=chroma><code class=language-text data-lang=text>git add .
+git commit -m &#34;Fixing the test in staging&#34;
+git push origin staging</code></pre></div></div><p>This build should succeed, and if you go to <a href=hub.docker.com>hub.docker.com</a> under your
+user, you should see the image there with the staging tag.</p><h2 id=headline-8>References</h2><ol><li><p><a href=https://docs.github.com/en/actions>https://docs.github.com/en/actions</a></p></li><li><p><a href=https://docs.github.com/en/actions/reference/encrypted-secrets#creating-encrypted-secrets-for-a-repository>https://docs.github.com/en/actions/reference/encrypted-secrets#creating-encrypted-secrets-for-a-repository</a></p></li></ol></article></div><div class="bg-light py-5"><div class=container><h2 class=text-center>Read next</h2><div class=row><div class="col-md-6 text-center"></div><div class="col-md-6 text-center">Previous Post:
+<a href=../../../articles/2021/deploying_open_faa_s_on_digital_ocean_with_terraform/>Deploying OpenFaaS on Digital Ocean with Terraform</a></div></div></div></div><div class="container mt-5"><h2 class=text-center>See also</h2><div class=row><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2019/computer_setup_script/>Computer Setup Script</a></p><p class="lead font-italic mb-0">Setup Linux or Chromebook quickly</p><div class="font-weight-light mt-3"><p>Putting things in scripts makes it easy to get up and running quickly. Devops isn&rsquo;t just for servers or Dockerfiles, you can also use it for your own environment. This is the script that I use to get my Chromebooks up and running after a wipe and how I get a new Linux machine up an running. Lets use the bash boilerplate to write our script.
+I&rsquo;ll update this later to include OSX.</p></div><a href=../../../articles/2019/computer_setup_script/ class="btn btn-primary">Read more</a></div></div></div><footer class="footer bg-dark text-light mt-3"><div class=container><h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2></div></footer></body></html>
