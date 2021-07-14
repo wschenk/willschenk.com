@@ -1,0 +1,200 @@
+#+title: Setting up GitHub Actions for Continuous Integration
+#+subtitle: automating all of the things
+#+tags: github, actions, automation
+#+date: 2021-07-13
+
+I wanted to see how to automate the creation of docker images using
+github actions.  This is how I did it.
+
+1. Create a repo
+2. Create a docker hub api key
+3. Create your application
+4. Create dockerfile
+5. Add github workflow
+6. Push and test!
+   
+Let's go!
+
+* Create a sample repo
+
+#+begin_src bash
+  mkdir actionstest
+  cd actionstest
+  git init
+#+end_src
+
+The roll over to GitHub and [[https://github.com/new][create a new repository]].  I'm calling mine
+[[https://github.com/wschenk/actionstest][wschenk/actionstest]].
+
+Now we can add the remote, in my case
+
+#+begin_src bash
+  git remote add origin git@github.com:wschenk/actionstest.git
+#+end_src
+
+* Creating secrets
+
+First log into docker hub, and [[https://hub.docker.com/settings/security][create a new access token]].  Copy this,
+and then go to the settings of your GitHub project. Then create the
+following secrets.
+
+| =DOCKERHUB_USERNAME= | Your login                 |
+| =DOCKERHUB_TOKEN=    | The token you just created |
+
+Inside of the workflow we can access these like =${{ secrets.DOCKERHUB_USERNAME }}=.
+
+* Our "application"
+
+This is pretty simple.  We print the date and then run the =fortune=
+command.
+
+=app.sh=:
+#+begin_src bash :tangle app.sh
+  #!/bin/sh
+  date
+  fortune
+#+end_src
+
+And we'll test it, why not.
+
+=success_test.sh=:
+#+begin_src bash :tangle success_test.sh
+  #!/bin/sh
+  echo This will succeed
+  exit 0
+#+end_src
+
+=fail_test.sh=:
+#+begin_src bash :tangle fail_test.sh
+  #!/bin/sh
+  echo This will fail
+  exit 1
+#+end_src
+
+* Dockerfile
+
+This is a pretty simple =Dockerfile= that just copies stuff over and
+runs the app.
+
+#+begin_src dockerfile :tangle Dockerfile
+  FROM alpine:3.14.0
+
+  RUN apk add fortune
+
+  WORKDIR /app
+  COPY *sh /app/
+  RUN chmod +x *sh
+
+  CMD /app/app.sh
+#+end_src
+
+* Running locally
+
+#+begin_src bash
+docker build . -t test
+#+end_src
+
+Run the test:
+
+#+begin_src bash
+  docker run --rm -it test /app/fail_test.sh
+  echo $?
+#+end_src
+
+We can see that it "runs the tests" but returns a non-zero,
+i.e. failed status.
+
+* Build test and push action
+
+This action has a number of steps:
+
+1. It runs on all =push= actions, regardless of branch.
+2. First it =actions/checkout@v2= the repo.
+3. Then it logs into =dockerhub= using the secrets
+4. It uses =docker/metadata-action= to find the tags and labels for which branch was committed.
+5. Runs =docker/build-push-action= with =push= false to create the image.
+6. It then runs the test script from the resulting image.  If this fails, the action fails.
+7. Assuming the tests pass, it "rebuilds" the image and pushes the tags to dockerhub
+   
+Create =.github/workflows/build_test_and_push.yml:=
+
+#+begin_src yaml :tangle .github/workflows/build_test_and_push.yml
+  name: Build and Push
+
+  on: push
+
+  jobs:
+    docker:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v2
+        -
+          name: Login to DockerHub
+          uses: docker/login-action@v1 
+          with:
+            username: ${{ secrets.DOCKERHUB_USERNAME }}
+            password: ${{ secrets.DOCKERHUB_TOKEN }}
+        -
+          name: Docker meta
+          id: meta
+          uses: docker/metadata-action@v3
+          with:
+            images: wschenk/testimage
+        -
+          name: Build
+          id: docker_build
+          uses: docker/build-push-action@v2
+        -
+          name: Run Tests
+          run: docker run ${{ steps.docker_build.outputs.digest }} sh /app/fail_test.sh
+        -
+          name: Build and push
+          id: docker_push
+          uses: docker/build-push-action@v2
+          with:
+            push: true
+            tags: ${{ steps.meta.outputs.tags }}
+            labels: ${{ steps.meta.outputs.labels }}
+
+#+end_src
+
+* Test it out
+
+#+begin_src bash
+  git add .
+  git commit -m "Initial import"
+  git push origin master
+#+end_src
+
+Since we have the =fail_test.sh= script being run as part of the action,
+it should build the image and then abort on the =Run Test= part of the
+run.  If you go to your repository, click on =Actions=, you should see
+the failed run.
+
+Lets create a staging branch to fix it:
+
+#+begin_src bash
+git checkout -b staging
+#+end_src
+
+Then change like =28= inside of =build_test_and_push.sh= to run
+=/app/success_test.sh= instead.  Commit, and then push to the staging
+branch:
+
+#+begin_src
+git add .
+git commit -m "Fixing the test in staging"
+git push origin staging
+#+end_src
+
+This build should succeed, and if you go to [[hub.docker.com]] under your
+user, you should see the image there with the staging tag.
+
+* References
+
+1. https://docs.github.com/en/actions
+1. https://docs.github.com/en/actions/reference/encrypted-secrets#creating-encrypted-secrets-for-a-repository
+
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
