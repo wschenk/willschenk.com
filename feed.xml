@@ -1,4 +1,1097 @@
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Tue, 13 Jul 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Setting up GitHub Actions for Continuous Integration</title><link>https://willschenk.com/articles/2021/setting_up_github_for_ci/</link><pubDate>Tue, 13 Jul 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/setting_up_github_for_ci/</guid><description>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Fri, 16 Jul 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Rails on Kubernetes with TLS</title><link>https://willschenk.com/articles/2021/rails_on_kubernetes_with_tls/</link><pubDate>Fri, 16 Jul 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/rails_on_kubernetes_with_tls/</guid><description>
+&lt;p>
+I wanted to see how to really use kubernetes like I&amp;#39;m used to using
+heroku, so lets recreate everything using terraform, digital ocean,
+kubernetes and MAGIC!
+&lt;/p>
+&lt;h2 id="headline-1">
+Sample rails app
+&lt;/h2>
+&lt;h3 id="headline-2">
+Build image
+&lt;/h3>
+&lt;p>
+First thing we&amp;#39;ll do is to create a docker image that we&amp;#39;ll use to build our rails app.
+&lt;/p>
+&lt;p>
+&lt;code class="verbatim">Dockerfile.build&lt;/code>:
+&lt;/p>
+&lt;div class="src src-dockerfile">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-dockerfile" data-lang="dockerfile">&lt;span class="k">FROM&lt;/span>&lt;span class="s"> ruby:3.0.1&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">WORKDIR&lt;/span>&lt;span class="s"> /app&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="c"># nodejs and yarn and cloc&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> curl -sL https://dl.yarnpkg.com/debian/pubkey.gpg &lt;span class="p">|&lt;/span> apt-key add -&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> &lt;span class="nb">echo&lt;/span> &lt;span class="s2">&amp;#34;deb https://dl.yarnpkg.com/debian/ stable main&amp;#34;&lt;/span> &lt;span class="p">|&lt;/span> tee /etc/apt/sources.list.d/yarn.list&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> curl -sL https://deb.nodesource.com/setup_16.x &lt;span class="p">|&lt;/span> bash -&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> apt-get update &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> apt-get install -y nodejs yarn&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="c"># install bundler&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> gem install bundler:2.1.4 &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> gem install rails&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">CMD&lt;/span> bash&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Now we can build and run this image to generate our application:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> docker build . -f Dockerfile.dev -t railsdev
+docker run --rm -it -v &lt;span class="k">$(&lt;/span>&lt;span class="nb">pwd&lt;/span>&lt;span class="k">)&lt;/span>:/app railsdev&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Once you are inside the image, create a new rails app:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> rails new favoriteapp -d&lt;span class="o">=&lt;/span>postgresql&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Then quit out of it.
+&lt;/p>
+&lt;h3 id="headline-3">
+Developing the app
+&lt;/h3>
+&lt;p>
+Now inside of the rails app, we&amp;#39;ll create a &lt;code class="verbatim">Dockerfile.dev&lt;/code> that will
+let us develop the app:
+&lt;/p>
+&lt;div class="src src-dockerfile">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-dockerfile" data-lang="dockerfile">&lt;span class="k">FROM&lt;/span>&lt;span class="s"> ruby:3.0.1&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">WORKDIR&lt;/span>&lt;span class="s"> /app&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="c"># nodejs and yarn and cloc&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> curl -sL https://dl.yarnpkg.com/debian/pubkey.gpg &lt;span class="p">|&lt;/span> apt-key add -&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> &lt;span class="nb">echo&lt;/span> &lt;span class="s2">&amp;#34;deb https://dl.yarnpkg.com/debian/ stable main&amp;#34;&lt;/span> &lt;span class="p">|&lt;/span> tee /etc/apt/sources.list.d/yarn.list&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> curl -sL https://deb.nodesource.com/setup_16.x &lt;span class="p">|&lt;/span> bash -&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> apt-get update &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> apt-get install -y nodejs yarn&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="c"># install bundler&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> gem install bundler:2.1.4&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="c"># Bundle gems&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">COPY&lt;/span> Gemfile* /app/&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> bundle install&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="c"># Install node stuff&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">COPY&lt;/span> package.json yarn.lock /app/&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> yarn install --check-files&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">COPY&lt;/span> . /app/&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">EXPOSE&lt;/span>&lt;span class="s"> 3000&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">CMD&lt;/span> rm -f tmp/pids/server.pid&lt;span class="p">;&lt;/span>bundle &lt;span class="nb">exec&lt;/span> rails server -b 0.0.0.0&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Now we need to create a &lt;code class="verbatim">docker-compose.yml&lt;/code> to set up the environment.
+&lt;/p>
+&lt;div class="src src-yaml">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="w"> &lt;/span>&lt;span class="k">version&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;3.7&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">services&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">postgres&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">image&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>postgres&lt;span class="p">:&lt;/span>&lt;span class="m">13.1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">environment&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">POSTGRES_PASSWORD&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>awesome_password&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">ports&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="s2">&amp;#34;5432:5432&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">pgadmin&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">image&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>dpage/pgadmin4&lt;span class="p">:&lt;/span>&lt;span class="m">5.4&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">environment&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">PGADMIN_DEFAULT_EMAIL&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>admin@example.com&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">PGADMIN_DEFAULT_PASSWORD&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>SuperSecret&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">GUNICORN_ACCESS_LOGFILE&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>/dev/&lt;span class="kc">null&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">ports&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="s2">&amp;#34;4000:80&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">depends_on&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- postgres&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">favoriteapp&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">build&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">context&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>.&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">dockerfile&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>Dockerfile.dev&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">depends_on&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- postgres&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- redis&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">volumes&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="k">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>bind&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">source&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>./&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">target&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>/app&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">ports&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="s2">&amp;#34;3000:3000&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">environment&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- DATABASE_URL=postgresql&lt;span class="p">:&lt;/span>//postgres&lt;span class="p">:&lt;/span>awesome_password@postgres&lt;span class="p">:&lt;/span>&lt;span class="m">5432&lt;/span>/favoriteapp&lt;span class="p">?&lt;/span>encoding=utf8&lt;span class="cp">&amp;amp;pool=5&amp;amp;timeout=5000&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- REDIS_URL=redis&lt;span class="p">:&lt;/span>//redis&lt;span class="p">:&lt;/span>&lt;span class="m">6379&lt;/span>/&lt;span class="m">0&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- RAILS_ENV=development&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">sidekiq&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">build&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">context&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>.&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">dockerfile&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>Dockerfile.dev&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">command&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>bundle&lt;span class="w"> &lt;/span>exec&lt;span class="w"> &lt;/span>sidekiq&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">depends_on&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- postgres&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- redis&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">environment&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- DATABASE_URL=postgresql&lt;span class="p">:&lt;/span>//postgres&lt;span class="p">:&lt;/span>awesome_password@postgres&lt;span class="p">:&lt;/span>&lt;span class="m">5432&lt;/span>/favoriteapp&lt;span class="p">?&lt;/span>encoding=utf8&lt;span class="cp">&amp;amp;pool=5&amp;amp;timeout=5000&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- REDIS_URL=redis&lt;span class="p">:&lt;/span>//redis&lt;span class="p">:&lt;/span>&lt;span class="m">6379&lt;/span>/&lt;span class="m">0&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- RAILS_ENV=development&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">redis&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">image&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">redis&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">image&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>redis&lt;span class="p">:&lt;/span>&lt;span class="m">6.0.9&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">ports&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="s1">&amp;#39;6379:6379&amp;#39;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+And a nice little &lt;code class="verbatim">.dockerignore&lt;/code> file:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="c1"># node_modules&lt;/span>
+tmp&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Now we start it up:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">docker-compose up --build&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+And then we need to create the database:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> docker-compose run --rm favoriteapp rails db:migrate&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-4">
+Develop the app
+&lt;/h3>
+&lt;p>
+We&amp;#39;re going to do some basic stuff here that shows
+&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>
+How to connect to a database
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+How to connect to redis
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+How to deploy sidekiq
+&lt;/p>
+&lt;h4 id="headline-5">
+Scaffold
+&lt;/h4>
+&lt;/li>
+&lt;/ol>
+&lt;p>
+Then lets create a scaffold for a database object:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> docker-compose run --rm favoriteapp rails g scaffold messages body:string processed:boolean
+docker-compose run --rm favoriteapp rake db:setup
+docker-compose run --rm favoriteapp rake db:migrate&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h4 id="headline-6">
+Sidekiq
+&lt;/h4>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> docker-compose run --rm favoriteapp bundle add sidekiq&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Lets turn on the &lt;code class="verbatim">:sidekiq&lt;/code> adapter in &lt;code class="verbatim">config/application.rb&lt;/code>:
+&lt;/p>
+&lt;div class="src src-ruby">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-ruby" data-lang="ruby"> &lt;span class="k">class&lt;/span> &lt;span class="nc">Application&lt;/span> &lt;span class="o">&amp;lt;&lt;/span> &lt;span class="no">Rails&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="no">Application&lt;/span>
+&lt;span class="c1"># ...&lt;/span>
+&lt;span class="n">config&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">active_job&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">queue_adapter&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="ss">:sidekiq&lt;/span>
+&lt;span class="k">end&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Then lets create a simple job that will process the message.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> docker-compose run --rm favoriteapp rails g job process_message&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+And the job itself &lt;code class="verbatim">app/jobs/process_message_job.rb&lt;/code>:
+&lt;/p>
+&lt;div class="src src-ruby">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-ruby" data-lang="ruby"> &lt;span class="k">class&lt;/span> &lt;span class="nc">ProcessMessageJob&lt;/span> &lt;span class="o">&amp;lt;&lt;/span> &lt;span class="no">ApplicationJob&lt;/span>
+&lt;span class="n">queue_as&lt;/span> &lt;span class="ss">:default&lt;/span>
+&lt;span class="k">def&lt;/span> &lt;span class="nf">perform&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">job&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="n">logger&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">info&lt;/span> &lt;span class="s2">&amp;#34;Processing message &lt;/span>&lt;span class="si">#{&lt;/span>&lt;span class="n">job&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">id&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="n">m&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="no">Message&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">find&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="n">job&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">id&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="n">m&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">processed&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="kp">true&lt;/span>
+&lt;span class="n">m&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">save&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="k">end&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Then we schedule it in &lt;code class="verbatim">app/controllers/messages_controller.rb&lt;/code>, inside
+of the &lt;code class="verbatim">create&lt;/code> method:
+&lt;/p>
+&lt;div class="src src-ruby">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-ruby" data-lang="ruby"> &lt;span class="k">if&lt;/span> &lt;span class="vi">@message&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">save&lt;/span>
+&lt;span class="no">ProcessMessageJob&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">perform_later&lt;/span> &lt;span class="vi">@message&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Finally we add the routes in &lt;code class="verbatim">config/routes.rb&lt;/code>:
+&lt;/p>
+&lt;div class="src src-ruby">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-ruby" data-lang="ruby"> &lt;span class="nb">require&lt;/span> &lt;span class="s1">&amp;#39;sidekiq/web&amp;#39;&lt;/span>
+&lt;span class="no">Rails&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">application&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">routes&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">draw&lt;/span> &lt;span class="k">do&lt;/span>
+&lt;span class="n">mount&lt;/span> &lt;span class="no">Sidekiq&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="no">Web&lt;/span> &lt;span class="o">=&amp;gt;&lt;/span> &lt;span class="s2">&amp;#34;/sidekiq&amp;#34;&lt;/span> &lt;span class="c1"># mount Sidekiq::Web in your Rails app&lt;/span>
+&lt;span class="n">resources&lt;/span> &lt;span class="ss">:messages&lt;/span>
+&lt;span class="n">root&lt;/span> &lt;span class="s2">&amp;#34;messages#index&amp;#34;&lt;/span>
+&lt;span class="k">end&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h4 id="headline-7">
+Testing
+&lt;/h4>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">docker-compose up --build&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Now you can visit &lt;a href="http://localhost:3000">http://localhost:3000&lt;/a> to see your working rails app.
+Add a message, you will see that it&amp;#39;s &lt;code class="verbatim">processed = false&lt;/code>, and when you
+go back to the index sidekiq should have processed in the message in
+the background.
+&lt;/p>
+&lt;h3 id="headline-8">
+Production Image
+&lt;/h3>
+&lt;p>
+Now that we&amp;#39;ve &amp;#34;developed&amp;#34; our application locally, lets spin it up
+and deploy it.
+&lt;/p>
+&lt;p>
+Then we need a &lt;code class="verbatim">Dockerfile&lt;/code> to build the thing. Lets create a
+&lt;code class="verbatim">Dockerfile.prod&lt;/code> to make it happen.
+&lt;/p>
+&lt;div class="src src-dockerfile">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-dockerfile" data-lang="dockerfile">&lt;span class="k">FROM&lt;/span>&lt;span class="s"> ruby:3.0.1&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">WORKDIR&lt;/span>&lt;span class="s"> /app&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="c"># nodejs and yarn and cloc&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> curl -sL https://dl.yarnpkg.com/debian/pubkey.gpg &lt;span class="p">|&lt;/span> apt-key add -&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> &lt;span class="nb">echo&lt;/span> &lt;span class="s2">&amp;#34;deb https://dl.yarnpkg.com/debian/ stable main&amp;#34;&lt;/span> &lt;span class="p">|&lt;/span> tee /etc/apt/sources.list.d/yarn.list&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> curl -sL https://deb.nodesource.com/setup_16.x &lt;span class="p">|&lt;/span> bash -&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> apt-get update &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> apt-get install -y nodejs yarn&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="c"># install bundler&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> gem install bundler:2.1.4&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="c"># Set up environment&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> bundle config &lt;span class="nb">set&lt;/span> without &lt;span class="s1">&amp;#39;development test&amp;#39;&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">ENV&lt;/span> RAILS_ENV production&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">ENV&lt;/span> RAILS_SERVE_STATIC_FILES true&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">ENV&lt;/span> RAILS_LOG_TO_STDOUT true&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="c"># Bundle gems&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">COPY&lt;/span> Gemfile* /app/&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> bundle install&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="c"># Install node stuff&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">COPY&lt;/span> package.json yarn.lock /app/&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> yarn install --check-files&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">COPY&lt;/span> . /app/&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="c">#RUN yarn install --check-files&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">ARG&lt;/span> RAILS_MASTER_KEY&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> bundle &lt;span class="nb">exec&lt;/span> rake assets:precompile&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">EXPOSE&lt;/span>&lt;span class="s"> 3000&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">CMD&lt;/span> rm -f tmp/pids/server.pid&lt;span class="p">;&lt;/span>bundle &lt;span class="nb">exec&lt;/span> rails server -b 0.0.0.0&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Then build the container
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">docker build . -f Dockerfile.prod -t wschenk/favoriteapp --build-arg &lt;span class="nv">RAILS_MASTER_KEY&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="k">$(&lt;/span>cat config/master.key&lt;span class="k">)&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-9">
+Setting up continious integration
+&lt;/h2>
+&lt;p>
+But we don&amp;#39;t want to do that all by hand, so lets setup github actions
+to build and push to dockerhub.
+&lt;/p>
+&lt;p>
+First &lt;a href="https://github.com/new">create a new repository&lt;/a> on github. Once you have that add the
+remote to the &lt;code class="verbatim">favoriteapp&lt;/code> local git repository.
+&lt;/p>
+&lt;p>
+Now we need to add some secrets and environment variables.
+&lt;/p>
+&lt;p>
+First go to your &lt;a href="https://hub.docker.com/settings/security">docker hub security&lt;/a> page and create a new access
+token. Copy this.
+&lt;/p>
+&lt;p>
+Then go to the settings on your github repo, and add the secrets:
+&lt;/p>
+&lt;table>
+&lt;tbody>
+&lt;tr>
+&lt;td>&lt;code class="verbatim">DOCKERHUB_TOKEN&lt;/code>&lt;/td>
+&lt;td>the copied token&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code class="verbatim">DOCKERHUB_USERNAME&lt;/code>&lt;/td>
+&lt;td>Your username&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code class="verbatim">RAILS_MASTER_KEY&lt;/code>&lt;/td>
+&lt;td>what&amp;#39;s in &lt;code class="verbatim">config/master.key&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;p>
+Then we need to create a &lt;code class="verbatim">.github/workflows/build-and-push.yaml&lt;/code> file
+that tells GitHub what to do:
+&lt;/p>
+&lt;div class="src src-yaml">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="w"> &lt;/span>&lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>Build&lt;span class="w"> &lt;/span>and&lt;span class="w"> &lt;/span>Push&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">on&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>push&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">jobs&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">docker&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">runs-on&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>ubuntu-latest&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">steps&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="k">uses&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>actions/checkout@v2&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="sd">-
+&lt;/span>&lt;span class="sd"> name: Login to DockerHub&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">uses&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>docker/login-action@v1&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">with&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">username&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>${{&lt;span class="w"> &lt;/span>secrets.DOCKERHUB_USERNAME&lt;span class="w"> &lt;/span>}}&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">password&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>${{&lt;span class="w"> &lt;/span>secrets.DOCKERHUB_TOKEN&lt;span class="w"> &lt;/span>}}&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="sd">-
+&lt;/span>&lt;span class="sd"> name: Docker meta&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">id&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>meta&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">uses&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>docker/metadata-action@v3&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">with&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">images&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>wschenk/favoriteapp&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="sd">-
+&lt;/span>&lt;span class="sd"> name: Build and push&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">id&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>docker_push&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">uses&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>docker/build-push-action@v2&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">with&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">push&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">tags&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>${{&lt;span class="w"> &lt;/span>steps.meta.outputs.tags&lt;span class="w"> &lt;/span>}}&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">labels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>${{&lt;span class="w"> &lt;/span>steps.meta.outputs.labels&lt;span class="w"> &lt;/span>}}&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">file&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>Dockerfile.prod&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">build-args&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>RAILS_MASTER_KEY=${{&lt;span class="w"> &lt;/span>secrets.RAILS_MASTER_KEY&lt;span class="w"> &lt;/span>}}&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+If everything goes well, this will all be pushed to docker hub and we
+are ready to begin building out the infrastructure.
+&lt;/p>
+&lt;p>
+&lt;em>Note that by default these images are public&lt;/em>.
+&lt;/p>
+&lt;h2 id="headline-10">
+Terraform: Provision the infrastructure
+&lt;/h2>
+&lt;p>
+Now that we have a working application that&amp;#39;s packaged up in a docker
+container, lets define the infrastructure that we will deploy it on.
+We are going to use terraform to provision a kubernetes cluster and
+postgres cluster on digital ocean, and then inside that cluster we
+will setup a &lt;code class="verbatim">deployment&lt;/code> of our application, a &lt;code class="verbatim">job&lt;/code> to run the database
+migrations, with a &lt;code class="verbatim">service&lt;/code> and &lt;code class="verbatim">ingress&lt;/code> to present it to the outside
+world. We&amp;#39;ll use &lt;code class="verbatim">helm&lt;/code> (as part of terraform) to install a &lt;code class="verbatim">redis&lt;/code>
+instance, &lt;code class="verbatim">cert-manager&lt;/code> to handle certificates, and &lt;code class="verbatim">nginx-ingress&lt;/code> on
+the cluster to expose the application.
+&lt;/p>
+&lt;p>
+Finally we will use &lt;code class="verbatim">dnssimple&lt;/code> to make sure that our application has a
+name.
+&lt;/p>
+&lt;h3 id="headline-11">
+The providers
+&lt;/h3>
+&lt;p>
+We need tokens from digital ocean and dnsimple (if that&amp;#39;s the provider
+you use, it&amp;#39;s easy to swap out for something else.)
+&lt;/p>
+&lt;p>
+The section basically defines the terraform plugins that we will use
+to provision the platform.
+&lt;/p>
+&lt;div class="src src-terraform">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-terraform" data-lang="terraform"> &lt;span class="err">terraform&lt;/span> {
+&lt;span class="err">required_providers&lt;/span> {
+&lt;span class="na"> digitalocean&lt;/span> &lt;span class="o">=&lt;/span> {
+&lt;span class="na"> source&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;digitalocean/digitalocean&amp;#34;&lt;/span>
+&lt;span class="na"> version&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;~&amp;gt; 2.0&amp;#34;&lt;/span>
+}
+&lt;span class="na"> dnsimple&lt;/span> &lt;span class="o">=&lt;/span> {
+&lt;span class="na"> source&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;dnsimple/dnsimple&amp;#34;&lt;/span>
+}
+}
+}
+&lt;span class="kr">provider&lt;/span> &lt;span class="s">&amp;#34;digitalocean&amp;#34;&lt;/span> {
+&lt;span class="na"> token&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">var&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">do_token&lt;/span>
+}
+&lt;span class="kr">provider&lt;/span> &lt;span class="s">&amp;#34;dnsimple&amp;#34;&lt;/span> {
+&lt;span class="na"> token&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">var&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">dnsimple_token&lt;/span>
+&lt;span class="na"> account&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">var&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">dnsimple_account_id&lt;/span>
+}
+&lt;span class="kr">variable&lt;/span> &lt;span class="s">&amp;#34;do_token&amp;#34;&lt;/span> {
+&lt;span class="na"> description&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;digitalocean access token&amp;#34;&lt;/span>
+&lt;span class="na"> type&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">string&lt;/span>
+}
+&lt;span class="kr">variable&lt;/span> &lt;span class="s">&amp;#34;dnsimple_token&amp;#34;&lt;/span> {
+&lt;span class="na"> description&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;dnssimple api access token&amp;#34;&lt;/span>
+}
+&lt;span class="kr">variable&lt;/span> &lt;span class="s">&amp;#34;dnsimple_account_id&amp;#34;&lt;/span> {
+&lt;span class="na"> description&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;dnsimple account id&amp;#34;&lt;/span>
+}
+&lt;span class="kr">variable&lt;/span> &lt;span class="s">&amp;#34;dnsimple_domain&amp;#34;&lt;/span> {
+&lt;span class="na"> description&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;dnsimple domain&amp;#34;&lt;/span>
+}&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-12">
+Cluster
+&lt;/h3>
+&lt;p>
+Now we can define the cluster itself.
+&lt;/p>
+&lt;p>
+&lt;code class="verbatim">digitalocean_kuberenetes_cluster&lt;/code> defines the kubernetes cluster
+itself, and here we are creating a 3 node cluster.
+&lt;/p>
+&lt;p>
+We also define the &lt;code class="verbatim">kubernetes&lt;/code> and &lt;code class="verbatim">helm&lt;/code> terraform providers here, using
+the &lt;code class="verbatim">host&lt;/code> and &lt;code class="verbatim">certificates&lt;/code> that we get from the digitalocean provider.
+&lt;/p>
+&lt;div class="src src-terraform">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-terraform" data-lang="terraform"> &lt;span class="kr">resource&lt;/span> &lt;span class="s">&amp;#34;digitalocean_kubernetes_cluster&amp;#34; &amp;#34;gratitude&amp;#34;&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;gratitude&amp;#34;&lt;/span>
+&lt;span class="na"> region&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;nyc1&amp;#34;&lt;/span>
+&lt;span class="na"> version&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;1.21.2-do.2&amp;#34; # or &amp;#34;latest&amp;#34;&lt;/span>
+&lt;span class="err">node_pool&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;worker-pool&amp;#34;&lt;/span>
+&lt;span class="na"> size&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;s-2vcpu-2gb&amp;#34;&lt;/span>
+&lt;span class="na"> node_count&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="m">3&lt;/span>
+}
+}
+&lt;span class="err">output&lt;/span> &lt;span class="s2">&amp;#34;cluster-id&amp;#34;&lt;/span> {
+&lt;span class="na"> value&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;${digitalocean_kubernetes_cluster.gratitude.id}&amp;#34;&lt;/span>
+}
+&lt;span class="kr">provider&lt;/span> &lt;span class="s">&amp;#34;kubernetes&amp;#34;&lt;/span> {
+&lt;span class="na"> host&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">digitalocean_kubernetes_cluster&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">gratitude&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">endpoint&lt;/span>
+&lt;span class="na"> token&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">digitalocean_kubernetes_cluster&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">gratitude&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">kube_config&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="m">0&lt;/span>&lt;span class="p">].&lt;/span>&lt;span class="err">token&lt;/span>
+&lt;span class="na"> cluster_ca_certificate&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">base&lt;/span>&lt;span class="m">64&lt;/span>&lt;span class="err">decode&lt;/span>&lt;span class="p">(&lt;/span>
+&lt;span class="err">digitalocean_kubernetes_cluster&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">gratitude&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">kube_config&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="m">0&lt;/span>&lt;span class="p">].&lt;/span>&lt;span class="err">cluster_ca_certificate&lt;/span>
+&lt;span class="p">)&lt;/span>
+}
+&lt;span class="kr">provider&lt;/span> &lt;span class="s">&amp;#34;helm&amp;#34;&lt;/span> {
+&lt;span class="err">kubernetes&lt;/span> {
+&lt;span class="na"> host&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">digitalocean_kubernetes_cluster&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">gratitude&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">endpoint&lt;/span>
+&lt;span class="na"> cluster_ca_certificate&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">base&lt;/span>&lt;span class="m">64&lt;/span>&lt;span class="err">decode&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="err">digitalocean_kubernetes_cluster&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">gratitude&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">kube_config&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="m">0&lt;/span>&lt;span class="p">].&lt;/span>&lt;span class="err">cluster_ca_certificate&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="na"> token&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">digitalocean_kubernetes_cluster&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">gratitude&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">kube_config&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="m">0&lt;/span>&lt;span class="p">].&lt;/span>&lt;span class="err">token&lt;/span>
+}
+}&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-13">
+Datastores
+&lt;/h3>
+&lt;p>
+We are going to setup 2 different datastores, one is a
+&lt;code class="verbatim">digitalocean_database_cluster&lt;/code> of postgres with one node, and the other
+is redis running on the cluster that we defined (in &lt;code class="verbatim">standalone&lt;/code>). We
+are using the bitnami redis helm chart.
+&lt;/p>
+&lt;p>
+I&amp;#39;m also setting a password on the redis instance as an example of how
+to do this. It&amp;#39;s only accessible from within the cluster so I&amp;#39;m not
+sure it&amp;#39;s strictly needed but it can&amp;#39;t hurt.
+&lt;/p>
+&lt;div class="src src-terraform">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-terraform" data-lang="terraform"> &lt;span class="kr">resource&lt;/span> &lt;span class="s">&amp;#34;random_password&amp;#34; &amp;#34;redis_password&amp;#34;&lt;/span> {
+&lt;span class="na"> length&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="m">16&lt;/span>
+&lt;span class="na"> special&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="kt">false&lt;/span>
+}
+&lt;span class="kr">resource&lt;/span> &lt;span class="s">&amp;#34;helm_release&amp;#34; &amp;#34;redis&amp;#34;&lt;/span> {
+&lt;span class="na"> repository&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;https://charts.bitnami.com/bitnami&amp;#34;&lt;/span>
+&lt;span class="na"> chart&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;redis&amp;#34;&lt;/span>
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;redis&amp;#34;&lt;/span>
+&lt;span class="err">set&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;auth.password&amp;#34;&lt;/span>
+&lt;span class="na"> value&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">random_password&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">redis_password&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">result&lt;/span>
+}
+&lt;span class="err">set&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;architecture&amp;#34;&lt;/span>
+&lt;span class="na"> value&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;standalone&amp;#34;&lt;/span>
+}
+}
+&lt;span class="kr">resource&lt;/span> &lt;span class="s">&amp;#34;kubernetes_secret&amp;#34; &amp;#34;redispassword&amp;#34;&lt;/span> {
+&lt;span class="err">metadata&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;redispassword&amp;#34;&lt;/span>
+}
+&lt;span class="na">data&lt;/span> &lt;span class="o">=&lt;/span> {
+&lt;span class="na"> password&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">random_password&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">redis_password&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">result&lt;/span>
+}
+}
+&lt;span class="kr">resource&lt;/span> &lt;span class="s">&amp;#34;digitalocean_database_cluster&amp;#34; &amp;#34;favoriteapp-postgres&amp;#34;&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;favoriteapp-postgres-cluster&amp;#34;&lt;/span>
+&lt;span class="na"> engine&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;pg&amp;#34;&lt;/span>
+&lt;span class="na"> version&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;11&amp;#34;&lt;/span>
+&lt;span class="na"> size&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;db-s-1vcpu-1gb&amp;#34;&lt;/span>
+&lt;span class="na"> region&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;nyc1&amp;#34;&lt;/span>
+&lt;span class="na"> node_count&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="m">1&lt;/span>
+}&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-14">
+Ingress Controller
+&lt;/h3>
+&lt;p>
+We are installing the &lt;code class="verbatim">ingress-nginx&lt;/code> controller here, again using helm.
+This will setup the digital ocean load balanacer. The &lt;code class="verbatim">data&lt;/code> terraform
+block is there to expose the ip address of the load balancer, which we
+will use to setup the DNS name.
+&lt;/p>
+&lt;div class="src src-terraform">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-terraform" data-lang="terraform"> &lt;span class="kr">resource&lt;/span> &lt;span class="s">&amp;#34;helm_release&amp;#34; &amp;#34;ingress-nginx&amp;#34;&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;ingress-nginx&amp;#34;&lt;/span>
+&lt;span class="na"> repository&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;https://kubernetes.github.io/ingress-nginx&amp;#34;&lt;/span>
+&lt;span class="na"> chart&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;ingress-nginx&amp;#34;&lt;/span>
+}
+&lt;span class="err">data&lt;/span> &lt;span class="s2">&amp;#34;kubernetes_service&amp;#34; &amp;#34;ingress-nginx&amp;#34;&lt;/span> {
+&lt;span class="na"> depends_on&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="p">[&lt;/span> &lt;span class="err">helm_release&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="kd">ingress&lt;/span>&lt;span class="err">-nginx&lt;/span> &lt;span class="p">]&lt;/span>
+&lt;span class="err">metadata&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;ingress-nginx-controller&amp;#34;&lt;/span>
+}
+}
+&lt;span class="err">output&lt;/span> &lt;span class="s2">&amp;#34;cluster-ip&amp;#34;&lt;/span> {
+&lt;span class="na"> value&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">data&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">kubernetes_service&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="kd">ingress&lt;/span>&lt;span class="err">-nginx&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">status&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="m">0&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">load_balancer&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="m">0&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="kd">ingress&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="m">0&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">ip&lt;/span>&lt;span class="c1">
+&lt;/span>&lt;span class="c1"> #value = data.kubernetes_service.ingress-nginx.external_ips
+&lt;/span>&lt;span class="c1">&lt;/span> }&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-15">
+DNS
+&lt;/h3>
+&lt;p>
+I use dnsimple for my domain, and I&amp;#39;m calling this site &lt;code class="verbatim">k8&lt;/code>. Why not.
+&lt;/p>
+&lt;div class="src src-terraform">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-terraform" data-lang="terraform"> &lt;span class="kr">resource&lt;/span> &lt;span class="s">&amp;#34;dnsimple_record&amp;#34; &amp;#34;k8&amp;#34;&lt;/span> {
+&lt;span class="na"> domain&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">var&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">dnsimple_domain&lt;/span>
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;k8&amp;#34;&lt;/span>
+&lt;span class="na"> value&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">data&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">kubernetes_service&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="kd">ingress&lt;/span>&lt;span class="err">-nginx&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">status&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="m">0&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">load_balancer&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="m">0&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="kd">ingress&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="m">0&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">ip&lt;/span>
+&lt;span class="na"> type&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;A&amp;#34;&lt;/span>
+&lt;span class="na"> ttl&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="m">300&lt;/span>
+}&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-16">
+Cert Manager
+&lt;/h3>
+&lt;p>
+&lt;code class="verbatim">cert-manager&lt;/code> keeps track of certificates as a custom resource within
+kubernetes. We will use this to get our TLS traffic good to go.
+&lt;/p>
+&lt;div class="src src-terraform">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-terraform" data-lang="terraform"> &lt;span class="kr">resource&lt;/span> &lt;span class="s">&amp;#34;helm_release&amp;#34; &amp;#34;cert-manager&amp;#34;&lt;/span> {
+&lt;span class="na"> repository&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;https://charts.jetstack.io&amp;#34;&lt;/span>
+&lt;span class="na"> chart&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;cert-manager&amp;#34;&lt;/span>
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;cert-manager&amp;#34;&lt;/span>
+&lt;span class="na"> namespace&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;cert-manager&amp;#34;&lt;/span>
+&lt;span class="na"> create_namespace&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="kt">true&lt;/span>
+&lt;span class="err">set&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;installCRDs&amp;#34;&lt;/span>
+&lt;span class="na"> value&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;true&amp;#34;&lt;/span>
+}
+}&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-17">
+Config
+&lt;/h3>
+&lt;p>
+Finally, we are going to stick the data that we just got from creating
+these endpoints into a kubernetes config map that our application will
+use to wire itself up.
+&lt;/p>
+&lt;p>
+We also create a namespace for all of our app stuff just to keep
+things organized.
+&lt;/p>
+&lt;div class="src src-terraform">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-terraform" data-lang="terraform">&lt;span class="c1"> # We use this for the rails master key, adjust to your location
+&lt;/span>&lt;span class="c1">&lt;/span>
+&lt;span class="err">data&lt;/span> &lt;span class="s2">&amp;#34;local_file&amp;#34; &amp;#34;masterkey&amp;#34;&lt;/span> {
+&lt;span class="na"> filename&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;favoriteapp/config/master.key&amp;#34;&lt;/span>
+}
+&lt;span class="kr">resource&lt;/span> &lt;span class="s">&amp;#34;kubernetes_namespace&amp;#34; &amp;#34;favoriteapp&amp;#34;&lt;/span> {
+&lt;span class="err">metadata&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;favoriteapp&amp;#34;&lt;/span>
+}
+}
+&lt;span class="kr">resource&lt;/span> &lt;span class="s">&amp;#34;kubernetes_config_map&amp;#34; &amp;#34;favoriteapp-config&amp;#34;&lt;/span> {
+&lt;span class="err">metadata&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;favoriteapp-config&amp;#34;&lt;/span>
+&lt;span class="na"> namespace&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;favoriteapp&amp;#34;&lt;/span>
+}
+&lt;span class="na"> data&lt;/span> &lt;span class="o">=&lt;/span> {
+&lt;span class="na"> RAILS_MASTER_KEY&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">data&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">local_file&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">masterkey&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">content&lt;/span>
+&lt;span class="na"> RAILS_ENV&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;production&amp;#34;&lt;/span>
+&lt;span class="na"> DATABASE_URL&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">digitalocean_database_cluster&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">favoriteapp-postgres&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">private_uri&lt;/span>
+&lt;span class="na"> REDIS_URL&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;redis://user:${random_password.redis_password.result}@redis-master.default.svc.cluster.local:6379&amp;#34;&lt;/span>
+}
+}&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-18">
+Option 1: &lt;code class="verbatim">ClusterIssuer&lt;/code> custom resource definition
+&lt;/h3>
+&lt;p>
+I had some trouble with putting adding this resource before the
+cluster has started, hopefully they&amp;#39;ve fixed it in a later release.
+But in the meantime you may want to only add this file after
+everything is up.
+&lt;/p>
+&lt;div class="src src-terraform">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-terraform" data-lang="terraform"> &lt;span class="kr">provider&lt;/span> &lt;span class="s">&amp;#34;kubernetes-alpha&amp;#34;&lt;/span> {
+&lt;span class="na"> host&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">digitalocean_kubernetes_cluster&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">gratitude&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">endpoint&lt;/span>
+&lt;span class="na"> token&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">digitalocean_kubernetes_cluster&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">gratitude&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">kube_config&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="m">0&lt;/span>&lt;span class="p">].&lt;/span>&lt;span class="err">token&lt;/span>
+&lt;span class="na"> cluster_ca_certificate&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">base&lt;/span>&lt;span class="m">64&lt;/span>&lt;span class="err">decode&lt;/span>&lt;span class="p">(&lt;/span>
+&lt;span class="err">digitalocean_kubernetes_cluster&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">gratitude&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">kube_config&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="m">0&lt;/span>&lt;span class="p">].&lt;/span>&lt;span class="err">cluster_ca_certificate&lt;/span>
+&lt;span class="p">)&lt;/span>
+}
+&lt;span class="kr">resource&lt;/span> &lt;span class="s">&amp;#34;kubernetes_manifest&amp;#34; &amp;#34;cluster_issuer&amp;#34;&lt;/span> {
+&lt;span class="na"> depends_on&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="p">[&lt;/span> &lt;span class="err">digitalocean_kubernetes_cluster&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">gratitude&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="err">helm_release&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="err">cert-manager&lt;/span> &lt;span class="p">]&lt;/span>
+&lt;span class="na"> provider&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">kubernetes-alpha&lt;/span>
+&lt;span class="na"> manifest&lt;/span> &lt;span class="o">=&lt;/span> {
+&lt;span class="na"> apiVersion&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;cert-manager.io/v1&amp;#34;&lt;/span>
+&lt;span class="na"> kind&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;ClusterIssuer&amp;#34;&lt;/span>
+&lt;span class="na"> metadata&lt;/span> &lt;span class="o">=&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;letsencrypt-prod&amp;#34;&lt;/span>
+}
+&lt;span class="na"> spec&lt;/span> &lt;span class="o">=&lt;/span> {
+&lt;span class="na"> acme&lt;/span> &lt;span class="o">=&lt;/span> {
+&lt;span class="na"> email&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;wschenk@gmail.com&amp;#34;&lt;/span>
+&lt;span class="na"> server&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;https://acme-v02.api.letsencrypt.org/directory&amp;#34;&lt;/span>
+&lt;span class="na"> privateKeySecretRef&lt;/span> &lt;span class="o">=&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;issuer-account-key&amp;#34;&lt;/span>
+}
+&lt;span class="na"> solvers&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="p">[&lt;/span>
+{
+&lt;span class="na"> http01&lt;/span> &lt;span class="o">=&lt;/span> {
+&lt;span class="na"> ingress&lt;/span> &lt;span class="o">=&lt;/span> {
+&lt;span class="na"> class&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;nginx&amp;#34;&lt;/span>
+}
+}
+}
+&lt;span class="p">]&lt;/span>
+}
+}
+}
+}&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-19">
+Option 2: Setup using &lt;code class="verbatim">cluster-issuer.yml&lt;/code>
+&lt;/h3>
+&lt;p>
+Instead of using the &lt;code class="verbatim">kubernetes-alpha&lt;/code> way of setting up the cluster
+issuer, we can do a simple &lt;code class="verbatim">yml&lt;/code> file and do it the kubectl way.
+&lt;/p>
+&lt;p>
+&lt;code class="verbatim">cluster-issuer.yml&lt;/code>:
+&lt;/p>
+&lt;div class="src src-yaml">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="w"> &lt;/span>&lt;span class="k">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>cert-manager.io/v1&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>ClusterIssuer&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>letsencrypt-prod&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">acme&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># You must replace this email address with your own.&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># Let&amp;#39;s Encrypt will use this to contact you about expiring&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># certificates, and issues related to your account.&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">email&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>wschenk@gmail.com&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">server&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>https&lt;span class="p">:&lt;/span>//acme-v02.api.letsencrypt.org/directory&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">privateKeySecretRef&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>issuer-account-key&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># Add a single challenge solver, HTTP01 using nginx&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">solvers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="k">http01&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">ingress&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">class&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>nginx&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Then apply it
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl apply -f cluster-issuer.yml&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+And we can look at it like so
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl describe clusterissuer letsencrypt-prod&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl get cert --namespace favoriteapp&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+NAME READY SECRET AGE
+issuer-account-key True issuer-account-key 34m
+&lt;/pre>
+&lt;h3 id="headline-20">
+App deployment
+&lt;/h3>
+&lt;p>
+Finally, we define our app itself. It has to moving pieces that can
+be scaled independantly.
+&lt;/p>
+&lt;p>
+One is called &lt;code class="verbatim">favoriteapp&lt;/code> that is initially set to have 2 replicas.
+We define two types of containers here, one is the &lt;code class="verbatim">init_container&lt;/code> that
+basically runs on each pod startup to run the migration (&lt;code class="verbatim">command =
+[&amp;#34;rake&amp;#34;, &amp;#34;db:migrate&amp;#34;]&lt;/code>) and the other is the container itself that
+serves the rails application on port 3000.
+&lt;/p>
+&lt;p>
+The other is &lt;code class="verbatim">favoriteapp-workers&lt;/code> which runs the &lt;code class="verbatim">sidekiq&lt;/code> command.
+&lt;/p>
+&lt;div class="src src-terraform">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-terraform" data-lang="terraform"> &lt;span class="kr">resource&lt;/span> &lt;span class="s">&amp;#34;kubernetes_deployment&amp;#34; &amp;#34;favoriteapp&amp;#34;&lt;/span> {
+&lt;span class="err">metadata&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;favoriteapp&amp;#34;&lt;/span>
+&lt;span class="na"> labels&lt;/span> &lt;span class="o">=&lt;/span> {
+&lt;span class="na"> app&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;favoriteapp&amp;#34;&lt;/span>
+}
+&lt;span class="na"> namespace&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;favoriteapp&amp;#34;&lt;/span>
+}
+&lt;span class="err">spec&lt;/span> {
+&lt;span class="na"> replicas&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="m">2&lt;/span>
+&lt;span class="err">selector&lt;/span> {
+&lt;span class="na"> match_labels&lt;/span> &lt;span class="o">=&lt;/span> {
+&lt;span class="na"> app&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;favoriteapp&amp;#34;&lt;/span>
+}
+}
+&lt;span class="err">template&lt;/span> {
+&lt;span class="err">metadata&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;favoriteapp&amp;#34;&lt;/span>
+&lt;span class="na"> labels&lt;/span> &lt;span class="o">=&lt;/span> {
+&lt;span class="na"> app&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;favoriteapp&amp;#34;&lt;/span>
+}
+}
+&lt;span class="err">spec&lt;/span> {
+&lt;span class="err">init_container&lt;/span> {
+&lt;span class="na"> image&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;wschenk/favoriteapp:master&amp;#34;&lt;/span>
+&lt;span class="na"> image_pull_policy&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;Always&amp;#34;&lt;/span>
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;favoriteapp-init&amp;#34;&lt;/span>
+&lt;span class="na"> command&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;rake&amp;#34;, &amp;#34;db:migrate&amp;#34;&lt;/span>&lt;span class="p">]&lt;/span>
+&lt;span class="err">env_from&lt;/span> {
+&lt;span class="err">config_map_ref&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;favoriteapp-config&amp;#34;&lt;/span>
+}
+}
+}
+&lt;span class="err">container&lt;/span> {
+&lt;span class="na"> image&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;wschenk/favoriteapp:master&amp;#34;&lt;/span>
+&lt;span class="na"> image_pull_policy&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;Always&amp;#34;&lt;/span>
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;favoriteapp&amp;#34;&lt;/span>
+&lt;span class="err">port&lt;/span> {
+&lt;span class="na"> container_port&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="m">3000&lt;/span>
+}
+&lt;span class="err">env_from&lt;/span> {
+&lt;span class="err">config_map_ref&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;favoriteapp-config&amp;#34;&lt;/span>
+}
+}
+}
+}
+}
+}
+}
+&lt;span class="kr">resource&lt;/span> &lt;span class="s">&amp;#34;kubernetes_deployment&amp;#34; &amp;#34;favoriteapp-workers&amp;#34;&lt;/span> {
+&lt;span class="err">metadata&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;favoriteapp-workers&amp;#34;&lt;/span>
+&lt;span class="na"> namespace&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;favoriteapp&amp;#34;&lt;/span>
+}
+&lt;span class="err">spec&lt;/span> {
+&lt;span class="na"> replicas&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="m">1&lt;/span>
+&lt;span class="err">selector&lt;/span> {
+&lt;span class="na"> match_labels&lt;/span> &lt;span class="o">=&lt;/span> {
+&lt;span class="na"> app&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;favoriteapp-workers&amp;#34;&lt;/span>
+}
+}
+&lt;span class="err">template&lt;/span> {
+&lt;span class="err">metadata&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;favoriteapp-workers&amp;#34;&lt;/span>
+&lt;span class="na"> labels&lt;/span> &lt;span class="o">=&lt;/span> {
+&lt;span class="na"> app&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;favoriteapp-workers&amp;#34;&lt;/span>
+}
+}
+&lt;span class="err">spec&lt;/span> {
+&lt;span class="err">container&lt;/span> {
+&lt;span class="na"> image&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;wschenk/favoriteapp:master&amp;#34;&lt;/span>
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;favoriteapp-workers&amp;#34;&lt;/span>
+&lt;span class="na"> command&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;sidekiq&amp;#34;&lt;/span>&lt;span class="p">]&lt;/span>
+&lt;span class="err">env_from&lt;/span> {
+&lt;span class="err">config_map_ref&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;favoriteapp-config&amp;#34;&lt;/span>
+}
+}
+}
+}
+}
+}
+}&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Now that we have the &lt;code class="verbatim">deployments&lt;/code> running, we need to expose them first
+to the cluster as a &lt;code class="verbatim">service&lt;/code> (basically this gives them a name and a
+port that other kubernetes services can access).
+&lt;/p>
+&lt;p>
+Once that service is defined, we define an &lt;code class="verbatim">ingress&lt;/code> that lets the
+outside world connect to the internal service, which in turn connects
+to the pods running in the deployment.
+&lt;/p>
+&lt;div class="src src-terraform">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-terraform" data-lang="terraform"> &lt;span class="kr">resource&lt;/span> &lt;span class="s">&amp;#34;kubernetes_service&amp;#34; &amp;#34;favoriteapp-service&amp;#34;&lt;/span> {
+&lt;span class="err">metadata&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;favoriteapp-service&amp;#34;&lt;/span>
+&lt;span class="na"> namespace&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;favoriteapp&amp;#34;&lt;/span>
+}
+&lt;span class="err">spec&lt;/span> {
+&lt;span class="err">port&lt;/span> {
+&lt;span class="na"> port&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="m">80&lt;/span>
+&lt;span class="na"> target_port&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="m">3000&lt;/span>
+}
+&lt;span class="na"> selector&lt;/span> &lt;span class="o">=&lt;/span> {
+&lt;span class="na"> app&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;favoriteapp&amp;#34;&lt;/span>
+}
+}
+}
+&lt;span class="kr">resource&lt;/span> &lt;span class="s">&amp;#34;kubernetes_ingress&amp;#34; &amp;#34;favoriteapp-ingress&amp;#34;&lt;/span> {
+&lt;span class="na"> wait_for_load_balancer&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="kt">true&lt;/span>
+&lt;span class="err">metadata&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;favoriteapp-ingress&amp;#34;&lt;/span>
+&lt;span class="na"> annotations&lt;/span> &lt;span class="o">=&lt;/span> {
+&lt;span class="na"> &amp;#34;kubernetes.io/ingress.class&amp;#34;&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;nginx&amp;#34;&lt;/span>
+&lt;span class="na"> &amp;#34;cert-manager.io/cluster-issuer&amp;#34;&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;letsencrypt-prod&amp;#34;&lt;/span>
+&lt;span class="na"> &amp;#34;cert-manager.io/acme-challenge-type&amp;#34;&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;http01&amp;#34;&lt;/span>
+}
+&lt;span class="na"> namespace&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;favoriteapp&amp;#34;&lt;/span>
+}
+&lt;span class="err">spec&lt;/span> {
+&lt;span class="err">rule&lt;/span> {
+&lt;span class="na"> host&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;k8.willschenk.com&amp;#34;&lt;/span>
+&lt;span class="err">http&lt;/span> {
+&lt;span class="err">path&lt;/span> {
+&lt;span class="na"> path&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;/&amp;#34;&lt;/span>
+&lt;span class="err">backend&lt;/span> {
+&lt;span class="na"> service_name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;favoriteapp-service&amp;#34;&lt;/span>
+&lt;span class="na"> service_port&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="m">80&lt;/span>
+}
+}
+}
+}
+&lt;span class="err">tls&lt;/span> {
+&lt;span class="na"> hosts&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="p">[&lt;/span> &lt;span class="s2">&amp;#34;k8.willschenk.com&amp;#34;&lt;/span> &lt;span class="p">]&lt;/span>
+&lt;span class="na"> secret_name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;issuer-account-key&amp;#34;&lt;/span>
+}
+}
+}&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-21">
+&lt;code class="verbatim">terraform&lt;/code> and &lt;code class="verbatim">kubectl&lt;/code>
+&lt;/h2>
+&lt;p>
+Now we run &lt;code class="verbatim">terraform apply&lt;/code> and, if you&amp;#39;ve entered in all of your
+credentials correctly, the application should start up with all of the
+correct datasources, migrations run, and the whole thing.
+&lt;/p>
+&lt;p>
+You can walk through the flow to make sure that the app is working,
+that things get stored in the database, and that the sidekiq jobs
+processed what is needed.
+&lt;/p>
+&lt;p>
+You can also configure &lt;code class="verbatim">kubectl&lt;/code> locally so that you can examine the
+cluster.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> &lt;span class="nb">export&lt;/span> &lt;span class="nv">CLUSTER_ID&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="k">$(&lt;/span>terraform output -raw cluster-id&lt;span class="k">)&lt;/span>
+mkdir -p ~/.kube/
+curl -X GET &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> -H &lt;span class="s2">&amp;#34;Content-Type: application/json&amp;#34;&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> -H &lt;span class="s2">&amp;#34;Authorization: Bearer &lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">TF_VAR_do_token&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> &lt;span class="s2">&amp;#34;https://api.digitalocean.com/v2/kubernetes/clusters/&lt;/span>&lt;span class="nv">$CLUSTER_ID&lt;/span>&lt;span class="s2">/kubeconfig&amp;#34;&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> &amp;gt; ~/.kube/config&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-22">
+Manually reissuing the certificate
+&lt;/h2>
+&lt;p>
+First look to see what the status of your certiticate is:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">kubectl get cert --namespace favoriteapp&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+And you can also look at the certificate request itself to see if
+everything is good.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">kubectl describe certificaterequest issuer-account-key --namespace favoriteapp&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Install the &lt;code class="verbatim">cert-manager&lt;/code> plugin locally:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> &lt;span class="nb">cd&lt;/span> /tmp
+curl -L -o kubectl-cert-manager.tar.gz https://github.com/jetstack/cert-manager/releases/download/v1.4.0/kubectl-cert_manager-linux-amd64.tar.gz
+tar xzf kubectl-cert-manager.tar.gz
+sudo mv kubectl-cert_manager /usr/local/bin&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-23">
+Looking at the deployment
+&lt;/h2>
+&lt;h3 id="headline-24">
+Logs
+&lt;/h3>
+&lt;p>
+Webapp:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">kubectl logs --namespace favoriteapp deployment/favoriteapp&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Workers:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl logs --namespace favoriteapp deployment/favoriteappworker&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Migration:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl logs --namespace favoriteapp jobs/favoriteapp-migration&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-25">
+Deploying a new version
+&lt;/h3>
+&lt;p>
+First we make a change to the app, then check it in. Once things are
+finished building we can manually trigger a restart:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl rollout restart --namespace favoriteapp deployment/favoriteapp
+kubectl rollout restart --namespace favoriteapp deployment/favoriteapp-workers&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-26">
+Setting up automatic deployment
+&lt;/h3>
+&lt;p>
+We can also extend our github action to use &lt;a href="https://github.com/steebchen/kubectl">kubectl&lt;/a> itself to trigger
+the deployment. (You&amp;#39;ll probably want to add a step in there to run
+tests also!) This is what that looks like.
+&lt;/p>
+&lt;p>
+First, to you need to add your &lt;code class="verbatim">.kube/config&lt;/code> to the repositories
+secrets. First convert to base64, then add a new secret named
+&lt;code class="verbatim">KUBE_CONFIG_DATA&lt;/code>:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">cat &lt;span class="nv">$HOME&lt;/span>/.kube/config &lt;span class="p">|&lt;/span> base64&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Then, add the following steps to &lt;code class="verbatim">build-and-push.yml&lt;/code>:
+&lt;/p>
+&lt;div class="src src-yaml">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="w"> &lt;/span>&lt;span class="sd">-
+&lt;/span>&lt;span class="sd"> name: Deploy App&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">id&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>k8app&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">uses&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>steebchen/kubectl@v2&lt;span class="m">.0.0&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">with&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># defaults to latest kubectl binary version&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">config&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>${{&lt;span class="w"> &lt;/span>secrets.KUBE_CONFIG_DATA&lt;span class="w"> &lt;/span>}}&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">command&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>rollout&lt;span class="w"> &lt;/span>restart&lt;span class="w"> &lt;/span>--namespace&lt;span class="w"> &lt;/span>favoriteapp&lt;span class="w"> &lt;/span>deployment/favoriteapp&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="sd">-
+&lt;/span>&lt;span class="sd"> name: Deploy workers&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">id&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>k8workers&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">uses&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>steebchen/kubectl@v2&lt;span class="m">.0.0&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">with&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># defaults to latest kubectl binary version&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">config&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>${{&lt;span class="w"> &lt;/span>secrets.KUBE_CONFIG_DATA&lt;span class="w"> &lt;/span>}}&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">command&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>rollout&lt;span class="w"> &lt;/span>restart&lt;span class="w"> &lt;/span>--namespace&lt;span class="w"> &lt;/span>favoriteapp&lt;span class="w"> &lt;/span>deployment/favoriteapp-workers&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-27">
+Final thoughts
+&lt;/h2>
+&lt;p>
+What a journey this post has been! Stepping back a while bunch it&amp;#39;s
+not really clear to me that this is an improvement. I&amp;#39;ve a lot of
+applications on &lt;a href="https://www.heroku.com/">Heroku&lt;/a>, which has a much simplier workflow. &lt;code class="verbatim">heroku
+create&lt;/code>, &lt;code class="verbatim">git push&lt;/code> and there you go. It locks you into a certain way of
+doing things and buildpacks, while a bit more constaining compared to
+&lt;code class="verbatim">Dockerfiles&lt;/code> are about a zillion times easier to work with.
+&lt;/p>
+&lt;p>
+And on the otherside, you have things like cloud functions, either
+using something like &lt;a href="https://www.openfaas.com/">OpenFaaS&lt;/a> or even different deployment models all
+together. If you are in the Node or Deno ecosystems what&amp;#39;s going on
+with &lt;a href="https://deno.com/deploy">Deno Deploy&lt;/a> or even &lt;a href="https://nextjs.org/">NextJS&lt;/a> is a much easier way to actually get
+something up and running. The level of complexity for kubernetes is
+truely mind boggling, and a number of times during this write up I was
+muttering under my breath about a simplier world were we could FTP PHP
+files around…
+&lt;/p>
+&lt;p>
+Basically, I&amp;#39;m not sure that I often find myself with the problem
+where kubernetes is the right solution. It&amp;#39;s certainly very cool, and
+the idea of having a bunch of resources that, with a little guidance,
+and sort of manage and heal themselves is pretty amazing. But I also
+feel that there&amp;#39;s way too much going on than what I properly
+understand, and it&amp;#39;s a lot of ceremony to make stuff happen.
+&lt;/p>
+&lt;h2 id="headline-28">
+References
+&lt;/h2>
+&lt;ol>
+&lt;li>
+&lt;p>
+&lt;a href="https://docs.bitnami.com/tutorials/deploy-rails-application-kubernetes-helm/">https://docs.bitnami.com/tutorials/deploy-rails-application-kubernetes-helm/&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://docs.openfaas.com/reference/ssl/kubernetes-with-cert-manager/">https://docs.openfaas.com/reference/ssl/kubernetes-with-cert-manager/&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://dev.to/michaellalatkovic/deploying-on-kubernetes-part-1-a-rails-api-backend-2ojl">https://dev.to/michaellalatkovic/deploying-on-kubernetes-part-1-a-rails-api-backend-2ojl&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://cert-manager.io/docs/tutorials/acme/ingress/">https://cert-manager.io/docs/tutorials/acme/ingress/&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://github.com/docker/build-push-action">https://github.com/docker/build-push-action&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://github.com/steebchen/kubectl">https://github.com/steebchen/kubectl&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;/ol></description></item><item><title>Setting up GitHub Actions for Continuous Integration</title><link>https://willschenk.com/articles/2021/setting_up_github_for_ci/</link><pubDate>Tue, 13 Jul 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/setting_up_github_for_ci/</guid><description>
 &lt;p>
 I wanted to see how to automate the creation of docker images using
 github actions. This is how I did it.

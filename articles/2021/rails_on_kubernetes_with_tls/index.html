@@ -1,0 +1,657 @@
+<!doctype html><html><head><title>Rails on Kubernetes with TLS</title><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><link rel=stylesheet href=../../../css/theme.css><link rel=stylesheet href=../../../css/syntax.css><script type=application/javascript>var doNotTrack=false;if(!doNotTrack){window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;ga('create','UA-56296045-1','auto');ga('send','pageview');}</script><script async src=https://www.google-analytics.com/analytics.js></script><script async defer data-domain=willschenk.com src=https://plausible.io/js/plausible.js></script><meta property="og:title" content="Rails on Kubernetes with TLS"><meta property="og:description" content="I wanted to see how to really use kubernetes like I'm used to using heroku, so lets recreate everything using terraform, digital ocean, kubernetes and MAGIC! Sample rails app  Build image   First thing we'll do is to create a docker image that we'll use to build our rails app.  Dockerfile.build: FROMruby:3.0.1WORKDIR/app# nodejs and yarn and clocRUN curl -sL https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add -RUN echo &#34;deb https://dl."><meta property="og:type" content="article"><meta property="og:url" content="https://willschenk.com/articles/2021/rails_on_kubernetes_with_tls/"><meta property="article:published_time" content="2021-07-16T00:00:00+00:00"><meta property="article:modified_time" content="2021-07-16T00:00:00+00:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Rails on Kubernetes with TLS"><meta name=twitter:description content="I wanted to see how to really use kubernetes like I'm used to using heroku, so lets recreate everything using terraform, digital ocean, kubernetes and MAGIC! Sample rails app  Build image   First thing we'll do is to create a docker image that we'll use to build our rails app.  Dockerfile.build: FROMruby:3.0.1WORKDIR/app# nodejs and yarn and clocRUN curl -sL https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add -RUN echo &#34;deb https://dl."><meta name=twitter:site content="@wschenk"><style>.article p,.article ul,.article ol,.article table{max-width:45em}.article pre p{max-width:none;margin-top:-1.5rem}article.article p:first-child,.article blockquote{font-size:1.25em;font-weight:300;max-width:36em}.half-height-scroll{max-height:32em;overflow:scroll}</style></head><body><nav class="container my-5"><h1 class="pt-md-5 display-3"><a class=text-dark href=../../../>Will Schenk</a></h1><p><a class="text-dark h4 mr-3 font-weight-light" href=../../../articles/>Articles</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../contact>Contact</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../tags/>Tags</a>
+<a href=../../../feed.xml class="mr-3 h4 text-light"><img src=../../../img/rss.svg alt=rss height=20 width=20></a>
+<a href=https://twitter.com/@wschenk class="mr-3 h4 text-light"><img src=../../../img/twitter.svg alt=twitter height=20 width=20></a>
+<a href=https://instagram.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/instagram.svg alt=instagram height=20 width=20></a>
+<a href=https://github.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/github.svg alt=github height=20 width=20></a>
+<a href=https://linkedin.com/in/will-schenk-420266 class="mr-3 h4 text-light"><img src=../../../img/linkedin.svg alt=linkedin height=20 width=20></a></p></nav><div class=container><h1 class=mt-5>Rails on Kubernetes with TLS</h1><h2 class="font-weight-light font-italic mb-3">certmanager</h2><p class="text-muted mt-3"><a class=text-muted href=https://willschenk.com/articles/2021/rails_on_kubernetes_with_tls/>Published July 16, 2021</a>
+<a class=text-muted href=../../../tags/rails>#rails,</a>
+<a class=text-muted href=../../../tags/kuberenetes>#kuberenetes,</a>
+<a class=text-muted href=../../../tags/terraform>#terraform,</a>
+<a class=text-muted href=../../../tags/github>#github</a></p><article class="article mt-5"><p>I wanted to see how to really use kubernetes like I'm used to using
+heroku, so lets recreate everything using terraform, digital ocean,
+kubernetes and MAGIC!</p><h2 id=headline-1>Sample rails app</h2><h3 id=headline-2>Build image</h3><p>First thing we'll do is to create a docker image that we'll use to build our rails app.</p><p><code class=verbatim>Dockerfile.build</code>:</p><div class="src src-dockerfile"><div class=highlight><pre class=chroma><code class=language-dockerfile data-lang=dockerfile><span class=k>FROM</span><span class=s> ruby:3.0.1</span><span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>WORKDIR</span><span class=s> /app</span><span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=c># nodejs and yarn and cloc</span><span class=err>
+</span><span class=err></span><span class=k>RUN</span> curl -sL https://dl.yarnpkg.com/debian/pubkey.gpg <span class=p>|</span> apt-key add -<span class=err>
+</span><span class=err></span><span class=k>RUN</span> <span class=nb>echo</span> <span class=s2>&#34;deb https://dl.yarnpkg.com/debian/ stable main&#34;</span> <span class=p>|</span> tee /etc/apt/sources.list.d/yarn.list<span class=err>
+</span><span class=err></span><span class=k>RUN</span> curl -sL https://deb.nodesource.com/setup_16.x <span class=p>|</span> bash -<span class=err>
+</span><span class=err></span><span class=k>RUN</span> apt-get update <span class=o>&amp;&amp;</span> apt-get install -y nodejs yarn<span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=c># install bundler</span><span class=err>
+</span><span class=err></span><span class=k>RUN</span> gem install bundler:2.1.4 <span class=o>&amp;&amp;</span> gem install rails<span class=err>
+</span><span class=err></span><span class=k>CMD</span> bash</code></pre></div></div><p>Now we can build and run this image to generate our application:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  docker build . -f Dockerfile.dev -t railsdev
+  docker run --rm -it -v <span class=k>$(</span><span class=nb>pwd</span><span class=k>)</span>:/app railsdev</code></pre></div></div><p>Once you are inside the image, create a new rails app:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  rails new favoriteapp -d<span class=o>=</span>postgresql</code></pre></div></div><p>Then quit out of it.</p><h3 id=headline-3>Developing the app</h3><p>Now inside of the rails app, we'll create a <code class=verbatim>Dockerfile.dev</code> that will
+let us develop the app:</p><div class="src src-dockerfile"><div class=highlight><pre class=chroma><code class=language-dockerfile data-lang=dockerfile><span class=k>FROM</span><span class=s> ruby:3.0.1</span><span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>WORKDIR</span><span class=s> /app</span><span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=c># nodejs and yarn and cloc</span><span class=err>
+</span><span class=err></span><span class=k>RUN</span> curl -sL https://dl.yarnpkg.com/debian/pubkey.gpg <span class=p>|</span> apt-key add -<span class=err>
+</span><span class=err></span><span class=k>RUN</span> <span class=nb>echo</span> <span class=s2>&#34;deb https://dl.yarnpkg.com/debian/ stable main&#34;</span> <span class=p>|</span> tee /etc/apt/sources.list.d/yarn.list<span class=err>
+</span><span class=err></span><span class=k>RUN</span> curl -sL https://deb.nodesource.com/setup_16.x <span class=p>|</span> bash -<span class=err>
+</span><span class=err></span><span class=k>RUN</span> apt-get update <span class=o>&amp;&amp;</span> apt-get install -y nodejs yarn<span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=c># install bundler</span><span class=err>
+</span><span class=err></span><span class=k>RUN</span> gem install bundler:2.1.4<span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=c># Bundle gems</span><span class=err>
+</span><span class=err></span><span class=k>COPY</span> Gemfile* /app/<span class=err>
+</span><span class=err></span><span class=k>RUN</span> bundle install<span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=c># Install node stuff</span><span class=err>
+</span><span class=err></span><span class=k>COPY</span> package.json yarn.lock /app/<span class=err>
+</span><span class=err></span><span class=k>RUN</span> yarn install --check-files<span class=err>
+</span><span class=err></span><span class=k>COPY</span> . /app/<span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>EXPOSE</span><span class=s> 3000</span><span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>CMD</span> rm -f tmp/pids/server.pid<span class=p>;</span>bundle <span class=nb>exec</span> rails server -b 0.0.0.0</code></pre></div></div><p>Now we need to create a <code class=verbatim>docker-compose.yml</code> to set up the environment.</p><div class="src src-yaml"><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=w>  </span><span class=k>version</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;3.7&#34;</span><span class=w>
+</span><span class=w>
+</span><span class=w>  </span><span class=k>services</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=k>postgres</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=k>image</span><span class=p>:</span><span class=w> </span>postgres<span class=p>:</span><span class=m>13.1</span><span class=w>
+</span><span class=w>      </span><span class=k>environment</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span><span class=k>POSTGRES_PASSWORD</span><span class=p>:</span><span class=w> </span>awesome_password<span class=w>
+</span><span class=w>      </span><span class=k>ports</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span>- <span class=s2>&#34;5432:5432&#34;</span><span class=w>
+</span><span class=w>
+</span><span class=w>    </span><span class=k>pgadmin</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=k>image</span><span class=p>:</span><span class=w> </span>dpage/pgadmin4<span class=p>:</span><span class=m>5.4</span><span class=w>
+</span><span class=w>      </span><span class=k>environment</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span><span class=k>PGADMIN_DEFAULT_EMAIL</span><span class=p>:</span><span class=w> </span>admin@example.com<span class=w>
+</span><span class=w>        </span><span class=k>PGADMIN_DEFAULT_PASSWORD</span><span class=p>:</span><span class=w> </span>SuperSecret<span class=w>
+</span><span class=w>        </span><span class=k>GUNICORN_ACCESS_LOGFILE</span><span class=p>:</span><span class=w> </span>/dev/<span class=kc>null</span><span class=w>
+</span><span class=w>      </span><span class=k>ports</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span>- <span class=s2>&#34;4000:80&#34;</span><span class=w>
+</span><span class=w>      </span><span class=k>depends_on</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span>- postgres<span class=w>
+</span><span class=w>
+</span><span class=w>    </span><span class=k>favoriteapp</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=k>build</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span><span class=k>context</span><span class=p>:</span><span class=w> </span>.<span class=w>
+</span><span class=w>        </span><span class=k>dockerfile</span><span class=p>:</span><span class=w> </span>Dockerfile.dev<span class=w>
+</span><span class=w>      </span><span class=k>depends_on</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span>- postgres<span class=w>
+</span><span class=w>        </span>- redis<span class=w>
+</span><span class=w>      </span><span class=k>volumes</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span>- <span class=k>type</span><span class=p>:</span><span class=w> </span>bind<span class=w>
+</span><span class=w>          </span><span class=k>source</span><span class=p>:</span><span class=w> </span>./<span class=w>
+</span><span class=w>          </span><span class=k>target</span><span class=p>:</span><span class=w> </span>/app<span class=w>
+</span><span class=w>      </span><span class=k>ports</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span>- <span class=s2>&#34;3000:3000&#34;</span><span class=w>
+</span><span class=w>      </span><span class=k>environment</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span>- DATABASE_URL=postgresql<span class=p>:</span>//postgres<span class=p>:</span>awesome_password@postgres<span class=p>:</span><span class=m>5432</span>/favoriteapp<span class=p>?</span>encoding=utf8<span class=cp>&amp;pool=5&amp;timeout=5000</span><span class=w>
+</span><span class=w>        </span>- REDIS_URL=redis<span class=p>:</span>//redis<span class=p>:</span><span class=m>6379</span>/<span class=m>0</span><span class=w>
+</span><span class=w>        </span>- RAILS_ENV=development<span class=w>
+</span><span class=w>
+</span><span class=w>    </span><span class=k>sidekiq</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=k>build</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span><span class=k>context</span><span class=p>:</span><span class=w> </span>.<span class=w>
+</span><span class=w>        </span><span class=k>dockerfile</span><span class=p>:</span><span class=w> </span>Dockerfile.dev<span class=w>
+</span><span class=w>      </span><span class=k>command</span><span class=p>:</span><span class=w> </span>bundle<span class=w> </span>exec<span class=w> </span>sidekiq<span class=w>
+</span><span class=w>      </span><span class=k>depends_on</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span>- postgres<span class=w>
+</span><span class=w>        </span>- redis<span class=w>
+</span><span class=w>      </span><span class=k>environment</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span>- DATABASE_URL=postgresql<span class=p>:</span>//postgres<span class=p>:</span>awesome_password@postgres<span class=p>:</span><span class=m>5432</span>/favoriteapp<span class=p>?</span>encoding=utf8<span class=cp>&amp;pool=5&amp;timeout=5000</span><span class=w>
+</span><span class=w>        </span>- REDIS_URL=redis<span class=p>:</span>//redis<span class=p>:</span><span class=m>6379</span>/<span class=m>0</span><span class=w>
+</span><span class=w>        </span>- RAILS_ENV=development<span class=w>
+</span><span class=w>
+</span><span class=w>    </span><span class=k>redis</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=k>image</span><span class=p>:</span><span class=w> 
+</span><span class=w>    </span><span class=k>redis</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=k>image</span><span class=p>:</span><span class=w> </span>redis<span class=p>:</span><span class=m>6.0.9</span><span class=w>
+</span><span class=w>      </span><span class=k>ports</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span>- <span class=s1>&#39;6379:6379&#39;</span></code></pre></div></div><p>And a nice little <code class=verbatim>.dockerignore</code> file:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash><span class=c1># node_modules</span>
+tmp</code></pre></div></div><p>Now we start it up:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>docker-compose up --build</code></pre></div></div><p>And then we need to create the database:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  docker-compose run --rm favoriteapp rails db:migrate</code></pre></div></div><h3 id=headline-4>Develop the app</h3><p>We're going to do some basic stuff here that shows</p><ol><li><p>How to connect to a database</p></li><li><p>How to connect to redis</p></li><li><p>How to deploy sidekiq</p><h4 id=headline-5>Scaffold</h4></li></ol><p>Then lets create a scaffold for a database object:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  docker-compose run --rm favoriteapp rails g scaffold messages body:string processed:boolean
+  docker-compose run --rm favoriteapp rake db:setup
+  docker-compose run --rm favoriteapp rake db:migrate</code></pre></div></div><h4 id=headline-6>Sidekiq</h4><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  docker-compose run --rm favoriteapp bundle add sidekiq</code></pre></div></div><p>Lets turn on the <code class=verbatim>:sidekiq</code> adapter in <code class=verbatim>config/application.rb</code>:</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=k>class</span> <span class=nc>Application</span> <span class=o>&lt;</span> <span class=no>Rails</span><span class=o>::</span><span class=no>Application</span>
+    <span class=c1># ...</span>
+    <span class=n>config</span><span class=o>.</span><span class=n>active_job</span><span class=o>.</span><span class=n>queue_adapter</span> <span class=o>=</span> <span class=ss>:sidekiq</span>
+  <span class=k>end</span></code></pre></div></div><p>Then lets create a simple job that will process the message.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  docker-compose run --rm favoriteapp rails g job process_message</code></pre></div></div><p>And the job itself <code class=verbatim>app/jobs/process_message_job.rb</code>:</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=k>class</span> <span class=nc>ProcessMessageJob</span> <span class=o>&lt;</span> <span class=no>ApplicationJob</span>
+    <span class=n>queue_as</span> <span class=ss>:default</span>
+
+    <span class=k>def</span> <span class=nf>perform</span><span class=p>(</span><span class=n>job</span><span class=p>)</span>
+      <span class=n>logger</span><span class=o>.</span><span class=n>info</span> <span class=s2>&#34;Processing message </span><span class=si>#{</span><span class=n>job</span><span class=o>.</span><span class=n>id</span><span class=si>}</span><span class=s2>&#34;</span>
+      <span class=n>m</span> <span class=o>=</span> <span class=no>Message</span><span class=o>.</span><span class=n>find</span><span class=p>(</span> <span class=n>job</span><span class=o>.</span><span class=n>id</span> <span class=p>)</span>
+      <span class=n>m</span><span class=o>.</span><span class=n>processed</span> <span class=o>=</span> <span class=kp>true</span>
+      <span class=n>m</span><span class=o>.</span><span class=n>save</span>
+    <span class=k>end</span>
+  <span class=k>end</span></code></pre></div></div><p>Then we schedule it in <code class=verbatim>app/controllers/messages_controller.rb</code>, inside
+of the <code class=verbatim>create</code> method:</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>      <span class=k>if</span> <span class=vi>@message</span><span class=o>.</span><span class=n>save</span>
+        <span class=no>ProcessMessageJob</span><span class=o>.</span><span class=n>perform_later</span> <span class=vi>@message</span></code></pre></div></div><p>Finally we add the routes in <code class=verbatim>config/routes.rb</code>:</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=nb>require</span> <span class=s1>&#39;sidekiq/web&#39;</span>
+
+  <span class=no>Rails</span><span class=o>.</span><span class=n>application</span><span class=o>.</span><span class=n>routes</span><span class=o>.</span><span class=n>draw</span> <span class=k>do</span>
+    <span class=n>mount</span> <span class=no>Sidekiq</span><span class=o>::</span><span class=no>Web</span> <span class=o>=&gt;</span> <span class=s2>&#34;/sidekiq&#34;</span> <span class=c1># mount Sidekiq::Web in your Rails app</span>
+    <span class=n>resources</span> <span class=ss>:messages</span>
+    <span class=n>root</span> <span class=s2>&#34;messages#index&#34;</span>
+  <span class=k>end</span></code></pre></div></div><h4 id=headline-7>Testing</h4><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>docker-compose up --build</code></pre></div></div><p>Now you can visit <a href=http://localhost:3000>http://localhost:3000</a> to see your working rails app.
+Add a message, you will see that it's <code class=verbatim>processed = false</code>, and when you
+go back to the index sidekiq should have processed in the message in
+the background.</p><h3 id=headline-8>Production Image</h3><p>Now that we've "developed" our application locally, lets spin it up
+and deploy it.</p><p>Then we need a <code class=verbatim>Dockerfile</code> to build the thing. Lets create a
+<code class=verbatim>Dockerfile.prod</code> to make it happen.</p><div class="src src-dockerfile"><div class=highlight><pre class=chroma><code class=language-dockerfile data-lang=dockerfile><span class=k>FROM</span><span class=s> ruby:3.0.1</span><span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>WORKDIR</span><span class=s> /app</span><span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=c># nodejs and yarn and cloc</span><span class=err>
+</span><span class=err></span><span class=k>RUN</span> curl -sL https://dl.yarnpkg.com/debian/pubkey.gpg <span class=p>|</span> apt-key add -<span class=err>
+</span><span class=err></span><span class=k>RUN</span> <span class=nb>echo</span> <span class=s2>&#34;deb https://dl.yarnpkg.com/debian/ stable main&#34;</span> <span class=p>|</span> tee /etc/apt/sources.list.d/yarn.list<span class=err>
+</span><span class=err></span><span class=k>RUN</span> curl -sL https://deb.nodesource.com/setup_16.x <span class=p>|</span> bash -<span class=err>
+</span><span class=err></span><span class=k>RUN</span> apt-get update <span class=o>&amp;&amp;</span> apt-get install -y nodejs yarn<span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=c># install bundler</span><span class=err>
+</span><span class=err></span><span class=k>RUN</span> gem install bundler:2.1.4<span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=c># Set up environment</span><span class=err>
+</span><span class=err></span><span class=k>RUN</span> bundle config <span class=nb>set</span> without <span class=s1>&#39;development test&#39;</span><span class=err>
+</span><span class=err></span><span class=k>ENV</span> RAILS_ENV production<span class=err>
+</span><span class=err></span><span class=k>ENV</span> RAILS_SERVE_STATIC_FILES true<span class=err>
+</span><span class=err></span><span class=k>ENV</span> RAILS_LOG_TO_STDOUT true<span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=c># Bundle gems</span><span class=err>
+</span><span class=err></span><span class=k>COPY</span> Gemfile* /app/<span class=err>
+</span><span class=err></span><span class=k>RUN</span> bundle install<span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=c># Install node stuff</span><span class=err>
+</span><span class=err></span><span class=k>COPY</span> package.json yarn.lock /app/<span class=err>
+</span><span class=err></span><span class=k>RUN</span> yarn install --check-files<span class=err>
+</span><span class=err></span><span class=k>COPY</span> . /app/<span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=c>#RUN yarn install --check-files</span><span class=err>
+</span><span class=err></span><span class=k>ARG</span> RAILS_MASTER_KEY<span class=err>
+</span><span class=err></span><span class=k>RUN</span> bundle <span class=nb>exec</span> rake assets:precompile<span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>EXPOSE</span><span class=s> 3000</span><span class=err>
+</span><span class=err>
+</span><span class=err></span><span class=k>CMD</span> rm -f tmp/pids/server.pid<span class=p>;</span>bundle <span class=nb>exec</span> rails server -b 0.0.0.0</code></pre></div></div><p>Then build the container</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>docker build . -f Dockerfile.prod -t wschenk/favoriteapp --build-arg <span class=nv>RAILS_MASTER_KEY</span><span class=o>=</span><span class=k>$(</span>cat config/master.key<span class=k>)</span></code></pre></div></div><h2 id=headline-9>Setting up continious integration</h2><p>But we don't want to do that all by hand, so lets setup github actions
+to build and push to dockerhub.</p><p>First <a href=https://github.com/new>create a new repository</a> on github. Once you have that add the
+remote to the <code class=verbatim>favoriteapp</code> local git repository.</p><p>Now we need to add some secrets and environment variables.</p><p>First go to your <a href=https://hub.docker.com/settings/security>docker hub security</a> page and create a new access
+token. Copy this.</p><p>Then go to the settings on your github repo, and add the secrets:</p><table><tbody><tr><td><code class=verbatim>DOCKERHUB_TOKEN</code></td><td>the copied token</td></tr><tr><td><code class=verbatim>DOCKERHUB_USERNAME</code></td><td>Your username</td></tr><tr><td><code class=verbatim>RAILS_MASTER_KEY</code></td><td>what's in <code class=verbatim>config/master.key</code></td></tr></tbody></table><p>Then we need to create a <code class=verbatim>.github/workflows/build-and-push.yaml</code> file
+that tells GitHub what to do:</p><div class="src src-yaml"><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=w>  </span><span class=k>name</span><span class=p>:</span><span class=w> </span>Build<span class=w> </span>and<span class=w> </span>Push<span class=w>
+</span><span class=w>
+</span><span class=w>  </span><span class=k>on</span><span class=p>:</span><span class=w> </span>push<span class=w>
+</span><span class=w>
+</span><span class=w>  </span><span class=k>jobs</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=k>docker</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=k>runs-on</span><span class=p>:</span><span class=w> </span>ubuntu-latest<span class=w>
+</span><span class=w>      </span><span class=k>steps</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span>- <span class=k>uses</span><span class=p>:</span><span class=w> </span>actions/checkout@v2<span class=w>
+</span><span class=w>        </span><span class=sd>-
+</span><span class=sd>          name: Login to DockerHub</span><span class=w>
+</span><span class=w>          </span><span class=k>uses</span><span class=p>:</span><span class=w> </span>docker/login-action@v1<span class=w> 
+</span><span class=w>          </span><span class=k>with</span><span class=p>:</span><span class=w>
+</span><span class=w>            </span><span class=k>username</span><span class=p>:</span><span class=w> </span>${{<span class=w> </span>secrets.DOCKERHUB_USERNAME<span class=w> </span>}}<span class=w>
+</span><span class=w>            </span><span class=k>password</span><span class=p>:</span><span class=w> </span>${{<span class=w> </span>secrets.DOCKERHUB_TOKEN<span class=w> </span>}}<span class=w>
+</span><span class=w>        </span><span class=sd>-
+</span><span class=sd>          name: Docker meta</span><span class=w>
+</span><span class=w>          </span><span class=k>id</span><span class=p>:</span><span class=w> </span>meta<span class=w>
+</span><span class=w>          </span><span class=k>uses</span><span class=p>:</span><span class=w> </span>docker/metadata-action@v3<span class=w>
+</span><span class=w>          </span><span class=k>with</span><span class=p>:</span><span class=w>
+</span><span class=w>            </span><span class=k>images</span><span class=p>:</span><span class=w> </span>wschenk/favoriteapp<span class=w>
+</span><span class=w>
+</span><span class=w>        </span><span class=sd>-
+</span><span class=sd>          name: Build and push</span><span class=w>
+</span><span class=w>          </span><span class=k>id</span><span class=p>:</span><span class=w> </span>docker_push<span class=w>
+</span><span class=w>          </span><span class=k>uses</span><span class=p>:</span><span class=w> </span>docker/build-push-action@v2<span class=w>
+</span><span class=w>          </span><span class=k>with</span><span class=p>:</span><span class=w>
+</span><span class=w>            </span><span class=k>push</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span><span class=w>            </span><span class=k>tags</span><span class=p>:</span><span class=w> </span>${{<span class=w> </span>steps.meta.outputs.tags<span class=w> </span>}}<span class=w>
+</span><span class=w>            </span><span class=k>labels</span><span class=p>:</span><span class=w> </span>${{<span class=w> </span>steps.meta.outputs.labels<span class=w> </span>}}<span class=w>
+</span><span class=w>            </span><span class=k>file</span><span class=p>:</span><span class=w> </span>Dockerfile.prod<span class=w>
+</span><span class=w>            </span><span class=k>build-args</span><span class=p>:</span><span class=w> </span>RAILS_MASTER_KEY=${{<span class=w> </span>secrets.RAILS_MASTER_KEY<span class=w> </span>}}</code></pre></div></div><p>If everything goes well, this will all be pushed to docker hub and we
+are ready to begin building out the infrastructure.</p><p><em>Note that by default these images are public</em>.</p><h2 id=headline-10>Terraform: Provision the infrastructure</h2><p>Now that we have a working application that's packaged up in a docker
+container, lets define the infrastructure that we will deploy it on.
+We are going to use terraform to provision a kubernetes cluster and
+postgres cluster on digital ocean, and then inside that cluster we
+will setup a <code class=verbatim>deployment</code> of our application, a <code class=verbatim>job</code> to run the database
+migrations, with a <code class=verbatim>service</code> and <code class=verbatim>ingress</code> to present it to the outside
+world. We'll use <code class=verbatim>helm</code> (as part of terraform) to install a <code class=verbatim>redis</code>
+instance, <code class=verbatim>cert-manager</code> to handle certificates, and <code class=verbatim>nginx-ingress</code> on
+the cluster to expose the application.</p><p>Finally we will use <code class=verbatim>dnssimple</code> to make sure that our application has a
+name.</p><h3 id=headline-11>The providers</h3><p>We need tokens from digital ocean and dnsimple (if that's the provider
+you use, it's easy to swap out for something else.)</p><p>The section basically defines the terraform plugins that we will use
+to provision the platform.</p><div class="src src-terraform"><div class=highlight><pre class=chroma><code class=language-terraform data-lang=terraform>  <span class=err>terraform</span> {
+    <span class=err>required_providers</span> {
+<span class=na>      digitalocean</span> <span class=o>=</span> {
+<span class=na>        source</span> <span class=o>=</span> <span class=s2>&#34;digitalocean/digitalocean&#34;</span>
+<span class=na>        version</span> <span class=o>=</span> <span class=s2>&#34;~&gt; 2.0&#34;</span>
+      }
+<span class=na>      dnsimple</span> <span class=o>=</span> {
+<span class=na>        source</span> <span class=o>=</span> <span class=s2>&#34;dnsimple/dnsimple&#34;</span>
+      }
+    }
+  }
+
+  <span class=kr>provider</span> <span class=s>&#34;digitalocean&#34;</span> {
+<span class=na>    token</span>   <span class=o>=</span> <span class=err>var</span><span class=p>.</span><span class=err>do_token</span>
+  }
+
+  <span class=kr>provider</span> <span class=s>&#34;dnsimple&#34;</span> {
+<span class=na>    token</span>   <span class=o>=</span> <span class=err>var</span><span class=p>.</span><span class=err>dnsimple_token</span>
+<span class=na>    account</span> <span class=o>=</span> <span class=err>var</span><span class=p>.</span><span class=err>dnsimple_account_id</span>
+  }
+
+  <span class=kr>variable</span> <span class=s>&#34;do_token&#34;</span> {
+<span class=na>    description</span> <span class=o>=</span> <span class=s2>&#34;digitalocean access token&#34;</span>
+<span class=na>    type</span>        <span class=o>=</span> <span class=err>string</span>
+  }
+
+  <span class=kr>variable</span> <span class=s>&#34;dnsimple_token&#34;</span> {
+<span class=na>    description</span> <span class=o>=</span> <span class=s2>&#34;dnssimple api access token&#34;</span>
+  }
+
+  <span class=kr>variable</span> <span class=s>&#34;dnsimple_account_id&#34;</span> {
+<span class=na>    description</span> <span class=o>=</span> <span class=s2>&#34;dnsimple account id&#34;</span>
+  }
+
+  <span class=kr>variable</span> <span class=s>&#34;dnsimple_domain&#34;</span> {
+<span class=na>    description</span> <span class=o>=</span> <span class=s2>&#34;dnsimple domain&#34;</span>
+  }</code></pre></div></div><h3 id=headline-12>Cluster</h3><p>Now we can define the cluster itself.</p><p><code class=verbatim>digitalocean_kuberenetes_cluster</code> defines the kubernetes cluster
+itself, and here we are creating a 3 node cluster.</p><p>We also define the <code class=verbatim>kubernetes</code> and <code class=verbatim>helm</code> terraform providers here, using
+the <code class=verbatim>host</code> and <code class=verbatim>certificates</code> that we get from the digitalocean provider.</p><div class="src src-terraform"><div class=highlight><pre class=chroma><code class=language-terraform data-lang=terraform>  <span class=kr>resource</span> <span class=s>&#34;digitalocean_kubernetes_cluster&#34; &#34;gratitude&#34;</span> {
+<span class=na>    name</span>    <span class=o>=</span> <span class=s2>&#34;gratitude&#34;</span>
+<span class=na>    region</span>  <span class=o>=</span> <span class=s2>&#34;nyc1&#34;</span>
+<span class=na>    version</span> <span class=o>=</span> <span class=s2>&#34;1.21.2-do.2&#34; # or &#34;latest&#34;</span>
+
+    <span class=err>node_pool</span> {
+<span class=na>      name</span>       <span class=o>=</span> <span class=s2>&#34;worker-pool&#34;</span>
+<span class=na>      size</span>       <span class=o>=</span> <span class=s2>&#34;s-2vcpu-2gb&#34;</span>
+<span class=na>      node_count</span> <span class=o>=</span> <span class=m>3</span>
+    }
+  }
+
+  <span class=err>output</span> <span class=s2>&#34;cluster-id&#34;</span> {
+<span class=na>    value</span> <span class=o>=</span> <span class=s2>&#34;${digitalocean_kubernetes_cluster.gratitude.id}&#34;</span>
+  }
+
+  <span class=kr>provider</span> <span class=s>&#34;kubernetes&#34;</span> {
+<span class=na>    host</span>             <span class=o>=</span> <span class=err>digitalocean_kubernetes_cluster</span><span class=p>.</span><span class=err>gratitude</span><span class=p>.</span><span class=err>endpoint</span>
+<span class=na>    token</span>            <span class=o>=</span> <span class=err>digitalocean_kubernetes_cluster</span><span class=p>.</span><span class=err>gratitude</span><span class=p>.</span><span class=err>kube_config</span><span class=p>[</span><span class=m>0</span><span class=p>].</span><span class=err>token</span>
+<span class=na>    cluster_ca_certificate</span> <span class=o>=</span> <span class=err>base</span><span class=m>64</span><span class=err>decode</span><span class=p>(</span>
+      <span class=err>digitalocean_kubernetes_cluster</span><span class=p>.</span><span class=err>gratitude</span><span class=p>.</span><span class=err>kube_config</span><span class=p>[</span><span class=m>0</span><span class=p>].</span><span class=err>cluster_ca_certificate</span>
+    <span class=p>)</span>
+  }
+
+  <span class=kr>provider</span> <span class=s>&#34;helm&#34;</span> {
+    <span class=err>kubernetes</span> {
+<span class=na>      host</span> <span class=o>=</span> <span class=err>digitalocean_kubernetes_cluster</span><span class=p>.</span><span class=err>gratitude</span><span class=p>.</span><span class=err>endpoint</span>
+<span class=na>      cluster_ca_certificate</span> <span class=o>=</span> <span class=err>base</span><span class=m>64</span><span class=err>decode</span><span class=p>(</span> <span class=err>digitalocean_kubernetes_cluster</span><span class=p>.</span><span class=err>gratitude</span><span class=p>.</span><span class=err>kube_config</span><span class=p>[</span><span class=m>0</span><span class=p>].</span><span class=err>cluster_ca_certificate</span> <span class=p>)</span>
+<span class=na>      token</span> <span class=o>=</span> <span class=err>digitalocean_kubernetes_cluster</span><span class=p>.</span><span class=err>gratitude</span><span class=p>.</span><span class=err>kube_config</span><span class=p>[</span><span class=m>0</span><span class=p>].</span><span class=err>token</span>
+    }
+  }</code></pre></div></div><h3 id=headline-13>Datastores</h3><p>We are going to setup 2 different datastores, one is a
+<code class=verbatim>digitalocean_database_cluster</code> of postgres with one node, and the other
+is redis running on the cluster that we defined (in <code class=verbatim>standalone</code>). We
+are using the bitnami redis helm chart.</p><p>I'm also setting a password on the redis instance as an example of how
+to do this. It's only accessible from within the cluster so I'm not
+sure it's strictly needed but it can't hurt.</p><div class="src src-terraform"><div class=highlight><pre class=chroma><code class=language-terraform data-lang=terraform>  <span class=kr>resource</span> <span class=s>&#34;random_password&#34; &#34;redis_password&#34;</span> {
+<span class=na>    length</span>           <span class=o>=</span> <span class=m>16</span>
+<span class=na>    special</span>          <span class=o>=</span> <span class=kt>false</span>
+  }
+
+  <span class=kr>resource</span> <span class=s>&#34;helm_release&#34; &#34;redis&#34;</span> {
+<span class=na>    repository</span> <span class=o>=</span> <span class=s2>&#34;https://charts.bitnami.com/bitnami&#34;</span>
+<span class=na>    chart</span> <span class=o>=</span> <span class=s2>&#34;redis&#34;</span>
+<span class=na>    name</span> <span class=o>=</span> <span class=s2>&#34;redis&#34;</span>
+  
+    <span class=err>set</span> {
+<span class=na>      name</span> <span class=o>=</span> <span class=s2>&#34;auth.password&#34;</span>
+<span class=na>      value</span> <span class=o>=</span> <span class=err>random_password</span><span class=p>.</span><span class=err>redis_password</span><span class=p>.</span><span class=err>result</span>
+    }
+  
+    <span class=err>set</span> {
+<span class=na>      name</span> <span class=o>=</span> <span class=s2>&#34;architecture&#34;</span>
+<span class=na>      value</span> <span class=o>=</span> <span class=s2>&#34;standalone&#34;</span>
+    }
+  }
+
+  <span class=kr>resource</span> <span class=s>&#34;kubernetes_secret&#34; &#34;redispassword&#34;</span> {
+    <span class=err>metadata</span> {
+<span class=na>      name</span> <span class=o>=</span> <span class=s2>&#34;redispassword&#34;</span>
+    }
+  
+    <span class=na>data</span> <span class=o>=</span> {
+<span class=na>      password</span> <span class=o>=</span> <span class=err>random_password</span><span class=p>.</span><span class=err>redis_password</span><span class=p>.</span><span class=err>result</span>
+    }
+  }
+
+  <span class=kr>resource</span> <span class=s>&#34;digitalocean_database_cluster&#34; &#34;favoriteapp-postgres&#34;</span> {
+<span class=na>    name</span>       <span class=o>=</span> <span class=s2>&#34;favoriteapp-postgres-cluster&#34;</span>
+<span class=na>    engine</span>     <span class=o>=</span> <span class=s2>&#34;pg&#34;</span>
+<span class=na>    version</span>    <span class=o>=</span> <span class=s2>&#34;11&#34;</span>
+<span class=na>    size</span>       <span class=o>=</span> <span class=s2>&#34;db-s-1vcpu-1gb&#34;</span>
+<span class=na>    region</span>     <span class=o>=</span> <span class=s2>&#34;nyc1&#34;</span>
+<span class=na>    node_count</span> <span class=o>=</span> <span class=m>1</span>
+  }</code></pre></div></div><h3 id=headline-14>Ingress Controller</h3><p>We are installing the <code class=verbatim>ingress-nginx</code> controller here, again using helm.
+This will setup the digital ocean load balanacer. The <code class=verbatim>data</code> terraform
+block is there to expose the ip address of the load balancer, which we
+will use to setup the DNS name.</p><div class="src src-terraform"><div class=highlight><pre class=chroma><code class=language-terraform data-lang=terraform>  <span class=kr>resource</span> <span class=s>&#34;helm_release&#34; &#34;ingress-nginx&#34;</span> {
+<span class=na>    name</span> <span class=o>=</span> <span class=s2>&#34;ingress-nginx&#34;</span>
+<span class=na>    repository</span> <span class=o>=</span> <span class=s2>&#34;https://kubernetes.github.io/ingress-nginx&#34;</span>
+<span class=na>    chart</span> <span class=o>=</span> <span class=s2>&#34;ingress-nginx&#34;</span>
+  
+  }
+
+  <span class=err>data</span> <span class=s2>&#34;kubernetes_service&#34; &#34;ingress-nginx&#34;</span> {
+<span class=na>    depends_on</span> <span class=o>=</span> <span class=p>[</span> <span class=err>helm_release</span><span class=p>.</span><span class=kd>ingress</span><span class=err>-nginx</span> <span class=p>]</span>
+    <span class=err>metadata</span> {
+<span class=na>      name</span> <span class=o>=</span> <span class=s2>&#34;ingress-nginx-controller&#34;</span>
+    }
+  }
+
+  <span class=err>output</span> <span class=s2>&#34;cluster-ip&#34;</span> {
+<span class=na>    value</span> <span class=o>=</span> <span class=err>data</span><span class=p>.</span><span class=err>kubernetes_service</span><span class=p>.</span><span class=kd>ingress</span><span class=err>-nginx</span><span class=p>.</span><span class=err>status</span><span class=p>.</span><span class=m>0</span><span class=p>.</span><span class=err>load_balancer</span><span class=p>.</span><span class=m>0</span><span class=p>.</span><span class=kd>ingress</span><span class=p>.</span><span class=m>0</span><span class=p>.</span><span class=err>ip</span><span class=c1>
+</span><span class=c1>    #value = data.kubernetes_service.ingress-nginx.external_ips
+</span><span class=c1></span>  }</code></pre></div></div><h3 id=headline-15>DNS</h3><p>I use dnsimple for my domain, and I'm calling this site <code class=verbatim>k8</code>. Why not.</p><div class="src src-terraform"><div class=highlight><pre class=chroma><code class=language-terraform data-lang=terraform>  <span class=kr>resource</span> <span class=s>&#34;dnsimple_record&#34; &#34;k8&#34;</span> {
+<span class=na>    domain</span> <span class=o>=</span> <span class=err>var</span><span class=p>.</span><span class=err>dnsimple_domain</span>
+<span class=na>    name</span>   <span class=o>=</span> <span class=s2>&#34;k8&#34;</span>
+<span class=na>    value</span>  <span class=o>=</span> <span class=err>data</span><span class=p>.</span><span class=err>kubernetes_service</span><span class=p>.</span><span class=kd>ingress</span><span class=err>-nginx</span><span class=p>.</span><span class=err>status</span><span class=p>.</span><span class=m>0</span><span class=p>.</span><span class=err>load_balancer</span><span class=p>.</span><span class=m>0</span><span class=p>.</span><span class=kd>ingress</span><span class=p>.</span><span class=m>0</span><span class=p>.</span><span class=err>ip</span>
+<span class=na>    type</span>   <span class=o>=</span> <span class=s2>&#34;A&#34;</span>
+<span class=na>    ttl</span>    <span class=o>=</span> <span class=m>300</span>
+  }</code></pre></div></div><h3 id=headline-16>Cert Manager</h3><p><code class=verbatim>cert-manager</code> keeps track of certificates as a custom resource within
+kubernetes. We will use this to get our TLS traffic good to go.</p><div class="src src-terraform"><div class=highlight><pre class=chroma><code class=language-terraform data-lang=terraform>    <span class=kr>resource</span> <span class=s>&#34;helm_release&#34; &#34;cert-manager&#34;</span> {
+<span class=na>      repository</span> <span class=o>=</span> <span class=s2>&#34;https://charts.jetstack.io&#34;</span>
+<span class=na>      chart</span> <span class=o>=</span> <span class=s2>&#34;cert-manager&#34;</span>
+<span class=na>      name</span> <span class=o>=</span> <span class=s2>&#34;cert-manager&#34;</span>
+<span class=na>      namespace</span> <span class=o>=</span> <span class=s2>&#34;cert-manager&#34;</span>
+<span class=na>      create_namespace</span> <span class=o>=</span> <span class=kt>true</span>
+  
+      <span class=err>set</span> {
+<span class=na>        name</span> <span class=o>=</span> <span class=s2>&#34;installCRDs&#34;</span>
+<span class=na>        value</span> <span class=o>=</span> <span class=s2>&#34;true&#34;</span>
+      }
+    }</code></pre></div></div><h3 id=headline-17>Config</h3><p>Finally, we are going to stick the data that we just got from creating
+these endpoints into a kubernetes config map that our application will
+use to wire itself up.</p><p>We also create a namespace for all of our app stuff just to keep
+things organized.</p><div class="src src-terraform"><div class=highlight><pre class=chroma><code class=language-terraform data-lang=terraform><span class=c1>  # We use this for the rails master key, adjust to your location
+</span><span class=c1></span>
+  <span class=err>data</span> <span class=s2>&#34;local_file&#34; &#34;masterkey&#34;</span> {
+<span class=na>    filename</span> <span class=o>=</span> <span class=s2>&#34;favoriteapp/config/master.key&#34;</span>
+  }
+
+  <span class=kr>resource</span> <span class=s>&#34;kubernetes_namespace&#34; &#34;favoriteapp&#34;</span> {
+    <span class=err>metadata</span> {
+<span class=na>      name</span> <span class=o>=</span> <span class=s2>&#34;favoriteapp&#34;</span>
+    }
+  }
+
+  <span class=kr>resource</span> <span class=s>&#34;kubernetes_config_map&#34; &#34;favoriteapp-config&#34;</span> {
+    <span class=err>metadata</span> {
+<span class=na>      name</span> <span class=o>=</span> <span class=s2>&#34;favoriteapp-config&#34;</span>
+<span class=na>      namespace</span> <span class=o>=</span> <span class=s2>&#34;favoriteapp&#34;</span>
+    }
+
+<span class=na>    data</span> <span class=o>=</span> {
+<span class=na>      RAILS_MASTER_KEY</span> <span class=o>=</span> <span class=err>data</span><span class=p>.</span><span class=err>local_file</span><span class=p>.</span><span class=err>masterkey</span><span class=p>.</span><span class=err>content</span>
+<span class=na>      RAILS_ENV</span> <span class=o>=</span> <span class=s2>&#34;production&#34;</span>
+<span class=na>      DATABASE_URL</span> <span class=o>=</span> <span class=err>digitalocean_database_cluster</span><span class=p>.</span><span class=err>favoriteapp-postgres</span><span class=p>.</span><span class=err>private_uri</span>
+<span class=na>      REDIS_URL</span> <span class=o>=</span> <span class=s2>&#34;redis://user:${random_password.redis_password.result}@redis-master.default.svc.cluster.local:6379&#34;</span>
+    }
+  }</code></pre></div></div><h3 id=headline-18>Option 1: <code class=verbatim>ClusterIssuer</code> custom resource definition</h3><p>I had some trouble with putting adding this resource before the
+cluster has started, hopefully they've fixed it in a later release.
+But in the meantime you may want to only add this file after
+everything is up.</p><div class="src src-terraform"><div class=highlight><pre class=chroma><code class=language-terraform data-lang=terraform>  <span class=kr>provider</span> <span class=s>&#34;kubernetes-alpha&#34;</span> {
+<span class=na>    host</span>             <span class=o>=</span> <span class=err>digitalocean_kubernetes_cluster</span><span class=p>.</span><span class=err>gratitude</span><span class=p>.</span><span class=err>endpoint</span>
+<span class=na>    token</span>            <span class=o>=</span> <span class=err>digitalocean_kubernetes_cluster</span><span class=p>.</span><span class=err>gratitude</span><span class=p>.</span><span class=err>kube_config</span><span class=p>[</span><span class=m>0</span><span class=p>].</span><span class=err>token</span>
+<span class=na>    cluster_ca_certificate</span> <span class=o>=</span> <span class=err>base</span><span class=m>64</span><span class=err>decode</span><span class=p>(</span>
+      <span class=err>digitalocean_kubernetes_cluster</span><span class=p>.</span><span class=err>gratitude</span><span class=p>.</span><span class=err>kube_config</span><span class=p>[</span><span class=m>0</span><span class=p>].</span><span class=err>cluster_ca_certificate</span>
+      <span class=p>)</span>
+  }
+
+  <span class=kr>resource</span> <span class=s>&#34;kubernetes_manifest&#34; &#34;cluster_issuer&#34;</span> {
+<span class=na>    depends_on</span> <span class=o>=</span> <span class=p>[</span> <span class=err>digitalocean_kubernetes_cluster</span><span class=p>.</span><span class=err>gratitude</span><span class=p>,</span> <span class=err>helm_release</span><span class=p>.</span><span class=err>cert-manager</span> <span class=p>]</span>
+<span class=na>    provider</span> <span class=o>=</span> <span class=err>kubernetes-alpha</span>
+
+<span class=na>    manifest</span> <span class=o>=</span> {
+<span class=na>      apiVersion</span> <span class=o>=</span> <span class=s2>&#34;cert-manager.io/v1&#34;</span>
+<span class=na>      kind</span> <span class=o>=</span> <span class=s2>&#34;ClusterIssuer&#34;</span>
+<span class=na>      metadata</span> <span class=o>=</span> {
+<span class=na>        name</span> <span class=o>=</span> <span class=s2>&#34;letsencrypt-prod&#34;</span>
+      }
+<span class=na>      spec</span> <span class=o>=</span> {
+<span class=na>        acme</span> <span class=o>=</span> {
+<span class=na>          email</span> <span class=o>=</span> <span class=s2>&#34;wschenk@gmail.com&#34;</span>
+<span class=na>          server</span> <span class=o>=</span> <span class=s2>&#34;https://acme-v02.api.letsencrypt.org/directory&#34;</span>
+<span class=na>          privateKeySecretRef</span> <span class=o>=</span> {
+<span class=na>            name</span> <span class=o>=</span> <span class=s2>&#34;issuer-account-key&#34;</span>
+          }
+<span class=na>          solvers</span> <span class=o>=</span> <span class=p>[</span>
+            {
+<span class=na>              http01</span> <span class=o>=</span> {
+<span class=na>                ingress</span> <span class=o>=</span> {
+<span class=na>                  class</span> <span class=o>=</span> <span class=s2>&#34;nginx&#34;</span>
+                }
+              }
+            }
+          <span class=p>]</span>
+        }
+      }
+    }
+  }</code></pre></div></div><h3 id=headline-19>Option 2: Setup using <code class=verbatim>cluster-issuer.yml</code></h3><p>Instead of using the <code class=verbatim>kubernetes-alpha</code> way of setting up the cluster
+issuer, we can do a simple <code class=verbatim>yml</code> file and do it the kubectl way.</p><p><code class=verbatim>cluster-issuer.yml</code>:</p><div class="src src-yaml"><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=w>  </span><span class=k>apiVersion</span><span class=p>:</span><span class=w> </span>cert-manager.io/v1<span class=w>
+</span><span class=w>  </span><span class=k>kind</span><span class=p>:</span><span class=w> </span>ClusterIssuer<span class=w>
+</span><span class=w>  </span><span class=k>metadata</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=k>name</span><span class=p>:</span><span class=w> </span>letsencrypt-prod<span class=w>
+</span><span class=w>  </span><span class=k>spec</span><span class=p>:</span><span class=w>
+</span><span class=w>    </span><span class=k>acme</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span><span class=c># You must replace this email address with your own.</span><span class=w>
+</span><span class=w>      </span><span class=c># Let&#39;s Encrypt will use this to contact you about expiring</span><span class=w>
+</span><span class=w>      </span><span class=c># certificates, and issues related to your account.</span><span class=w>
+</span><span class=w>      </span><span class=k>email</span><span class=p>:</span><span class=w> </span>wschenk@gmail.com<span class=w>
+</span><span class=w>      </span><span class=k>server</span><span class=p>:</span><span class=w> </span>https<span class=p>:</span>//acme-v02.api.letsencrypt.org/directory<span class=w>
+</span><span class=w>      </span><span class=k>privateKeySecretRef</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span><span class=k>name</span><span class=p>:</span><span class=w> </span>issuer-account-key<span class=w>
+</span><span class=w>      </span><span class=c># Add a single challenge solver, HTTP01 using nginx</span><span class=w>
+</span><span class=w>      </span><span class=k>solvers</span><span class=p>:</span><span class=w>
+</span><span class=w>      </span>- <span class=k>http01</span><span class=p>:</span><span class=w>
+</span><span class=w>          </span><span class=k>ingress</span><span class=p>:</span><span class=w>
+</span><span class=w>            </span><span class=k>class</span><span class=p>:</span><span class=w> </span>nginx</code></pre></div></div><p>Then apply it</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  kubectl apply -f cluster-issuer.yml</code></pre></div></div><p>And we can look at it like so</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  kubectl describe clusterissuer letsencrypt-prod</code></pre></div></div><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  kubectl get cert --namespace favoriteapp</code></pre></div></div><pre class=example>
+NAME                 READY   SECRET               AGE
+issuer-account-key   True    issuer-account-key   34m
+</pre><h3 id=headline-20>App deployment</h3><p>Finally, we define our app itself. It has to moving pieces that can
+be scaled independantly.</p><p>One is called <code class=verbatim>favoriteapp</code> that is initially set to have 2 replicas.
+We define two types of containers here, one is the <code class=verbatim>init_container</code> that
+basically runs on each pod startup to run the migration (<code class=verbatim>command =
+["rake", "db:migrate"]</code>) and the other is the container itself that
+serves the rails application on port 3000.</p><p>The other is <code class=verbatim>favoriteapp-workers</code> which runs the <code class=verbatim>sidekiq</code> command.</p><div class="src src-terraform"><div class=highlight><pre class=chroma><code class=language-terraform data-lang=terraform>  <span class=kr>resource</span> <span class=s>&#34;kubernetes_deployment&#34; &#34;favoriteapp&#34;</span> {
+    <span class=err>metadata</span> {
+<span class=na>      name</span> <span class=o>=</span> <span class=s2>&#34;favoriteapp&#34;</span>
+<span class=na>      labels</span> <span class=o>=</span> {
+<span class=na>        app</span> <span class=o>=</span> <span class=s2>&#34;favoriteapp&#34;</span>
+      }
+<span class=na>      namespace</span> <span class=o>=</span> <span class=s2>&#34;favoriteapp&#34;</span>
+    }
+
+    <span class=err>spec</span> {
+<span class=na>      replicas</span> <span class=o>=</span> <span class=m>2</span>
+
+      <span class=err>selector</span> {
+<span class=na>        match_labels</span> <span class=o>=</span> {
+<span class=na>          app</span> <span class=o>=</span> <span class=s2>&#34;favoriteapp&#34;</span>
+        }
+      }
+
+      <span class=err>template</span> {
+        <span class=err>metadata</span> {
+<span class=na>          name</span> <span class=o>=</span> <span class=s2>&#34;favoriteapp&#34;</span>
+<span class=na>          labels</span> <span class=o>=</span> {
+<span class=na>            app</span> <span class=o>=</span> <span class=s2>&#34;favoriteapp&#34;</span>
+          }
+        }
+
+        <span class=err>spec</span> {
+          <span class=err>init_container</span> {
+<span class=na>            image</span> <span class=o>=</span> <span class=s2>&#34;wschenk/favoriteapp:master&#34;</span>
+<span class=na>            image_pull_policy</span> <span class=o>=</span> <span class=s2>&#34;Always&#34;</span>
+<span class=na>            name</span> <span class=o>=</span> <span class=s2>&#34;favoriteapp-init&#34;</span>
+<span class=na>            command</span> <span class=o>=</span> <span class=p>[</span><span class=s2>&#34;rake&#34;, &#34;db:migrate&#34;</span><span class=p>]</span>
+            <span class=err>env_from</span> {
+              <span class=err>config_map_ref</span> {
+<span class=na>                name</span> <span class=o>=</span> <span class=s2>&#34;favoriteapp-config&#34;</span>
+              }
+            }
+          }
+          <span class=err>container</span> {
+<span class=na>            image</span> <span class=o>=</span> <span class=s2>&#34;wschenk/favoriteapp:master&#34;</span>
+<span class=na>            image_pull_policy</span> <span class=o>=</span> <span class=s2>&#34;Always&#34;</span>
+<span class=na>            name</span> <span class=o>=</span> <span class=s2>&#34;favoriteapp&#34;</span>
+            <span class=err>port</span> {
+<span class=na>              container_port</span> <span class=o>=</span> <span class=m>3000</span>
+            }
+            <span class=err>env_from</span> {
+              <span class=err>config_map_ref</span> {
+<span class=na>                name</span> <span class=o>=</span> <span class=s2>&#34;favoriteapp-config&#34;</span>
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  <span class=kr>resource</span> <span class=s>&#34;kubernetes_deployment&#34; &#34;favoriteapp-workers&#34;</span> {
+    <span class=err>metadata</span> {
+<span class=na>      name</span> <span class=o>=</span> <span class=s2>&#34;favoriteapp-workers&#34;</span>
+<span class=na>      namespace</span> <span class=o>=</span> <span class=s2>&#34;favoriteapp&#34;</span>
+
+    }
+    <span class=err>spec</span> {
+<span class=na>      replicas</span> <span class=o>=</span> <span class=m>1</span>
+
+      <span class=err>selector</span> {
+<span class=na>        match_labels</span> <span class=o>=</span> {
+<span class=na>          app</span> <span class=o>=</span> <span class=s2>&#34;favoriteapp-workers&#34;</span>
+        }
+      }
+
+      <span class=err>template</span> {
+        <span class=err>metadata</span> {
+<span class=na>          name</span> <span class=o>=</span> <span class=s2>&#34;favoriteapp-workers&#34;</span>
+<span class=na>          labels</span> <span class=o>=</span> {
+<span class=na>            app</span> <span class=o>=</span> <span class=s2>&#34;favoriteapp-workers&#34;</span>
+          }
+        }
+
+        <span class=err>spec</span> {
+          <span class=err>container</span> {
+<span class=na>            image</span> <span class=o>=</span> <span class=s2>&#34;wschenk/favoriteapp:master&#34;</span>
+<span class=na>            name</span> <span class=o>=</span> <span class=s2>&#34;favoriteapp-workers&#34;</span>
+<span class=na>            command</span> <span class=o>=</span> <span class=p>[</span><span class=s2>&#34;sidekiq&#34;</span><span class=p>]</span>
+            <span class=err>env_from</span> {
+              <span class=err>config_map_ref</span> {
+<span class=na>                name</span> <span class=o>=</span> <span class=s2>&#34;favoriteapp-config&#34;</span>
+              }
+            }
+          }
+        }
+      }
+    }
+  }</code></pre></div></div><p>Now that we have the <code class=verbatim>deployments</code> running, we need to expose them first
+to the cluster as a <code class=verbatim>service</code> (basically this gives them a name and a
+port that other kubernetes services can access).</p><p>Once that service is defined, we define an <code class=verbatim>ingress</code> that lets the
+outside world connect to the internal service, which in turn connects
+to the pods running in the deployment.</p><div class="src src-terraform"><div class=highlight><pre class=chroma><code class=language-terraform data-lang=terraform>  <span class=kr>resource</span> <span class=s>&#34;kubernetes_service&#34; &#34;favoriteapp-service&#34;</span> {
+    <span class=err>metadata</span> {
+<span class=na>      name</span> <span class=o>=</span> <span class=s2>&#34;favoriteapp-service&#34;</span>
+<span class=na>      namespace</span> <span class=o>=</span> <span class=s2>&#34;favoriteapp&#34;</span>
+    }
+
+    <span class=err>spec</span> {
+      <span class=err>port</span> {
+<span class=na>        port</span> <span class=o>=</span> <span class=m>80</span>
+<span class=na>        target_port</span> <span class=o>=</span> <span class=m>3000</span>
+      }
+
+<span class=na>      selector</span> <span class=o>=</span> {
+<span class=na>        app</span> <span class=o>=</span> <span class=s2>&#34;favoriteapp&#34;</span>
+      }
+    }
+  }
+
+  <span class=kr>resource</span> <span class=s>&#34;kubernetes_ingress&#34; &#34;favoriteapp-ingress&#34;</span> {
+<span class=na>    wait_for_load_balancer</span> <span class=o>=</span> <span class=kt>true</span>
+    <span class=err>metadata</span> {
+<span class=na>      name</span> <span class=o>=</span> <span class=s2>&#34;favoriteapp-ingress&#34;</span>
+<span class=na>      annotations</span> <span class=o>=</span> {
+<span class=na>        &#34;kubernetes.io/ingress.class&#34;</span> <span class=o>=</span> <span class=s2>&#34;nginx&#34;</span>
+<span class=na>        &#34;cert-manager.io/cluster-issuer&#34;</span> <span class=o>=</span> <span class=s2>&#34;letsencrypt-prod&#34;</span>
+<span class=na>        &#34;cert-manager.io/acme-challenge-type&#34;</span> <span class=o>=</span> <span class=s2>&#34;http01&#34;</span>
+      }
+<span class=na>      namespace</span> <span class=o>=</span> <span class=s2>&#34;favoriteapp&#34;</span>
+    }
+    <span class=err>spec</span> {
+      <span class=err>rule</span> {
+<span class=na>        host</span> <span class=o>=</span> <span class=s2>&#34;k8.willschenk.com&#34;</span>
+        <span class=err>http</span> {
+          <span class=err>path</span> {
+<span class=na>            path</span> <span class=o>=</span> <span class=s2>&#34;/&#34;</span>
+            <span class=err>backend</span> {
+<span class=na>              service_name</span> <span class=o>=</span> <span class=s2>&#34;favoriteapp-service&#34;</span>
+<span class=na>              service_port</span> <span class=o>=</span> <span class=m>80</span>
+            }
+          }
+        }
+      }
+
+      <span class=err>tls</span> {
+<span class=na>        hosts</span> <span class=o>=</span> <span class=p>[</span> <span class=s2>&#34;k8.willschenk.com&#34;</span> <span class=p>]</span>
+<span class=na>        secret_name</span> <span class=o>=</span> <span class=s2>&#34;issuer-account-key&#34;</span>
+      }
+    }
+  }</code></pre></div></div><h2 id=headline-21><code class=verbatim>terraform</code> and <code class=verbatim>kubectl</code></h2><p>Now we run <code class=verbatim>terraform apply</code> and, if you've entered in all of your
+credentials correctly, the application should start up with all of the
+correct datasources, migrations run, and the whole thing.</p><p>You can walk through the flow to make sure that the app is working,
+that things get stored in the database, and that the sidekiq jobs
+processed what is needed.</p><p>You can also configure <code class=verbatim>kubectl</code> locally so that you can examine the
+cluster.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  <span class=nb>export</span> <span class=nv>CLUSTER_ID</span><span class=o>=</span><span class=k>$(</span>terraform output -raw cluster-id<span class=k>)</span>
+  mkdir -p ~/.kube/
+  curl -X GET <span class=se>\
+</span><span class=se></span>  -H <span class=s2>&#34;Content-Type: application/json&#34;</span> <span class=se>\
+</span><span class=se></span>  -H <span class=s2>&#34;Authorization: Bearer </span><span class=si>${</span><span class=nv>TF_VAR_do_token</span><span class=si>}</span><span class=s2>&#34;</span> <span class=se>\
+</span><span class=se></span>  <span class=s2>&#34;https://api.digitalocean.com/v2/kubernetes/clusters/</span><span class=nv>$CLUSTER_ID</span><span class=s2>/kubeconfig&#34;</span> <span class=se>\
+</span><span class=se></span>  &gt; ~/.kube/config</code></pre></div></div><h2 id=headline-22>Manually reissuing the certificate</h2><p>First look to see what the status of your certiticate is:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>kubectl get cert --namespace favoriteapp</code></pre></div></div><p>And you can also look at the certificate request itself to see if
+everything is good.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>kubectl describe certificaterequest issuer-account-key --namespace favoriteapp</code></pre></div></div><p>Install the <code class=verbatim>cert-manager</code> plugin locally:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  <span class=nb>cd</span> /tmp
+  curl -L -o kubectl-cert-manager.tar.gz https://github.com/jetstack/cert-manager/releases/download/v1.4.0/kubectl-cert_manager-linux-amd64.tar.gz
+  tar xzf kubectl-cert-manager.tar.gz
+  sudo mv kubectl-cert_manager /usr/local/bin</code></pre></div></div><h2 id=headline-23>Looking at the deployment</h2><h3 id=headline-24>Logs</h3><p>Webapp:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>kubectl logs --namespace favoriteapp deployment/favoriteapp</code></pre></div></div><p>Workers:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  kubectl logs --namespace favoriteapp deployment/favoriteappworker</code></pre></div></div><p>Migration:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  kubectl logs --namespace favoriteapp jobs/favoriteapp-migration</code></pre></div></div><h3 id=headline-25>Deploying a new version</h3><p>First we make a change to the app, then check it in. Once things are
+finished building we can manually trigger a restart:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  kubectl rollout restart --namespace favoriteapp deployment/favoriteapp
+  kubectl rollout restart --namespace favoriteapp deployment/favoriteapp-workers</code></pre></div></div><h3 id=headline-26>Setting up automatic deployment</h3><p>We can also extend our github action to use <a href=https://github.com/steebchen/kubectl>kubectl</a> itself to trigger
+the deployment. (You'll probably want to add a step in there to run
+tests also!) This is what that looks like.</p><p>First, to you need to add your <code class=verbatim>.kube/config</code> to the repositories
+secrets. First convert to base64, then add a new secret named
+<code class=verbatim>KUBE_CONFIG_DATA</code>:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>cat <span class=nv>$HOME</span>/.kube/config <span class=p>|</span> base64</code></pre></div></div><p>Then, add the following steps to <code class=verbatim>build-and-push.yml</code>:</p><div class="src src-yaml"><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=w>        </span><span class=sd>-
+</span><span class=sd>          name: Deploy App</span><span class=w>
+</span><span class=w>          </span><span class=k>id</span><span class=p>:</span><span class=w> </span>k8app<span class=w>
+</span><span class=w>          </span><span class=k>uses</span><span class=p>:</span><span class=w> </span>steebchen/kubectl@v2<span class=m>.0.0</span><span class=w>
+</span><span class=w>          </span><span class=k>with</span><span class=p>:</span><span class=w> </span><span class=c># defaults to latest kubectl binary version</span><span class=w>
+</span><span class=w>            </span><span class=k>config</span><span class=p>:</span><span class=w> </span>${{<span class=w> </span>secrets.KUBE_CONFIG_DATA<span class=w> </span>}}<span class=w>
+</span><span class=w>            </span><span class=k>command</span><span class=p>:</span><span class=w> </span>rollout<span class=w> </span>restart<span class=w> </span>--namespace<span class=w> </span>favoriteapp<span class=w> </span>deployment/favoriteapp<span class=w>
+</span><span class=w>        </span><span class=sd>-
+</span><span class=sd>          name: Deploy workers</span><span class=w>
+</span><span class=w>          </span><span class=k>id</span><span class=p>:</span><span class=w> </span>k8workers<span class=w>
+</span><span class=w>          </span><span class=k>uses</span><span class=p>:</span><span class=w> </span>steebchen/kubectl@v2<span class=m>.0.0</span><span class=w>
+</span><span class=w>          </span><span class=k>with</span><span class=p>:</span><span class=w> </span><span class=c># defaults to latest kubectl binary version</span><span class=w>
+</span><span class=w>            </span><span class=k>config</span><span class=p>:</span><span class=w> </span>${{<span class=w> </span>secrets.KUBE_CONFIG_DATA<span class=w> </span>}}<span class=w>
+</span><span class=w>            </span><span class=k>command</span><span class=p>:</span><span class=w> </span>rollout<span class=w> </span>restart<span class=w> </span>--namespace<span class=w> </span>favoriteapp<span class=w> </span>deployment/favoriteapp-workers</code></pre></div></div><h2 id=headline-27>Final thoughts</h2><p>What a journey this post has been! Stepping back a while bunch it's
+not really clear to me that this is an improvement. I've a lot of
+applications on <a href=https://www.heroku.com/>Heroku</a>, which has a much simplier workflow. <code class=verbatim>heroku
+create</code>, <code class=verbatim>git push</code> and there you go. It locks you into a certain way of
+doing things and buildpacks, while a bit more constaining compared to
+<code class=verbatim>Dockerfiles</code> are about a zillion times easier to work with.</p><p>And on the otherside, you have things like cloud functions, either
+using something like <a href=https://www.openfaas.com/>OpenFaaS</a> or even different deployment models all
+together. If you are in the Node or Deno ecosystems what's going on
+with <a href=https://deno.com/deploy>Deno Deploy</a> or even <a href=https://nextjs.org/>NextJS</a> is a much easier way to actually get
+something up and running. The level of complexity for kubernetes is
+truely mind boggling, and a number of times during this write up I was
+muttering under my breath about a simplier world were we could FTP PHP
+files around…</p><p>Basically, I'm not sure that I often find myself with the problem
+where kubernetes is the right solution. It's certainly very cool, and
+the idea of having a bunch of resources that, with a little guidance,
+and sort of manage and heal themselves is pretty amazing. But I also
+feel that there's way too much going on than what I properly
+understand, and it's a lot of ceremony to make stuff happen.</p><h2 id=headline-28>References</h2><ol><li><p><a href=https://docs.bitnami.com/tutorials/deploy-rails-application-kubernetes-helm/>https://docs.bitnami.com/tutorials/deploy-rails-application-kubernetes-helm/</a></p></li><li><p><a href=https://docs.openfaas.com/reference/ssl/kubernetes-with-cert-manager/>https://docs.openfaas.com/reference/ssl/kubernetes-with-cert-manager/</a></p></li><li><p><a href=https://dev.to/michaellalatkovic/deploying-on-kubernetes-part-1-a-rails-api-backend-2ojl>https://dev.to/michaellalatkovic/deploying-on-kubernetes-part-1-a-rails-api-backend-2ojl</a></p></li><li><p><a href=https://cert-manager.io/docs/tutorials/acme/ingress/>https://cert-manager.io/docs/tutorials/acme/ingress/</a></p></li><li><p><a href=https://github.com/docker/build-push-action>https://github.com/docker/build-push-action</a></p></li><li><p><a href=https://github.com/steebchen/kubectl>https://github.com/steebchen/kubectl</a></p></li></ol></article></div><div class="bg-light py-5"><div class=container><h2 class=text-center>Read next</h2><div class=row><div class="col-md-6 text-center"></div><div class="col-md-6 text-center">Previous Post:
+<a href=../../../articles/2021/setting_up_github_for_ci/>Setting up GitHub Actions for Continuous Integration</a></div></div></div></div><div class="container mt-5"><h2 class=text-center>See also</h2><div class=row><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2021/deploying_open_faa_s_on_digital_ocean_with_terraform/>Deploying OpenFaaS on Digital Ocean with Terraform</a></p><p class="lead font-italic mb-0">Everything functional</p><div class="font-weight-light mt-3"><p>We are going to look at how to use Terraform to deploy a Kubernetes cluster on Digital Ocean, add a managed postgres database, and redis and OpenFaaS in kubernetes. This will show how to use Terraform to manage the configuration and how we can access both cloud and kubernetes managed services from OpenFaaS functions. We are going to use the digitalocean, kubernetes, and helm terraform providers. The plan Provision a digitalocean_kubernetes_cluster Provision a digitalocean_database_cluster Provision 2 kubernetes_namespace for openfaas and openfass-fn Provision a helm_release for openfaas Provision a helm_release for redis Provision 2 kubernetes_secret to point to the databases Deploy an OpenFaaS function that reads those secrets and talks to the database.</p></div><a href=../../../articles/2021/deploying_open_faa_s_on_digital_ocean_with_terraform/ class="btn btn-primary">Read more</a></div><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2020/rails_uuid_primary_keys/>rails uuid primary key</a></p><p class="lead font-italic mb-0">Slightly more obscure</p><div class="font-weight-light mt-3"><p>Exposing primary keys externally just sort of invites people to poke around in your system. Lets configure rails to use uuid instead. Create a postgres rails app We are going to be relying upon the pgcrypto postgres extension, so lets go ahead a create a postgres based rails application. rails new testapp -d=postgresql cd testapp Now we tell our generators that we want our primary key type to be :uuid: # config/initializers/generators.</p></div><a href=../../../articles/2020/rails_uuid_primary_keys/ class="btn btn-primary">Read more</a></div><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2020/tailwind_and_rails/>Tailwind and Rails</a></p><p class="lead font-italic mb-0">postcss setup</p><div class="font-weight-light mt-3"><p>Tailwind is a really nice set of CSS utility classes that let you style up a page staying largely in one file at a time. Rails has it's own wild way of dealing with javascript, so lets go through how to make them play well together. Install tailwindcss Make sure that you have node 12.13 or higher: node -v If not, then upgrade node. Inside of your rails project, install tailwind.</p></div><a href=../../../articles/2020/tailwind_and_rails/ class="btn btn-primary">Read more</a></div></div></div><footer class="footer bg-dark text-light mt-3"><div class=container><h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2></div></footer></body></html>
