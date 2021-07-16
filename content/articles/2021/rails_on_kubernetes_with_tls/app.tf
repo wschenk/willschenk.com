@@ -26,7 +26,8 @@ resource "kubernetes_deployment" "favoriteapp" {
 
       spec {
         init_container {
-          image = "wschenk/favoriteapp:latest"
+          image = "wschenk/favoriteapp:master"
+          image_pull_policy = "Always"
           name = "favoriteapp-init"
           command = ["rake", "db:migrate"]
           env_from {
@@ -36,7 +37,8 @@ resource "kubernetes_deployment" "favoriteapp" {
           }
         }
         container {
-          image = "wschenk/favoriteapp:latest"
+          image = "wschenk/favoriteapp:master"
+          image_pull_policy = "Always"
           name = "favoriteapp"
           port {
             container_port = 3000
@@ -77,7 +79,7 @@ resource "kubernetes_deployment" "favoriteapp-workers" {
 
       spec {
         container {
-          image = "wschenk/favoriteapp:latest"
+          image = "wschenk/favoriteapp:master"
           name = "favoriteapp-workers"
           command = ["sidekiq"]
           env_from {

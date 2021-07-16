@@ -1,7 +1,7 @@
 resource "digitalocean_kubernetes_cluster" "gratitude" {
   name    = "gratitude"
   region  = "nyc1"
-  version = "1.20.7-do.0"
+  version = "1.21.2-do.2" # or "latest"
 
   node_pool {
     name       = "worker-pool"

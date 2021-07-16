@@ -1,5 +1,4 @@
 provider "kubernetes-alpha" {
-  load_config_file = false
   host             = digitalocean_kubernetes_cluster.gratitude.endpoint
   token            = digitalocean_kubernetes_cluster.gratitude.kube_config[0].token
   cluster_ca_certificate = base64decode(
