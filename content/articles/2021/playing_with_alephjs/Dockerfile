@@ -1,4 +1,4 @@
-FROM hayd/debian-deno:1.10.2
+FROM denoland/deno:1.12.0
 
 WORKDIR /app
 
@@ -8,6 +8,6 @@ RUN deno install --unstable -A -f -n aleph https://deno.land/x/aleph@v0.3.0-alph
 
 #RUN aleph init hello
 
-# WORKDIR /app/hello
+#WORKDIR /app/hello
 
 CMD bash
