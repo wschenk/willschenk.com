@@ -1,4 +1,400 @@
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Fri, 16 Jul 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Rails on Kubernetes with TLS</title><link>https://willschenk.com/articles/2021/rails_on_kubernetes_with_tls/</link><pubDate>Fri, 16 Jul 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/rails_on_kubernetes_with_tls/</guid><description>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Mon, 23 Aug 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Uploading to S3 on the command line</title><link>https://willschenk.com/articles/2021/uploading_to_s3_on_the_command_line/</link><pubDate>Mon, 23 Aug 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/uploading_to_s3_on_the_command_line/</guid><description>
+&lt;p>
+I want to store data from a shell scripts on a S3 compatible bucket
+from with in a docker container.
+&lt;/p>
+&lt;p>
+I&amp;#39;m going to be doing this on digital ocean, but I assume that any API
+compatible service would work.
+&lt;/p>
+&lt;h2 id="headline-1">
+Setup spaces in digital ocean
+&lt;/h2>
+&lt;p>
+I&amp;#39;m going to be using digital ocean for these tests, and I setup my
+bucket with the following terraform snippet.
+&lt;/p>
+&lt;div class="src src-terraform">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-terraform" data-lang="terraform"> &lt;span class="kr">resource&lt;/span> &lt;span class="s">&amp;#34;digitalocean_spaces_bucket&amp;#34; &amp;#34;gratitude-public&amp;#34;&lt;/span> {
+&lt;span class="na"> name&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;gratitude-public&amp;#34;&lt;/span>
+&lt;span class="na"> region&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s2">&amp;#34;nyc3&amp;#34;&lt;/span>
+&lt;span class="err">cors_rule&lt;/span> {
+&lt;span class="na"> allowed_headers&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;*&amp;#34;&lt;/span>&lt;span class="p">]&lt;/span>
+&lt;span class="na"> allowed_methods&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;GET&amp;#34;&lt;/span>&lt;span class="p">]&lt;/span>
+&lt;span class="na"> allowed_origins&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;*&amp;#34;&lt;/span>&lt;span class="p">]&lt;/span>
+&lt;span class="na"> max_age_seconds&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="m">3000&lt;/span>
+}
+}&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-2">
+Environment Variables
+&lt;/h2>
+&lt;table>
+&lt;tbody>
+&lt;tr>
+&lt;td>&lt;code class="verbatim">AWS_ACCESS_KEY_ID&lt;/code>&lt;/td>
+&lt;td>spaces id&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code class="verbatim">AWS_SECRET_ACCESS_KEY&lt;/code>&lt;/td>
+&lt;td>access key&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code class="verbatim">AWS_END_POINT&lt;/code>&lt;/td>
+&lt;td>&lt;code class="verbatim">nyc3.digitaloceanspaces.com&lt;/code>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>&lt;code class="verbatim">BUCKET_NAME&lt;/code>&lt;/td>
+&lt;td>the bucket name&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;h2 id="headline-3">
+Using ruby
+&lt;/h2>
+&lt;p>
+We&amp;#39;ll first look at how to make a simple script to upload a file using
+a self contained ruby script.
+&lt;/p>
+&lt;div class="src src-ruby">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-ruby" data-lang="ruby"> &lt;span class="nb">require&lt;/span> &lt;span class="s1">&amp;#39;bundler/inline&amp;#39;&lt;/span>
+&lt;span class="n">gemfile&lt;/span> &lt;span class="k">do&lt;/span>
+&lt;span class="n">source&lt;/span> &lt;span class="s1">&amp;#39;https://rubygems.org&amp;#39;&lt;/span>
+&lt;span class="n">gem&lt;/span> &lt;span class="s1">&amp;#39;aws-sdk-s3&amp;#39;&lt;/span>
+&lt;span class="n">gem&lt;/span> &lt;span class="s1">&amp;#39;rexml&amp;#39;&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="k">def&lt;/span> &lt;span class="nf">upload_object&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">s3_client&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">bucket_name&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">file_name&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="n">response&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">s3_client&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">put_object&lt;/span>&lt;span class="p">(&lt;/span>
+&lt;span class="ss">body&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="no">File&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">read&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">file_name&lt;/span>&lt;span class="p">),&lt;/span>
+&lt;span class="ss">bucket&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="n">bucket_name&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="ss">key&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="n">file_name&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="ss">acl&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s1">&amp;#39;public-read&amp;#39;&lt;/span>
+&lt;span class="p">)&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="n">response&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">etag&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="kp">true&lt;/span>
+&lt;span class="k">else&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="kp">false&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="k">rescue&lt;/span> &lt;span class="no">StandardError&lt;/span> &lt;span class="o">=&amp;gt;&lt;/span> &lt;span class="n">e&lt;/span>
+&lt;span class="nb">puts&lt;/span> &lt;span class="s2">&amp;#34;Error uploading object: &lt;/span>&lt;span class="si">#{&lt;/span>&lt;span class="n">e&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">message&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="kp">false&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="k">def&lt;/span> &lt;span class="nf">run_me&lt;/span>
+&lt;span class="o">[&lt;/span>&lt;span class="s1">&amp;#39;AWS_ACCESS_KEY_ID&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s1">&amp;#39;AWS_SECRET_ACCESS_KEY&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s1">&amp;#39;AWS_END_POINT&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s1">&amp;#39;BUCKET_NAME&amp;#39;&lt;/span>&lt;span class="o">].&lt;/span>&lt;span class="n">each&lt;/span> &lt;span class="k">do&lt;/span> &lt;span class="o">|&lt;/span>&lt;span class="n">key&lt;/span>&lt;span class="o">|&lt;/span>
+&lt;span class="kp">throw&lt;/span> &lt;span class="s2">&amp;#34;Set &lt;/span>&lt;span class="si">#{&lt;/span>&lt;span class="n">key&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="k">if&lt;/span> &lt;span class="no">ENV&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="n">key&lt;/span>&lt;span class="o">].&lt;/span>&lt;span class="n">nil?&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="n">region&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="s1">&amp;#39;us-east-1&amp;#39;&lt;/span>
+&lt;span class="n">s3_client&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="no">Aws&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="no">S3&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="no">Client&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">new&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="ss">access_key_id&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="no">ENV&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="s1">&amp;#39;AWS_ACCESS_KEY_ID&amp;#39;&lt;/span>&lt;span class="o">]&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="ss">secret_access_key&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="no">ENV&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="s1">&amp;#39;AWS_SECRET_ACCESS_KEY&amp;#39;&lt;/span>&lt;span class="o">]&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="ss">endpoint&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="no">ENV&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="s1">&amp;#39;AWS_END_POINT&amp;#39;&lt;/span>&lt;span class="o">]&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="ss">region&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="n">region&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="n">uploaded&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">upload_object&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">s3_client&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="no">ENV&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="s1">&amp;#39;BUCKET_NAME&amp;#39;&lt;/span>&lt;span class="o">]&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s1">&amp;#39;upload.rb&amp;#39;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nb">puts&lt;/span> &lt;span class="s2">&amp;#34;Uploaded = &lt;/span>&lt;span class="si">#{&lt;/span>&lt;span class="n">uploaded&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="n">run_me&lt;/span> &lt;span class="k">if&lt;/span> &lt;span class="vg">$PROGRAM_NAME&lt;/span> &lt;span class="o">==&lt;/span> &lt;span class="bp">__FILE__&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-4">
+Using curl (failure)
+&lt;/h2>
+&lt;p>
+This &lt;em>does not work&lt;/em> because the signature style isn&amp;#39;t apt.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> &lt;span class="k">if&lt;/span> &lt;span class="o">[&lt;/span> -z &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">AWS_ACCESS_KEY_ID&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="o">]&lt;/span> &lt;span class="p">;&lt;/span> &lt;span class="k">then&lt;/span>
+&lt;span class="nb">echo&lt;/span> Set AWS_ACCESS_KEY_ID
+&lt;span class="nb">exit&lt;/span> &lt;span class="m">1&lt;/span>
+&lt;span class="k">fi&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="o">[&lt;/span> -z &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">AWS_SECRET_ACCESS_KEY&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="o">]&lt;/span> &lt;span class="p">;&lt;/span> &lt;span class="k">then&lt;/span>
+&lt;span class="nb">echo&lt;/span> Set AWS_SECRET_ACCESS_KEY
+&lt;span class="nb">exit&lt;/span> &lt;span class="m">1&lt;/span>
+&lt;span class="k">fi&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="o">[&lt;/span> -z &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">AWS_END_POINT&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="o">]&lt;/span> &lt;span class="p">;&lt;/span> &lt;span class="k">then&lt;/span>
+&lt;span class="nb">echo&lt;/span> Set AWS_END_POINT
+&lt;span class="nb">exit&lt;/span> &lt;span class="m">1&lt;/span>
+&lt;span class="k">fi&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="o">[&lt;/span> -z &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">BUCKET_NAME&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="o">]&lt;/span> &lt;span class="p">;&lt;/span> &lt;span class="k">then&lt;/span>
+&lt;span class="nb">echo&lt;/span> Set BUCKET_NAME
+&lt;span class="nb">exit&lt;/span> &lt;span class="m">1&lt;/span>
+&lt;span class="k">fi&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="o">[&lt;/span> -z &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">1&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="o">]&lt;/span> &lt;span class="p">;&lt;/span> &lt;span class="k">then&lt;/span>
+&lt;span class="nb">echo&lt;/span> Usage &lt;span class="nv">$0&lt;/span> filename
+&lt;span class="nb">exit&lt;/span> &lt;span class="m">1&lt;/span>
+&lt;span class="k">fi&lt;/span>
+&lt;span class="nb">echo&lt;/span> Good to upload &lt;span class="si">${&lt;/span>&lt;span class="nv">1&lt;/span>&lt;span class="si">}&lt;/span>
+&lt;span class="c1">#echo $AWS_END_POINT&lt;/span>
+&lt;span class="nv">AWS_END_POINT&lt;/span>&lt;span class="o">=&lt;/span>https://gratitude-public.nyc3.digitaloceanspaces.com
+&lt;span class="nv">file&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">1&lt;/span>&lt;span class="si">}&lt;/span>
+&lt;span class="nv">bucket&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">BUCKET_NAME&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="nv">contentType&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;application/octet-stream&amp;#34;&lt;/span>
+&lt;span class="nv">dateValue&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="sb">`&lt;/span>date -uR&lt;span class="sb">`&lt;/span>
+&lt;span class="nv">resource&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;/&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">bucket&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">/&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">file&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="nv">stringToSign&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;PUT\n\n&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">contentType&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">\n&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">dateValue&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">\n&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">resource&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="nb">echo&lt;/span> &lt;span class="nv">$stringToSign&lt;/span>
+&lt;span class="nv">signature&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="sb">`&lt;/span>&lt;span class="nb">echo&lt;/span> -en &lt;span class="si">${&lt;/span>&lt;span class="nv">stringToSign&lt;/span>&lt;span class="si">}&lt;/span> &lt;span class="p">|&lt;/span> openssl sha1 -hmac &lt;span class="si">${&lt;/span>&lt;span class="nv">AWS_SECRET_ACCESS_KEY&lt;/span>&lt;span class="si">}&lt;/span> -binary &lt;span class="p">|&lt;/span> base64&lt;span class="sb">`&lt;/span>
+&lt;span class="nb">echo&lt;/span> &lt;span class="nv">$signature&lt;/span>
+&lt;span class="nb">echo&lt;/span> &lt;span class="nv">$AWS_END_POINT&lt;/span>
+curl -X PUT -T &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">file&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> -H &lt;span class="s2">&amp;#34;Host: &lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">AWS_END_POINT&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> -H &lt;span class="s2">&amp;#34;Date: &lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">dateValue&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> -H &lt;span class="s2">&amp;#34;Content-Type: &lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">contentType&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> -H &lt;span class="s2">&amp;#34;Authorization: AWS &lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">AWS_ACCESS_KEY_ID&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">:&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">signature&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> &lt;span class="si">${&lt;/span>&lt;span class="nv">AWS_END_POINT&lt;/span>&lt;span class="si">}&lt;/span>/&lt;span class="si">${&lt;/span>&lt;span class="nv">resource&lt;/span>&lt;span class="si">}&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-5">
+Using curl part two
+&lt;/h2>
+&lt;p>
+This uses a different signature style which works to digital ocean.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> &lt;span class="c1">#!/bin/sh -u&lt;/span>
+&lt;span class="c1"># To the extent possible under law, Viktor Szakats (vsz.me)&lt;/span>
+&lt;span class="c1"># has waived all copyright and related or neighboring rights to this&lt;/span>
+&lt;span class="c1"># script.&lt;/span>
+&lt;span class="c1"># CC0 - https://creativecommons.org/publicdomain/zero/1.0/&lt;/span>
+&lt;span class="c1"># Upload a file to Amazon AWS S3 using Signature Version 4&lt;/span>
+#
+&lt;span class="c1"># docs:&lt;/span>
+&lt;span class="c1"># https://docs.aws.amazon.com/general/latest/gr/sigv4-create-canonical-request.html&lt;/span>
+#
+&lt;span class="c1"># requires:&lt;/span>
+&lt;span class="c1"># curl, openssl 1.x, GNU sed, LF EOLs in this file&lt;/span>
+&lt;span class="nv">fileLocal&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">1&lt;/span>&lt;span class="k">:-&lt;/span>&lt;span class="nv">example&lt;/span>&lt;span class="p">-local-file.ext&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="nv">bucket&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">2&lt;/span>&lt;span class="k">:-&lt;/span>&lt;span class="nv">example&lt;/span>&lt;span class="p">-bucket&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="nv">region&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">3&lt;/span>&lt;span class="k">:-&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="nv">storageClass&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">4&lt;/span>&lt;span class="k">:-&lt;/span>&lt;span class="nv">STANDARD&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="c1"># or &amp;#39;REDUCED_REDUNDANCY&amp;#39;&lt;/span>
+my_openssl&lt;span class="o">()&lt;/span> &lt;span class="o">{&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="o">[&lt;/span> -f /usr/local/opt/openssl@1.1/bin/openssl &lt;span class="o">]&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="k">then&lt;/span>
+/usr/local/opt/openssl@1.1/bin/openssl &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="nv">$@&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="k">elif&lt;/span> &lt;span class="o">[&lt;/span> -f /usr/local/opt/openssl/bin/openssl &lt;span class="o">]&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="k">then&lt;/span>
+/usr/local/opt/openssl/bin/openssl &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="nv">$@&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="k">else&lt;/span>
+openssl &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="nv">$@&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="k">fi&lt;/span>
+&lt;span class="o">}&lt;/span>
+my_sed&lt;span class="o">()&lt;/span> &lt;span class="o">{&lt;/span>
+&lt;span class="k">if&lt;/span> which gsed &amp;gt; /dev/null 2&amp;gt;&lt;span class="p">&amp;amp;&lt;/span>1&lt;span class="p">;&lt;/span> &lt;span class="k">then&lt;/span>
+gsed &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="nv">$@&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="k">else&lt;/span>
+sed &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="nv">$@&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="k">fi&lt;/span>
+&lt;span class="o">}&lt;/span>
+awsStringSign4&lt;span class="o">()&lt;/span> &lt;span class="o">{&lt;/span>
+&lt;span class="nv">kSecret&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;AWS4&lt;/span>&lt;span class="nv">$1&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="nv">kDate&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="k">$(&lt;/span>&lt;span class="nb">printf&lt;/span> &lt;span class="s1">&amp;#39;%s&amp;#39;&lt;/span> &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="nv">$2&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="p">|&lt;/span> my_openssl dgst -sha256 -hex -mac HMAC -macopt &lt;span class="s2">&amp;#34;key:&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">kSecret&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> 2&amp;gt;/dev/null &lt;span class="p">|&lt;/span> my_sed &lt;span class="s1">&amp;#39;s/^.* //&amp;#39;&lt;/span>&lt;span class="k">)&lt;/span>
+&lt;span class="nv">kRegion&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="k">$(&lt;/span>&lt;span class="nb">printf&lt;/span> &lt;span class="s1">&amp;#39;%s&amp;#39;&lt;/span> &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="nv">$3&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="p">|&lt;/span> my_openssl dgst -sha256 -hex -mac HMAC -macopt &lt;span class="s2">&amp;#34;hexkey:&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">kDate&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> 2&amp;gt;/dev/null &lt;span class="p">|&lt;/span> my_sed &lt;span class="s1">&amp;#39;s/^.* //&amp;#39;&lt;/span>&lt;span class="k">)&lt;/span>
+&lt;span class="nv">kService&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="k">$(&lt;/span>&lt;span class="nb">printf&lt;/span> &lt;span class="s1">&amp;#39;%s&amp;#39;&lt;/span> &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="nv">$4&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="p">|&lt;/span> my_openssl dgst -sha256 -hex -mac HMAC -macopt &lt;span class="s2">&amp;#34;hexkey:&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">kRegion&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> 2&amp;gt;/dev/null &lt;span class="p">|&lt;/span> my_sed &lt;span class="s1">&amp;#39;s/^.* //&amp;#39;&lt;/span>&lt;span class="k">)&lt;/span>
+&lt;span class="nv">kSigning&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="k">$(&lt;/span>&lt;span class="nb">printf&lt;/span> &lt;span class="s1">&amp;#39;aws4_request&amp;#39;&lt;/span> &lt;span class="p">|&lt;/span> my_openssl dgst -sha256 -hex -mac HMAC -macopt &lt;span class="s2">&amp;#34;hexkey:&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">kService&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> 2&amp;gt;/dev/null &lt;span class="p">|&lt;/span> my_sed &lt;span class="s1">&amp;#39;s/^.* //&amp;#39;&lt;/span>&lt;span class="k">)&lt;/span>
+&lt;span class="nv">signedString&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="k">$(&lt;/span>&lt;span class="nb">printf&lt;/span> &lt;span class="s1">&amp;#39;%s&amp;#39;&lt;/span> &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="nv">$5&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="p">|&lt;/span> my_openssl dgst -sha256 -hex -mac HMAC -macopt &lt;span class="s2">&amp;#34;hexkey:&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">kSigning&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> 2&amp;gt;/dev/null &lt;span class="p">|&lt;/span> my_sed &lt;span class="s1">&amp;#39;s/^.* //&amp;#39;&lt;/span>&lt;span class="k">)&lt;/span>
+&lt;span class="nb">printf&lt;/span> &lt;span class="s1">&amp;#39;%s&amp;#39;&lt;/span> &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">signedString&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="o">}&lt;/span>
+iniGet&lt;span class="o">()&lt;/span> &lt;span class="o">{&lt;/span>
+&lt;span class="c1"># based on: https://stackoverflow.com/questions/22550265/read-certain-key-from-certain-section-of-ini-file-sed-awk#comment34321563_22550640&lt;/span>
+&lt;span class="nb">printf&lt;/span> &lt;span class="s1">&amp;#39;%s&amp;#39;&lt;/span> &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="k">$(&lt;/span>my_sed -n -E &lt;span class="s2">&amp;#34;/\[&lt;/span>&lt;span class="nv">$2&lt;/span>&lt;span class="s2">\]/,/\[.*\]/{/&lt;/span>&lt;span class="nv">$3&lt;/span>&lt;span class="s2">/s/(.*)=[ \\t]*(.*)/\2/p}&amp;#34;&lt;/span> &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="nv">$1&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="k">)&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="o">}&lt;/span>
+&lt;span class="c1"># Initialize access keys&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="o">[&lt;/span> -z &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">AWS_CONFIG_FILE&lt;/span>&lt;span class="k">:-&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="o">]&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="k">then&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="o">[&lt;/span> -z &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">AWS_ACCESS_KEY_ID&lt;/span>&lt;span class="k">:-&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="o">]&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="k">then&lt;/span>
+&lt;span class="nb">echo&lt;/span> &lt;span class="s1">&amp;#39;AWS_CONFIG_FILE or AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY envvars not set.&amp;#39;&lt;/span>
+&lt;span class="nb">exit&lt;/span> &lt;span class="m">1&lt;/span>
+&lt;span class="k">else&lt;/span>
+&lt;span class="nv">awsAccess&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">AWS_ACCESS_KEY_ID&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="nv">awsSecret&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">AWS_SECRET_ACCESS_KEY&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="nv">awsRegion&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s1">&amp;#39;us-east-1&amp;#39;&lt;/span>
+&lt;span class="k">fi&lt;/span>
+&lt;span class="k">else&lt;/span>
+&lt;span class="nv">awsProfile&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s1">&amp;#39;default&amp;#39;&lt;/span>
+&lt;span class="c1"># Read standard aws-cli configuration file&lt;/span>
+&lt;span class="c1"># pointed to by the envvar AWS_CONFIG_FILE&lt;/span>
+&lt;span class="nv">awsAccess&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="k">$(&lt;/span>iniGet &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">AWS_CONFIG_FILE&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">awsProfile&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="s1">&amp;#39;aws_access_key_id&amp;#39;&lt;/span>&lt;span class="k">)&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="nv">awsSecret&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="k">$(&lt;/span>iniGet &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">AWS_CONFIG_FILE&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">awsProfile&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="s1">&amp;#39;aws_secret_access_key&amp;#39;&lt;/span>&lt;span class="k">)&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="nv">awsRegion&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="k">$(&lt;/span>iniGet &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">AWS_CONFIG_FILE&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">awsProfile&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="s1">&amp;#39;region&amp;#39;&lt;/span>&lt;span class="k">)&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="k">fi&lt;/span>
+&lt;span class="c1"># Initialize defaults&lt;/span>
+&lt;span class="nv">fileRemote&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">fileLocal&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="o">[&lt;/span> -z &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">region&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="o">]&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="k">then&lt;/span>
+&lt;span class="nv">region&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">awsRegion&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="k">fi&lt;/span>
+&lt;span class="nb">echo&lt;/span> &lt;span class="s2">&amp;#34;Uploading&amp;#34;&lt;/span> &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">fileLocal&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="s2">&amp;#34;-&amp;gt;&amp;#34;&lt;/span> &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">bucket&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">region&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">storageClass&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="nb">echo&lt;/span> &lt;span class="s2">&amp;#34;| &lt;/span>&lt;span class="k">$(&lt;/span>uname&lt;span class="k">)&lt;/span>&lt;span class="s2"> | &lt;/span>&lt;span class="k">$(&lt;/span>my_openssl version&lt;span class="k">)&lt;/span>&lt;span class="s2"> | &lt;/span>&lt;span class="k">$(&lt;/span>my_sed --version &lt;span class="p">|&lt;/span> head -1&lt;span class="k">)&lt;/span>&lt;span class="s2"> |&amp;#34;&lt;/span>
+&lt;span class="c1"># Initialize helper variables&lt;/span>
+&lt;span class="nv">httpReq&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s1">&amp;#39;PUT&amp;#39;&lt;/span>
+&lt;span class="nv">authType&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s1">&amp;#39;AWS4-HMAC-SHA256&amp;#39;&lt;/span>
+&lt;span class="nv">service&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s1">&amp;#39;s3&amp;#39;&lt;/span>
+&lt;span class="nv">baseUrl&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;.&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">service&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">.amazonaws.com&amp;#34;&lt;/span>
+&lt;span class="nv">baseUrl&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;.nyc3.digitaloceanspaces.com&amp;#34;&lt;/span>
+&lt;span class="nv">dateValueS&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="k">$(&lt;/span>date -u +&lt;span class="s1">&amp;#39;%Y%m%d&amp;#39;&lt;/span>&lt;span class="k">)&lt;/span>
+&lt;span class="nv">dateValueL&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="k">$(&lt;/span>date -u +&lt;span class="s1">&amp;#39;%Y%m%dT%H%M%SZ&amp;#39;&lt;/span>&lt;span class="k">)&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="nb">hash&lt;/span> file 2&amp;gt;/dev/null&lt;span class="p">;&lt;/span> &lt;span class="k">then&lt;/span>
+&lt;span class="nv">contentType&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="k">$(&lt;/span>file --brief --mime-type &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">fileLocal&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="k">)&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="k">else&lt;/span>
+&lt;span class="nv">contentType&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s1">&amp;#39;application/octet-stream&amp;#39;&lt;/span>
+&lt;span class="k">fi&lt;/span>
+&lt;span class="c1"># 0. Hash the file to be uploaded&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="o">[&lt;/span> -f &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">fileLocal&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="o">]&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="k">then&lt;/span>
+&lt;span class="nv">payloadHash&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="k">$(&lt;/span>my_openssl dgst -sha256 -hex &amp;lt; &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">fileLocal&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> 2&amp;gt;/dev/null &lt;span class="p">|&lt;/span> my_sed &lt;span class="s1">&amp;#39;s/^.* //&amp;#39;&lt;/span>&lt;span class="k">)&lt;/span>
+&lt;span class="k">else&lt;/span>
+&lt;span class="nb">echo&lt;/span> &lt;span class="s2">&amp;#34;File not found: &amp;#39;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">fileLocal&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#39;&amp;#34;&lt;/span>
+&lt;span class="nb">exit&lt;/span> &lt;span class="m">1&lt;/span>
+&lt;span class="k">fi&lt;/span>
+&lt;span class="c1"># 1. Create canonical request&lt;/span>
+&lt;span class="c1"># NOTE: order significant in ${headerList} and ${canonicalRequest}&lt;/span>
+&lt;span class="nv">headerList&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s1">&amp;#39;content-type;host;x-amz-content-sha256;x-amz-date;x-amz-server-side-encryption;x-amz-storage-class&amp;#39;&lt;/span>
+&lt;span class="nv">canonicalRequest&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;\
+&lt;/span>&lt;span class="s2"> &lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">httpReq&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">
+&lt;/span>&lt;span class="s2"> /&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">fileRemote&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">
+&lt;/span>&lt;span class="s2">
+&lt;/span>&lt;span class="s2"> content-type:&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">contentType&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">
+&lt;/span>&lt;span class="s2"> host:&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">bucket&lt;/span>&lt;span class="si">}${&lt;/span>&lt;span class="nv">baseUrl&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">
+&lt;/span>&lt;span class="s2"> x-amz-content-sha256:&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">payloadHash&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">
+&lt;/span>&lt;span class="s2"> x-amz-date:&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">dateValueL&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">
+&lt;/span>&lt;span class="s2"> x-amz-server-side-encryption:AES256
+&lt;/span>&lt;span class="s2"> x-amz-storage-class:&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">storageClass&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">
+&lt;/span>&lt;span class="s2">
+&lt;/span>&lt;span class="s2"> &lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">headerList&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">
+&lt;/span>&lt;span class="s2"> &lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">payloadHash&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="c1"># Hash it&lt;/span>
+&lt;span class="nv">canonicalRequestHash&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="k">$(&lt;/span>&lt;span class="nb">printf&lt;/span> &lt;span class="s1">&amp;#39;%s&amp;#39;&lt;/span> &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">canonicalRequest&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="p">|&lt;/span> my_openssl dgst -sha256 -hex 2&amp;gt;/dev/null &lt;span class="p">|&lt;/span> my_sed &lt;span class="s1">&amp;#39;s/^.* //&amp;#39;&lt;/span>&lt;span class="k">)&lt;/span>
+&lt;span class="c1"># 2. Create string to sign&lt;/span>
+&lt;span class="nv">stringToSign&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;\
+&lt;/span>&lt;span class="s2"> &lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">authType&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">
+&lt;/span>&lt;span class="s2"> &lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">dateValueL&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">
+&lt;/span>&lt;span class="s2"> &lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">dateValueS&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">/&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">region&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">/&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">service&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">/aws4_request
+&lt;/span>&lt;span class="s2"> &lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">canonicalRequestHash&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="c1"># 3. Sign the string&lt;/span>
+&lt;span class="nv">signature&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="k">$(&lt;/span>awsStringSign4 &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">awsSecret&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">dateValueS&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">region&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">service&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">stringToSign&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="k">)&lt;/span>
+&lt;span class="c1"># Upload&lt;/span>
+curl --location --proto-redir &lt;span class="o">=&lt;/span>https --request &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">httpReq&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> --upload-file &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">fileLocal&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --header &lt;span class="s2">&amp;#34;Content-Type: &lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">contentType&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --header &lt;span class="s2">&amp;#34;Host: &lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">bucket&lt;/span>&lt;span class="si">}${&lt;/span>&lt;span class="nv">baseUrl&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --header &lt;span class="s2">&amp;#34;X-Amz-Content-SHA256: &lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">payloadHash&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --header &lt;span class="s2">&amp;#34;X-Amz-Date: &lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">dateValueL&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --header &lt;span class="s2">&amp;#34;X-Amz-Server-Side-Encryption: AES256&amp;#34;&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --header &lt;span class="s2">&amp;#34;X-Amz-Storage-Class: &lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">storageClass&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --header &lt;span class="s2">&amp;#34;Authorization: &lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">authType&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2"> Credential=&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">awsAccess&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">/&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">dateValueS&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">/&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">region&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">/&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">service&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">/aws4_request, SignedHeaders=&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">headerList&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">, Signature=&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">signature&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> &lt;span class="s2">&amp;#34;https://&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">bucket&lt;/span>&lt;span class="si">}${&lt;/span>&lt;span class="nv">baseUrl&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">/&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">fileRemote&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-6">
+Debian aws cli tools
+&lt;/h2>
+&lt;div class="src src-dockerfile">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-dockerfile" data-lang="dockerfile"> FROM debian:11&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> RUN apt update &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> apt install -y unzip curl&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> RUN curl &lt;span class="s2">&amp;#34;https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip&amp;#34;&lt;/span> -o &lt;span class="s2">&amp;#34;awscliv2.zip&amp;#34;&lt;/span> &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> unzip awscliv2.zip &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> ./aws/install &lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> &lt;span class="c1">#RUN apt install -y wget gnupg&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> &lt;span class="c1">#RUN wget -O- -q http://s3tools.org/repo/deb-all/stable/s3tools.key | apt-key add -&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> &lt;span class="c1">#RUN wget -O /etc/apt/sources.list.d/s3tools.list http://s3tools.org/repo/deb-all/stable/s3tools.list&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> &lt;span class="c1">#RUN apt update &amp;amp;&amp;amp; apt install s3cmd&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> CMD bash&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Then build with
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">docker build . -f Dockerfile.awscli -t awscli&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Now run it, passing in the right environment variables:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> docker run --rm -it &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> -e AWS_ACCESS_KEY_ID &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> -e AWS_SECRET_ACCESS_KEY &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> -e AWS_END_POINT &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> -e BUCKET_NAME &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> awscli&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Then to list the buckets:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">aws s3 ls --endpoint&lt;span class="o">=&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">AWS_END_POINT&lt;/span>&lt;span class="si">}&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+And to copy a file over:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">aws s3 cp testfile s3://&lt;span class="si">${&lt;/span>&lt;span class="nv">BUCKET_NAME&lt;/span>&lt;span class="si">}&lt;/span>/testfile --acl public-read --endpoint&lt;span class="o">=&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">AWS_END_POINT&lt;/span>&lt;span class="si">}&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-7">
+s3cmd
+&lt;/h2>
+&lt;div class="src src-dockerfile">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-dockerfile" data-lang="dockerfile">&lt;span class="k">FROM&lt;/span>&lt;span class="s"> debian:11&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> apt update&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> apt install -y curl unzip python python-setuptools &lt;span class="c1"># python-dateutil python-setuptools&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">WORKDIR&lt;/span>&lt;span class="s"> /tmp&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> curl -LJO https://github.com/s3tools/s3cmd/releases/download/v2.1.0/s3cmd-2.1.0.zip &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> unzip s3cmd-2.1.0.zip &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> rm s3cmd-2.1.0.zip &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> &lt;span class="nb">cd&lt;/span> s3cmd-2.1.0 &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> python setup.py install &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> rm -rf /tmp/s3cmd-2.1.0&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">WORKDIR&lt;/span>&lt;span class="s"> /app&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span>&lt;span class="k">CMD&lt;/span> bash&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">docker build . -f Dockerfile.s3cmd -t s3cmd&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> docker run --rm -it &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> -e AWS_ACCESS_KEY_ID &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> -e AWS_SECRET_ACCESS_KEY &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> -e AWS_END_POINT &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> -e BUCKET_NAME &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> s3cmd&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Then to copy over a file
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> s3cmd put testfile2 s3://&lt;span class="si">${&lt;/span>&lt;span class="nv">BUCKET_NAME&lt;/span>&lt;span class="si">}&lt;/span> --acl-public &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --host&lt;span class="o">=&lt;/span>nyc3.digitaloceanspaces.com &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --host-bucket&lt;span class="o">=&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">BUCKET&lt;/span>&lt;span class="si">}&lt;/span>s.nyc3.digitaloceanspaces.com&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+&lt;code class="verbatim">s3cmd&lt;/code> has a lot more functionality other than copying, so if you are
+looking for something more complex – like mirroring – it is worth
+exploring.
+&lt;/p>
+&lt;h2 id="headline-8">
+References
+&lt;/h2>
+&lt;ol>
+&lt;li>
+&lt;p>
+&lt;a href="https://superuser.com/questions/279986/uploading-files-to-s3-account-from-linux-command-line">https://superuser.com/questions/279986/uploading-files-to-s3-account-from-linux-command-line&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://gist.github.com/chrismdp/6c6b6c825b07f680e710">https://gist.github.com/chrismdp/6c6b6c825b07f680e710&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://tmont.com/blargh/2014/1/uploading-to-s3-in-bash">https://tmont.com/blargh/2014/1/uploading-to-s3-in-bash&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://s3tools.org/s3cmd">https://s3tools.org/s3cmd&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://github.com/s3tools/s3cmd/issues/1018">https://github.com/s3tools/s3cmd/issues/1018&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://docs.digitalocean.com/products/spaces/resources/s3cmd/">https://docs.digitalocean.com/products/spaces/resources/s3cmd/&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://gist.github.com/vszakats/2917d28a951844ab80b1">https://gist.github.com/vszakats/2917d28a951844ab80b1&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;/ol></description></item><item><title>Rails on Kubernetes with TLS</title><link>https://willschenk.com/articles/2021/rails_on_kubernetes_with_tls/</link><pubDate>Fri, 16 Jul 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/rails_on_kubernetes_with_tls/</guid><description>
 &lt;p>
 I wanted to see how to really use kubernetes like I&amp;#39;m used to using
 heroku, so lets recreate everything using terraform, digital ocean,
