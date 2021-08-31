@@ -1,0 +1,67 @@
+<!doctype html><html><head><title>Wrapping a executable in a function</title><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><link rel=stylesheet href=../../../css/theme.css><link rel=stylesheet href=../../../css/syntax.css><script type=application/javascript>var doNotTrack=false;if(!doNotTrack){window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;ga('create','UA-56296045-1','auto');ga('send','pageview');}</script><script async src=https://www.google-analytics.com/analytics.js></script><script async defer data-domain=willschenk.com src=https://plausible.io/js/plausible.js></script><meta property="og:title" content="Wrapping a executable in a function"><meta property="og:description" content="Lets look at how to wrap a command line program into a function. We'll assume that you already have an OpenFaaS service running somewhere. First create the template  faas new --lang dockerfile myfunction  Calling the function   I'm going to write a command in ruby so I'll include things from the ruby:3.0.1 base image.  The main thing here is that I'm copying the script into /usr/local/bin and I'm changing the fprocess ENV variable to be xargs gitinfo."><meta property="og:type" content="article"><meta property="og:url" content="https://willschenk.com/articles/2021/wrapping_a_executable_in_a_function/"><meta property="article:published_time" content="2021-08-30T00:00:00+00:00"><meta property="article:modified_time" content="2021-08-30T00:00:00+00:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Wrapping a executable in a function"><meta name=twitter:description content="Lets look at how to wrap a command line program into a function. We'll assume that you already have an OpenFaaS service running somewhere. First create the template  faas new --lang dockerfile myfunction  Calling the function   I'm going to write a command in ruby so I'll include things from the ruby:3.0.1 base image.  The main thing here is that I'm copying the script into /usr/local/bin and I'm changing the fprocess ENV variable to be xargs gitinfo."><meta name=twitter:site content="@wschenk"><style>.article p,.article ul,.article ol,.article table{max-width:45em}.article pre p{max-width:none;margin-top:-1.5rem}article.article p:first-child,.article blockquote{font-size:1.25em;font-weight:300;max-width:36em}.half-height-scroll{max-height:32em;overflow:scroll}</style></head><body><nav class="container my-5"><h1 class="pt-md-5 display-3"><a class=text-dark href=../../../>Will Schenk</a></h1><p><a class="text-dark h4 mr-3 font-weight-light" href=../../../articles/>Articles</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../contact>Contact</a>
+<a class="text-dark h4 mr-3 font-weight-light" href=../../../tags/>Tags</a>
+<a href=../../../feed.xml class="mr-3 h4 text-light"><img src=../../../img/rss.svg alt=rss height=20 width=20></a>
+<a href=https://twitter.com/@wschenk class="mr-3 h4 text-light"><img src=../../../img/twitter.svg alt=twitter height=20 width=20></a>
+<a href=https://instagram.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/instagram.svg alt=instagram height=20 width=20></a>
+<a href=https://github.com/wschenk class="mr-3 h4 text-light"><img src=../../../img/github.svg alt=github height=20 width=20></a>
+<a href=https://linkedin.com/in/will-schenk-420266 class="mr-3 h4 text-light"><img src=../../../img/linkedin.svg alt=linkedin height=20 width=20></a></p></nav><div class=container><h1 class=mt-5>Wrapping a executable in a function</h1><h2 class="font-weight-light font-italic mb-3">Easy function wrapping</h2><p class="text-muted mt-3"><a class=text-muted href=https://willschenk.com/articles/2021/wrapping_a_executable_in_a_function/>Published August 30, 2021</a>
+<a class=text-muted href=../../../tags/openfaas>#openfaas,</a>
+<a class=text-muted href=../../../tags/cli>#cli</a></p><article class="article mt-5"><p>Lets look at how to wrap a command line program into a function.
+We'll assume that you already have an OpenFaaS service running
+somewhere.</p><h2 id=headline-1>First create the template</h2><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>faas new --lang dockerfile myfunction</code></pre></div></div><h2 id=headline-2>Calling the function</h2><p>I'm going to write a command in <code class=verbatim>ruby</code> so I'll include things from the
+<code class=verbatim>ruby:3.0.1</code> base image.</p><p>The main thing here is that I'm copying the script into <code class=verbatim>/usr/local/bin</code>
+and I'm changing the <code class=verbatim>fprocess</code> ENV variable to be <code class=verbatim>xargs gitinfo.rb</code>
+which will pass in the standard input as command line arguments.</p><div class="src src-dockerfile"><div class=highlight><pre class=chroma><code class=language-dockerfile data-lang=dockerfile>  FROM ghcr.io/openfaas/classic-watchdog:0.1.5 as watchdog<span class=err>
+</span><span class=err>
+</span><span class=err></span>  FROM ruby:3.0.1<span class=err>
+</span><span class=err>
+</span><span class=err></span>  RUN apt-get update <span class=o>&amp;&amp;</span> apt-get install -y cloc libsqlite3-dev<span class=err>
+</span><span class=err>
+</span><span class=err></span>  COPY --from<span class=o>=</span>watchdog /fwatchdog /usr/bin/fwatchdog<span class=err>
+</span><span class=err></span>  RUN chmod +x /usr/bin/fwatchdog<span class=err>
+</span><span class=err>
+</span><span class=err></span>  WORKDIR /home/app<span class=err>
+</span><span class=err>
+</span><span class=err></span>  <span class=c1># Add non root user</span><span class=err>
+</span><span class=err></span>  RUN useradd app<span class=err>
+</span><span class=err></span>  RUN chown app /home/app<span class=err>
+</span><span class=err>
+</span><span class=err></span>  COPY Gemfile* ./<span class=err>
+</span><span class=err></span>  RUN bundle install<span class=err>
+</span><span class=err></span>  COPY *rb /usr/local/bin/<span class=err>
+</span><span class=err></span>  RUN chmod +x /usr/local/bin/*rb<span class=err>
+</span><span class=err>
+</span><span class=err></span>  USER app<span class=err>
+</span><span class=err>
+</span><span class=err></span>  <span class=c1># Populate example here - i.e. &#34;cat&#34;, &#34;sha512sum&#34; or &#34;node index.js&#34;</span><span class=err>
+</span><span class=err></span>  ENV <span class=nv>fprocess</span><span class=o>=</span><span class=s2>&#34;xargs gitinfo.rb&#34;</span><span class=err>
+</span><span class=err></span>  <span class=c1># Set to true to see request in function logs</span><span class=err>
+</span><span class=err></span>  ENV <span class=nv>write_debug</span><span class=o>=</span><span class=s2>&#34;false&#34;</span><span class=err>
+</span><span class=err>
+</span><span class=err></span>  EXPOSE <span class=m>8080</span><span class=err>
+</span><span class=err>
+</span><span class=err></span>  HEALTHCHECK --interval<span class=o>=</span>3s CMD <span class=o>[</span> -e /tmp/.lock <span class=o>]</span> <span class=o>||</span> <span class=nb>exit</span> <span class=m>1</span><span class=err>
+</span><span class=err>
+</span><span class=err></span>  CMD <span class=o>[</span><span class=s2>&#34;fwatchdog&#34;</span><span class=o>]</span></code></pre></div></div><p>The script looks like this:</p><div class="src src-ruby"><div class=highlight><pre class=chroma><code class=language-ruby data-lang=ruby>  <span class=c1>#!/usr/bin/env ruby</span>
+
+  <span class=nb>puts</span> <span class=s2>&#34;This is the info file&#34;</span>
+
+  <span class=no>ARGV</span><span class=o>.</span><span class=n>each</span> <span class=k>do</span> <span class=o>|</span><span class=n>v</span><span class=p>,</span><span class=n>i</span><span class=o>|</span>
+    <span class=nb>puts</span> <span class=s2>&#34;</span><span class=si>#{</span><span class=n>i</span><span class=si>}</span><span class=s2>: </span><span class=si>#{</span><span class=n>v</span><span class=si>}</span><span class=s2>&#34;</span>
+  <span class=k>end</span></code></pre></div></div><h2 id=headline-3>Running without an argument</h2><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>curl https://api.gitgratitude.com/function/gitinfo</code></pre></div></div><pre class=example>
+This is the info file
+</pre><h2 id=headline-4>Passing in arguments</h2><p>Here we can pass in data to the function:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash><span class=nb>echo</span> Hello world <span class=p>|</span> curl -X POST --data @- https://api.gitgratitude.com/function/gitinfo</code></pre></div></div><pre class=example>
+This is the info file
+: Hello
+: world
+</pre><h2 id=headline-5>Async test</h2><p>I'm going to use <a href=pipedream.com>pipedream.com</a> as a way to collect a response. Go
+there and sign up for it if you haven't, and then set the <code class=verbatim>CALLBACK_URL</code>
+to be resulting address.</p><p>In order to have a function run asyncronously, you need the change the
+url to start with <code class=verbatim>/async-function/</code> and pass in an <code class=verbatim>X-Callback-URL</code>
+header where the result is posted.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  <span class=nv>CALLBACK_URL</span><span class=o>=</span>https://eno35z9ue0i7ffz.m.pipedream.net
+  <span class=nb>echo</span> Hello world <span class=p>|</span> curl -X POST <span class=se>\
+</span><span class=se></span>                          -H <span class=s2>&#34;X-Callback-Url: </span><span class=si>${</span><span class=nv>CALLBACK_URL</span><span class=si>}</span><span class=s2>&#34;</span> <span class=se>\
+</span><span class=se></span>                          --data @- <span class=se>\
+</span><span class=se></span>                          https://api.gitgratitude.com/async-function/gitinfo</code></pre></div></div><h2 id=headline-6>Conclustion</h2><p>Very simple, very little was changed from the below posts below.</p><h2 id=headline-7>References</h2><ol><li><p><a href=https://blog.alexellis.io/cli-functions-with-openfaas/>https://blog.alexellis.io/cli-functions-with-openfaas/</a></p></li><li><p><a href=https://github.com/openfaas/workshop/blob/master/lab7.md>https://github.com/openfaas/workshop/blob/master/lab7.md</a></p></li></ol></article></div><div class="bg-light py-5"><div class=container><h2 class=text-center>Read next</h2><div class=row><div class="col-md-6 text-center"></div><div class="col-md-6 text-center">Previous Post:
+<a href=../../../articles/2021/uploading_to_s3_on_the_command_line/>Uploading to S3 on the command line</a></div></div></div></div><div class="container mt-5"><h2 class=text-center>See also</h2><div class=row><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2021/deploying_open_faa_s_on_digital_ocean_with_terraform/>Deploying OpenFaaS on Digital Ocean with Terraform</a></p><p class="lead font-italic mb-0">Everything functional</p><div class="font-weight-light mt-3"><p>We are going to look at how to use Terraform to deploy a Kubernetes cluster on Digital Ocean, add a managed postgres database, and redis and OpenFaaS in kubernetes. This will show how to use Terraform to manage the configuration and how we can access both cloud and kubernetes managed services from OpenFaaS functions. We are going to use the digitalocean, kubernetes, and helm terraform providers. The plan Provision a digitalocean_kubernetes_cluster Provision a digitalocean_database_cluster Provision 2 kubernetes_namespace for openfaas and openfaas-fn Provision a helm_release for openfaas Provision a helm_release for redis Provision 2 kubernetes_secret to point to the databases Deploy an OpenFaaS function that reads those secrets and talks to the database.</p></div><a href=../../../articles/2021/deploying_open_faa_s_on_digital_ocean_with_terraform/ class="btn btn-primary">Read more</a></div><div class="col-md mb-3"><p class="lead mb-0"><a class=text-body href=../../../articles/2021/building_an_openfaas_template/>Building static OpenFaas templates</a></p><p class="lead font-italic mb-0">Packaging up the packager</p><div class="font-weight-light mt-3"><p>I've been playing with OpenFaaS recently and it's a very accessable way to starting building cloud first services. I wanted to see what I could cram in there, so I built a few templates that would let me host a static site. One that is just html, and another than can be built with something like create-react-app. Static Create the template directory: mkdir -p template/static Then add a template/static/template.</p></div><a href=../../../articles/2021/building_an_openfaas_template/ class="btn btn-primary">Read more</a></div></div></div><footer class="footer bg-dark text-light mt-3"><div class=container><h2 class="py-5 font-weight-light my-0">Made in Brooklyn, NY.</h2></div></footer></body></html>

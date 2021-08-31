@@ -1,4 +1,135 @@
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Sun, 22 Aug 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Uploading to S3 on the command line</title><link>https://willschenk.com/articles/2021/uploading_to_s3_on_the_command_line/</link><pubDate>Sun, 22 Aug 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/uploading_to_s3_on_the_command_line/</guid><description>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Mon, 30 Aug 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Wrapping a executable in a function</title><link>https://willschenk.com/articles/2021/wrapping_a_executable_in_a_function/</link><pubDate>Mon, 30 Aug 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/wrapping_a_executable_in_a_function/</guid><description>
+&lt;p>
+Lets look at how to wrap a command line program into a function.
+We&amp;#39;ll assume that you already have an OpenFaaS service running
+somewhere.
+&lt;/p>
+&lt;h2 id="headline-1">
+First create the template
+&lt;/h2>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">faas new --lang dockerfile myfunction&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-2">
+Calling the function
+&lt;/h2>
+&lt;p>
+I&amp;#39;m going to write a command in &lt;code class="verbatim">ruby&lt;/code> so I&amp;#39;ll include things from the
+&lt;code class="verbatim">ruby:3.0.1&lt;/code> base image.
+&lt;/p>
+&lt;p>
+The main thing here is that I&amp;#39;m copying the script into &lt;code class="verbatim">/usr/local/bin&lt;/code>
+and I&amp;#39;m changing the &lt;code class="verbatim">fprocess&lt;/code> ENV variable to be &lt;code class="verbatim">xargs gitinfo.rb&lt;/code>
+which will pass in the standard input as command line arguments.
+&lt;/p>
+&lt;div class="src src-dockerfile">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-dockerfile" data-lang="dockerfile"> FROM ghcr.io/openfaas/classic-watchdog:0.1.5 as watchdog&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> FROM ruby:3.0.1&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> RUN apt-get update &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> apt-get install -y cloc libsqlite3-dev&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> COPY --from&lt;span class="o">=&lt;/span>watchdog /fwatchdog /usr/bin/fwatchdog&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> RUN chmod +x /usr/bin/fwatchdog&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> WORKDIR /home/app&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> &lt;span class="c1"># Add non root user&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> RUN useradd app&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> RUN chown app /home/app&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> COPY Gemfile* ./&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> RUN bundle install&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> COPY *rb /usr/local/bin/&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> RUN chmod +x /usr/local/bin/*rb&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> USER app&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> &lt;span class="c1"># Populate example here - i.e. &amp;#34;cat&amp;#34;, &amp;#34;sha512sum&amp;#34; or &amp;#34;node index.js&amp;#34;&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> ENV &lt;span class="nv">fprocess&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;xargs gitinfo.rb&amp;#34;&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> &lt;span class="c1"># Set to true to see request in function logs&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> ENV &lt;span class="nv">write_debug&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;false&amp;#34;&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> EXPOSE &lt;span class="m">8080&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> HEALTHCHECK --interval&lt;span class="o">=&lt;/span>3s CMD &lt;span class="o">[&lt;/span> -e /tmp/.lock &lt;span class="o">]&lt;/span> &lt;span class="o">||&lt;/span> &lt;span class="nb">exit&lt;/span> &lt;span class="m">1&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">
+&lt;/span>&lt;span class="err">&lt;/span> CMD &lt;span class="o">[&lt;/span>&lt;span class="s2">&amp;#34;fwatchdog&amp;#34;&lt;/span>&lt;span class="o">]&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+The script looks like this:
+&lt;/p>
+&lt;div class="src src-ruby">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-ruby" data-lang="ruby"> &lt;span class="c1">#!/usr/bin/env ruby&lt;/span>
+&lt;span class="nb">puts&lt;/span> &lt;span class="s2">&amp;#34;This is the info file&amp;#34;&lt;/span>
+&lt;span class="no">ARGV&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">each&lt;/span> &lt;span class="k">do&lt;/span> &lt;span class="o">|&lt;/span>&lt;span class="n">v&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="n">i&lt;/span>&lt;span class="o">|&lt;/span>
+&lt;span class="nb">puts&lt;/span> &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">#{&lt;/span>&lt;span class="n">i&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">: &lt;/span>&lt;span class="si">#{&lt;/span>&lt;span class="n">v&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="k">end&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-3">
+Running without an argument
+&lt;/h2>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">curl https://api.gitgratitude.com/function/gitinfo&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+This is the info file
+&lt;/pre>
+&lt;h2 id="headline-4">
+Passing in arguments
+&lt;/h2>
+&lt;p>
+Here we can pass in data to the function:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="nb">echo&lt;/span> Hello world &lt;span class="p">|&lt;/span> curl -X POST --data @- https://api.gitgratitude.com/function/gitinfo&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+This is the info file
+: Hello
+: world
+&lt;/pre>
+&lt;h2 id="headline-5">
+Async test
+&lt;/h2>
+&lt;p>
+I&amp;#39;m going to use &lt;a href="pipedream.com">pipedream.com&lt;/a> as a way to collect a response. Go
+there and sign up for it if you haven&amp;#39;t, and then set the &lt;code class="verbatim">CALLBACK_URL&lt;/code>
+to be resulting address.
+&lt;/p>
+&lt;p>
+In order to have a function run asyncronously, you need the change the
+url to start with &lt;code class="verbatim">/async-function/&lt;/code> and pass in an &lt;code class="verbatim">X-Callback-URL&lt;/code>
+header where the result is posted.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> &lt;span class="nv">CALLBACK_URL&lt;/span>&lt;span class="o">=&lt;/span>https://eno35z9ue0i7ffz.m.pipedream.net
+&lt;span class="nb">echo&lt;/span> Hello world &lt;span class="p">|&lt;/span> curl -X POST &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> -H &lt;span class="s2">&amp;#34;X-Callback-Url: &lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">CALLBACK_URL&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --data @- &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> https://api.gitgratitude.com/async-function/gitinfo&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-6">
+Conclustion
+&lt;/h2>
+&lt;p>
+Very simple, very little was changed from the below posts below.
+&lt;/p>
+&lt;h2 id="headline-7">
+References
+&lt;/h2>
+&lt;ol>
+&lt;li>
+&lt;p>
+&lt;a href="https://blog.alexellis.io/cli-functions-with-openfaas/">https://blog.alexellis.io/cli-functions-with-openfaas/&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://github.com/openfaas/workshop/blob/master/lab7.md">https://github.com/openfaas/workshop/blob/master/lab7.md&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;/ol></description></item><item><title>Uploading to S3 on the command line</title><link>https://willschenk.com/articles/2021/uploading_to_s3_on_the_command_line/</link><pubDate>Sun, 22 Aug 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/uploading_to_s3_on_the_command_line/</guid><description>
 &lt;p>
 I want to store data from a shell scripts on a S3 compatible bucket
 from with in a docker container.
