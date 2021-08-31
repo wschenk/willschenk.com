@@ -1,0 +1,124 @@
+#+title: Wrapping a executable in a function
+#+subtitle: Easy function wrapping
+#+tags: openfaas, cli
+#+date: 2021-08-30
+
+Lets look at how to wrap a command line program into a function.
+We'll assume that you already have an OpenFaaS service running
+somewhere.
+
+* First create the template
+
+#+begin_src bash
+faas new --lang dockerfile myfunction
+#+end_src
+
+* Calling the function
+
+I'm going to write a command in =ruby= so I'll include things from the
+=ruby:3.0.1= base image.
+
+The main thing here is that I'm copying the script into =/usr/local/bin=
+and I'm changing the =fprocess= ENV variable to be =xargs gitinfo.rb=
+which will pass in the standard input as command line arguments.
+
+#+begin_src dockerfile
+  FROM ghcr.io/openfaas/classic-watchdog:0.1.5 as watchdog
+
+  FROM ruby:3.0.1
+
+  RUN apt-get update && apt-get install -y cloc libsqlite3-dev
+
+  COPY --from=watchdog /fwatchdog /usr/bin/fwatchdog
+  RUN chmod +x /usr/bin/fwatchdog
+
+  WORKDIR /home/app
+
+  # Add non root user
+  RUN useradd app
+  RUN chown app /home/app
+
+  COPY Gemfile* ./
+  RUN bundle install
+  COPY *rb /usr/local/bin/
+  RUN chmod +x /usr/local/bin/*rb
+
+  USER app
+
+  # Populate example here - i.e. "cat", "sha512sum" or "node index.js"
+  ENV fprocess="xargs gitinfo.rb"
+  # Set to true to see request in function logs
+  ENV write_debug="false"
+
+  EXPOSE 8080
+
+  HEALTHCHECK --interval=3s CMD [ -e /tmp/.lock ] || exit 1
+
+  CMD ["fwatchdog"]
+#+end_src
+
+The script looks like this:
+
+#+begin_src ruby
+  #!/usr/bin/env ruby
+
+  puts "This is the info file"
+
+  ARGV.each do |v,i|
+    puts "#{i}: #{v}"
+  end
+#+end_src
+
+* Running without an argument
+
+#+begin_src bash :results output
+curl https://api.gitgratitude.com/function/gitinfo
+#+end_src
+
+#+RESULTS:
+: This is the info file
+
+* Passing in arguments
+
+Here we can pass in data to the function:
+
+#+begin_src bash :results output
+echo Hello world | curl -X POST --data @- https://api.gitgratitude.com/function/gitinfo
+#+end_src
+
+#+RESULTS:
+: This is the info file
+: : Hello
+: : world
+
+* Async test
+
+I'm going to use [[pipedream.com]] as a way to collect a response.  Go
+there and sign up for it if you haven't, and then set the =CALLBACK_URL=
+to be resulting address.
+
+In order to have a function run asyncronously, you need the change the
+url to start with =/async-function/= and pass in an =X-Callback-URL=
+header where the result is posted.
+
+#+begin_src bash
+  CALLBACK_URL=https://eno35z9ue0i7ffz.m.pipedream.net
+  echo Hello world | curl -X POST \
+                          -H "X-Callback-Url: ${CALLBACK_URL}" \
+                          --data @- \
+                          https://api.gitgratitude.com/async-function/gitinfo
+
+#+end_src
+
+* Conclustion
+
+Very simple, very little was changed from the below posts below.
+
+* References
+
+1. https://blog.alexellis.io/cli-functions-with-openfaas/
+2. https://github.com/openfaas/workshop/blob/master/lab7.md
+
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
