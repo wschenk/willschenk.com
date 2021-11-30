@@ -15,11 +15,11 @@
 (setq-default indent-tabs-mode nil)
 (setq-default tab-width 2)
 
-(set-face-font 'default "Inconsolata Light 12")
+;;(set-face-font 'default "Inconsolata Light 12")
 
-(load-file "~/.emacs.d/functions.el")
-(load-file "~/.emacs.d/shortcuts.el")
-(load-file "~/.emacs.d/blog.el")
+;;(load-file "~/.emacs.d/functions.el")
+;;(load-file "~/.emacs.d/shortcuts.el")
+;;(load-file "~/.emacs.d/blog.el")
 
 (package-initialize)
 (add-to-list 'package-archives

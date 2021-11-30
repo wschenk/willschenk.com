@@ -1,0 +1,71 @@
+#+title: Deploy kubernetes console on local machine
+#+date: 2021-11-12
+#+draft: true
+
+
+Make sure that kubectl is setup
+
+
+Deploy the dashboard resources
+
+#+begin_src bash
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.4.0/aio/deploy/recommended.yaml
+#+end_src
+
+Then add the sample user
+
+#+begin_src yaml :tangle account.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: admin-user
+  namespace: kubernetes-dashboard
+#+end_src
+
+Then
+
+#+begin_src bash
+kubectl apply -f account.yaml
+#+end_src
+
+=rbac.yaml=:
+#+begin_src yaml :tangle rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: admin-user
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: ServiceAccount
+  name: admin-user
+  namespace: kubernetes-dashboard 
+#+end_src
+
+#+begin_src bash
+kubectl apply -f rbac.yaml
+#+end_src
+
+Then copy the token to your clipboard:
+
+#+begin_src bash
+  kubectl -n kubernetes-dashboard get secret \
+          $(kubectl -n kubernetes-dashboard get sa/admin-user -o jsonpath="{.secrets[0].name}") \
+          -o go-template="{{.data.token | base64decode}}" \
+      | pbcopy
+#+end_src
+
+Then start up a proxy:
+
+#+begin_src bash
+kubectl proxy
+#+end_src
+
+And finally go to [[http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/#/clusterrolebinding?namespace=default][the console]] and login with the token you've just created.
+
+* References
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
