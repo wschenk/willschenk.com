@@ -1,4 +1,439 @@
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Fri, 12 Nov 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Getting emacs working on OSX Monterey</title><link>https://willschenk.com/articles/2021/getting_emacs_working_on_osx_monterey/</link><pubDate>Fri, 12 Nov 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/getting_emacs_working_on_osx_monterey/</guid><description>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Mon, 29 Nov 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Setting up knative</title><link>https://willschenk.com/articles/2021/setting_up_knative/</link><pubDate>Mon, 29 Nov 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/setting_up_knative/</guid><description>
+&lt;p>
+Let&amp;#39;s walk through how to setup a k8 cluster on digitalocean with knative.
+&lt;/p>
+&lt;h2 id="headline-1">
+Digital Ocean
+&lt;/h2>
+&lt;h3 id="headline-2">
+Start the cluster
+&lt;/h3>
+&lt;p>
+Installing and configure the &lt;a href="https://docs.digitalocean.com/reference/doctl/">doctl&lt;/a> tool. Then setup a cluster:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> doctl kubernetes cluster create gratitude &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --auto-upgrade &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> &lt;span class="s2">&amp;#34;--node-pool=name=default;min-nodes=1;max-nodes=10;size=s-4vcpu-8gb;auto-scale=true&amp;#34;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Once that&amp;#39;s in place, make sure that you have a domain, in my case
+&lt;code class="verbatim">gitgratitude.com&lt;/code>:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> doctl compute domain create gitgratitude.com&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-3">
+Installing &lt;code class="verbatim">knative&lt;/code>
+&lt;/h2>
+&lt;p>
+We are going to use the knative operator to setup the install. For
+this post, we will only being using &lt;code class="verbatim">serving&lt;/code>.
+&lt;/p>
+&lt;h3 id="headline-4">
+Operator
+&lt;/h3>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">kubectl apply -f https://github.com/knative/operator/releases/download/knative-v1.0.0/operator.yaml&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Check status:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">kubectl get deployment knative-operator&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+NAME READY UP-TO-DATE AVAILABLE AGE
+knative-operator 1/1 1 1 30s
+&lt;/pre>
+&lt;h3 id="headline-5">
+Serving
+&lt;/h3>
+&lt;p>
+We will now tell the operator to deploy knative serving, and we will use &lt;code class="verbatim">kourier&lt;/code>:
+&lt;/p>
+&lt;p>
+&lt;code class="verbatim">serving.yml&lt;/code>:
+&lt;/p>
+&lt;div class="src src-yaml">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="w"> &lt;/span>&lt;span class="k">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>v1&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>Namespace&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>knative-serving&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>--&lt;span class="sd">-
+&lt;/span>&lt;span class="sd"> apiVersion: operator.knative.dev/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>KnativeServing&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>knative-serving&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>knative-serving&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">ingress&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">kourier&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">enabled&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">config&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">network&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">ingress.class&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;kourier.ingress.networking.knative.dev&amp;#34;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl apply -f serving.yaml&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+namespace/knative-serving created
+knativeserving.operator.knative.dev/knative-serving created
+&lt;/pre>
+&lt;p>
+And to see what the status of the deployment is:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">kubectl get deployment -n knative-serving&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-6">
+Add default domain
+&lt;/h3>
+&lt;p>
+Lets add the default domain serving as well.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl apply -f https://github.com/knative/serving/releases/download/knative-v1.0.0/serving-default-domain.yaml&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-7">
+Add the &lt;code class="verbatim">certmanager-controller&lt;/code>:
+&lt;/h3>
+&lt;p>
+This tells knative to use the certmanager when services get
+created/deleted:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl apply --filename https://github.com/knative/net-certmanager/releases/download/knative-v1.0.0/release.yaml&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-8">
+Set the &lt;code class="verbatim">cert-manager&lt;/code> config map
+&lt;/h3>
+&lt;div class="src src-yaml">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="w"> &lt;/span>&lt;span class="k">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>v1&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>ConfigMap&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>config-certmanager&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>knative-serving&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">labels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">networking.knative.dev/certificate-provider&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>cert-manager&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">data&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">issuerRef&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="sd">|
+&lt;/span>&lt;span class="sd"> kind: ClusterIssuer&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>letsencrypt-prod&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl apply -f cert-config.yaml&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-9">
+Install &lt;code class="verbatim">cert-manager&lt;/code>
+&lt;/h2>
+&lt;h3 id="headline-10">
+Install helm package
+&lt;/h3>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">helm repo add jetstack https://charts.jetstack.io&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> helm upgrade --install &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> cert-manager jetstack/cert-manager &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --namespace cert-manager &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --create-namespace &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --version v1.6.0 &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --set &lt;span class="nv">installCRDs&lt;/span>&lt;span class="o">=&lt;/span>true&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-11">
+Configure &lt;code class="verbatim">letencrypt&lt;/code>
+&lt;/h3>
+&lt;p>
+Create &lt;code class="verbatim">certs.yaml&lt;/code> to define how we interact with let-encrypt. I&amp;#39;m
+going to use the http challenge here.
+&lt;/p>
+&lt;p>
+Also replace &lt;code class="verbatim">wschenk@gmail.com&lt;/code> with your email address.
+&lt;/p>
+&lt;div class="src src-yaml">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="w"> &lt;/span>&lt;span class="k">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>cert-manager.io/v1&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>ClusterIssuer&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>letsencrypt-staging&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">acme&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># You must replace this email address with your own.&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># Let&amp;#39;s Encrypt will use this to contact you about expiring&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># certificates, and issues related to your account.&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">email&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>wschenk@gmail.com&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">server&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>https&lt;span class="p">:&lt;/span>//acme-staging-v02.api.letsencrypt.org/directory&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">privateKeySecretRef&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># Secret resource that will be used to store the account&amp;#39;s private key.&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>staging-issuer-account-key&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># Add a single challenge solver, HTTP01 using nginx&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">solvers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="k">http01&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">ingress&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">class&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>istio&lt;span class="w"> &lt;/span>&lt;span class="c">#.ingress.networking.knative.dev&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>--&lt;span class="sd">-
+&lt;/span>&lt;span class="sd"> apiVersion: cert-manager.io/v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>ClusterIssuer&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>letsencrypt-prod&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">acme&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># You must replace this email address with your own.&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># Let&amp;#39;s Encrypt will use this to contact you about expiring&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># certificates, and issues related to your account.&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">email&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>wschenk@gmail.com&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">server&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>https&lt;span class="p">:&lt;/span>//acme-v02.api.letsencrypt.org/directory&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">privateKeySecretRef&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># Secret resource that will be used to store the account&amp;#39;s private key.&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>prod-issuer-account-key&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># Add a single challenge solver, HTTP01 using nginx&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">solvers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="k">http01&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">ingress&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">class&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>istio&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c">#.ingress.networking.knative.dev&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Then apply it:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl apply -f certs.yaml&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+clusterissuer.cert-manager.io/letsencrypt-staging created
+clusterissuer.cert-manager.io/letsencrypt-prod created
+&lt;/pre>
+&lt;h2 id="headline-12">
+DNS
+&lt;/h2>
+&lt;h3 id="headline-13">
+Set the domain
+&lt;/h3>
+&lt;p>
+My domain is &lt;code class="verbatim">gitgratitude.com&lt;/code> – you should use yours.
+&lt;/p>
+&lt;div class="src src-yaml">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="w"> &lt;/span>&lt;span class="k">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>v1&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>ConfigMap&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>config-domain&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>knative-serving&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">data&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">gitgratitude.com&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;&amp;#34;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl apply -f domain.yaml&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Turn on &lt;code class="verbatim">auto-tls&lt;/code>:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl patch configmap config-network --namespace knative-serving -p &lt;span class="s1">&amp;#39;{&amp;#34;data&amp;#34;:{&amp;#34;auto-tls&amp;#34;:&amp;#34;Enabled&amp;#34;}}&amp;#39;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-14">
+DNS
+&lt;/h3>
+&lt;p>
+Get the IP
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl --namespace knative-serving get service kourier -o json&lt;span class="p">|&lt;/span> jq &lt;span class="s2">&amp;#34;.status.loadBalancer.ingress[0].ip&amp;#34;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+&amp;#34;143.244.212.121&amp;#34;
+&lt;/pre>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> doctl compute domain records create gitgratitude.com --record-type A --record-data 143.244.212.121 --record-name default&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+ID Type Name Data Priority Port TTL Weight
+280306756 A default 143.244.212.121 0 0 1800 0
+&lt;/pre>
+&lt;p>
+Then setup a wildcard &lt;code class="verbatim">CNAME&lt;/code> to point to the root.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> doctl compute domain records create gitgratitude.com --record-type CNAME --record-data default&lt;span class="se">\.&lt;/span> --record-name &lt;span class="se">\*&lt;/span>.default&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+ID Type Name Data Priority Port TTL Weight
+280306923 CNAME *.default default.gitgratitude.com 0 0 1800 0
+&lt;/pre>
+&lt;h2 id="headline-15">
+Testing out a simple service
+&lt;/h2>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kn service create helloworld-go --image gcr.io/knative-samples/helloworld-go&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Creating service 'helloworld-go' in namespace 'default':
+0.036s The Route is still working to reflect the latest desired specification.
+0.064s Configuration "helloworld-go" is waiting for a Revision to become ready.
+0.099s ...
+17.273s ...
+17.343s Ingress has not yet been reconciled.
+17.416s Waiting for load balancer to be ready
+17.628s Ready to serve.
+Service 'helloworld-go' created to latest revision 'helloworld-go-00001' is available at URL:
+http://helloworld-go.default.gitgratitude.com
+&lt;/pre>
+&lt;p>
+And you should be able to hit your function now.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">curl http://helloworld-go.default.gitgratitude.com&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Hello World!
+&lt;/pre>
+&lt;h3 id="headline-16">
+Look to see if a tls endpoint has been added
+&lt;/h3>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">kn service ls&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+NAME URL LATEST AGE CONDITIONS READY REASON
+helloworld-go https://helloworld-go.default.gitgratitude.com helloworld-go-00001 114s 3 OK / 3 True
+&lt;/pre>
+&lt;h3 id="headline-17">
+Look at the certificates
+&lt;/h3>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">kubectl get certificates&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+NAME READY SECRET AGE
+route-7bbf3267-6eb1-4516-bbb8-e65d81e0b968 True route-7bbf3267-6eb1-4516-bbb8-e65d81e0b968 62s
+&lt;/pre>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> curl --insecure -vvI https://helloworld-go.default.gitgratitude.com 2&amp;gt;&lt;span class="p">&amp;amp;&lt;/span>&lt;span class="m">1&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> awk &lt;span class="s1">&amp;#39;BEGIN { cert=0 } /^\* SSL connection/ { cert=1 } /^\*/ { if (cert) print }&amp;#39;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+,* SSL connection using TLSv1.2 / ECDHE-RSA-CHACHA20-POLY1305
+,* ALPN, server accepted to use h2
+,* Server certificate:
+,* subject: CN=helloworld-go.default.gitgratitude.com
+,* start date: Nov 30 18:40:01 2021 GMT
+,* expire date: Feb 28 18:40:00 2022 GMT
+,* issuer: C=US; O=Let's Encrypt; CN=R3
+,* SSL certificate verify ok.
+,* Using HTTP2, server supports multi-use
+,* Connection state changed (HTTP/2 confirmed)
+,* Copying HTTP/2 data in stream buffer to connection buffer after upgrade: len=0
+,* Using Stream ID: 1 (easy handle 0x136012a00)
+,* Connection state changed (MAX_CONCURRENT_STREAMS == 2147483647)!
+,* Connection #0 to host helloworld-go.default.gitgratitude.com left intact
+&lt;/pre>
+&lt;h2 id="headline-18">
+References
+&lt;/h2>
+&lt;ol>
+&lt;li>
+&lt;p>
+&lt;a href="https://knative.dev/docs/install/operator/knative-with-operators/">https://knative.dev/docs/install/operator/knative-with-operators/&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://knative.dev/docs/serving/samples/hello-world/helloworld-ruby/">https://knative.dev/docs/serving/samples/hello-world/helloworld-ruby/&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://knative.dev/docs/serving/using-auto-tls/">https://knative.dev/docs/serving/using-auto-tls/&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://github.com/knative/docs/blob/main/docs/install/serving/install-serving-with-yaml.md">https://github.com/knative/docs/blob/main/docs/install/serving/install-serving-with-yaml.md&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;/ol></description></item><item><title>K8 Dashboard on Docker Desktop</title><link>https://willschenk.com/articles/2021/k8_dashboard_on_docker_desktop/</link><pubDate>Sun, 28 Nov 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/k8_dashboard_on_docker_desktop/</guid><description>
+&lt;p>
+Pretty easy to setup, but here are the steps.
+&lt;/p>
+&lt;h2 id="headline-1">
+Docker Desktop
+&lt;/h2>
+&lt;p>
+To easily get going on a local Mac, you can install the compoents
+using homebrew.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> brew install --cask docker
+brew install kubernetes-cli
+brew install kn&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Start up Docker, and then turn on kubernetes and make sure that you
+have a running node.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl get nodes&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+NAME STATUS ROLES AGE VERSION
+docker-desktop Ready control-plane,master 5h59m v1.21.5
+&lt;/pre>
+&lt;h2 id="headline-2">
+Install kubenetes dashboard
+&lt;/h2>
+&lt;p>
+It&amp;#39;s nice to have a local dashboard to see whats&amp;#39; going on.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.4.0/aio/deploy/recommended.yaml&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Then create a service account &lt;code class="verbatim">account.yaml&lt;/code>:
+&lt;/p>
+&lt;div class="src src-yaml">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="w"> &lt;/span>&lt;span class="k">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>v1&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>ServiceAccount&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>admin-user&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>kubernetes-dashboard&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>--&lt;span class="sd">-
+&lt;/span>&lt;span class="sd"> apiVersion: rbac.authorization.k8s.io/v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>ClusterRoleBinding&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>admin-user&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">roleRef&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">apiGroup&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>rbac.authorization.k8s.io&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>ClusterRole&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>cluster-admin&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">subjects&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="k">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>ServiceAccount&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>admin-user&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>kubernetes-dashboard&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Apply it:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl apply -f account.yaml&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Then you can get the token into your clipboard:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl -n kubernetes-dashboard get secret &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> &lt;span class="k">$(&lt;/span>kubectl -n kubernetes-dashboard get sa/admin-user -o &lt;span class="nv">jsonpath&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;{.secrets[0].name}&amp;#34;&lt;/span>&lt;span class="k">)&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> -o go-template&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;{{.data.token | base64decode}}&amp;#34;&lt;/span> &lt;span class="p">|&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> pbcopy&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Finally, setup a proxy to access the dashboard:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">kubectl proxy &lt;span class="p">&amp;amp;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+And point your browser to &lt;a href="http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/">http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/&lt;/a>
+&lt;/p></description></item><item><title>Getting emacs working on OSX Monterey</title><link>https://willschenk.com/articles/2021/getting_emacs_working_on_osx_monterey/</link><pubDate>Fri, 12 Nov 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/getting_emacs_working_on_osx_monterey/</guid><description>
 &lt;p>
 I recently got a new MacBook Pro. I still love my old Pixelbook, but
 I&amp;#39;m running too many docker containers on it and its slowing down my
