@@ -1,0 +1,38 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: homepage-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: homepage-proxy
+  template:
+    metadata:
+      labels:
+        app: homepage-proxy
+    spec:
+      containers:
+        - name: homepage-proxy
+          image: ghcr.io/wschenk/proxy
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+          - name: REMOTE_TARGET
+            value: http://helloworld-go.default.svc.cluster.local
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: homepage-proxy
+
+spec:
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: http
+  selector:
+    app: homepage-proxy

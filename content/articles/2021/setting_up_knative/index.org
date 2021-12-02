@@ -41,7 +41,7 @@ kubectl get deployment knative-operator
 
 #+RESULTS:
 : NAME               READY   UP-TO-DATE   AVAILABLE   AGE
-: knative-operator   1/1     1            1           30s
+: knative-operator   1/1     1            1           24h
 
 ** Serving
 We will now tell the operator to deploy knative serving, and we will use =kourier=:
@@ -71,15 +71,13 @@ We will now tell the operator to deploy knative serving, and we will use =kourie
   kubectl apply -f serving.yaml
 #+end_src
 
-#+RESULTS:
-: namespace/knative-serving created
-: knativeserving.operator.knative.dev/knative-serving created
-
 And to see what the status of the deployment is:
 
 #+begin_src bash :results output
 kubectl get deployment -n knative-serving
 #+end_src
+
+
 ** Add default domain
 Lets add the default domain serving as well.
 
@@ -116,10 +114,32 @@ created/deleted:
   kubectl apply -f cert-config.yaml
 #+end_src
 
+** Add revision garbage collection
+
+#+begin_src yaml :tangle gc.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-gc
+  namespace: knative-serving
+data:
+  max-non-active-revisions: "1"
+  min-non-active-revisions: "1"
+  retain-since-create-time: "disabled"
+  retain-since-last-active-time: "disabled"
+#+end_src
+
+#+begin_src bash :results output
+  kubectl apply -f gc.yaml
+#+end_src
+
+#+RESULTS:
+: configmap/config-gc configured
+
 * Install =cert-manager=
 ** Install helm package
 #+begin_src bash :results output
-helm repo add jetstack https://charts.jetstack.io
+  helm repo add jetstack https://charts.jetstack.io
 #+end_src
 
 #+begin_src bash :results output
@@ -187,12 +207,6 @@ Then apply it:
   kubectl apply -f certs.yaml
 #+end_src
 
-#+RESULTS:
-: clusterissuer.cert-manager.io/letsencrypt-staging created
-: clusterissuer.cert-manager.io/letsencrypt-prod created
-
-
-
 * DNS
 ** Set the domain
 My domain is =gitgratitude.com= -- you should use yours.
@@ -210,6 +224,9 @@ My domain is =gitgratitude.com= -- you should use yours.
 #+begin_src bash :results output
   kubectl apply -f domain.yaml
 #+end_src
+
+#+RESULTS:
+: configmap/config-domain configured
 
 Turn on =auto-tls=:
 
