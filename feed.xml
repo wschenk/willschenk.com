@@ -1,4 +1,237 @@
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Mon, 29 Nov 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Setting up knative</title><link>https://willschenk.com/articles/2021/setting_up_knative/</link><pubDate>Mon, 29 Nov 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/setting_up_knative/</guid><description>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Wed, 01 Dec 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Serving a knative function on the root</title><link>https://willschenk.com/articles/2021/serving_a_knative_function_on_the_root/</link><pubDate>Wed, 01 Dec 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/serving_a_knative_function_on_the_root/</guid><description>
+&lt;p>
+I want to deploy everything as a knative service, including the root
+of the domain. I can&amp;#39;t figure out how to do this with kourier, so
+here is an example of a work around.
+&lt;/p>
+&lt;h2 id="headline-1">
+Add &lt;code class="verbatim">ingress-nginx&lt;/code>
+&lt;/h2>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> helm upgrade --install ingress-nginx ingress-nginx &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --repo https://kubernetes.github.io/ingress-nginx &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --namespace ingress-nginx --create-namespace&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-2">
+Configure &lt;code class="verbatim">letsencrypt&lt;/code>
+&lt;/h2>
+&lt;p>
+Make sure to change your email address
+&lt;/p>
+&lt;p>
+&lt;code class="verbatim">nginx-certs.yml:&lt;/code>
+&lt;/p>
+&lt;div class="src src-yaml">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="k">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>cert-manager.io/v1&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="k">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>ClusterIssuer&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="k">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>letsencrypt-prod-nginx&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="k">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">acme&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># You must replace this email address with your own.&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># Let&amp;#39;s Encrypt will use this to contact you about expiring&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># certificates, and issues related to your account.&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">email&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>wschenk@gmail.com&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">server&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>https&lt;span class="p">:&lt;/span>//acme-v02.api.letsencrypt.org/directory&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">privateKeySecretRef&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># Secret resource that will be used to store the account&amp;#39;s private key.&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>prod-issuer-account-key-nginx&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># Add a single challenge solver, HTTP01 using nginx&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">solvers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="k">http01&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">ingress&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">class&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>nginx&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl apply -f nginx-certs.yaml&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-3">
+DNS
+&lt;/h2>
+&lt;h3 id="headline-4">
+Find the ip
+&lt;/h3>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl --namespace ingress-nginx get service ingress-nginx-controller -o json&lt;span class="p">|&lt;/span> jq &lt;span class="s2">&amp;#34;.status.loadBalancer.ingress[0].ip&amp;#34;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+&amp;#34;137.184.240.185&amp;#34;
+&lt;/pre>
+&lt;h3 id="headline-5">
+Create DNS entry
+&lt;/h3>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> doctl compute domain records create gitgratitude.com --record-type A --record-data 137.184.240.185 --record-name &lt;span class="se">\@&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+ID Type Name Data Priority Port TTL Weight
+280663245 A @ 137.184.240.185 0 0 1800 0
+&lt;/pre>
+&lt;h2 id="headline-6">
+Add a simple knative service
+&lt;/h2>
+&lt;p>
+We are setting the min scale to 1 so there&amp;#39;s no startup time for this service.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl service create homepage --image gcr.io/knative-samples/homepage --scale-min &lt;span class="m">1&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Which will result in this being deployed internally as
+&lt;a href="http://homepage.default.svc.cluster.local">http://homepage.default.svc.cluster.local&lt;/a>
+&lt;/p>
+&lt;h2 id="headline-7">
+Simple reverse proxy service
+&lt;/h2>
+&lt;h3 id="headline-8">
+Code
+&lt;/h3>
+&lt;p>
+This is available on &lt;a href="https://github.com/wschenk/proxy">https://github.com/wschenk/proxy&lt;/a>
+&lt;/p>
+&lt;div class="src src-javascript">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-javascript" data-lang="javascript"> &lt;span class="kr">const&lt;/span> &lt;span class="nx">http&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">require&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s1">&amp;#39;http&amp;#39;&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">httpProxy&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">require&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s1">&amp;#39;http-proxy&amp;#39;&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">remote&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">process&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">env&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">REMOTE_TARGET&lt;/span> &lt;span class="o">||&lt;/span> &lt;span class="s2">&amp;#34;http://homepage.default.svc.cluster.local&amp;#34;&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s2">&amp;#34;Proxy starting up on port 3000&amp;#34;&lt;/span> &lt;span class="p">);&lt;/span>
+&lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="sb">`Proxing to &lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nx">remote&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="sb">`&lt;/span> &lt;span class="p">);&lt;/span>
+&lt;span class="nx">httpProxy&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">createProxyServer&lt;/span>&lt;span class="p">({&lt;/span>
+&lt;span class="nx">target&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">remote&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nx">changeOrigin&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="kc">true&lt;/span>
+&lt;span class="p">}).&lt;/span>&lt;span class="nx">listen&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="mi">3000&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+I&amp;#39;m packaging this up at ghcr.io/wschenk/proxy
+&lt;/p>
+&lt;h3 id="headline-9">
+Setup the proxy service
+&lt;/h3>
+&lt;div class="src src-yaml">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="w"> &lt;/span>&lt;span class="k">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>Deployment&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>apps/v1&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>homepage-proxy&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">replicas&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">selector&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">matchLabels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">app&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>homepage-proxy&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">template&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">labels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">app&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>homepage-proxy&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">containers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>homepage-proxy&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">image&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>ghcr.io/wschenk/proxy&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">imagePullPolicy&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>Always&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">ports&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="k">containerPort&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">3000&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>http&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">env&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>REMOTE_TARGET&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">value&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>http&lt;span class="p">:&lt;/span>//helloworld-go.default.svc.cluster.local&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>--&lt;span class="sd">-
+&lt;/span>&lt;span class="sd"> apiVersion: v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>Service&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>homepage-proxy&lt;span class="w">
+&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">ports&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="k">protocol&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>TCP&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">port&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">80&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">targetPort&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>http&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">selector&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">app&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>homepage-proxy&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl apply -f proxy.yaml&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+deployment.apps/homepage-proxy configured
+service/homepage-proxy unchanged
+&lt;/pre>
+&lt;h2 id="headline-10">
+Create &lt;code class="verbatim">ingress.yaml&lt;/code>
+&lt;/h2>
+&lt;p>
+&lt;code class="verbatim">ingress.yaml&lt;/code>:
+&lt;/p>
+&lt;div class="src src-yaml">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="w"> &lt;/span>&lt;span class="k">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>networking.k8s.io/v1&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>Ingress&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>gitgratitude-root&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">annotations&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># add an annotation indicating the issuer to use.&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">cert-manager.io/cluster-issuer&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>letsencrypt-prod-nginx&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">kubernetes.io/tls-acme&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;true&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">ingressClassName&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>nginx&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">tls&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="k">hosts&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- gitgratitude.com&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">secretName&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>gratitude-root-tls&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">rules&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="k">host&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>gitgratitude.com&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">http&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">paths&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="k">path&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>/&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">pathType&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>Prefix&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">backend&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">service&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>homepage-proxy&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">port&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">number&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">80&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl apply -f ingress.yaml&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+ingress.networking.k8s.io/gitgratitude-root configured
+&lt;/pre>
+&lt;h2 id="headline-11">
+Testing
+&lt;/h2>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">kn service update helloworld-go --env &lt;span class="nv">TARGET&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;World&amp;#34;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> curl https://gitgratitude.com&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Hello World!
+&lt;/pre>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">kn service update helloworld-go --env &lt;span class="nv">TARGET&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;from knative&amp;#34;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> curl https://gitgratitude.com&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Hello from knative!
+&lt;/pre>
+&lt;h2 id="headline-12">
+Conclusion
+&lt;/h2>
+&lt;p>
+The reverse proxy is a little bit weird, since we are proxying through
+a couple of different layers, but this allows us to deploy everything
+as a knative service.
+&lt;/p>
+&lt;h2 id="headline-13">
+References
+&lt;/h2>
+&lt;ol>
+&lt;li>
+&lt;p>
+&lt;a href="https://github.com/http-party/node-http-proxy#setup-a-basic-stand-alone-proxy-server">https://github.com/http-party/node-http-proxy#setup-a-basic-stand-alone-proxy-server&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;/ol></description></item><item><title>Setting up knative</title><link>https://willschenk.com/articles/2021/setting_up_knative/</link><pubDate>Mon, 29 Nov 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/setting_up_knative/</guid><description>
 &lt;p>
 Let&amp;#39;s walk through how to setup a k8 cluster on digitalocean with knative.
 &lt;/p>
@@ -44,7 +277,7 @@ Check status:
 &lt;/div>
 &lt;pre class="example">
 NAME READY UP-TO-DATE AVAILABLE AGE
-knative-operator 1/1 1 1 30s
+knative-operator 1/1 1 1 24h
 &lt;/pre>
 &lt;h3 id="headline-5">
 Serving
@@ -77,10 +310,6 @@ We will now tell the operator to deploy knative serving, and we will use &lt;cod
 &lt;div class="src src-bash">
 &lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl apply -f serving.yaml&lt;/code>&lt;/pre>&lt;/div>
 &lt;/div>
-&lt;pre class="example">
-namespace/knative-serving created
-knativeserving.operator.knative.dev/knative-serving created
-&lt;/pre>
 &lt;p>
 And to see what the status of the deployment is:
 &lt;/p>
@@ -125,14 +354,35 @@ Set the &lt;code class="verbatim">cert-manager&lt;/code> config map
 &lt;div class="src src-bash">
 &lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl apply -f cert-config.yaml&lt;/code>&lt;/pre>&lt;/div>
 &lt;/div>
-&lt;h2 id="headline-9">
+&lt;h3 id="headline-9">
+Add revision garbage collection
+&lt;/h3>
+&lt;div class="src src-yaml">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="k">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>v1&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="k">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>ConfigMap&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="k">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>config-gc&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>knative-serving&lt;span class="w">
+&lt;/span>&lt;span class="w">&lt;/span>&lt;span class="k">data&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">max-non-active-revisions&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;1&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">min-non-active-revisions&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;1&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">retain-since-create-time&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;disabled&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">retain-since-last-active-time&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;disabled&amp;#34;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl apply -f gc.yaml&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+configmap/config-gc configured
+&lt;/pre>
+&lt;h2 id="headline-10">
 Install &lt;code class="verbatim">cert-manager&lt;/code>
 &lt;/h2>
-&lt;h3 id="headline-10">
+&lt;h3 id="headline-11">
 Install helm package
 &lt;/h3>
 &lt;div class="src src-bash">
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">helm repo add jetstack https://charts.jetstack.io&lt;/code>&lt;/pre>&lt;/div>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> helm repo add jetstack https://charts.jetstack.io&lt;/code>&lt;/pre>&lt;/div>
 &lt;/div>
 &lt;div class="src src-bash">
 &lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> helm upgrade --install &lt;span class="se">\
@@ -142,7 +392,7 @@ Install helm package
 &lt;/span>&lt;span class="se">&lt;/span> --version v1.6.0 &lt;span class="se">\
 &lt;/span>&lt;span class="se">&lt;/span> --set &lt;span class="nv">installCRDs&lt;/span>&lt;span class="o">=&lt;/span>true&lt;/code>&lt;/pre>&lt;/div>
 &lt;/div>
-&lt;h3 id="headline-11">
+&lt;h3 id="headline-12">
 Configure &lt;code class="verbatim">letencrypt&lt;/code>
 &lt;/h3>
 &lt;p>
@@ -200,14 +450,10 @@ Then apply it:
 &lt;div class="src src-bash">
 &lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl apply -f certs.yaml&lt;/code>&lt;/pre>&lt;/div>
 &lt;/div>
-&lt;pre class="example">
-clusterissuer.cert-manager.io/letsencrypt-staging created
-clusterissuer.cert-manager.io/letsencrypt-prod created
-&lt;/pre>
-&lt;h2 id="headline-12">
+&lt;h2 id="headline-13">
 DNS
 &lt;/h2>
-&lt;h3 id="headline-13">
+&lt;h3 id="headline-14">
 Set the domain
 &lt;/h3>
 &lt;p>
@@ -225,13 +471,16 @@ My domain is &lt;code class="verbatim">gitgratitude.com&lt;/code> – you should
 &lt;div class="src src-bash">
 &lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl apply -f domain.yaml&lt;/code>&lt;/pre>&lt;/div>
 &lt;/div>
+&lt;pre class="example">
+configmap/config-domain configured
+&lt;/pre>
 &lt;p>
 Turn on &lt;code class="verbatim">auto-tls&lt;/code>:
 &lt;/p>
 &lt;div class="src src-bash">
 &lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl patch configmap config-network --namespace knative-serving -p &lt;span class="s1">&amp;#39;{&amp;#34;data&amp;#34;:{&amp;#34;auto-tls&amp;#34;:&amp;#34;Enabled&amp;#34;}}&amp;#39;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
 &lt;/div>
-&lt;h3 id="headline-14">
+&lt;h3 id="headline-15">
 DNS
 &lt;/h3>
 &lt;p>
@@ -260,7 +509,7 @@ Then setup a wildcard &lt;code class="verbatim">CNAME&lt;/code> to point to the 
 ID Type Name Data Priority Port TTL Weight
 280306923 CNAME *.default default.gitgratitude.com 0 0 1800 0
 &lt;/pre>
-&lt;h2 id="headline-15">
+&lt;h2 id="headline-16">
 Testing out a simple service
 &lt;/h2>
 &lt;div class="src src-bash">
@@ -287,7 +536,7 @@ And you should be able to hit your function now.
 &lt;pre class="example">
 Hello World!
 &lt;/pre>
-&lt;h3 id="headline-16">
+&lt;h3 id="headline-17">
 Look to see if a tls endpoint has been added
 &lt;/h3>
 &lt;div class="src src-bash">
@@ -297,7 +546,7 @@ Look to see if a tls endpoint has been added
 NAME URL LATEST AGE CONDITIONS READY REASON
 helloworld-go https://helloworld-go.default.gitgratitude.com helloworld-go-00001 114s 3 OK / 3 True
 &lt;/pre>
-&lt;h3 id="headline-17">
+&lt;h3 id="headline-18">
 Look at the certificates
 &lt;/h3>
 &lt;div class="src src-bash">
@@ -327,7 +576,7 @@ route-7bbf3267-6eb1-4516-bbb8-e65d81e0b968 True route-7bbf3267-6eb1-4516-bbb8-e6
 ,* Connection state changed (MAX_CONCURRENT_STREAMS == 2147483647)!
 ,* Connection #0 to host helloworld-go.default.gitgratitude.com left intact
 &lt;/pre>
-&lt;h2 id="headline-18">
+&lt;h2 id="headline-19">
 References
 &lt;/h2>
 &lt;ol>
