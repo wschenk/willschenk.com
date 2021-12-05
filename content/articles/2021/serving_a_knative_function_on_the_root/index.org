@@ -4,8 +4,29 @@
 #+date: 2021-12-01
 
 I want to deploy everything as a knative service, including the root
-of the domain.  I can't figure out how to do this with kourier, so
-here is an example of a work around.
+of the domain.
+
+*Update*: I found an easyier way.
+
+* Easy way
+
+Turn on =auto-tls= and =autocreate-cluster-domain-claims=:
+
+#+begin_src bash :results output
+  kubectl patch configmap config-network --namespace knative-serving -p '{"data":{"auto-tls":"Enabled","autocreate-cluster-domain-claims":"true"}}'
+#+end_src
+
+Then
+
+#+begin_src bash
+kn domain create gitgratitude.com --ref=homepage
+#+end_src
+
+That's it.
+
+* Hardway
+
+Left here for the record.
 
 * Add =ingress-nginx=
 
@@ -124,7 +145,7 @@ I'm packaging this up at ghcr.io/wschenk/proxy
                 name: http
             env:
             - name: REMOTE_TARGET
-              value: http://helloworld-go.default.svc.cluster.local
+              value: http://homepage.default.svc.cluster.local
 
   ---
   apiVersion: v1
@@ -220,7 +241,8 @@ as a knative service.
 * References
 
 1. https://github.com/http-party/node-http-proxy#setup-a-basic-stand-alone-proxy-server
-   
+2. https://www.starkandwayne.com/blog/public-traffic-into-knative-on-gke/
+      
 # Local Variables:
 # eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
 # End:
