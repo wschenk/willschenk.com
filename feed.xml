@@ -1,10 +1,36 @@
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Wed, 01 Dec 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Serving a knative function on the root</title><link>https://willschenk.com/articles/2021/serving_a_knative_function_on_the_root/</link><pubDate>Wed, 01 Dec 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/serving_a_knative_function_on_the_root/</guid><description>
 &lt;p>
 I want to deploy everything as a knative service, including the root
-of the domain. I can&amp;#39;t figure out how to do this with kourier, so
-here is an example of a work around.
+of the domain.
+&lt;/p>
+&lt;p>
+&lt;strong>Update&lt;/strong>: I found an easyier way.
 &lt;/p>
 &lt;h2 id="headline-1">
+Easy way
+&lt;/h2>
+&lt;p>
+Turn on &lt;code class="verbatim">auto-tls&lt;/code> and &lt;code class="verbatim">autocreate-cluster-domain-claims&lt;/code>:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl patch configmap config-network --namespace knative-serving -p &lt;span class="s1">&amp;#39;{&amp;#34;data&amp;#34;:{&amp;#34;auto-tls&amp;#34;:&amp;#34;Enabled&amp;#34;,&amp;#34;autocreate-cluster-domain-claims&amp;#34;:&amp;#34;true&amp;#34;}}&amp;#39;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Then
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">kn domain create gitgratitude.com --ref&lt;span class="o">=&lt;/span>homepage&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+That&amp;#39;s it.
+&lt;/p>
+&lt;h2 id="headline-2">
+Hardway
+&lt;/h2>
+&lt;p>
+Left here for the record.
+&lt;/p>
+&lt;h2 id="headline-3">
 Add &lt;code class="verbatim">ingress-nginx&lt;/code>
 &lt;/h2>
 &lt;div class="src src-bash">
@@ -12,7 +38,7 @@ Add &lt;code class="verbatim">ingress-nginx&lt;/code>
 &lt;/span>&lt;span class="se">&lt;/span> --repo https://kubernetes.github.io/ingress-nginx &lt;span class="se">\
 &lt;/span>&lt;span class="se">&lt;/span> --namespace ingress-nginx --create-namespace&lt;/code>&lt;/pre>&lt;/div>
 &lt;/div>
-&lt;h2 id="headline-2">
+&lt;h2 id="headline-4">
 Configure &lt;code class="verbatim">letsencrypt&lt;/code>
 &lt;/h2>
 &lt;p>
@@ -45,10 +71,10 @@ Make sure to change your email address
 &lt;div class="src src-bash">
 &lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl apply -f nginx-certs.yaml&lt;/code>&lt;/pre>&lt;/div>
 &lt;/div>
-&lt;h2 id="headline-3">
+&lt;h2 id="headline-5">
 DNS
 &lt;/h2>
-&lt;h3 id="headline-4">
+&lt;h3 id="headline-6">
 Find the ip
 &lt;/h3>
 &lt;div class="src src-bash">
@@ -57,7 +83,7 @@ Find the ip
 &lt;pre class="example">
 &amp;#34;137.184.240.185&amp;#34;
 &lt;/pre>
-&lt;h3 id="headline-5">
+&lt;h3 id="headline-7">
 Create DNS entry
 &lt;/h3>
 &lt;div class="src src-bash">
@@ -67,7 +93,7 @@ Create DNS entry
 ID Type Name Data Priority Port TTL Weight
 280663245 A @ 137.184.240.185 0 0 1800 0
 &lt;/pre>
-&lt;h2 id="headline-6">
+&lt;h2 id="headline-8">
 Add a simple knative service
 &lt;/h2>
 &lt;p>
@@ -80,10 +106,10 @@ We are setting the min scale to 1 so there&amp;#39;s no startup time for this se
 Which will result in this being deployed internally as
 &lt;a href="http://homepage.default.svc.cluster.local">http://homepage.default.svc.cluster.local&lt;/a>
 &lt;/p>
-&lt;h2 id="headline-7">
+&lt;h2 id="headline-9">
 Simple reverse proxy service
 &lt;/h2>
-&lt;h3 id="headline-8">
+&lt;h3 id="headline-10">
 Code
 &lt;/h3>
 &lt;p>
@@ -104,7 +130,7 @@ This is available on &lt;a href="https://github.com/wschenk/proxy">https://githu
 &lt;p>
 I&amp;#39;m packaging this up at ghcr.io/wschenk/proxy
 &lt;/p>
-&lt;h3 id="headline-9">
+&lt;h3 id="headline-11">
 Setup the proxy service
 &lt;/h3>
 &lt;div class="src src-yaml">
@@ -131,7 +157,7 @@ Setup the proxy service
 &lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>http&lt;span class="w">
 &lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">env&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
 &lt;/span>&lt;span class="w"> &lt;/span>- &lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>REMOTE_TARGET&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">value&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>http&lt;span class="p">:&lt;/span>//helloworld-go.default.svc.cluster.local&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">value&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>http&lt;span class="p">:&lt;/span>//homepage.default.svc.cluster.local&lt;span class="w">
 &lt;/span>&lt;span class="w">
 &lt;/span>&lt;span class="w"> &lt;/span>--&lt;span class="sd">-
 &lt;/span>&lt;span class="sd"> apiVersion: v1&lt;/span>&lt;span class="w">
@@ -154,7 +180,7 @@ Setup the proxy service
 deployment.apps/homepage-proxy configured
 service/homepage-proxy unchanged
 &lt;/pre>
-&lt;h2 id="headline-10">
+&lt;h2 id="headline-12">
 Create &lt;code class="verbatim">ingress.yaml&lt;/code>
 &lt;/h2>
 &lt;p>
@@ -193,7 +219,7 @@ Create &lt;code class="verbatim">ingress.yaml&lt;/code>
 &lt;pre class="example">
 ingress.networking.k8s.io/gitgratitude-root configured
 &lt;/pre>
-&lt;h2 id="headline-11">
+&lt;h2 id="headline-13">
 Testing
 &lt;/h2>
 &lt;div class="src src-bash">
@@ -214,7 +240,7 @@ Hello World!
 &lt;pre class="example">
 Hello from knative!
 &lt;/pre>
-&lt;h2 id="headline-12">
+&lt;h2 id="headline-14">
 Conclusion
 &lt;/h2>
 &lt;p>
@@ -222,13 +248,18 @@ The reverse proxy is a little bit weird, since we are proxying through
 a couple of different layers, but this allows us to deploy everything
 as a knative service.
 &lt;/p>
-&lt;h2 id="headline-13">
+&lt;h2 id="headline-15">
 References
 &lt;/h2>
 &lt;ol>
 &lt;li>
 &lt;p>
 &lt;a href="https://github.com/http-party/node-http-proxy#setup-a-basic-stand-alone-proxy-server">https://github.com/http-party/node-http-proxy#setup-a-basic-stand-alone-proxy-server&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://www.starkandwayne.com/blog/public-traffic-into-knative-on-gke/">https://www.starkandwayne.com/blog/public-traffic-into-knative-on-gke/&lt;/a>
 &lt;/p>
 &lt;/li>
 &lt;/ol></description></item><item><title>Setting up knative</title><link>https://willschenk.com/articles/2021/setting_up_knative/</link><pubDate>Mon, 29 Nov 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/setting_up_knative/</guid><description>
@@ -475,11 +506,14 @@ My domain is &lt;code class="verbatim">gitgratitude.com&lt;/code> – you should
 configmap/config-domain configured
 &lt;/pre>
 &lt;p>
-Turn on &lt;code class="verbatim">auto-tls&lt;/code>:
+Turn on &lt;code class="verbatim">auto-tls&lt;/code> and &lt;code class="verbatim">autocreate-cluster-domain-claims&lt;/code>:
 &lt;/p>
 &lt;div class="src src-bash">
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl patch configmap config-network --namespace knative-serving -p &lt;span class="s1">&amp;#39;{&amp;#34;data&amp;#34;:{&amp;#34;auto-tls&amp;#34;:&amp;#34;Enabled&amp;#34;}}&amp;#39;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl patch configmap config-network --namespace knative-serving -p &lt;span class="s1">&amp;#39;{&amp;#34;data&amp;#34;:{&amp;#34;auto-tls&amp;#34;:&amp;#34;Enabled&amp;#34;,&amp;#34;autocreate-cluster-domain-claims&amp;#34;:&amp;#34;true&amp;#34;}}&amp;#39;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
 &lt;/div>
+&lt;pre class="example">
+configmap/config-network patched
+&lt;/pre>
 &lt;h3 id="headline-15">
 DNS
 &lt;/h3>
