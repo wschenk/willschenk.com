@@ -44,7 +44,8 @@ kubectl get deployment knative-operator
 : knative-operator   1/1     1            1           24h
 
 ** Serving
-We will now tell the operator to deploy knative serving, and we will use =kourier=:
+We will now tell the operator to deploy knative serving, and we will
+use =kourier=, and set our domain to =gitgratitude.com=:
 
 =serving.yml=:
 #+begin_src yaml :tangle serving.yaml
@@ -65,11 +66,17 @@ We will now tell the operator to deploy knative serving, and we will use =kourie
     config:
       network:
         ingress.class: "kourier.ingress.networking.knative.dev"
+      domain:
+        gitgratitude.com: ""
 #+end_src
 
 #+begin_src bash :results output
   kubectl apply -f serving.yaml
 #+end_src
+
+#+RESULTS:
+: namespace/knative-serving configured
+: knativeserving.operator.knative.dev/knative-serving configured
 
 And to see what the status of the deployment is:
 
@@ -84,6 +91,10 @@ Lets add the default domain serving as well.
 #+begin_src bash :results output
   kubectl apply -f https://github.com/knative/serving/releases/download/knative-v1.0.0/serving-default-domain.yaml
 #+end_src
+
+#+RESULTS:
+: job.batch/default-domain created
+: service/default-domain-service created
 
 ** Add the =certmanager-controller=:
 
@@ -107,12 +118,15 @@ created/deleted:
   data:
     issuerRef: |
       kind: ClusterIssuer
-      name: letsencrypt-prod
+      name: letsencrypt-staging
 #+end_src
 
 #+begin_src bash
   kubectl apply -f cert-config.yaml
 #+end_src
+
+#+RESULTS:
+: configmap/config-certmanager configured
 
 ** Add revision garbage collection
 
@@ -124,7 +138,6 @@ metadata:
   namespace: knative-serving
 data:
   max-non-active-revisions: "1"
-  min-non-active-revisions: "1"
   retain-since-create-time: "disabled"
   retain-since-last-active-time: "disabled"
 #+end_src
@@ -211,24 +224,7 @@ Then apply it:
 ** Set the domain
 My domain is =gitgratitude.com= -- you should use yours.
 
-#+begin_src yaml :tangle domain.yaml
-  apiVersion: operator.knative.dev/v1alpha1
-  kind: KnativeServing
-  metadata:
-    name: knative-serving
-    namespace: knative-serving
-  spec:
-    config:
-      domain:
-        gitgratitude.com: ""
-#+end_src
-
-#+begin_src bash :results output
-  kubectl apply -f domain.yaml
-#+end_src
-
-#+RESULTS:
-: configmap/config-domain unchanged
+Check above where we setup =knative-serving=.
 
 Turn on =auto-tls= and =autocreate-cluster-domain-claims=:
 
@@ -292,11 +288,11 @@ http://helloworld-go.default.gitgratitude.com
 And you should be able to hit your function now.
 
 #+begin_src bash :results output
-curl http://helloworld-go.default.gitgratitude.com
+curl -k http://helloworld-go.default.gitgratitude.com
 #+end_src
 
 #+RESULTS:
-: Hello World!
+: Hello GitHub!
 
 ** Look to see if a tls endpoint has been added
 
@@ -330,14 +326,14 @@ kubectl get certificates
 ,* ALPN, server accepted to use h2
 ,* Server certificate:
 ,*  subject: CN=helloworld-go.default.gitgratitude.com
-,*  start date: Nov 30 18:40:01 2021 GMT
-,*  expire date: Feb 28 18:40:00 2022 GMT
-,*  issuer: C=US; O=Let's Encrypt; CN=R3
-,*  SSL certificate verify ok.
+,*  start date: Dec  7 10:28:31 2021 GMT
+,*  expire date: Mar  7 10:28:30 2022 GMT
+,*  issuer: C=US; O=(STAGING) Let's Encrypt; CN=(STAGING) Artificial Apricot R3
+,*  SSL certificate verify result: unable to get local issuer certificate (20), continuing anyway.
 ,* Using HTTP2, server supports multi-use
 ,* Connection state changed (HTTP/2 confirmed)
 ,* Copying HTTP/2 data in stream buffer to connection buffer after upgrade: len=0
-,* Using Stream ID: 1 (easy handle 0x136012a00)
+,* Using Stream ID: 1 (easy handle 0x120012a00)
 ,* Connection state changed (MAX_CONCURRENT_STREAMS == 2147483647)!
 ,* Connection #0 to host helloworld-go.default.gitgratitude.com left intact
 #+end_example
