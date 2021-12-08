@@ -15,7 +15,8 @@
 this post, we will only being using <code class=verbatim>serving</code>.</p><h3 id=headline-4>Operator</h3><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>kubectl apply -f https://github.com/knative/operator/releases/download/knative-v1.0.0/operator.yaml</code></pre></div></div><p>Check status:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>kubectl get deployment knative-operator</code></pre></div></div><pre class=example>
 NAME               READY   UP-TO-DATE   AVAILABLE   AGE
 knative-operator   1/1     1            1           24h
-</pre><h3 id=headline-5>Serving</h3><p>We will now tell the operator to deploy knative serving, and we will use <code class=verbatim>kourier</code>:</p><p><code class=verbatim>serving.yml</code>:</p><div class="src src-yaml"><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=w>  </span><span class=k>apiVersion</span><span class=p>:</span><span class=w> </span>v1<span class=w>
+</pre><h3 id=headline-5>Serving</h3><p>We will now tell the operator to deploy knative serving, and we will
+use <code class=verbatim>kourier</code>, and set our domain to <code class=verbatim>gitgratitude.com</code>:</p><p><code class=verbatim>serving.yml</code>:</p><div class="src src-yaml"><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=w>  </span><span class=k>apiVersion</span><span class=p>:</span><span class=w> </span>v1<span class=w>
 </span><span class=w>  </span><span class=k>kind</span><span class=p>:</span><span class=w> </span>Namespace<span class=w>
 </span><span class=w>  </span><span class=k>metadata</span><span class=p>:</span><span class=w>
 </span><span class=w>    </span><span class=k>name</span><span class=p>:</span><span class=w> </span>knative-serving<span class=w>
@@ -31,7 +32,15 @@ knative-operator   1/1     1            1           24h
 </span><span class=w>        </span><span class=k>enabled</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
 </span><span class=w>    </span><span class=k>config</span><span class=p>:</span><span class=w>
 </span><span class=w>      </span><span class=k>network</span><span class=p>:</span><span class=w>
-</span><span class=w>        </span><span class=k>ingress.class</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;kourier.ingress.networking.knative.dev&#34;</span></code></pre></div></div><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  kubectl apply -f serving.yaml</code></pre></div></div><p>And to see what the status of the deployment is:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>kubectl get deployment -n knative-serving</code></pre></div></div><h3 id=headline-6>Add default domain</h3><p>Lets add the default domain serving as well.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  kubectl apply -f https://github.com/knative/serving/releases/download/knative-v1.0.0/serving-default-domain.yaml</code></pre></div></div><h3 id=headline-7>Add the <code class=verbatim>certmanager-controller</code>:</h3><p>This tells knative to use the certmanager when services get
+</span><span class=w>        </span><span class=k>ingress.class</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;kourier.ingress.networking.knative.dev&#34;</span><span class=w>
+</span><span class=w>      </span><span class=k>domain</span><span class=p>:</span><span class=w>
+</span><span class=w>        </span><span class=k>gitgratitude.com</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;&#34;</span></code></pre></div></div><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  kubectl apply -f serving.yaml</code></pre></div></div><pre class=example>
+namespace/knative-serving configured
+knativeserving.operator.knative.dev/knative-serving configured
+</pre><p>And to see what the status of the deployment is:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>kubectl get deployment -n knative-serving</code></pre></div></div><h3 id=headline-6>Add default domain</h3><p>Lets add the default domain serving as well.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  kubectl apply -f https://github.com/knative/serving/releases/download/knative-v1.0.0/serving-default-domain.yaml</code></pre></div></div><pre class=example>
+job.batch/default-domain created
+service/default-domain-service created
+</pre><h3 id=headline-7>Add the <code class=verbatim>certmanager-controller</code>:</h3><p>This tells knative to use the certmanager when services get
 created/deleted:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  kubectl apply --filename https://github.com/knative/net-certmanager/releases/download/knative-v1.0.0/release.yaml</code></pre></div></div><h3 id=headline-8>Set the <code class=verbatim>cert-manager</code> config map</h3><div class="src src-yaml"><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=w>  </span><span class=k>apiVersion</span><span class=p>:</span><span class=w> </span>v1<span class=w>
 </span><span class=w>  </span><span class=k>kind</span><span class=p>:</span><span class=w> </span>ConfigMap<span class=w>
 </span><span class=w>  </span><span class=k>metadata</span><span class=p>:</span><span class=w>
@@ -42,14 +51,15 @@ created/deleted:</p><div class="src src-bash"><div class=highlight><pre class=ch
 </span><span class=w>  </span><span class=k>data</span><span class=p>:</span><span class=w>
 </span><span class=w>    </span><span class=k>issuerRef</span><span class=p>:</span><span class=w> </span><span class=sd>|
 </span><span class=sd>      kind: ClusterIssuer</span><span class=w>
-</span><span class=w>      </span><span class=k>name</span><span class=p>:</span><span class=w> </span>letsencrypt-prod</code></pre></div></div><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  kubectl apply -f cert-config.yaml</code></pre></div></div><h3 id=headline-9>Add revision garbage collection</h3><div class="src src-yaml"><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=k>apiVersion</span><span class=p>:</span><span class=w> </span>v1<span class=w>
+</span><span class=w>      </span><span class=k>name</span><span class=p>:</span><span class=w> </span>letsencrypt-staging</code></pre></div></div><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  kubectl apply -f cert-config.yaml</code></pre></div></div><pre class=example>
+configmap/config-certmanager configured
+</pre><h3 id=headline-9>Add revision garbage collection</h3><div class="src src-yaml"><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=k>apiVersion</span><span class=p>:</span><span class=w> </span>v1<span class=w>
 </span><span class=w></span><span class=k>kind</span><span class=p>:</span><span class=w> </span>ConfigMap<span class=w>
 </span><span class=w></span><span class=k>metadata</span><span class=p>:</span><span class=w>
 </span><span class=w>  </span><span class=k>name</span><span class=p>:</span><span class=w> </span>config-gc<span class=w>
 </span><span class=w>  </span><span class=k>namespace</span><span class=p>:</span><span class=w> </span>knative-serving<span class=w>
 </span><span class=w></span><span class=k>data</span><span class=p>:</span><span class=w>
 </span><span class=w>  </span><span class=k>max-non-active-revisions</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;1&#34;</span><span class=w>
-</span><span class=w>  </span><span class=k>min-non-active-revisions</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;1&#34;</span><span class=w>
 </span><span class=w>  </span><span class=k>retain-since-create-time</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;disabled&#34;</span><span class=w>
 </span><span class=w>  </span><span class=k>retain-since-last-active-time</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;disabled&#34;</span></code></pre></div></div><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  kubectl apply -f gc.yaml</code></pre></div></div><pre class=example>
 configmap/config-gc configured
@@ -98,17 +108,7 @@ going to use the http challenge here.</p><p>Also replace <code class=verbatim>ws
 </span><span class=w>      </span>- <span class=k>http01</span><span class=p>:</span><span class=w>
 </span><span class=w>          </span><span class=k>ingress</span><span class=p>:</span><span class=w>
 </span><span class=w>            </span><span class=k>class</span><span class=p>:</span><span class=w> </span>istio<span class=w>
-</span><span class=w>            </span><span class=c>#.ingress.networking.knative.dev</span></code></pre></div></div><p>Then apply it:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  kubectl apply -f certs.yaml</code></pre></div></div><h2 id=headline-13>DNS</h2><h3 id=headline-14>Set the domain</h3><p>My domain is <code class=verbatim>gitgratitude.com</code> – you should use yours.</p><div class="src src-yaml"><div class=highlight><pre class=chroma><code class=language-yaml data-lang=yaml><span class=w>  </span><span class=k>apiVersion</span><span class=p>:</span><span class=w> </span>operator.knative.dev/v1alpha1<span class=w>
-</span><span class=w>  </span><span class=k>kind</span><span class=p>:</span><span class=w> </span>KnativeServing<span class=w>
-</span><span class=w>  </span><span class=k>metadata</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span><span class=k>name</span><span class=p>:</span><span class=w> </span>knative-serving<span class=w>
-</span><span class=w>    </span><span class=k>namespace</span><span class=p>:</span><span class=w> </span>knative-serving<span class=w>
-</span><span class=w>  </span><span class=k>spec</span><span class=p>:</span><span class=w>
-</span><span class=w>    </span><span class=k>config</span><span class=p>:</span><span class=w>
-</span><span class=w>      </span><span class=k>domain</span><span class=p>:</span><span class=w>
-</span><span class=w>        </span><span class=k>gitgratitude.com</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;&#34;</span></code></pre></div></div><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  kubectl apply -f domain.yaml</code></pre></div></div><pre class=example>
-configmap/config-domain unchanged
-</pre><p>Turn on <code class=verbatim>auto-tls</code> and <code class=verbatim>autocreate-cluster-domain-claims</code>:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  kubectl patch configmap config-network --namespace knative-serving -p <span class=s1>&#39;{&#34;data&#34;:{&#34;auto-tls&#34;:&#34;Enabled&#34;,&#34;autocreate-cluster-domain-claims&#34;:&#34;true&#34;}}&#39;</span></code></pre></div></div><pre class=example>
+</span><span class=w>            </span><span class=c>#.ingress.networking.knative.dev</span></code></pre></div></div><p>Then apply it:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  kubectl apply -f certs.yaml</code></pre></div></div><h2 id=headline-13>DNS</h2><h3 id=headline-14>Set the domain</h3><p>My domain is <code class=verbatim>gitgratitude.com</code> – you should use yours.</p><p>Check above where we setup <code class=verbatim>knative-serving</code>.</p><p>Turn on <code class=verbatim>auto-tls</code> and <code class=verbatim>autocreate-cluster-domain-claims</code>:</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  kubectl patch configmap config-network --namespace knative-serving -p <span class=s1>&#39;{&#34;data&#34;:{&#34;auto-tls&#34;:&#34;Enabled&#34;,&#34;autocreate-cluster-domain-claims&#34;:&#34;true&#34;}}&#39;</span></code></pre></div></div><pre class=example>
 configmap/config-network patched (no change)
 </pre><h3 id=headline-15>DNS</h3><p>Get the IP</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>  kubectl --namespace knative-serving get service kourier -o json<span class=p>|</span> jq <span class=s2>&#34;.status.loadBalancer.ingress[0].ip&#34;</span></code></pre></div></div><pre class=example>
 &#34;143.244.212.121&#34;
@@ -131,8 +131,8 @@ Creating service 'helloworld-go' in namespace 'default':
 
 Service 'helloworld-go' created to latest revision 'helloworld-go-00001' is available at URL:
 http://helloworld-go.default.gitgratitude.com
-</pre><p>And you should be able to hit your function now.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>curl http://helloworld-go.default.gitgratitude.com</code></pre></div></div><pre class=example>
-Hello World!
+</pre><p>And you should be able to hit your function now.</p><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>curl -k http://helloworld-go.default.gitgratitude.com</code></pre></div></div><pre class=example>
+Hello GitHub!
 </pre><h3 id=headline-17>Look to see if a tls endpoint has been added</h3><div class="src src-bash"><div class=highlight><pre class=chroma><code class=language-bash data-lang=bash>kn service ls</code></pre></div></div><pre class=example>
 NAME            URL                                              LATEST                AGE    CONDITIONS   READY   REASON
 helloworld-go   https://helloworld-go.default.gitgratitude.com   helloworld-go-00001   114s   3 OK / 3     True    
@@ -145,14 +145,14 @@ route-7bbf3267-6eb1-4516-bbb8-e65d81e0b968   True    route-7bbf3267-6eb1-4516-bb
 ,* ALPN, server accepted to use h2
 ,* Server certificate:
 ,*  subject: CN=helloworld-go.default.gitgratitude.com
-,*  start date: Nov 30 18:40:01 2021 GMT
-,*  expire date: Feb 28 18:40:00 2022 GMT
-,*  issuer: C=US; O=Let's Encrypt; CN=R3
-,*  SSL certificate verify ok.
+,*  start date: Dec  7 10:28:31 2021 GMT
+,*  expire date: Mar  7 10:28:30 2022 GMT
+,*  issuer: C=US; O=(STAGING) Let's Encrypt; CN=(STAGING) Artificial Apricot R3
+,*  SSL certificate verify result: unable to get local issuer certificate (20), continuing anyway.
 ,* Using HTTP2, server supports multi-use
 ,* Connection state changed (HTTP/2 confirmed)
 ,* Copying HTTP/2 data in stream buffer to connection buffer after upgrade: len=0
-,* Using Stream ID: 1 (easy handle 0x136012a00)
+,* Using Stream ID: 1 (easy handle 0x120012a00)
 ,* Connection state changed (MAX_CONCURRENT_STREAMS == 2147483647)!
 ,* Connection #0 to host helloworld-go.default.gitgratitude.com left intact
 </pre><h2 id=headline-19>References</h2><ol><li><p><a href=https://knative.dev/docs/install/operator/knative-with-operators/>https://knative.dev/docs/install/operator/knative-with-operators/</a></p></li><li><p><a href=https://knative.dev/docs/serving/samples/hello-world/helloworld-ruby/>https://knative.dev/docs/serving/samples/hello-world/helloworld-ruby/</a></p></li><li><p><a href=https://knative.dev/docs/serving/using-auto-tls/>https://knative.dev/docs/serving/using-auto-tls/</a></p></li><li><p><a href=https://github.com/knative/docs/blob/main/docs/install/serving/install-serving-with-yaml.md>https://github.com/knative/docs/blob/main/docs/install/serving/install-serving-with-yaml.md</a></p></li></ol></article></div><div class="bg-light py-5"><div class=container><h2 class=text-center>Read next</h2><div class=row><div class="col-md-6 text-center">Next Post:

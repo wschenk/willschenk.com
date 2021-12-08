@@ -314,7 +314,8 @@ knative-operator 1/1 1 1 24h
 Serving
 &lt;/h3>
 &lt;p>
-We will now tell the operator to deploy knative serving, and we will use &lt;code class="verbatim">kourier&lt;/code>:
+We will now tell the operator to deploy knative serving, and we will
+use &lt;code class="verbatim">kourier&lt;/code>, and set our domain to &lt;code class="verbatim">gitgratitude.com&lt;/code>:
 &lt;/p>
 &lt;p>
 &lt;code class="verbatim">serving.yml&lt;/code>:
@@ -336,11 +337,17 @@ We will now tell the operator to deploy knative serving, and we will use &lt;cod
 &lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">enabled&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
 &lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">config&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
 &lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">network&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">ingress.class&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;kourier.ingress.networking.knative.dev&amp;#34;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">ingress.class&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;kourier.ingress.networking.knative.dev&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">domain&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">gitgratitude.com&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;&amp;#34;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
 &lt;/div>
 &lt;div class="src src-bash">
 &lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl apply -f serving.yaml&lt;/code>&lt;/pre>&lt;/div>
 &lt;/div>
+&lt;pre class="example">
+namespace/knative-serving configured
+knativeserving.operator.knative.dev/knative-serving configured
+&lt;/pre>
 &lt;p>
 And to see what the status of the deployment is:
 &lt;/p>
@@ -356,6 +363,10 @@ Lets add the default domain serving as well.
 &lt;div class="src src-bash">
 &lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl apply -f https://github.com/knative/serving/releases/download/knative-v1.0.0/serving-default-domain.yaml&lt;/code>&lt;/pre>&lt;/div>
 &lt;/div>
+&lt;pre class="example">
+job.batch/default-domain created
+service/default-domain-service created
+&lt;/pre>
 &lt;h3 id="headline-7">
 Add the &lt;code class="verbatim">certmanager-controller&lt;/code>:
 &lt;/h3>
@@ -380,11 +391,14 @@ Set the &lt;code class="verbatim">cert-manager&lt;/code> config map
 &lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">data&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
 &lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">issuerRef&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="sd">|
 &lt;/span>&lt;span class="sd"> kind: ClusterIssuer&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>letsencrypt-prod&lt;/code>&lt;/pre>&lt;/div>
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>letsencrypt-staging&lt;/code>&lt;/pre>&lt;/div>
 &lt;/div>
 &lt;div class="src src-bash">
 &lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl apply -f cert-config.yaml&lt;/code>&lt;/pre>&lt;/div>
 &lt;/div>
+&lt;pre class="example">
+configmap/config-certmanager configured
+&lt;/pre>
 &lt;h3 id="headline-9">
 Add revision garbage collection
 &lt;/h3>
@@ -396,7 +410,6 @@ Add revision garbage collection
 &lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>knative-serving&lt;span class="w">
 &lt;/span>&lt;span class="w">&lt;/span>&lt;span class="k">data&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
 &lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">max-non-active-revisions&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;1&amp;#34;&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">min-non-active-revisions&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;1&amp;#34;&lt;/span>&lt;span class="w">
 &lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">retain-since-create-time&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;disabled&amp;#34;&lt;/span>&lt;span class="w">
 &lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">retain-since-last-active-time&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;disabled&amp;#34;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
 &lt;/div>
@@ -490,23 +503,9 @@ Set the domain
 &lt;p>
 My domain is &lt;code class="verbatim">gitgratitude.com&lt;/code> – you should use yours.
 &lt;/p>
-&lt;div class="src src-yaml">
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="w"> &lt;/span>&lt;span class="k">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>operator.knative.dev/v1alpha1&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>KnativeServing&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>knative-serving&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>knative-serving&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">config&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">domain&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">gitgratitude.com&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;&amp;#34;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
-&lt;/div>
-&lt;div class="src src-bash">
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl apply -f domain.yaml&lt;/code>&lt;/pre>&lt;/div>
-&lt;/div>
-&lt;pre class="example">
-configmap/config-domain unchanged
-&lt;/pre>
+&lt;p>
+Check above where we setup &lt;code class="verbatim">knative-serving&lt;/code>.
+&lt;/p>
 &lt;p>
 Turn on &lt;code class="verbatim">auto-tls&lt;/code> and &lt;code class="verbatim">autocreate-cluster-domain-claims&lt;/code>:
 &lt;/p>
@@ -567,10 +566,10 @@ http://helloworld-go.default.gitgratitude.com
 And you should be able to hit your function now.
 &lt;/p>
 &lt;div class="src src-bash">
-&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">curl http://helloworld-go.default.gitgratitude.com&lt;/code>&lt;/pre>&lt;/div>
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">curl -k http://helloworld-go.default.gitgratitude.com&lt;/code>&lt;/pre>&lt;/div>
 &lt;/div>
 &lt;pre class="example">
-Hello World!
+Hello GitHub!
 &lt;/pre>
 &lt;h3 id="headline-17">
 Look to see if a tls endpoint has been added
@@ -601,14 +600,14 @@ route-7bbf3267-6eb1-4516-bbb8-e65d81e0b968 True route-7bbf3267-6eb1-4516-bbb8-e6
 ,* ALPN, server accepted to use h2
 ,* Server certificate:
 ,* subject: CN=helloworld-go.default.gitgratitude.com
-,* start date: Nov 30 18:40:01 2021 GMT
-,* expire date: Feb 28 18:40:00 2022 GMT
-,* issuer: C=US; O=Let's Encrypt; CN=R3
-,* SSL certificate verify ok.
+,* start date: Dec 7 10:28:31 2021 GMT
+,* expire date: Mar 7 10:28:30 2022 GMT
+,* issuer: C=US; O=(STAGING) Let's Encrypt; CN=(STAGING) Artificial Apricot R3
+,* SSL certificate verify result: unable to get local issuer certificate (20), continuing anyway.
 ,* Using HTTP2, server supports multi-use
 ,* Connection state changed (HTTP/2 confirmed)
 ,* Copying HTTP/2 data in stream buffer to connection buffer after upgrade: len=0
-,* Using Stream ID: 1 (easy handle 0x136012a00)
+,* Using Stream ID: 1 (easy handle 0x120012a00)
 ,* Connection state changed (MAX_CONCURRENT_STREAMS == 2147483647)!
 ,* Connection #0 to host helloworld-go.default.gitgratitude.com left intact
 &lt;/pre>
