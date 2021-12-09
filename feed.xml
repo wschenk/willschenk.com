@@ -1,4 +1,320 @@
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Wed, 01 Dec 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Serving a knative function on the root</title><link>https://willschenk.com/articles/2021/serving_a_knative_function_on_the_root/</link><pubDate>Wed, 01 Dec 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/serving_a_knative_function_on_the_root/</guid><description>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Wed, 08 Dec 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>NextJS with Prisma on Kubernetes</title><link>https://willschenk.com/articles/2021/next_js_with_prisma/</link><pubDate>Wed, 08 Dec 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/next_js_with_prisma/</guid><description>
+&lt;p>
+Now that we have our cluster up and running, lets look at how to build
+and deploy a &lt;a href="https://nextjs.org/">NextJS&lt;/a> app on it, including the database.
+&lt;/p>
+&lt;h2 id="headline-1">
+Create a NextJS app
+&lt;/h2>
+&lt;p>
+We&amp;#39;ll scaffold out a TypeScript app.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> npx create-next-app@latest --typescript myapp
+&lt;span class="nb">cd&lt;/span> myapp
+npm run dev&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-2">
+Fireup a local data
+&lt;/h2>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> docker run -e &lt;span class="nv">POSTGRES_PASSWORD&lt;/span>&lt;span class="o">=&lt;/span>awesome_password -p 5432:5432 postgres&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-3">
+Install &lt;code class="verbatim">prisma&lt;/code>
+&lt;/h2>
+&lt;p>
+We&amp;#39;ll add the npm packages to our project.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> npm install prisma
+npx prisma init&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Edit &lt;code class="verbatim">.env&lt;/code> and change the url to be
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> &lt;span class="nv">DATABASE_URL&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;postgresql://postgres:awesome_password@localhost:5432/mydb?schema=public&amp;#34;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-4">
+Data Models
+&lt;/h3>
+&lt;p>
+In &lt;code class="verbatim">primsa/schema.prisma&lt;/code> add a model:
+&lt;/p>
+&lt;div class="src src-text">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-text" data-lang="text">model Post {
+id Int @id @default(autoincrement())
+createdAt DateTime @default(now())
+title String @db.VarChar(255)
+content String?
+}&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-5">
+Run the migration
+&lt;/h3>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> npx prisma migrate dev --name init&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-6">
+Run &lt;code class="verbatim">prisma studio&lt;/code> to check it out
+&lt;/h3>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> npx prisma studio&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-7">
+Write the post page and api
+&lt;/h2>
+&lt;p>
+This is a basic demostration, so nothing fancy.
+&lt;/p>
+&lt;h3 id="headline-8">
+&lt;code class="verbatim">tsconfig.json&lt;/code>
+&lt;/h3>
+&lt;p>
+Add
+&lt;/p>
+&lt;p>
+&lt;code class="verbatim">&amp;#34;baseUrl&amp;#34; : &amp;#34;.&amp;#34;&lt;/code> and &lt;code class="verbatim">&amp;#34;strict&amp;#34;:&amp;#34;false&amp;#34;&lt;/code> to &lt;code class="verbatim">compilerOptions&lt;/code>.
+&lt;/p>
+&lt;h3 id="headline-9">
+&lt;code class="verbatim">lib/prisma.ts&lt;/code>
+&lt;/h3>
+&lt;div class="src src-typescript">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-typescript" data-lang="typescript"> &lt;span class="kr">import&lt;/span> &lt;span class="p">{&lt;/span> &lt;span class="nx">PrismaClient&lt;/span> &lt;span class="p">}&lt;/span> &lt;span class="nx">from&lt;/span> &lt;span class="s1">&amp;#39;@prisma/client&amp;#39;&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="kr">declare&lt;/span> &lt;span class="nx">global&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="kd">var&lt;/span> &lt;span class="nx">prisma&lt;/span>: &lt;span class="kt">PrismaClient&lt;/span> &lt;span class="o">|&lt;/span> &lt;span class="kc">undefined&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="kr">export&lt;/span> &lt;span class="kr">const&lt;/span> &lt;span class="nx">prisma&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">global&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">prisma&lt;/span> &lt;span class="o">||&lt;/span> &lt;span class="k">new&lt;/span> &lt;span class="nx">PrismaClient&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nx">process&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">env&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">NODE_ENV&lt;/span> &lt;span class="o">!==&lt;/span> &lt;span class="s1">&amp;#39;production&amp;#39;&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="nx">global&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">prisma&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">prisma&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-10">
+&lt;code class="verbatim">pages/posts.ts&lt;/code>
+&lt;/h3>
+&lt;p>
+We&amp;#39;ll use &lt;code class="verbatim">react-hook-form&lt;/code> to make things simplier.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> npm install react-hook-form&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+A couple points.
+&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>
+We query the database in &lt;code class="verbatim">getServiceSideProps&lt;/code>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+We are fetching our API from &lt;code class="verbatim">window.location.origin&lt;/code>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+We are totally hacking the window reload, I&amp;#39;m just lazy
+&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;div class="src src-typescript">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-typescript" data-lang="typescript"> &lt;span class="kr">import&lt;/span> &lt;span class="nx">Head&lt;/span> &lt;span class="nx">from&lt;/span> &lt;span class="s1">&amp;#39;next/head&amp;#39;&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="kr">import&lt;/span> &lt;span class="p">{&lt;/span> &lt;span class="nx">prisma&lt;/span> &lt;span class="p">}&lt;/span> &lt;span class="nx">from&lt;/span> &lt;span class="s1">&amp;#39;lib/prisma&amp;#39;&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="kr">import&lt;/span> &lt;span class="p">{&lt;/span> &lt;span class="nx">Post&lt;/span> &lt;span class="p">}&lt;/span> &lt;span class="nx">from&lt;/span> &lt;span class="s1">&amp;#39;.prisma/client&amp;#39;&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="kr">import&lt;/span> &lt;span class="nx">Link&lt;/span> &lt;span class="nx">from&lt;/span> &lt;span class="s1">&amp;#39;next/link&amp;#39;&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="kr">import&lt;/span> &lt;span class="p">{&lt;/span> &lt;span class="nx">useForm&lt;/span> &lt;span class="p">}&lt;/span> &lt;span class="nx">from&lt;/span> &lt;span class="s1">&amp;#39;react-hook-form&amp;#39;&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="kr">export&lt;/span> &lt;span class="k">default&lt;/span> &lt;span class="kd">function&lt;/span> &lt;span class="nx">PostsPage&lt;/span>&lt;span class="p">({&lt;/span> &lt;span class="nx">posts&lt;/span> &lt;span class="p">})&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">register&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nx">handleSubmit&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nx">formState&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="p">{&lt;/span> &lt;span class="nx">errors&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">isSubmitted&lt;/span> &lt;span class="p">},&lt;/span>
+&lt;span class="p">}&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">useForm&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">onSubmit&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nx">data&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="o">=&amp;gt;&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="k">try&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">fetch&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="sb">`&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nb">window&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">location&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">origin&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="sb">/api/create`&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">body&lt;/span>: &lt;span class="kt">JSON.stringify&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">data&lt;/span>&lt;span class="p">),&lt;/span>
+&lt;span class="nx">headers&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="s1">&amp;#39;Content-Type&amp;#39;&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="s1">&amp;#39;application/json&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="p">},&lt;/span>
+&lt;span class="nx">method&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="s1">&amp;#39;POST&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="p">}).&lt;/span>&lt;span class="nx">then&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="p">()&lt;/span> &lt;span class="o">=&amp;gt;&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nb">window&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">location&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">href&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nb">window&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">location&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">href&lt;/span>
+&lt;span class="p">}&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="p">}&lt;/span> &lt;span class="k">catch&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nx">error&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="k">throw&lt;/span> &lt;span class="k">new&lt;/span> &lt;span class="nb">Error&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">error&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">};&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="p">(&lt;/span>
+&lt;span class="o">&amp;lt;&amp;gt;&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="nx">ul&lt;/span>&lt;span class="o">&amp;gt;&lt;/span>
+&lt;span class="p">{&lt;/span>&lt;span class="nx">posts&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">map&lt;/span>&lt;span class="p">((&lt;/span>&lt;span class="nx">item&lt;/span>: &lt;span class="kt">Post&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="o">=&amp;gt;&lt;/span> &lt;span class="p">(&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="nx">li&lt;/span> &lt;span class="nx">key&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="nx">item&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">id&lt;/span>&lt;span class="p">}&lt;/span>&lt;span class="o">&amp;gt;&lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="nx">item&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">title&lt;/span>&lt;span class="p">}&lt;/span> &lt;span class="o">-&lt;/span> &lt;span class="p">{&lt;/span>&lt;span class="nx">item&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">content&lt;/span>&lt;span class="p">}&lt;/span>&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="err">/li&amp;gt;&lt;/span>
+&lt;span class="p">))}&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="err">/ul&amp;gt;&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="nx">form&lt;/span> &lt;span class="nx">onSubmit&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="nx">handleSubmit&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">onSubmit&lt;/span>&lt;span class="p">)}&lt;/span>&lt;span class="o">&amp;gt;&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="nx">label&lt;/span>&lt;span class="o">&amp;gt;&lt;/span>&lt;span class="nx">Title&lt;/span>&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="err">/label&amp;gt;&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="nx">input&lt;/span>
+&lt;span class="nx">id&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;title&amp;#34;&lt;/span>
+&lt;span class="nx">type&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;text&amp;#34;&lt;/span>
+&lt;span class="p">{...&lt;/span>&lt;span class="nx">register&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s1">&amp;#39;title&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="p">{&lt;/span>&lt;span class="nx">required&lt;/span>: &lt;span class="kt">true&lt;/span>&lt;span class="p">})}&lt;/span>&lt;span class="o">/&amp;gt;&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="nx">br&lt;/span>&lt;span class="o">/&amp;gt;&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="nx">label&lt;/span>&lt;span class="o">&amp;gt;&lt;/span>&lt;span class="nx">Content&lt;/span>&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="err">/label&amp;gt;&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="nx">input&lt;/span>
+&lt;span class="nx">type&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;text&amp;#34;&lt;/span>
+&lt;span class="nx">id&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;content&amp;#34;&lt;/span>
+&lt;span class="p">{...&lt;/span>&lt;span class="nx">register&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s1">&amp;#39;content&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="p">{&lt;/span>&lt;span class="nx">required&lt;/span>: &lt;span class="kt">true&lt;/span>&lt;span class="p">})}&lt;/span>&lt;span class="o">/&amp;gt;&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="nx">input&lt;/span> &lt;span class="nx">type&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;submit&amp;#34;&lt;/span>&lt;span class="o">/&amp;gt;&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="err">/form&amp;gt;&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="err">/&amp;gt;&lt;/span>
+&lt;span class="p">);&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="kr">export&lt;/span> &lt;span class="kr">const&lt;/span> &lt;span class="nx">getServerSideProps&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">async&lt;/span> &lt;span class="p">()&lt;/span> &lt;span class="o">=&amp;gt;&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">posts&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">await&lt;/span> &lt;span class="nx">prisma&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">post&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">findMany&lt;/span>&lt;span class="p">({&lt;/span>
+&lt;span class="nx">select&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">id&lt;/span>: &lt;span class="kt">true&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nx">title&lt;/span>: &lt;span class="kt">true&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nx">content&lt;/span>: &lt;span class="kt">true&lt;/span>
+&lt;span class="p">},&lt;/span>
+&lt;span class="p">});&lt;/span>
+&lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">posts&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">props&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">posts&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="p">},&lt;/span>
+&lt;span class="p">};&lt;/span>
+&lt;span class="p">};&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-11">
+&lt;code class="verbatim">api/create.ts&lt;/code>
+&lt;/h3>
+&lt;p>
+This is the api request to handle the post. It runs on the server.
+&lt;/p>
+&lt;div class="src src-typescript">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-typescript" data-lang="typescript">&lt;span class="kr">import&lt;/span> &lt;span class="p">{&lt;/span> &lt;span class="nx">prisma&lt;/span> &lt;span class="p">}&lt;/span> &lt;span class="nx">from&lt;/span> &lt;span class="s1">&amp;#39;lib/prisma&amp;#39;&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="kr">export&lt;/span> &lt;span class="k">default&lt;/span> &lt;span class="nx">async&lt;/span> &lt;span class="kd">function&lt;/span> &lt;span class="nx">handler&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">req&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">res&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="p">{&lt;/span> &lt;span class="nx">content&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">title&lt;/span> &lt;span class="p">}&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">req&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">body&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="k">try&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">feedback&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">await&lt;/span> &lt;span class="nx">prisma&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">post&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">create&lt;/span>&lt;span class="p">({&lt;/span>
+&lt;span class="nx">data&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">content&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nx">title&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="p">},&lt;/span>
+&lt;span class="p">});&lt;/span>
+&lt;span class="nx">res&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">status&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="mi">200&lt;/span>&lt;span class="p">).&lt;/span>&lt;span class="nx">json&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">feedback&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="p">}&lt;/span> &lt;span class="k">catch&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nx">error&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">res&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">status&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="mi">400&lt;/span>&lt;span class="p">).&lt;/span>&lt;span class="nx">json&lt;/span>&lt;span class="p">({&lt;/span>
+&lt;span class="nx">message&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="sb">`Something went wrong :/ &lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nx">error&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="sb">`&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="p">});&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-12">
+Setup &lt;code class="verbatim">postgres&lt;/code> on your cluster
+&lt;/h2>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> helm repo add bitnami https://charts.bitnami.com/bitnami
+helm upgrade --install postgres bitnami/postgresql&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Eventually the database will be available on &lt;code class="verbatim">postgres-postgresql.default.svc.cluster.local&lt;/code>
+&lt;/p>
+&lt;p>
+We can get the password using
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl get secret --namespace default postgres-postgresql -o &lt;span class="nv">jsonpath&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;{.data.postgresql-password}&amp;#34;&lt;/span> &lt;span class="p">|&lt;/span> base64 --decode&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+1oOFIcOvB1
+&lt;/pre>
+&lt;p>
+When we deploy the function we&amp;#39;ll set the &lt;code class="verbatim">DATABASE_URL&lt;/code> to look something like:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> &lt;span class="nv">DATABASE_URL&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;postgresql://postgres:1oOFIcOvB1@postgres-postgresql.default.svc.cluster.local:5432/database?schema=public&amp;#34;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+You&amp;#39;ll need to update that with your actual password of course.
+&lt;/p>
+&lt;h3 id="headline-13">
+Migrate the database
+&lt;/h3>
+&lt;p>
+We are going to setup the database from our local enviornment. We&amp;#39;ll
+use &lt;code class="verbatim">kubectl&lt;/code> to forward the local postgres port to the remote install.
+&lt;em>Remember to stop your local postgres container&lt;/em>
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl port-forward svc/postgres-postgresql 5432:5432&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Then, using the password that we found above, deploy the current
+migrations to the postgres that&amp;#39;s being forwared on localhost. This
+is a different url then the previous one shown!:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> &lt;span class="nv">DATABASE_URL&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;postgresql://postgres:1oOFIcOvB1@localhost:5432/database?schema=public&amp;#34;&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> npx prisma migrate deploy&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+You can also run &lt;code class="verbatim">prisma studio&lt;/code> that way, by the way.
+&lt;/p>
+&lt;h2 id="headline-14">
+Deploy the service
+&lt;/h2>
+&lt;h3 id="headline-15">
+Build image
+&lt;/h3>
+&lt;p>
+We need to tweaks the dockerfile &lt;a href="https://nextjs.org/docs/deployment">from the official docs&lt;/a> to add &lt;code class="verbatim">prisma
+generate&lt;/code> to get the client code. So, copy over that &lt;code class="verbatim">Dockerfile&lt;/code> and
+then, right after it copies the &lt;code class="verbatim">node_modules&lt;/code> over added
+&lt;/p>
+&lt;p>
+&lt;code class="verbatim">RUN npx prisma generate&lt;/code>
+&lt;/p>
+&lt;p>
+For me it&amp;#39;s on like 14, right before &lt;code class="verbatim">yarn build&lt;/code>.
+&lt;/p>
+&lt;p>
+Since I&amp;#39;m working off an M1 mac, I need to set the &lt;code class="verbatim">--platform&lt;/code> to make
+sure that the image is built using the correct binaries. An example
+of this is:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> docker build . --platform linux/amd64 -t wschenk/prismatest &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> docker push wschenk/prismatest&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-16">
+Create the service
+&lt;/h3>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kn service create prisma &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --image wschenk/prismatest &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --env &lt;span class="nv">DATABASE_URL&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;postgresql://postgres:1oOFIcOvB1@postgres-postgresql.default.svc.cluster.local:5432/database?schema=public&amp;#34;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Once this is up and running, you should be able to interact with your
+service and add messages.
+&lt;/p>
+&lt;h2 id="headline-17">
+References
+&lt;/h2>
+&lt;ol>
+&lt;li>
+&lt;p>
+&lt;a href="https://github.com/m-abdelwahab/nextjs-prisma-workshop">https://github.com/m-abdelwahab/nextjs-prisma-workshop&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://nextjs.org/docs/deployment">https://nextjs.org/docs/deployment&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;/ol></description></item><item><title>Serving a knative function on the root</title><link>https://willschenk.com/articles/2021/serving_a_knative_function_on_the_root/</link><pubDate>Wed, 01 Dec 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/serving_a_knative_function_on_the_root/</guid><description>
 &lt;p>
 I want to deploy everything as a knative service, including the root
 of the domain.
