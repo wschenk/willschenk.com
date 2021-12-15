@@ -1,4 +1,552 @@
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Wed, 08 Dec 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>NextJS with Prisma on Kubernetes</title><link>https://willschenk.com/articles/2021/next_js_with_prisma/</link><pubDate>Wed, 08 Dec 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/next_js_with_prisma/</guid><description>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Mon, 13 Dec 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Setting up knative eventing</title><link>https://willschenk.com/articles/2021/setting_up_knative_eventing/</link><pubDate>Mon, 13 Dec 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/setting_up_knative_eventing/</guid><description>
+&lt;p>
+Here&amp;#39;s a walk through of how to setup &lt;a href="https://knative.dev/docs/eventing/">knative eventing&lt;/a>. I couldn&amp;#39;t
+find this information in one place and it took longer than I expected
+to sort it out.
+&lt;/p>
+&lt;p>
+There are a couple of ways you can use eventing. One is to sent
+messages directly to specific services. This I outline walk through
+as a direct event.
+&lt;/p>
+&lt;p>
+Another is to use a broker and a trigger. A &lt;a href="https://knative.dev/docs/eventing/broker/">broker&lt;/a> is basically the
+place you send stuff to, and then you define specific listeners by
+creating a &lt;a href="https://knative.dev/docs/eventing/broker/triggers/">trigger&lt;/a>.
+&lt;/p>
+&lt;p>
+A third way it to use a &lt;a href="https://knative.dev/docs/eventing/channels/">channel&lt;/a> and then create a &lt;a href="https://knative.dev/docs/eventing/channels/subscriptions/">subscription&lt;/a> to that
+channel.
+&lt;/p>
+&lt;h2 id="headline-1">
+What&amp;#39;s the differene?
+&lt;/h2>
+&lt;p>
+Brokers/Trigger and Channels/Subscriptions are very very similar. The
+code that you use to send an event, in knative parlance, an &lt;a href="https://knative.dev/docs/eventing/sources/">event
+source&lt;/a> is exactly the same, and the code you use to receive an event,
+or an &lt;a href="https://knative.dev/docs/eventing/sinks/">event sink&lt;/a> is exactly the same, the difference is in the
+deployment configuration and what the underlying service is that
+provides the event routing.
+&lt;/p>
+&lt;p>
+Note that the sources that are described in the knative documentation
+are the default ones, but writing your own is as simple as creating a
+&lt;code class="verbatim">binding&lt;/code> (which gives you a &lt;code class="verbatim">K_SINK&lt;/code> environment variable which will
+target your event), so it doesn&amp;#39;t need to be all that complicated.
+&lt;/p>
+&lt;p>
+Also a bit confusing, is that brokers are themselves sinks, as well as
+sources.
+&lt;/p>
+&lt;p>
+With brokers and triggers, you can setup event type filtering on the
+trigger itself so that your service will only see messages of a
+specific type.
+&lt;/p>
+&lt;p>
+For channels I think you need to to the filtering on the receiving
+side.
+&lt;/p>
+&lt;h2 id="headline-2">
+Install &lt;code class="verbatim">knative-eventing&lt;/code>
+&lt;/h2>
+&lt;p>
+Since we&amp;#39;ve setup the knative operator previously, lets tell it to
+turn on eventing.
+&lt;/p>
+&lt;p>
+&lt;code class="verbatim">eventing.yaml&lt;/code>
+&lt;/p>
+&lt;div class="src src-yaml">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="w"> &lt;/span>&lt;span class="k">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>v1&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>Namespace&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>knative-eventing&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>--&lt;span class="sd">-
+&lt;/span>&lt;span class="sd"> apiVersion: operator.knative.dev/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>KnativeEventing&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>knative-eventing&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>knative-eventing&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+And then apply:
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl apply -f eventing.yaml&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+namespace/knative-eventing configured
+knativeeventing.operator.knative.dev/knative-eventing unchanged
+&lt;/pre>
+&lt;p>
+Check the status of the deployment
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kubectl get deployment -n knative-eventing&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-3">
+Deploy the test services
+&lt;/h2>
+&lt;h3 id="headline-4">
+Create the echo service
+&lt;/h3>
+&lt;p>
+(&lt;em>Code is below&lt;/em>)
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kn service create ruby-echo --image wschenk/ruby-echo -a networking.knative.dev/disableAutoTLS&lt;span class="o">=&lt;/span>true&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-5">
+Create the send service
+&lt;/h3>
+&lt;p>
+(&lt;em>Code is below&lt;/em>)
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kn service create ruby-send --image wschenk/ruby-send -a networking.knative.dev/disableAutoTLS&lt;span class="o">=&lt;/span>true&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-6">
+Receiving events
+&lt;/h2>
+&lt;h3 id="headline-7">
+Direct event test
+&lt;/h3>
+&lt;h4 id="headline-8">
+Create the source
+&lt;/h4>
+&lt;p>
+This created an event source that sends an event every minute. We
+tell it to send the message directly to &lt;code class="verbatim">ruby-echo&lt;/code>, the service that we
+just created.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kn &lt;span class="nb">source&lt;/span> ping create heartbeat-source &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --schedule &lt;span class="s2">&amp;#34;*/1 * * * *&amp;#34;&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --sink ksvc:ruby-echo&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Ping source &amp;#39;heartbeat-source&amp;#39; created in namespace &amp;#39;default&amp;#39;.
+&lt;/pre>
+&lt;h4 id="headline-9">
+View results
+&lt;/h4>
+&lt;p>
+This is deployed on my domain, yours should be different.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">curl http://ruby-echo.default.gitgratitude.com&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Hello from the ruby eco service
+{&amp;#34;specversion&amp;#34;=&amp;gt;&amp;#34;1.0&amp;#34;, &amp;#34;id&amp;#34;=&amp;gt;&amp;#34;0dd72dfa-eac9-40a1-b48b-00df271cd62e&amp;#34;, &amp;#34;source&amp;#34;=&amp;gt;&amp;#34;/apis/v1/namespaces/default/pingsources/heartbeat-source&amp;#34;, &amp;#34;type&amp;#34;=&amp;gt;&amp;#34;dev.knative.sources.ping&amp;#34;, &amp;#34;data_encoded&amp;#34;=&amp;gt;&amp;#34;&amp;#34;, &amp;#34;data&amp;#34;=&amp;gt;&amp;#34;&amp;#34;, &amp;#34;time&amp;#34;=&amp;gt;&amp;#34;2021-12-14T18:50:00.060257784Z&amp;#34;}
+&lt;/pre>
+&lt;h4 id="headline-10">
+Cleanup
+&lt;/h4>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kn &lt;span class="nb">source&lt;/span> ping delete heartbeat-source&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Ping source &amp;#39;heartbeat-source&amp;#39; deleted in namespace &amp;#39;default&amp;#39;.
+&lt;/pre>
+&lt;h3 id="headline-11">
+Broker and Trigger test
+&lt;/h3>
+&lt;h4 id="headline-12">
+Create the Broker
+&lt;/h4>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">kn broker create default&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Broker &amp;#39;default&amp;#39; successfully created in namespace &amp;#39;default&amp;#39;.
+&lt;/pre>
+&lt;h4 id="headline-13">
+Create the source
+&lt;/h4>
+&lt;p>
+Here we are using the ping source again, but pointing it to
+&lt;code class="verbatim">broker:default&lt;/code> instead of the service.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kn &lt;span class="nb">source&lt;/span> ping create heartbeat-source &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --schedule &lt;span class="s2">&amp;#34;*/1 * * * *&amp;#34;&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --sink broker:default&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Ping source &amp;#39;heartbeat-source&amp;#39; created in namespace &amp;#39;default&amp;#39;.
+&lt;/pre>
+&lt;h4 id="headline-14">
+Create the trigger
+&lt;/h4>
+&lt;p>
+Now that we are pinging the broker, we need to tell the broker to send
+that message type to our service, &lt;code class="verbatim">ruby-echo&lt;/code>.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kn trigger create heartbeat-trigger &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --broker default &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --filter &lt;span class="nv">type&lt;/span>&lt;span class="o">=&lt;/span>dev.knative.sources.ping &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --sink ksvc:ruby-echo&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Trigger &amp;#39;heartbeat-trigger&amp;#39; successfully created in namespace &amp;#39;default&amp;#39;.
+&lt;/pre>
+&lt;h4 id="headline-15">
+View results
+&lt;/h4>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> curl http://ruby-echo.default.gitgratitude.com&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Hello from the ruby echo service
+{&amp;#34;specversion&amp;#34;=&amp;gt;&amp;#34;1.0&amp;#34;, &amp;#34;id&amp;#34;=&amp;gt;&amp;#34;1aef1313-e8ea-4b14-9d91-691f6ecbcc03&amp;#34;, &amp;#34;source&amp;#34;=&amp;gt;&amp;#34;/apis/v1/namespaces/default/pingsources/heartbeat-source&amp;#34;, &amp;#34;type&amp;#34;=&amp;gt;&amp;#34;dev.knative.sources.ping&amp;#34;, &amp;#34;data_encoded&amp;#34;=&amp;gt;&amp;#34;&amp;#34;, &amp;#34;data&amp;#34;=&amp;gt;&amp;#34;&amp;#34;, &amp;#34;time&amp;#34;=&amp;gt;&amp;#34;2021-12-14T18:57:00.319157126Z&amp;#34;, &amp;#34;knativearrivaltime&amp;#34;=&amp;gt;&amp;#34;2021-12-14T18:57:00.319736536Z&amp;#34;}
+&lt;/pre>
+&lt;h4 id="headline-16">
+Cleanup
+&lt;/h4>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kn broker delete default
+kn &lt;span class="nb">source&lt;/span> ping delete heartbeat-source
+kn trigger delete heartbeat-trigger&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Broker &amp;#39;default&amp;#39; successfully deleted in namespace &amp;#39;default&amp;#39;.
+Ping source &amp;#39;heartbeat-source&amp;#39; deleted in namespace &amp;#39;default&amp;#39;.
+Trigger &amp;#39;heartbeat-trigger&amp;#39; deleted in namespace &amp;#39;default&amp;#39;.
+&lt;/pre>
+&lt;h3 id="headline-17">
+Channel test
+&lt;/h3>
+&lt;h4 id="headline-18">
+Channel
+&lt;/h4>
+&lt;p>
+Simple.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kn channel create heartbeat&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Channel &amp;#39;heartbeat&amp;#39; created in namespace &amp;#39;default&amp;#39;.
+&lt;/pre>
+&lt;h4 id="headline-19">
+Ping the heartbeat channel
+&lt;/h4>
+&lt;p>
+This is sending to &lt;code class="verbatim">channel:heartbeat&lt;/code>
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kn &lt;span class="nb">source&lt;/span> ping create heartbeat-source &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --schedule &lt;span class="s2">&amp;#34;*/1 * * * *&amp;#34;&lt;/span> &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --sink channel:heartbeat&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Ping source &amp;#39;heartbeat-source&amp;#39; created in namespace &amp;#39;default&amp;#39;.
+&lt;/pre>
+&lt;h4 id="headline-20">
+Subscribe to the event
+&lt;/h4>
+&lt;p>
+Here we create the subscription, which goes to our service.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kn subscription create heartbeat-sub &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --channel heartbeat &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --sink ruby-echo&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Subscription &amp;#39;heartbeat-sub&amp;#39; created in namespace &amp;#39;default&amp;#39;.
+&lt;/pre>
+&lt;h4 id="headline-21">
+See the results
+&lt;/h4>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> curl http://ruby-echo.default.gitgratitude.com&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Hello from the ruby echo service
+{&amp;#34;specversion&amp;#34;=&amp;gt;&amp;#34;1.0&amp;#34;, &amp;#34;id&amp;#34;=&amp;gt;&amp;#34;88171ffc-3008-4df4-98cd-c157ef5a1aea&amp;#34;, &amp;#34;source&amp;#34;=&amp;gt;&amp;#34;/apis/v1/namespaces/default/pingsources/heartbeat-source&amp;#34;, &amp;#34;type&amp;#34;=&amp;gt;&amp;#34;dev.knative.sources.ping&amp;#34;, &amp;#34;data_encoded&amp;#34;=&amp;gt;&amp;#34;&amp;#34;, &amp;#34;data&amp;#34;=&amp;gt;&amp;#34;&amp;#34;, &amp;#34;time&amp;#34;=&amp;gt;&amp;#34;2021-12-14T18:59:00.082372715Z&amp;#34;}
+&lt;/pre>
+&lt;h4 id="headline-22">
+Cleanup
+&lt;/h4>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kn channel delete heartbeat
+kn &lt;span class="nb">source&lt;/span> ping delete heartbeat-source
+kn subscription delete heartbeat-sub&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Channel &amp;#39;heartbeat&amp;#39; deleted in namespace &amp;#39;default&amp;#39;.
+Ping source &amp;#39;heartbeat-source&amp;#39; deleted in namespace &amp;#39;default&amp;#39;.
+Subscription &amp;#39;heartbeat-sub&amp;#39; deleted in namespace &amp;#39;default&amp;#39;.
+&lt;/pre>
+&lt;h2 id="headline-23">
+Sending events
+&lt;/h2>
+&lt;p>
+Now we can look at creating and sending events. The receiving side is
+the same, but we need to create a service that will send a message.
+In each scenario this will be the same code, but depending upon how we
+deploy it, it will have a different &lt;code class="verbatim">K_SINK&lt;/code> value in the environment.
+&lt;/p>
+&lt;h3 id="headline-24">
+Direct binding
+&lt;/h3>
+&lt;h4 id="headline-25">
+Create direct binding
+&lt;/h4>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kn &lt;span class="nb">source&lt;/span> binding create direct-binding &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --subject Service:serving.knative.dev/v1:ruby-send &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --sink ruby-echo&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Sink binding &amp;#39;direct-binding&amp;#39; created in namespace &amp;#39;default&amp;#39;.
+&lt;/pre>
+&lt;h4 id="headline-26">
+Test
+&lt;/h4>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> curl http://ruby-echo.default.gitgratitude.com&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Hello from the ruby echo service
+&lt;/pre>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> curl http://ruby-send.default.gitgratitude.com?message&lt;span class="o">=&lt;/span>Hello&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+sent
+&lt;/pre>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> curl http://ruby-echo.default.gitgratitude.com&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Hello from the ruby echo service
+{&amp;#34;specversion&amp;#34;=&amp;gt;&amp;#34;1.0&amp;#34;, &amp;#34;id&amp;#34;=&amp;gt;&amp;#34;1234-1234-1234&amp;#34;, &amp;#34;source&amp;#34;=&amp;gt;&amp;#34;/mycontext&amp;#34;, &amp;#34;type&amp;#34;=&amp;gt;&amp;#34;com.example.someevent&amp;#34;, &amp;#34;data_encoded&amp;#34;=&amp;gt;&amp;#34;{\&amp;#34;message\&amp;#34;:\&amp;#34;Hello\&amp;#34;}&amp;#34;, &amp;#34;data&amp;#34;=&amp;gt;{&amp;#34;message&amp;#34;=&amp;gt;&amp;#34;Hello&amp;#34;}, &amp;#34;datacontenttype&amp;#34;=&amp;gt;&amp;#34;application/json&amp;#34;}
+&lt;/pre>
+&lt;h4 id="headline-27">
+Clean up
+&lt;/h4>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kn &lt;span class="nb">source&lt;/span> binding delete direct-binding&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-28">
+Through a broker
+&lt;/h3>
+&lt;h4 id="headline-29">
+Create a broker
+&lt;/h4>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kn broker create default&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h4 id="headline-30">
+Create the trigger
+&lt;/h4>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kn trigger create send-trigger &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --broker default &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --filter &lt;span class="nv">type&lt;/span>&lt;span class="o">=&lt;/span>com.example.someevent &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --sink ksvc:ruby-echo&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Trigger &amp;#39;send-trigger&amp;#39; successfully created in namespace &amp;#39;default&amp;#39;.
+&lt;/pre>
+&lt;h4 id="headline-31">
+Create the binding
+&lt;/h4>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kn &lt;span class="nb">source&lt;/span> binding create broker-binding &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --subject Service:serving.knative.dev/v1:ruby-send &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --sink broker:default&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Sink binding &amp;#39;broker-binding&amp;#39; created in namespace &amp;#39;default&amp;#39;.
+&lt;/pre>
+&lt;h4 id="headline-32">
+Test
+&lt;/h4>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> curl http://ruby-echo.default.gitgratitude.com&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Hello from the ruby echo service
+&lt;/pre>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> curl http://ruby-send.default.gitgratitude.com?message&lt;span class="o">=&lt;/span>Hello&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+sent
+&lt;/pre>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> curl http://ruby-echo.default.gitgratitude.com&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Hello from the ruby echo service
+{&amp;#34;specversion&amp;#34;=&amp;gt;&amp;#34;1.0&amp;#34;, &amp;#34;id&amp;#34;=&amp;gt;&amp;#34;1234-1234-1234&amp;#34;, &amp;#34;source&amp;#34;=&amp;gt;&amp;#34;/mycontext&amp;#34;, &amp;#34;type&amp;#34;=&amp;gt;&amp;#34;com.example.someevent&amp;#34;, &amp;#34;data_encoded&amp;#34;=&amp;gt;&amp;#34;{\&amp;#34;message\&amp;#34;:\&amp;#34;Hello\&amp;#34;}&amp;#34;, &amp;#34;data&amp;#34;=&amp;gt;{&amp;#34;message&amp;#34;=&amp;gt;&amp;#34;Hello&amp;#34;}, &amp;#34;datacontenttype&amp;#34;=&amp;gt;&amp;#34;application/json&amp;#34;, &amp;#34;knativearrivaltime&amp;#34;=&amp;gt;&amp;#34;2021-12-14T23:44:09.238452314Z&amp;#34;}
+&lt;/pre>
+&lt;h4 id="headline-33">
+Cleanup
+&lt;/h4>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kn trigger delete send-trigger
+kn &lt;span class="nb">source&lt;/span> binding delete broker-binding&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Trigger &amp;#39;send-trigger&amp;#39; deleted in namespace &amp;#39;default&amp;#39;.
+Sink binding &amp;#39;broker-binding&amp;#39; deleted in namespace &amp;#39;default&amp;#39;.
+&lt;/pre>
+&lt;h3 id="headline-34">
+On a channel
+&lt;/h3>
+&lt;h4 id="headline-35">
+Create channel
+&lt;/h4>
+&lt;p>
+Simple.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kn channel create chatter&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h4 id="headline-36">
+Create source binding to the channel
+&lt;/h4>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kn &lt;span class="nb">source&lt;/span> binding create chat-binding &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --subject Service:serving.knative.dev/v1:ruby-send &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --sink channel:chatter&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h4 id="headline-37">
+Subscribe to the event
+&lt;/h4>
+&lt;p>
+Here we create the subscription, which goes to our service.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kn subscription create message-sub &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --channel chatter &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span> --sink ruby-echo&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Subscription &amp;#39;message-sub&amp;#39; created in namespace &amp;#39;default&amp;#39;.
+&lt;/pre>
+&lt;h4 id="headline-38">
+Test
+&lt;/h4>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> curl http://ruby-echo.default.gitgratitude.com&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Hello from the ruby echo service
+&lt;/pre>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> curl http://ruby-send.default.gitgratitude.com?message&lt;span class="o">=&lt;/span>Hello&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+sent
+&lt;/pre>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> curl http://ruby-echo.default.gitgratitude.com&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;pre class="example">
+Hello from the ruby echo service
+{&amp;#34;specversion&amp;#34;=&amp;gt;&amp;#34;1.0&amp;#34;, &amp;#34;id&amp;#34;=&amp;gt;&amp;#34;1234-1234-1234&amp;#34;, &amp;#34;source&amp;#34;=&amp;gt;&amp;#34;/mycontext&amp;#34;, &amp;#34;type&amp;#34;=&amp;gt;&amp;#34;com.example.someevent&amp;#34;, &amp;#34;data_encoded&amp;#34;=&amp;gt;&amp;#34;{\&amp;#34;message\&amp;#34;:\&amp;#34;Hello\&amp;#34;}&amp;#34;, &amp;#34;data&amp;#34;=&amp;gt;{&amp;#34;message&amp;#34;=&amp;gt;&amp;#34;Hello&amp;#34;}, &amp;#34;datacontenttype&amp;#34;=&amp;gt;&amp;#34;application/json&amp;#34;}
+&lt;/pre>
+&lt;h4 id="headline-39">
+Cleanup
+&lt;/h4>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> kn channel delete chatter
+kn &lt;span class="nb">source&lt;/span> binding delete chat-binding
+kn subscription delete message-sub&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-40">
+Code
+&lt;/h2>
+&lt;h3 id="headline-41">
+ruby-echo
+&lt;/h3>
+&lt;div class="src src-ruby">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-ruby" data-lang="ruby"> &lt;span class="nb">require&lt;/span> &lt;span class="s1">&amp;#39;sinatra&amp;#39;&lt;/span>
+&lt;span class="nb">require&lt;/span> &lt;span class="s2">&amp;#34;cloud_events&amp;#34;&lt;/span>
+&lt;span class="k">class&lt;/span> &lt;span class="nc">EventHolder&lt;/span>
+&lt;span class="k">def&lt;/span> &lt;span class="nc">self&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="nf">add_event&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="n">e&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="vi">@events&lt;/span> &lt;span class="o">||=&lt;/span> &lt;span class="o">[]&lt;/span>
+&lt;span class="vi">@events&lt;/span> &lt;span class="o">&amp;lt;&amp;lt;&lt;/span> &lt;span class="n">e&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">to_h&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="k">def&lt;/span> &lt;span class="nc">self&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="nf">eventstring&lt;/span>
+&lt;span class="vi">@events&lt;/span> &lt;span class="o">||=&lt;/span> &lt;span class="o">[]&lt;/span>
+&lt;span class="vi">@events&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">join&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="se">\n&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="n">get&lt;/span> &lt;span class="s1">&amp;#39;/&amp;#39;&lt;/span> &lt;span class="k">do&lt;/span>
+&lt;span class="s2">&amp;#34;Hello from the ruby echo service&lt;/span>&lt;span class="se">\n&lt;/span>&lt;span class="si">#{&lt;/span>&lt;span class="no">EventHolder&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">eventstring&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="se">\n&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="n">cloud_events_http&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="no">CloudEvents&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="no">HttpBinding&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">default&lt;/span>
+&lt;span class="n">post&lt;/span> &lt;span class="s2">&amp;#34;/&amp;#34;&lt;/span> &lt;span class="k">do&lt;/span>
+&lt;span class="n">event&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">cloud_events_http&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">decode_event&lt;/span> &lt;span class="n">request&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">env&lt;/span>
+&lt;span class="n">logger&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">info&lt;/span> &lt;span class="s2">&amp;#34;Received CloudEvent: &lt;/span>&lt;span class="si">#{&lt;/span>&lt;span class="n">event&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">to_h&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="no">EventHolder&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">add_event&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="n">event&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="k">end&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-42">
+ruby-send
+&lt;/h3>
+&lt;div class="src src-ruby">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-ruby" data-lang="ruby"> &lt;span class="nb">require&lt;/span> &lt;span class="s1">&amp;#39;sinatra&amp;#39;&lt;/span>
+&lt;span class="nb">require&lt;/span> &lt;span class="s2">&amp;#34;cloud_events&amp;#34;&lt;/span>
+&lt;span class="nb">require&lt;/span> &lt;span class="s2">&amp;#34;net/http&amp;#34;&lt;/span>
+&lt;span class="nb">require&lt;/span> &lt;span class="s2">&amp;#34;uri&amp;#34;&lt;/span>
+&lt;span class="k">def&lt;/span> &lt;span class="nf">send_message&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="n">data&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="n">event&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="no">CloudEvents&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="no">Event&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">create&lt;/span> &lt;span class="ss">spec_version&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;1.0&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nb">id&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;1234-1234-1234&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="ss">source&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;/mycontext&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="ss">type&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;com.example.someevent&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="ss">data_content_type&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;application/json&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="ss">data&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="n">data&lt;/span>
+&lt;span class="n">cloud_events_http&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="no">CloudEvents&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="no">HttpBinding&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">default&lt;/span>
+&lt;span class="n">headers&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">body&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">cloud_events_http&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">encode_event&lt;/span> &lt;span class="n">event&lt;/span>
+&lt;span class="no">Net&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="no">HTTP&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">post&lt;/span> &lt;span class="no">URI&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="no">ENV&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="s1">&amp;#39;K_SINK&amp;#39;&lt;/span>&lt;span class="o">]&lt;/span>&lt;span class="p">),&lt;/span> &lt;span class="n">body&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">headers&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="n">get&lt;/span> &lt;span class="s1">&amp;#39;/&amp;#39;&lt;/span> &lt;span class="k">do&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="n">params&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="ss">:message&lt;/span>&lt;span class="o">]&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="no">ENV&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="s1">&amp;#39;K_SINK&amp;#39;&lt;/span>&lt;span class="o">]&lt;/span>
+&lt;span class="n">send_message&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="p">{&lt;/span>&lt;span class="ss">message&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="n">params&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="ss">:message&lt;/span>&lt;span class="o">]&lt;/span> &lt;span class="p">})&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="s2">&amp;#34;sent&amp;#34;&lt;/span>
+&lt;span class="k">else&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="s2">&amp;#34;K_SINK not defined&amp;#34;&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="k">else&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="s1">&amp;#39;Try passing in a message&amp;#39;&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="k">end&lt;/span>
+&lt;span class="n">get&lt;/span> &lt;span class="s1">&amp;#39;/keys&amp;#39;&lt;/span> &lt;span class="k">do&lt;/span>
+&lt;span class="no">ENV&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">keys&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">collect&lt;/span> &lt;span class="p">{&lt;/span> &lt;span class="o">|&lt;/span>&lt;span class="n">key&lt;/span>&lt;span class="o">|&lt;/span> &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">#{&lt;/span>&lt;span class="n">key&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">=&lt;/span>&lt;span class="si">#{&lt;/span>&lt;span class="no">ENV&lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="n">key&lt;/span>&lt;span class="o">]&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="p">}&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">join&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="se">\n&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="k">end&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-43">
+References
+&lt;/h2>
+&lt;ol>
+&lt;li>
+&lt;p>
+&lt;a href="https://knative.dev/docs/eventing/sinks/">https://knative.dev/docs/eventing/sinks/&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://knative.dev/docs/eventing/sources/ping-source/">https://knative.dev/docs/eventing/sources/ping-source/&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;a href="https://opensource.com/article/21/2/knative-eventing">https://opensource.com/article/21/2/knative-eventing&lt;/a>
+&lt;/p>
+&lt;/li>
+&lt;/ol></description></item><item><title>NextJS with Prisma on Kubernetes</title><link>https://willschenk.com/articles/2021/next_js_with_prisma/</link><pubDate>Wed, 08 Dec 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/next_js_with_prisma/</guid><description>
 &lt;p>
 Now that we have our cluster up and running, lets look at how to build
 and deploy a &lt;a href="https://nextjs.org/">NextJS&lt;/a> app on it, including the database.
