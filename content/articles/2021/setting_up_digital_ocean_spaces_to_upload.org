@@ -1,0 +1,241 @@
+#+title: Setting up digital ocean spaces to upload
+#+substitle: Gotta work on my upload scrips
+#+tags[]: aws, s3, ruby, node, golang, deno, digitalocean
+#+date: 2021-12-17
+
+* Setup the space
+** Config and keys
+First go and [[https://cloud.digitalocean.com/spaces/new][create a new space]].
+
+Then generate a [[https://cloud.digitalocean.com/account/api/tokens][new spaces accesskey]].
+
+Then create a =.env= file that contains the following variables.
+
+| =AWS_ACCESS_KEY_ID=     | From digital ocean                  |
+| =AWS_SECRET_ACCESS_KEY= | From digitial ocean                 |
+| =AWS_END_POINT=         | From the settings tab of your space |
+| =BUCKET_NAME=           | Name of the bucket                  |
+
+My end point is /nyc3.digitaloceanspaces.com/
+
+If you need to set a region, I pass in =us-east-1= which seemed to work.
+
+** (Optional) Putting the config inside of a kubernetes
+Just for my future reference
+#+begin_src bash
+  kubectl create configmap s3-access --from-env-file=.env
+#+end_src
+
+* CDN and DNS
+
+Enable the [[https://docs.digitalocean.com/products/spaces/how-to/enable-cdn/][CDN as documented here]].  This works if you have a digital ocean hosted domain.
+
+I added a letencrypt cert to a subdomain, and everything zipped right
+along.
+
+
+* Upload with ruby
+I'm using inline gems here so you don't need to create a =Gemfile=
+
+#+begin_src ruby
+  require 'bundler/inline'
+
+  gemfile do
+    source 'https://rubygems.org'
+
+    gem "aws-sdk-s3", "~> 1.100"
+    gem "rexml", "~> 3.2"
+    gem "dotenv"
+  end
+
+  Dotenv.load
+
+  ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_END_POINT', 'BUCKET_NAME'].each do |key|
+    throw "Set #{key}" if ENV[key].nil?
+  end
+
+  region = 'us-east-1'
+  s3_client = Aws::S3::Client.new(access_key_id: ENV['AWS_ACCESS_KEY_ID'],
+                                  secret_access_key: ENV['AWS_SECRET_ACCESS_KEY'],
+                                  endpoint: "https://#{ENV['AWS_END_POINT']}",
+                                  region: region)
+
+  file_name = $0
+
+  response = s3_client.put_object(
+    body: File.read(file_name),
+    bucket: ENV['BUCKET_NAME'],
+    key: file_name,
+    acl: 'public-read',
+    content_type: 'text/plain'
+  )
+
+  if response.etag
+    puts "Uploaded at #{response.etag}"
+    p response
+    exit 0
+  else
+    puts "Not uploaded"
+    exit 1
+  end
+#+end_src
+
+* Upload with node
+
+#+begin_src bash
+  npm install awk-sdk dotenv detect-content-type
+#+end_src
+
+=upload.js=:
+
+#+begin_src javascript
+  require('dotenv').config()
+  const detectContentType = require('detect-content-type')
+
+  const AWS = require('aws-sdk');
+  const fs = require('fs'); // Needed for example below
+
+  const spacesEndpoint = new AWS.Endpoint(process.env.AWS_END_POINT);
+  const s3 = new AWS.S3({
+      endpoint: spacesEndpoint,
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+  });
+
+  const uploadFile = (fileName) => {
+      // Read content from the file
+      const fileContent = fs.readFileSync(fileName);
+
+      const ct = detectContentType(fileContent)
+
+      var params = {
+          Bucket: process.env.BUCKET_NAME,
+          Key: fileName,
+          Body: fileContent,
+          ACL: "public-read",
+          ContentType: ct,
+      };
+
+      s3.putObject(params, function(err, data) {
+          if (err) {console.log(err, err.stack);}
+          else     {console.log(data);}
+      });
+  }
+
+  uploadFile( "upload.js" );
+#+end_src
+
+* Upload with go
+
+Setup the environment:
+
+#+begin_src bash
+  go mod init gitgratitude.com
+  go get github.com/aws/aws-sdk-go/aws                 
+  go get github.com/aws/aws-sdk-go/aws/awsutil@v1.42.23
+  go get github.com/joho/godotenv
+#+end_src
+
+Then =upload.go=:
+
+#+begin_src go
+  package main
+
+  import (
+    "bytes"
+    "fmt"
+    "log"
+    "net/http"
+    "os"
+
+    "github.com/aws/aws-sdk-go/aws"
+    "github.com/aws/aws-sdk-go/aws/credentials"
+    "github.com/aws/aws-sdk-go/aws/session"
+    "github.com/aws/aws-sdk-go/service/s3"
+    "github.com/joho/godotenv"
+  )
+
+  func main() {
+    err := godotenv.Load()
+    if err != nil {
+      log.Fatal("Error loading .env file")
+    }
+
+    s3Config := &aws.Config{
+      Credentials: credentials.NewStaticCredentials(
+        os.Getenv("AWS_ACCESS_KEY_ID"),
+        os.Getenv("AWS_SECRET_ACCESS_KEY"),
+        ""),
+      Endpoint: aws.String("https://" + os.Getenv("AWS_END_POINT")),
+      Region:   aws.String("us-east-1"),
+    }
+
+    newSession := session.New(s3Config)
+    s3Client := s3.New(newSession)
+
+    fileName := "upload.go"
+
+    file, err := os.Open(fileName)
+    if err != nil {
+      log.Fatal(err)
+    }
+
+    defer file.Close()
+
+    // Get file size and read the file content into a buffer
+    fileInfo, _ := file.Stat()
+    var size int64 = fileInfo.Size()
+    buffer := make([]byte, size)
+    file.Read(buffer)
+
+    object := s3.PutObjectInput{
+      Bucket:             aws.String(os.Getenv("BUCKET_NAME")),
+      Key:                aws.String(fileName),
+      Body:               bytes.NewReader(buffer),
+      ContentLength:      aws.Int64(size),
+      ContentType:        aws.String(http.DetectContentType(buffer)),
+      ContentDisposition: aws.String("attachment"),
+      ACL:                aws.String("public-read"),
+    }
+
+    fmt.Printf("%v\n", object)
+    _, err = s3Client.PutObject(&object)
+    if err != nil {
+      fmt.Println(err.Error())
+    }
+  }
+#+end_src
+
+* Upload with deno
+
+#+begin_src javascript
+  import { config } from "https://deno.land/x/dotenv/mod.ts";
+  import { S3, S3Bucket } from "https://deno.land/x/s3@0.5.0/mod.ts";
+
+  const s3 = new S3({
+      accessKeyID: config().AWS_ACCESS_KEY_ID,
+      secretKey: config().AWS_SECRET_ACCESS_KEY,
+      region: "us-east-1",
+      endpointURL: `https://${config().AWS_END_POINT}`,
+    });
+
+  const bucket = s3.getBucket(config().BUCKET_NAME);
+
+  const fileName = 'upload.deno.js'
+
+  const text = await Deno.readTextFile(fileName);
+
+  const result = await bucket.putObject(fileName, text, {
+      contentType: "text/plain",
+      acl: "public-read"
+    });
+  
+  console.log( result )
+#+end_src
+
+* References
+
+1. https://docs.digitalocean.com/products/spaces/resources/s3-sdk-examples/
+2. https://docs.digitalocean.com/products/spaces/how-to/manage-access/
+   
+   
