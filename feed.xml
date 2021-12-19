@@ -27752,4 +27752,210 @@ content area
 &lt;li>This would allow you to map multiple device names to a person. For example, I know that &lt;code>willschiphone5s.home&lt;/code> is my phone and &lt;code>combray.home&lt;/code> is my computer, but how do you keep a mapping of those names to people?&lt;/li>
 &lt;li>&lt;code>MAC addresses&lt;/code> should be stable for devices once they may contact to the site. We can get this from the &lt;code>arp&lt;/code> tables, and those can&amp;rsquo;t be changed like the computer names can.&lt;/li>
 &lt;/ol>
-&lt;p>Remember, information can bleed and there&amp;rsquo;s a whole lot you can do to see about the people around you.&lt;/p></description></item></channel></rss>
+&lt;p>Remember, information can bleed and there&amp;rsquo;s a whole lot you can do to see about the people around you.&lt;/p></description></item><item><title>Running SQLite in the browser using NextJS</title><link>https://willschenk.com/articles/2021/running_sq_lite_in_the_browser_using_next_js/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/running_sq_lite_in_the_browser_using_next_js/</guid><description>
+&lt;h2 id="headline-1">
+End API
+&lt;/h2>
+&lt;p>
+Our goal is to be able to load a sqlite3 database using &lt;code class="verbatim">useBinaryFile&lt;/code>,
+load up the database engine using &lt;code class="verbatim">useDB&lt;/code>, and get the results using
+&lt;code class="verbatim">useDBQuery&lt;/code>.
+&lt;/p>
+&lt;div class="src src-typescript">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-typescript" data-lang="typescript"> &lt;span class="kr">const&lt;/span> &lt;span class="nx">data&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">useBinaryFile&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nx">sqlliteURL&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">db&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">useDB&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">data&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="nx">query&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">setQuery&lt;/span>&lt;span class="p">]&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">useState&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s2">&amp;#34;SELECT name FROM sqlite_schema WHERE type =&amp;#39;table&amp;#39; AND name NOT LIKE &amp;#39;sqlite_%&amp;#39;;&amp;#34;&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">results&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">useDBQuery&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nx">db&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">data&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">query&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="o">&amp;lt;&lt;/span>&lt;span class="nx">p&lt;/span>&lt;span class="o">&amp;gt;&lt;/span>&lt;span class="nx">You&lt;/span> &lt;span class="nx">have&lt;/span> &lt;span class="p">{&lt;/span>&lt;span class="nx">results&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">size&lt;/span>&lt;span class="p">}&lt;/span> &lt;span class="nx">rows&lt;/span>&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="err">/p&amp;gt;&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Lets walk though how to make that happen.
+&lt;/p>
+&lt;h2 id="headline-2">
+Install sql.js
+&lt;/h2>
+&lt;p>
+First we install the &lt;code class="verbatim">wasm&lt;/code> files, and we serve them out of &lt;code class="verbatim">/public&lt;/code>.
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> npm install sql.js
+cp node_modules/sql.js/dist/sql-wasm.js public
+cp node_modules/sql.js/dist/sql-wasm.wasm public&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-3">
+&lt;code class="verbatim">/public/sql-loader.js&lt;/code>
+&lt;/h2>
+&lt;p>
+Now, outside of the NextJS managed javascript universe create a file
+that will add the script tag to load up &lt;code class="verbatim">sql-wasm.js&lt;/code> and &lt;code class="verbatim">sql-wasm.wasm&lt;/code>
+into the browser.
+&lt;/p>
+&lt;div class="src src-javascript">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-javascript" data-lang="javascript"> &lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s2">&amp;#34;Adding sql-wasm.js script tag&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">s&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nb">document&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">createElement&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s1">&amp;#39;script&amp;#39;&lt;/span> &lt;span class="p">);&lt;/span>
+&lt;span class="nx">s&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">setAttribute&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s1">&amp;#39;src&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s1">&amp;#39;/sql-wasm.js&amp;#39;&lt;/span> &lt;span class="p">);&lt;/span>
+&lt;span class="nb">document&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">body&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">appendChild&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nx">s&lt;/span> &lt;span class="p">);&lt;/span>
+&lt;span class="nb">window&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">loadSQL&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">async&lt;/span> &lt;span class="p">()&lt;/span> &lt;span class="p">=&amp;gt;&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s2">&amp;#34;loadSQL function called&amp;#34;&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="nx">await&lt;/span> &lt;span class="nx">initSqlJs&lt;/span>&lt;span class="p">({&lt;/span>
+&lt;span class="nx">locateFile&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">file&lt;/span> &lt;span class="p">=&amp;gt;&lt;/span> &lt;span class="sb">`/&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nx">file&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="sb">`&lt;/span>
+&lt;span class="p">})&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-4">
+&lt;code class="verbatim">lib/useDB.tsx&lt;/code>
+&lt;/h2>
+&lt;p>
+Now we create a custom react hook to use load up the database.
+&lt;/p>
+&lt;p>
+The first &lt;code class="verbatim">useEffect&lt;/code> runs once, and looks to see if there&amp;#39;s a &lt;code class="verbatim">window&lt;/code>
+object. If there is, it&amp;#39;s running on the browser, so it sets up an
+interval to see if the &lt;code class="verbatim">loadSQL&lt;/code> function has been defined. If it has,
+this means that the &lt;code class="verbatim">sql-loader.js&lt;/code> script has been evaluated. Once&amp;#39;s
+that&amp;#39;s true, will call &lt;code class="verbatim">setWindowWatcher&lt;/code> which will cause the second
+&lt;code class="verbatim">useEffect&lt;/code> to rerun.
+&lt;/p>
+&lt;p>
+The second &lt;code class="verbatim">useEffect&lt;/code> called the function setup by &lt;code class="verbatim">sql-loader.js&lt;/code>, which
+loads the SQLite database engine. Once this is done ie called
+&lt;code class="verbatim">setEngine&lt;/code>.
+&lt;/p>
+&lt;p>
+Once the &lt;code class="verbatim">engine&lt;/code> and &lt;code class="verbatim">data&lt;/code> are set, the third &lt;code class="verbatim">useEffect&lt;/code> is run, which
+actually instantiates a new &lt;code class="verbatim">SQL.Database&lt;/code> (called &lt;code class="verbatim">engine.Database&lt;/code> in
+the code.)
+&lt;/p>
+&lt;p>
+At this point, the db is set, so we can use &lt;code class="verbatim">useDBQuery&lt;/code> to get the
+results. We pass in &lt;code class="verbatim">db&lt;/code> (which will change if we switch to a new
+database file) and a query, and it returns the result.
+&lt;/p>
+&lt;div class="src src-typescript">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-typescript" data-lang="typescript"> &lt;span class="kr">import&lt;/span> &lt;span class="p">{&lt;/span> &lt;span class="nx">useEffect&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">useState&lt;/span> &lt;span class="p">}&lt;/span> &lt;span class="nx">from&lt;/span> &lt;span class="s2">&amp;#34;react&amp;#34;&lt;/span>
+&lt;span class="kr">export&lt;/span> &lt;span class="kd">function&lt;/span> &lt;span class="nx">useDB&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">data&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="nx">engine&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">setEngine&lt;/span>&lt;span class="p">]&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">useState&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="kc">null&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="nx">db&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">setDB&lt;/span>&lt;span class="p">]&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">useState&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="kc">null&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="nx">windowWatcher&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="nx">setWindowWatcher&lt;/span>&lt;span class="p">]&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">useState&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="kc">false&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="nx">useEffect&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="p">()&lt;/span> &lt;span class="o">=&amp;gt;&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="k">if&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nb">window&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s2">&amp;#34;Running in a browser, checking for loadSQL&amp;#34;&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">timer&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">setInterval&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="p">()&lt;/span> &lt;span class="o">=&amp;gt;&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s2">&amp;#34;Polling...&amp;#34;&lt;/span> &lt;span class="p">);&lt;/span>
+&lt;span class="c1">// @ts-ignore
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="k">if&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nb">window&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">loadSQL&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s2">&amp;#34;Clearing timer&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">clearInterval&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nx">timer&lt;/span> &lt;span class="p">);&lt;/span>
+&lt;span class="nx">setWindowWatcher&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">},&lt;/span> &lt;span class="mi">500&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">},&lt;/span> &lt;span class="p">[])&lt;/span>
+&lt;span class="nx">useEffect&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="p">()&lt;/span> &lt;span class="o">=&amp;gt;&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s2">&amp;#34;Looking for loadSQL&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="c1">// @ts-ignore
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="k">if&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nb">window&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">loadSQL&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s2">&amp;#34;Should try initSQLJS&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="c1">// @ts-ignore
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="nb">window&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">loadSQL&lt;/span>&lt;span class="p">().&lt;/span>&lt;span class="nx">then&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nx">db&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="o">=&amp;gt;&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s2">&amp;#34;I have the database&amp;#34;&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="nx">setEngine&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nx">db&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="p">})&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="p">()&lt;/span> &lt;span class="o">=&amp;gt;&lt;/span> &lt;span class="p">{}&lt;/span>
+&lt;span class="p">},&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="nx">windowWatcher&lt;/span>&lt;span class="p">]&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="nx">useEffect&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="p">()&lt;/span> &lt;span class="o">=&amp;gt;&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="k">if&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nx">engine&lt;/span> &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> &lt;span class="nx">data&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s2">&amp;#34;Starting up the engine&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="c1">// @ts-ignore
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="nx">setDB&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="k">new&lt;/span> &lt;span class="nx">engine&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Database&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="k">new&lt;/span> &lt;span class="nx">Uint8Array&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">data&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">))&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="p">()&lt;/span> &lt;span class="o">=&amp;gt;&lt;/span> &lt;span class="p">{}&lt;/span>
+&lt;span class="p">},&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="nx">data&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="nx">engine&lt;/span>&lt;span class="p">]&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="nx">db&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="kr">export&lt;/span> &lt;span class="kd">function&lt;/span> &lt;span class="nx">useDBQuery&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nx">db&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">query&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="nx">results&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">setResults&lt;/span>&lt;span class="p">]&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">useState&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="kc">null&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">useEffect&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="p">()&lt;/span> &lt;span class="o">=&amp;gt;&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="k">if&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nx">db&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="sb">`Running query &lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nx">query&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="sb">`&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">r&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">db&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">exec&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">query&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">r&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="c1">// @ts-ignore
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="nb">window&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">results&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">r&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="nx">setResults&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nx">r&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">},&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="nx">db&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">query&lt;/span>&lt;span class="p">])&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="nx">results&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-5">
+Loading up a file
+&lt;/h2>
+&lt;p>
+An easy way to load a binary file is:
+&lt;/p>
+&lt;p>
+&lt;code class="verbatim">useBinaryFile.tsx&lt;/code>
+&lt;/p>
+&lt;div class="src src-javascript">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-javascript" data-lang="javascript"> &lt;span class="kr">import&lt;/span> &lt;span class="p">{&lt;/span> &lt;span class="nx">useEffect&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">useState&lt;/span> &lt;span class="p">}&lt;/span> &lt;span class="nx">from&lt;/span> &lt;span class="s2">&amp;#34;react&amp;#34;&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="kr">export&lt;/span> &lt;span class="k">default&lt;/span> &lt;span class="kd">function&lt;/span> &lt;span class="nx">useBinaryFile&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nx">url&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="nx">dataFile&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">setDataFile&lt;/span>&lt;span class="p">]&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">useState&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="kc">null&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">useEffect&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="p">()&lt;/span> &lt;span class="p">=&amp;gt;&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="sb">`Loading &lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nx">url&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="sb">`&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">fetch&lt;/span>&lt;span class="p">(&lt;/span>
+&lt;span class="nx">url&lt;/span>
+&lt;span class="p">).&lt;/span>&lt;span class="nx">then&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nx">res&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">=&amp;gt;&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">res&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">arrayBuffer&lt;/span>&lt;span class="p">().&lt;/span>&lt;span class="nx">then&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nx">data&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">=&amp;gt;&lt;/span> &lt;span class="nx">setDataFile&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nx">data&lt;/span> &lt;span class="p">))&lt;/span>
+&lt;span class="p">})&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="p">()&lt;/span> &lt;span class="p">=&amp;gt;&lt;/span> &lt;span class="p">{&lt;/span> &lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s2">&amp;#34;Unmounted binary file&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">}&lt;/span>
+&lt;span class="p">},&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="nx">url&lt;/span>&lt;span class="p">]);&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="nx">dataFile&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-6">
+Tying it all together
+&lt;/h2>
+&lt;p>
+Now to trigger the loading of &lt;code class="verbatim">sql-loader.js&lt;/code> you just need to put a
+script tag in the pages that you use &lt;code class="verbatim">useDB&lt;/code> on:
+&lt;/p>
+&lt;div class="src src-jsx">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-jsx" data-lang="jsx"> &lt;span class="p">&amp;lt;&lt;/span>&lt;span class="nt">Script&lt;/span> &lt;span class="na">type&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s">&amp;#34;module&amp;#34;&lt;/span> &lt;span class="na">strategy&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s">&amp;#39;beforeInteractive&amp;#39;&lt;/span> &lt;span class="na">src&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s">&amp;#34;/sql-loader.js&amp;#34;&lt;/span>&lt;span class="p">/&amp;gt;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+If you don&amp;#39;t put this tag in, &lt;code class="verbatim">window.loadSQL&lt;/code> will never be define, and
+&lt;code class="verbatim">setWindowWatcher&lt;/code> will never be true.
+&lt;/p>
+&lt;h2 id="headline-7">
+Generic &lt;code class="verbatim">ResultsTable&lt;/code>
+&lt;/h2>
+&lt;p>
+Here&amp;#39;s a little starting point to show the results:
+&lt;/p>
+&lt;div class="src src-rjsx">
+&lt;pre>&lt;code class="language-rjsx" data-lang="rjsx"> export function ResultTable( {results} ) {
+if( !results ) {
+return &amp;lt;div&amp;gt;&amp;lt;/div&amp;gt;
+}
+return (
+&amp;lt;table className=&amp;#34;w-full&amp;#34;&amp;gt;
+&amp;lt;thead&amp;gt;
+&amp;lt;tr&amp;gt;
+{results[0].columns.map( (c) =&amp;gt; &amp;lt;th key={c}&amp;gt;{c}&amp;lt;/th&amp;gt;)}
+&amp;lt;/tr&amp;gt;
+&amp;lt;/thead&amp;gt;
+&amp;lt;tbody&amp;gt;
+{results[0].values.map( (r) =&amp;gt; &amp;lt;tr key={r}&amp;gt;
+{r.map( (v) =&amp;gt; &amp;lt;td key={v}&amp;gt;{v}&amp;lt;/td&amp;gt; )}
+&amp;lt;/tr&amp;gt;)}
+&amp;lt;/tbody&amp;gt;
+&amp;lt;/table&amp;gt;
+)
+}&lt;/code>&lt;/pre>
+&lt;/div></description></item></channel></rss>
