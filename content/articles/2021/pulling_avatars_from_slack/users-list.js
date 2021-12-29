@@ -33,6 +33,7 @@ const app = new App({
                 display_name: e["profile"]["display_name"],
                 status_text: e["profile"]["status_text"],
                 status_email: e["profile"]["status_email"],
+                status_emoji: e["profile"]["status_emoji"],
                 custom_image: e["profile"]["is_custom_image"],
                 original_image: e["profile"]["image_original"],
             })
