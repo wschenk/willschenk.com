@@ -1,4 +1,310 @@
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Fri, 17 Dec 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Setting up digital ocean spaces to upload</title><link>https://willschenk.com/articles/2021/setting_up_digital_ocean_spaces_to_upload/</link><pubDate>Fri, 17 Dec 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/setting_up_digital_ocean_spaces_to_upload/</guid><description>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Will Schenk</title><link>https://willschenk.com/</link><description>Recent content on Will Schenk</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Sun, 19 Dec 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://willschenk.com/feed.xml" rel="self" type="application/rss+xml"/><item><title>Pulling avatars from slack</title><link>https://willschenk.com/articles/2021/pulling_avatars_from_slack/</link><pubDate>Sun, 19 Dec 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/pulling_avatars_from_slack/</guid><description>
+&lt;h2 id="headline-1">
+Create a slack app
+&lt;/h2>
+&lt;p>
+First we need to &lt;a href="https://api.slack.com/authentication/basics">create a slack application&lt;/a>.
+&lt;/p>
+&lt;p>
+Create a new app, and add the following scopes
+&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>
+&lt;code class="verbatim">users:read.email&lt;/code>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;code class="verbatim">users:read&lt;/code>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;code class="verbatim">users.profile:read&lt;/code>
+&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>
+&lt;code class="verbatim">chat:write:bot&lt;/code>
+&lt;/p>
+&lt;h3 id="headline-2">
+Manifest
+&lt;/h3>
+&lt;/li>
+&lt;/ul>
+&lt;p>
+We are going to use a
+manifest, so we can tweak things as we go.
+&lt;/p>
+&lt;div class="src src-yaml">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="w"> &lt;/span>&lt;span class="k">_metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">major_version&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">display_information&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>HappyFunCorp&lt;span class="w"> &lt;/span>App&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">settings&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">org_deploy_enabled&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">false&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">socket_mode_enabled&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">false&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">is_hosted&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">false&lt;/span>&lt;span class="w">
+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">token_rotation_enabled&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">false&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-3">
+Create the database and schema
+&lt;/h2>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> npm install prisma
+npx prisma init&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Setup the schema in &lt;code class="verbatim">prisma/schema.prisma&lt;/code>
+&lt;/p>
+&lt;div class="src src-text">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-text" data-lang="text"> generator client {
+provider = &amp;#34;prisma-client-js&amp;#34;
+}
+datasource db {
+provider = &amp;#34;postgresql&amp;#34;
+url = env(&amp;#34;DATABASE_URL&amp;#34;)
+}
+model SlackUser {
+id String @id
+name String
+email String?
+deleted Boolean
+admin Boolean?
+restricted Boolean?
+bot Boolean
+tz String?
+title String?
+skype String?
+real_name String?
+display_name String?
+status_text String?
+status_emoji String?
+custom_image Boolean?
+original_image String?
+}&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Start a database if you don&amp;#39;t have one
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> docker run -d -e &lt;span class="nv">POSTGRES_PASSWORD&lt;/span>&lt;span class="o">=&lt;/span>awesome_password -p 5432:5432 postgres&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+And create the migrations
+&lt;/p>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> npx prisma migrate dev --name init&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-4">
+Installing &lt;code class="verbatim">@slack/bolt&lt;/code>
+&lt;/h2>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash">npm install @slack/bot dotenv&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-5">
+&lt;code class="verbatim">users-list.js&lt;/code>
+&lt;/h2>
+&lt;div class="src src-javascript">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-javascript" data-lang="javascript"> &lt;span class="kr">const&lt;/span> &lt;span class="p">{&lt;/span> &lt;span class="nx">App&lt;/span> &lt;span class="p">}&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">require&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s1">&amp;#39;@slack/bolt&amp;#39;&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="nx">require&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s1">&amp;#39;dotenv&amp;#39;&lt;/span>&lt;span class="p">).&lt;/span>&lt;span class="nx">config&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="p">{&lt;/span> &lt;span class="nx">PrismaClient&lt;/span> &lt;span class="p">}&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">require&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s1">&amp;#39;@prisma/client&amp;#39;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">prisma&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="k">new&lt;/span> &lt;span class="nx">PrismaClient&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">fs&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">require&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s1">&amp;#39;fs&amp;#39;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">app&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="k">new&lt;/span> &lt;span class="nx">App&lt;/span>&lt;span class="p">({&lt;/span>
+&lt;span class="nx">signingSecret&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">process&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">env&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">SLACK_SIGNING_SECRET&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nx">token&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">process&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">env&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">SLACK_BOT_TOKEN&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="p">});&lt;/span>
+&lt;span class="p">(&lt;/span>&lt;span class="nx">async&lt;/span> &lt;span class="p">()&lt;/span> &lt;span class="p">=&amp;gt;&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s2">&amp;#34;Getting user list from slack&amp;#34;&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">slackdata&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">await&lt;/span> &lt;span class="nx">app&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">client&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">users&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">list&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;span class="k">if&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nx">slackdata&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;ok&amp;#34;&lt;/span>&lt;span class="p">]&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">data&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="p">[]&lt;/span>
+&lt;span class="nx">slackdata&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;members&amp;#34;&lt;/span>&lt;span class="p">].&lt;/span>&lt;span class="nx">map&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nx">e&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">=&amp;gt;&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">data&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">push&lt;/span>&lt;span class="p">({&lt;/span>
+&lt;span class="nx">id&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">e&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;id&amp;#34;&lt;/span>&lt;span class="p">],&lt;/span>
+&lt;span class="nx">name&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">e&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;name&amp;#34;&lt;/span>&lt;span class="p">],&lt;/span>
+&lt;span class="nx">email&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">e&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;profile&amp;#34;&lt;/span>&lt;span class="p">][&lt;/span>&lt;span class="s2">&amp;#34;email&amp;#34;&lt;/span>&lt;span class="p">],&lt;/span>
+&lt;span class="nx">deleted&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">e&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;deleted&amp;#34;&lt;/span>&lt;span class="p">],&lt;/span>
+&lt;span class="nx">admin&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">e&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;is_admin&amp;#34;&lt;/span>&lt;span class="p">],&lt;/span>
+&lt;span class="nx">restricted&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">e&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;is_restricted&amp;#34;&lt;/span>&lt;span class="p">],&lt;/span>
+&lt;span class="nx">bot&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">e&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;is_bot&amp;#34;&lt;/span>&lt;span class="p">],&lt;/span>
+&lt;span class="nx">tz&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">e&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;tz&amp;#34;&lt;/span>&lt;span class="p">],&lt;/span>
+&lt;span class="nx">title&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">e&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;profile&amp;#34;&lt;/span>&lt;span class="p">][&lt;/span>&lt;span class="s2">&amp;#34;title&amp;#34;&lt;/span>&lt;span class="p">],&lt;/span>
+&lt;span class="nx">skype&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">e&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;profile&amp;#34;&lt;/span>&lt;span class="p">][&lt;/span>&lt;span class="s2">&amp;#34;skype&amp;#34;&lt;/span>&lt;span class="p">],&lt;/span>
+&lt;span class="nx">real_name&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">e&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;profile&amp;#34;&lt;/span>&lt;span class="p">][&lt;/span>&lt;span class="s2">&amp;#34;real_name&amp;#34;&lt;/span>&lt;span class="p">],&lt;/span>
+&lt;span class="nx">display_name&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">e&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;profile&amp;#34;&lt;/span>&lt;span class="p">][&lt;/span>&lt;span class="s2">&amp;#34;display_name&amp;#34;&lt;/span>&lt;span class="p">],&lt;/span>
+&lt;span class="nx">status_text&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">e&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;profile&amp;#34;&lt;/span>&lt;span class="p">][&lt;/span>&lt;span class="s2">&amp;#34;status_text&amp;#34;&lt;/span>&lt;span class="p">],&lt;/span>
+&lt;span class="nx">status_email&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">e&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;profile&amp;#34;&lt;/span>&lt;span class="p">][&lt;/span>&lt;span class="s2">&amp;#34;status_email&amp;#34;&lt;/span>&lt;span class="p">],&lt;/span>
+&lt;span class="nx">status_emoji&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">e&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;profile&amp;#34;&lt;/span>&lt;span class="p">][&lt;/span>&lt;span class="s2">&amp;#34;status_emoji&amp;#34;&lt;/span>&lt;span class="p">],&lt;/span>
+&lt;span class="nx">custom_image&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">e&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;profile&amp;#34;&lt;/span>&lt;span class="p">][&lt;/span>&lt;span class="s2">&amp;#34;is_custom_image&amp;#34;&lt;/span>&lt;span class="p">],&lt;/span>
+&lt;span class="nx">original_image&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">e&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;profile&amp;#34;&lt;/span>&lt;span class="p">][&lt;/span>&lt;span class="s2">&amp;#34;image_original&amp;#34;&lt;/span>&lt;span class="p">],&lt;/span>
+&lt;span class="p">})&lt;/span>
+&lt;span class="p">})&lt;/span>
+&lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="sb">`Found &lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nx">data&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">length&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="sb"> accounts, updating database`&lt;/span> &lt;span class="p">);&lt;/span>
+&lt;span class="k">while&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="nx">data&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">length&lt;/span> &lt;span class="o">&amp;gt;&lt;/span> &lt;span class="mi">0&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">e&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">data&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">pop&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;span class="c1">// console.log( `Updating/created ${e[&amp;#39;name&amp;#39;]}` )
+&lt;/span>&lt;span class="c1">&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">user&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">await&lt;/span> &lt;span class="nx">prisma&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">slackUser&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">upsert&lt;/span>&lt;span class="p">({&lt;/span>
+&lt;span class="nx">where&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="p">{&lt;/span> &lt;span class="nx">id&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">e&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s1">&amp;#39;id&amp;#39;&lt;/span>&lt;span class="p">]&lt;/span> &lt;span class="p">},&lt;/span>
+&lt;span class="nx">update&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">e&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nx">create&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">e&lt;/span>
+&lt;span class="p">})&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span> &lt;span class="s2">&amp;#34;Done&amp;#34;&lt;/span> &lt;span class="p">);&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">})();&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-6">
+Create a &lt;code class="verbatim">nextjs&lt;/code> app
+&lt;/h2>
+&lt;h3 id="headline-7">
+Base
+&lt;/h3>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> npm install next react react-dom&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+Update &lt;code class="verbatim">package.json&lt;/code>:
+&lt;/p>
+&lt;div class="src src-json">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-json" data-lang="json"> &lt;span class="p">{&lt;/span>
+&lt;span class="nt">&amp;#34;scripts&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nt">&amp;#34;dev&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;next dev&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nt">&amp;#34;build&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;next build&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nt">&amp;#34;start&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;next start&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nt">&amp;#34;lint&amp;#34;&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="s2">&amp;#34;next lint&amp;#34;&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">}&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+And then create a sample &lt;code class="verbatim">pages/index.js&lt;/code>
+&lt;/p>
+&lt;div class="src src-javascript">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-javascript" data-lang="javascript"> &lt;span class="kr">const&lt;/span> &lt;span class="p">{&lt;/span> &lt;span class="nx">PrismaClient&lt;/span> &lt;span class="p">}&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">require&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s2">&amp;#34;@prisma/client&amp;#34;&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">prisma&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="k">new&lt;/span> &lt;span class="nx">PrismaClient&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="p">{&lt;/span> &lt;span class="nx">MessageSender&lt;/span> &lt;span class="p">}&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">require&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s2">&amp;#34;../components/messageSender&amp;#34;&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="kd">function&lt;/span> &lt;span class="nx">Home&lt;/span>&lt;span class="p">({&lt;/span> &lt;span class="nx">users&lt;/span> &lt;span class="p">})&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="p">(&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="nx">div&lt;/span>&lt;span class="o">&amp;gt;&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="nx">div&lt;/span> &lt;span class="nx">className&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;d-flex flex-wrap justify-content-around&amp;#34;&lt;/span>&lt;span class="o">&amp;gt;&lt;/span>
+&lt;span class="p">{&lt;/span>&lt;span class="nx">users&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">map&lt;/span>&lt;span class="p">((&lt;/span>&lt;span class="nx">u&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">=&amp;gt;&lt;/span> &lt;span class="p">(&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="nx">div&lt;/span> &lt;span class="nx">key&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="nx">u&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">id&lt;/span>&lt;span class="p">}&lt;/span> &lt;span class="nx">className&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;card mt-3&amp;#34;&lt;/span> &lt;span class="nx">style&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="p">{{&lt;/span> &lt;span class="nx">width&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="s2">&amp;#34;18rem&amp;#34;&lt;/span> &lt;span class="p">}}&lt;/span>&lt;span class="o">&amp;gt;&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="nx">div&lt;/span> &lt;span class="nx">className&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;card-body&amp;#34;&lt;/span>&lt;span class="o">&amp;gt;&lt;/span>
+&lt;span class="p">{&lt;/span>&lt;span class="nx">u&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">custom_image&lt;/span> &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> &lt;span class="p">(&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="nx">img&lt;/span> &lt;span class="nx">src&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="nx">u&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">original_image&lt;/span>&lt;span class="p">}&lt;/span> &lt;span class="nx">className&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;card-img-top&amp;#34;&lt;/span> &lt;span class="o">/&amp;gt;&lt;/span>
+&lt;span class="p">)}&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="nx">h5&lt;/span> &lt;span class="nx">className&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;card-title&amp;#34;&lt;/span>&lt;span class="o">&amp;gt;&lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="nx">u&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">name&lt;/span>&lt;span class="p">}&lt;/span>&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="err">/h5&amp;gt;&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="nx">p&lt;/span> &lt;span class="nx">className&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;card-text&amp;#34;&lt;/span>&lt;span class="o">&amp;gt;&lt;/span>
+&lt;span class="p">{&lt;/span>&lt;span class="nx">u&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">real_name&lt;/span>&lt;span class="p">}&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="nx">br&lt;/span> &lt;span class="o">/&amp;gt;&lt;/span>
+&lt;span class="p">{&lt;/span>&lt;span class="nx">u&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">title&lt;/span>&lt;span class="p">}&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="nx">br&lt;/span> &lt;span class="o">/&amp;gt;&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="nx">a&lt;/span> &lt;span class="nx">href&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="sb">`mailto:&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nx">u&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">email&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="sb">`&lt;/span>&lt;span class="p">}&lt;/span>&lt;span class="o">&amp;gt;&lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="nx">u&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">email&lt;/span>&lt;span class="p">}&lt;/span>&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="err">/a&amp;gt;&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="err">/p&amp;gt;&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="nx">MessageSender&lt;/span> &lt;span class="nx">user&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="nx">u&lt;/span>&lt;span class="p">}&lt;/span> &lt;span class="o">/&amp;gt;&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="err">/div&amp;gt;&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="err">/div&amp;gt;&lt;/span>
+&lt;span class="p">))}&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="err">/div&amp;gt;&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="err">/div&amp;gt;&lt;/span>
+&lt;span class="p">);&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="kr">export&lt;/span> &lt;span class="nx">async&lt;/span> &lt;span class="kd">function&lt;/span> &lt;span class="nx">getServerSideProps&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">context&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">users&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">await&lt;/span> &lt;span class="nx">prisma&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">slackUser&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">findMany&lt;/span>&lt;span class="p">({&lt;/span>
+&lt;span class="nx">where&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">deleted&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="kc">false&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nx">restricted&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="kc">false&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="p">},&lt;/span>
+&lt;span class="p">});&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">props&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="p">{&lt;/span> &lt;span class="nx">users&lt;/span> &lt;span class="p">},&lt;/span> &lt;span class="c1">// will be passed to the page component as props
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="p">};&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="kr">export&lt;/span> &lt;span class="k">default&lt;/span> &lt;span class="nx">Home&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+And also the &lt;code class="verbatim">MessageSender&lt;/code> component in &lt;code class="verbatim">components/messageSender.jsx&lt;/code>:
+&lt;/p>
+&lt;div class="src src-javascript">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-javascript" data-lang="javascript"> &lt;span class="kr">export&lt;/span> &lt;span class="kr">const&lt;/span> &lt;span class="nx">MessageSender&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="p">({&lt;/span> &lt;span class="nx">user&lt;/span> &lt;span class="p">})&lt;/span> &lt;span class="p">=&amp;gt;&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="p">(&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="nx">form&lt;/span> &lt;span class="nx">action&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;/api/sendMessage&amp;#34;&lt;/span> &lt;span class="nx">method&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;get&amp;#34;&lt;/span>&lt;span class="o">&amp;gt;&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="nx">input&lt;/span>
+&lt;span class="nx">type&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;text&amp;#34;&lt;/span>
+&lt;span class="nx">name&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;message&amp;#34;&lt;/span>
+&lt;span class="nx">placeholder&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="sb">`message to &lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nx">user&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">name&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="sb">`&lt;/span>&lt;span class="p">}&lt;/span>
+&lt;span class="o">/&amp;gt;&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="nx">input&lt;/span> &lt;span class="nx">type&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;hidden&amp;#34;&lt;/span> &lt;span class="nx">name&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;id&amp;#34;&lt;/span> &lt;span class="nx">value&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="nx">user&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">id&lt;/span>&lt;span class="p">}&lt;/span> &lt;span class="o">/&amp;gt;&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="nx">button&lt;/span> &lt;span class="nx">type&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;submit&amp;#34;&lt;/span> &lt;span class="nx">className&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;btn-primary&amp;#34;&lt;/span>&lt;span class="o">&amp;gt;&lt;/span>
+&lt;span class="nx">Send&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="err">/button&amp;gt;&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="err">/form&amp;gt;&lt;/span>
+&lt;span class="p">);&lt;/span>
+&lt;span class="p">};&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-8">
+Sending a message
+&lt;/h3>
+&lt;p>
+Lets create the api call to actually send the message:
+&lt;/p>
+&lt;div class="src src-javascript">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-javascript" data-lang="javascript"> &lt;span class="kr">const&lt;/span> &lt;span class="p">{&lt;/span> &lt;span class="nx">App&lt;/span> &lt;span class="p">}&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">require&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s2">&amp;#34;@slack/bolt&amp;#34;&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="kr">export&lt;/span> &lt;span class="k">default&lt;/span> &lt;span class="nx">async&lt;/span> &lt;span class="kd">function&lt;/span> &lt;span class="nx">handler&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">req&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">res&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="nx">app&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="k">new&lt;/span> &lt;span class="nx">App&lt;/span>&lt;span class="p">({&lt;/span>
+&lt;span class="nx">signingSecret&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">process&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">env&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">SLACK_SIGNING_SECRET&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nx">token&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">process&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">env&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">SLACK_BOT_TOKEN&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="p">});&lt;/span>
+&lt;span class="kr">const&lt;/span> &lt;span class="p">{&lt;/span> &lt;span class="nx">id&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">message&lt;/span> &lt;span class="p">}&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">req&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">query&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="sb">`Sending &lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nx">message&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="sb"> to &lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nx">id&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="sb">`&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nx">id&lt;/span> &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> &lt;span class="nx">message&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="k">try&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="c1">// Call the chat.postMessage method using the WebClient
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="kr">const&lt;/span> &lt;span class="nx">result&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="nx">await&lt;/span> &lt;span class="nx">app&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">client&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">chat&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">postMessage&lt;/span>&lt;span class="p">({&lt;/span>
+&lt;span class="nx">channel&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">id&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="nx">text&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">message&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;span class="p">});&lt;/span>
+&lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">result&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="nx">res&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">status&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="mi">200&lt;/span>&lt;span class="p">).&lt;/span>&lt;span class="nx">json&lt;/span>&lt;span class="p">({&lt;/span> &lt;span class="nx">id&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">message&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">ok&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">result&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">ok&lt;/span> &lt;span class="p">});&lt;/span>
+&lt;span class="p">}&lt;/span> &lt;span class="k">catch&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nx">error&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">error&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">error&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="nx">res&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">status&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="mi">500&lt;/span>&lt;span class="p">).&lt;/span>&lt;span class="nx">json&lt;/span>&lt;span class="p">({&lt;/span> &lt;span class="nx">id&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">message&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">result&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">error&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">toString&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="p">});&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="nx">res&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">status&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="mi">200&lt;/span>&lt;span class="p">).&lt;/span>&lt;span class="nx">json&lt;/span>&lt;span class="p">({&lt;/span> &lt;span class="nx">id&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">message&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">action&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="s2">&amp;#34;Sent&amp;#34;&lt;/span> &lt;span class="p">});&lt;/span>
+&lt;span class="p">}&lt;/span> &lt;span class="k">else&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="nx">res&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">status&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="mi">404&lt;/span>&lt;span class="p">).&lt;/span>&lt;span class="nx">json&lt;/span>&lt;span class="p">({&lt;/span> &lt;span class="nx">action&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="s2">&amp;#34;Not Sent&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">reason&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="s2">&amp;#34;Missing params&amp;#34;&lt;/span> &lt;span class="p">});&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h3 id="headline-9">
+Styling
+&lt;/h3>
+&lt;div class="src src-bash">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-bash" data-lang="bash"> npm install bootstrap&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;p>
+&lt;code class="verbatim">pages/_app.js&lt;/code>:
+&lt;/p>
+&lt;div class="src src-javascript">
+&lt;div class="highlight">&lt;pre class="chroma">&lt;code class="language-javascript" data-lang="javascript"> &lt;span class="c1">// pages/_app.js
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="kr">import&lt;/span> &lt;span class="s1">&amp;#39;bootstrap/dist/css/bootstrap.css&amp;#39;&lt;/span>
+&lt;span class="kr">export&lt;/span> &lt;span class="k">default&lt;/span> &lt;span class="kd">function&lt;/span> &lt;span class="nx">MyApp&lt;/span>&lt;span class="p">({&lt;/span> &lt;span class="nx">Component&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">pageProps&lt;/span> &lt;span class="p">})&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="o">&amp;lt;&lt;/span>&lt;span class="nx">div&lt;/span> &lt;span class="nx">className&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;container&amp;#34;&lt;/span>&lt;span class="o">&amp;gt;&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="nx">Component&lt;/span> &lt;span class="p">{...&lt;/span>&lt;span class="nx">pageProps&lt;/span>&lt;span class="p">}&lt;/span> &lt;span class="o">/&amp;gt;&lt;/span>
+&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="err">/div&amp;gt;&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>
+&lt;/div>
+&lt;h2 id="headline-10">
+References
+&lt;/h2></description></item><item><title>Setting up digital ocean spaces to upload</title><link>https://willschenk.com/articles/2021/setting_up_digital_ocean_spaces_to_upload/</link><pubDate>Fri, 17 Dec 2021 00:00:00 +0000</pubDate><guid>https://willschenk.com/articles/2021/setting_up_digital_ocean_spaces_to_upload/</guid><description>
 &lt;h2 id="headline-1">
 Setup the space
 &lt;/h2>
