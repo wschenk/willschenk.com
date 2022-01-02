@@ -1,0 +1,179 @@
+#+title: Snowpack for fast builds
+#+subtitle: react and tailwind too
+#+tags[]: snowpack, react, tailwind
+#+date: 2022-01-02
+
+* Snowpack
+#+begin_src bash
+  npm install --save-dev snowpack
+#+end_src
+
+Then add to =package.json=
+
+#+begin_src json
+
+"scripts": {
+    "start": "snowpack dev",
+    "build": "snowpack build"
+}
+
+#+end_src
+
+* React
+Now lets add react:
+
+#+begin_src bash 
+  npm install react react-dom --save
+#+end_src
+
+And create our files:
+
+=src/index.tsx=:
+
+#+begin_src typescript :tangle src/index.tsx
+  import React from "react";
+  import ReactDOM from "react-dom";
+  import App from "./App";
+
+  ReactDOM.render(<App />, document.getElementById("root"));
+#+end_src
+
+=src/App.jsx=:
+#+begin_src typescript :tangle src/App.jsx
+  import React, {useState, useEffect} from 'react';
+
+  function App() {
+    // Create the count state.
+    const [count, setCount] = useState(0);
+    // Update the count (+1 every second).
+    useEffect(() => {
+      const timer = setTimeout(() => setCount(count + 1), 1000);
+      return () => clearTimeout(timer);
+    }, [count, setCount]);
+    // Return the App component.
+    return (
+      <div className="max-w-screen-lg mx-auto pt-4">
+        <header>
+          <p>
+            Page has been open for <code>{count}</code> seconds.
+          </p>
+        </header>
+      </div>
+    );
+  }
+
+  export default App;
+#+end_src
+
+* Tailwind
+
+#+begin_src bash
+npm install --save-dev tailwindcss @snowpack/plugin-postcss postcss
+#+end_src
+
+#+begin_src javascript :tangle postcss.config.js
+  // postcss.config.js
+  module.exports = {
+    plugins: {
+      tailwindcss: {},
+      // other plugins can go here, such as autoprefixer
+    },
+  };
+#+end_src
+
+#+begin_src javascript :tangle tailwind.config.js
+  // tailwind.config.js
+  module.exports = {
+    mode: 'jit',
+    purge: ['./public/**/*.html', './src/**/*.{js,jsx,ts,tsx,vue}'],
+    // specify other options here
+  };
+#+end_src
+
+#+begin_src javascript :tangle snowpack.config.mjs
+  // snowpack.config.mjs
+  export default {
+      mount: {
+          src: '/dist',
+          public: '/',
+      },
+      devOptions: {
+          tailwindConfig: './tailwind.config.js',
+      },
+      plugins: [
+          '@snowpack/plugin-postcss',
+      ],
+  };
+#+end_src
+
+Then create the css:
+
+#+begin_src css :tangle public/global.css
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+#+end_src
+
+* html to tie it together:
+
+=public/index.html=:
+#+begin_src html :tangle public/index.html
+  <!DOCTYPE html>
+  <html lang="en">
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <meta name="description" content="Starter Snowpack App" />
+      <title>React + Tailwind + Typescript</title>
+      <link rel="stylesheet" type="text/css" href="/global.css" />
+    </head>
+    <body>
+      <div id="root"></div>
+      <script type="module" src="/dist/index.js"></script>
+    </body>
+  </html>
+#+end_src
+
+* Build
+
+#+begin_src bash
+npx run build
+#+end_src
+
+#+begin_src bash :results output
+  tree build
+#+end_src
+
+#+RESULTS:
+#+begin_example
+build
+├── _snowpack
+│   └── pkg
+│       ├── common
+│       │   └── index-ae389540.js
+│       ├── import-map.json
+│       ├── react-dom.js
+│       └── react.js
+├── dist
+│   ├── App.js
+│   └── index.js
+├── global.css
+└── index.html
+
+4 directories, 8 files
+#+end_example
+
+#+begin_src bash :results output
+  du -sh build
+#+end_src
+
+#+RESULTS:
+: 168K	build
+
+* References
+1. https://www.snowpack.dev/tutorials/react
+2. https://www.snowpack.dev/guides/tailwind-css/
+      
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
