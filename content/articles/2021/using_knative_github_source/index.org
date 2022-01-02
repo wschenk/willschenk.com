@@ -1,0 +1,105 @@
+#+title: Using knative github source
+#+date: 2021-12-14
+#+draft: true
+
+* Testing
+
+** Create a namespace
+#+begin_src bash :results output
+  kubectl create namespace eventing-test
+#+end_src
+
+#+RESULTS:
+: namespace/eventing-test created
+
+** Create a broker
+
+#+begin_src bash :results output
+  kn broker create default -n eventing-test
+#+end_src
+
+** Add GithubSource
+
+#+begin_src bash
+  kubectl apply -f https://github.com/knative-sandbox/eventing-github/releases/download/knative-v1.0.0/github.yaml
+#+end_src
+
+** Add sample message dumper service
+
+#+begin_src bash :results output
+  kn service create github --namespace eventing-test --image gcr.io/knative-releases/knative.dev/eventing/cmd/event_display
+#+end_src
+
+** Create GitHub personal access token
+
+Add secret
+
+=secret.yaml= /note that you need to replace this with your secret token/
+#+begin_src yaml :tangle secret.yaml
+  apiVersion: v1
+  kind: Secret
+  metadata:
+    name: githubsecret
+    namespace: eventing-test
+  type: Opaque
+  stringData:
+    accessToken: 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
+    secretToken: mysecrettoken
+#+end_src
+
+#+begin_src bash :results output
+  kubectl apply -f secret.yaml
+#+end_src
+
+#+RESULTS:
+: secret/githubsecret created
+
+** Wire up the source
+
+#+begin_src yaml :tangle source.yaml
+  apiVersion: sources.knative.dev/v1alpha1
+  kind: GitHubSource
+  metadata:
+    name: githubsourcesample
+    namespace: eventing-test
+  spec:
+    eventTypes:
+      - pull_request
+    ownerAndRepository: wschenk/homepage
+    accessToken:
+      secretKeyRef:
+        name: githubsecret
+        key: accessToken
+    secretToken:
+      secretKeyRef:
+        name: githubsecret
+        key: secretToken
+    sink:
+      ref:
+        apiVersion: serving.knative.dev/v1
+        kind: Service
+        name: github
+#+end_src
+
+#+begin_src bash :results output
+  kubectl apply -f source.yaml
+#+end_src
+
+#+RESULTS:
+: githubsource.sources.knative.dev/githubsourcesample created
+
+And then check it
+
+#+begin_src bash :results output
+kn source ls githubsourcesample --namespace eventing-test
+#+end_src
+
+#+RESULTS:
+: NAME                 TYPE           RESOURCE                            SINK          READY
+: githubsourcesample   GitHubSource   githubsources.sources.knative.dev   ksvc:github   True
+
+
+* References
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

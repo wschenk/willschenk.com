@@ -107,6 +107,8 @@ if !File.exists?( File.join( repo_dir, ".git" ) )
   end
   puts "Cloning repo #{ENV['REPO_URL']} into #{repo_dir}"
   value = system( "git clone #{ENV['REPO_URL']} #{repo_dir}" )
+else
+  system( "cd #{repo_dir};git pull origin $(git branch --show-current) --ff-only" )
 end
 
 head = `(cd #{repo_dir};git rev-parse HEAD)`.chomp
