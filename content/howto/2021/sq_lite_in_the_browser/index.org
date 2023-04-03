@@ -1,0 +1,318 @@
+#+title: SQLite in the browser
+#+subtitle: pushing everything to the client
+#+tags[]: deno, sqlite, browser, static_sites, wasm
+#+date: 2021-04-15
+#+aliases[]: /articles/2021/sq_lite_in_the_browser
+
+I'm getting more interested in SQLite as a database, keeping
+everything in memory to the process itself.  When do we actually need
+to have a multi-process solution for a website?  How much can we
+really do within a single process?
+
+One type of architecture I'm exploring is to have a zillion little
+sqlite files that are shipped around as needed, rather than providing
+an API to parse them out have one way where we can generate a bunch of
+effectively static assets of the structured data and then having the
+visualization happen on the client side.  Let's look at two JavaScript
+examples that let that all happen in the browser.
+
+Both of these use wasm to ship the actually sqlite binary code and run
+in in browser!
+
+* [[https://sql.js.org/#/][SQL.js]]
+
+We are going to use =npm= to download the packages only.  We need to get
+=sql-wasm.js= and =sql-wasm.wasm= and simply serve them up in the browser.
+
+#+begin_src bash
+  npm init -y
+  npm install sql.js
+  cp node_modules/sql.js/dist/sql-wasm.js .
+  cp node_modules/sql.js/dist/sql-wasm.wasm .
+#+end_src
+
+** Test CLI Script
+
+Lets look at how to create and populate a simple database on the
+command line.
+
+#+begin_src javascript :tangle sqljs/test.js
+  var fs = require("fs");
+  var initSqlJs = require('./sql-wasm.js');
+
+  initSqlJs().then( function(SQL) {
+      var db = new SQL.Database();
+      // Run a query without reading the results
+      db.run("CREATE TABLE test (col1, col2);");
+      // Insert two rows: (1,111) and (2,222)
+      db.run("INSERT INTO test VALUES (?,?), (?,?)", [1,111,2,222]);
+
+      var data = db.export();
+      var buffer = new Buffer.from(data);
+      fs.writeFileSync("filename.sqlite", buffer);
+  } )
+
+#+end_src
+
+Which we can test with:
+
+#+begin_src bash
+  echo select \* from test\; | sqlite3 sqljs/filename.sqlite
+#+end_src
+
+#+ATTR_HTML: :class table table-striped
+| 1 | 111 |
+| 2 | 222 |
+
+Not wildly exciting data but there there you go.
+
+** Test webpage
+
+1. Load up the =sql-wasm.js= file, which provides =initSqlJs=.
+2. =locateFile= is used to figure out where =sql-wasm.wasm= is.
+3. Fetch our database that we genereated previously, called =filename.sqlite=.
+4. Create a new database using the =Uint8Array= of the file loaded.
+5. Do some awesome HTML DOM manipulation to create the table.
+6. Run the query, and populate the table.   
+   
+#+begin_src html :tangle sqljs/index.html
+  <html>
+    <head>
+      <script src='./sql-wasm.js'></script>
+      <script type="module">
+        // Load sqj.js module and database
+        const sqlPromise = initSqlJs({
+          locateFile: file => `./${file}`
+        });
+        const dataPromise = fetch("filename.sqlite").then(res => res.arrayBuffer());
+        const [SQL, buf] = await Promise.all([sqlPromise, dataPromise])
+        const db = new SQL.Database(new Uint8Array(buf));
+
+        // Grab the table element
+        const table = document.querySelector( "table" );
+        table.innerHTML = '<tr><th>Col1</th><th>Col2</th></tr>';
+      
+        // Prepare a statement
+        var stmt = db.prepare("SELECT * FROM test WHERE col1 BETWEEN $start AND $end");
+        stmt.getAsObject({$start:1, $end:1}); // {col1:1, col2:111}
+
+        // Bind new values
+        stmt.bind({$start:1, $end:2});
+        while(stmt.step()) { //
+        var row = stmt.getAsObject();
+          table.innerHTML += `<tr><td>${row['col1']}</td><td>${row['col2']}</td></tr>`;
+        }
+        console.log( "Done" );
+      </script>
+    </head>
+    <body>
+      <h1>Results</h1>
+
+      <table></table>
+    </body>
+  </html>
+
+#+end_src
+
+In the directory with the html, wasm, and sqlite files, run:
+
+#+begin_src bash
+npx live-server
+#+end_src
+
+And you should get:
+
+{{< img img="screenshot.png" fit="250x250 smart" >}}
+
+
+* [[https://github.com/dyedgreen/deno-sqlite][deno-sqlite]]
+
+Lets look at using a different method, using deno instead of node.
+
+** Installing deno
+
+I used =asdf=, but you can [[https://deno.land/#installation][follow the official instructions]].
+
+#+begin_src bash
+  asdf plugin add deno
+  asdf install deno latest
+#+end_src
+
+And then check to see what you have installed:
+
+#+begin_src bash :results output
+deno --version
+#+end_src
+
+#+RESULTS:
+: deno 1.8.3 (release, x86_64-unknown-linux-gnu)
+: v8 9.0.257.3
+: typescript 4.2.2
+
+** Configuring TypeScript
+
+I need this to make my emacs integration work, but it could be
+optional for you.
+
+#+begin_src json :tangle deno/tsconfig.json
+  { 
+      "compilerOptions": {
+          "lib": [
+            "es6",
+          ],
+          "plugins": [
+              {
+                  "name": "typescript-deno-plugin",
+                  "enable": true, // default is `true`
+                  "importmap": "import_map.json"
+              }
+          ]
+      }
+  }
+
+
+#+end_src
+
+** Dependencies
+
+Create =deps.ts= to centralize your version dependancies:
+
+#+begin_src typescript :tangle deno/deps.ts
+  export { DB } from "https://deno.land/x/sqlite/mod.ts";
+#+end_src
+
+** Test cli script
+
+Lets create a =test.ts= script which creates a database and popualtes it:
+
+#+begin_src typescript :tangle deno/test.ts
+import { DB } from "./deps.ts";
+
+// Open a database
+const db = new DB("test.db");
+db.query(
+  "CREATE TABLE IF NOT EXISTS people (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT)",
+);
+
+const names = ["Peter Parker", "Clark Kent", "Bruce Wayne"];
+
+// Run a simple query
+for (const name of names) {
+  db.query("INSERT INTO people (name) VALUES (?)", [name]);
+}
+
+// Print out data in table
+for (const [name] of db.query("SELECT name FROM people")) {
+  console.log(name);
+}
+
+// Close connection
+db.close();
+#+end_src
+
+And then we can run this with:
+
+#+begin_src bash
+deno run --allow-read --allow-write test.ts
+#+end_src
+
+Which returns:
+
+#+ATTR_HTML: :class table table-striped
+| Peter | Parker |
+| Clark | Kent   |
+| Bruce | Wayne  |
+
+** Test web script webworkers
+
+Here we are going to write a =web.tsx= file that will function as a
+WebWorker.  Our database will run in a different thread and the main
+worker thread.
+
+#+begin_src typescript :tangle deno/web.tsx
+  import { DB } from "./deps.ts";
+  const ctx: Worker = self as any;
+
+  ctx.onmessage = (e) => {
+      console.log( "Got message" );
+      ctx.postMessage( "Hi there" );
+      for (const [name] of db.query("SELECT name FROM people")) {
+          console.log(name);
+      }
+
+  }
+
+  const db = new DB();
+
+  db.query(
+      "CREATE TABLE IF NOT EXISTS people (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT)",
+  );
+
+  const names = ["Peter Parker", "Clark Kent", "Bruce Wayne"];
+
+  // Run a simple query
+  for (const name of names) {
+      db.query("INSERT INTO people (name) VALUES (?)", [name]);
+  }
+
+  console.log( "Loaded the worker" );
+#+end_src
+
+Then we need to bundle it up:
+
+#+begin_src bash :results output
+deno bundle web.tsx web.js
+#+end_src
+
+This creates a =web.js= file that contains our webworker as well as the
+entire =sqlite= binary in wasm.
+
+** Webpage
+
+This code is simpler that the previous code.  We load up =web.js= as a =modulepreload=, and then inside of our script tag we create the new webwork, and send it a message.  Once it gets the message it creates the in-memory database, then 
+
+#+begin_src html :tangle deno/index.html
+  <html>
+    <head>
+    <link rel="modulepreload" href="web.js">
+    </head>
+    <body>
+      <div id="status">Loading...</div>
+      <table id="data"></table>
+
+      <script type="module">
+        const worker = new Worker( "./web.js", {type: "module"});
+
+        worker.onmessage = (e) => { console.log( `received ${e}` ) };
+      
+        worker.postMessage( ['hello', 'This is my message'] );
+        console.log( "Sending hello message" );
+
+        const status = document.querySelector( "#status" );
+        status.innerText = "Loaded";
+
+      </script>
+    </body>
+  </html>
+#+end_src
+
+** But that's not the same!
+
+I don't know how to load in the database file with the deno bundle
+based solution, so at this moment while it works I don't know how to
+solve that issue.  Still the approach is cleaner.
+
+* Conclusion
+
+Right now it looks like =sql.js= will do what I want.  I'm surprised at
+how fast web assembly is.
+
+* References
+
+1. https://sql.js.org/
+2. https://github.com/dyedgreen/deno-sqlite
+3. https://github.com/dyedgreen/deno-sqlite/issues/105
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

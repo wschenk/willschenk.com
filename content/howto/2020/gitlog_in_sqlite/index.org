@@ -1,0 +1,856 @@
+#+title: gitlog in sqlite
+#+subtitle: sql is great
+#+tags[]: git, sqlite
+#+date: 2020-08-28
+#+aliases[]: /articles/2020/gitlog_in_sqlite/
+
+[[https://willschenk.com/articles/2020/using_askgit/][askgit]] is a great way to look at information inside of a repository.
+However it currently doesn't support looking at the files inside of
+the commit itself -- it gives you a view of the repository at the time
+of the commit, but not the patch itself. Since I don't know enough
+about golang and sqlite virtual tables, let's just create a sqlite3
+database from the logfile.
+
+* Get the gitlog
+We are going to use our favorite test repo, [[https://github.com/ruby-git/ruby-git][ruby-git]] because it's so
+deliciously meta.
+
+#+begin_src bash
+cd /tmp
+git clone https://github.com/ruby-git/ruby-git
+cd /tmp/ruby-git
+#+end_src
+
+And then, let's pull out a list of commits, that includes
+
+| =%h=        | The hash                         |
+| =%ae=       | Author email                     |
+| =%aI=       | Author date                      |
+| =%s=        | Summary                          |
+| =--numstat= | Files with changes in the commit |
+
+#+begin_src bash 
+git log --pretty=format:'|%h|%ae|%an|%aI|%s' --numstat > /tmp/commits.log
+#+end_src
+
+We are going to load this file into a sqlite database that we'll use
+to do some analysis.
+
+* Parse and load
+
+First we need a =Gemfile= for the =sqlite3= gem:
+
+#+begin_src ruby :tangle Gemfile
+source 'https://rubygems.org'
+
+gem 'sqlite3'
+#+end_src
+
+And then we can write a script that loads everything up.
+
+1. Create the database and tables
+2. Go through commits.log file one line at a time
+3. If the line starts with =|= parse out the fields and add them to the
+   =commits= table.
+4. If the line isn't blank (and isn't already a =|=) then parse out the
+   file changes and add them to the =commit_files= table.
+5. If the commit is already in the database, then abort.
+
+#+begin_src ruby :tangle load_git_log.rb :results output
+  require 'sqlite3'
+
+  def create_database filename
+    db = SQLite3::Database.new filename
+
+    rows = db.execute <<-SQL1
+         CREATE TABLE IF NOT EXISTS commits (
+                id	TEXT UNIQUE,
+                summary	TEXT,
+                author_name	TEXT,
+                author_email	TEXT,
+                author_when	DATETIME
+                );
+  SQL1
+
+    rows = db.execute <<-SQL2
+         CREATE TABLE IF NOT EXISTS commit_files (
+                id    TEXT,
+                name  TEXT,
+                added INT,
+                deleted INT
+                );
+  SQL2
+
+    db
+  end
+
+  def add_commit db, id, email, name, date, summary
+    ret = db.execute("INSERT INTO commits (id, summary, author_name, author_email, author_when)
+          VALUES (?, ?, ?, ?, ?)", [id, summary, name, email, date ] )
+  end
+
+  def add_file_commit db, id, file, added, deleted
+    ret = db.execute("INSERT INTO commit_files (id, name, added, deleted)
+          VALUES (?, ?, ?, ?)", [id, file, added, deleted] )
+
+  end
+
+  def parse_file db, file
+    commit = nil
+    File.open( file ).each_line do |line|
+      line.chomp!
+      if line[0] == '|'
+        md = /\|(.*?)\|(.*?)\|(.*?)\|(.*?)\|(.*)/.match( line )
+        commit = md[1]
+
+        puts line
+
+        begin
+          add_commit db, md[1], md[2], md[3], md[4], md[5]
+        rescue SQLite3::ConstraintException
+          puts "Found existing commit, exiting"
+          exit
+        end
+      elsif line.length != 0
+        md = /([\d|-]*)\s*([\d|-]*)\s*(.*)/.match( line )
+        add_file_commit db, commit, md[3], md[1], md[2]
+      end
+    end
+  end
+
+  db = create_database "test.db"
+
+  parse_file db, "/tmp/commits.log"
+
+#+end_src
+
+#+RESULTS:
+: |4bef5ab|couballj@verizonmedia.com|James Couball|2020-04-25T14:40:51-07:00|Release v1.7.0
+: Found existing commit, exiting
+
+* Sanity check the data
+We can run some of the queries that we did before.
+
+#+begin_src bash :results output
+sqlite3 test.db "select count(*) from commits;"
+sqlite3 test.db "select min(author_when) from commits;"
+sqlite3 test.db "select * from commits where author_when = (select min(author_when) from commits);" --csv
+#+end_src
+
+#+RESULTS:
+: 402
+: 2007-11-07T12:54:26-08:00
+: f5baa11,"beginning of Ruby/Git project","scott Chacon",schacon@agadorsparticus.corp.reactrix.com,2007-11-07T12:54:26-08:00
+
+We can also look to see who has contributed the most commits
+in a certain time frame, like say after 2015.
+
+#+begin_src bash :results output
+sqlite3 test.db "select count(*), author_name from commits 
+where author_when >= '2015-01-01' 
+group by author_name 
+having count(*) > 1 
+order by count(*) desc " -column -header
+
+#+end_src
+
+#+RESULTS:
+: count(*)    author_name     
+: ----------  ----------------
+: 44          Roberto Decurnex
+: 9           James Couball   
+: 9           Per Lundberg    
+: 5           Vern Burton     
+: 2           Joshua Liebowitz
+: 2           Yuta Harima     
+
+
+
+* Looking into file change patterns
+All of this we could have done with =askgit= which maps directly to the
+repository without having to do a seperate processing step. Let's see
+what interesting information we can find looking inside the commits
+themselves.
+
+** Most touched file
+
+This shows how many commits reference a specific file, so we can see
+which is the most active.
+
+#+begin_src bash :results output
+sqlite3 test.db "select count(*), name from commits, commit_files
+where commits.id = commit_files.id
+and commits.author_when >= '2016-01-01'
+group by name order by count(*) desc limit 20" -header
+#+end_src
+
+#+RESULTS:
+#+begin_example
+count(*)|name
+22|lib/git/lib.rb
+9|README.md
+8|lib/git/version.rb
+7|.travis.yml
+7|git.gemspec
+4|CHANGELOG.md
+4|lib/git/diff.rb
+4|tests/units/test_lib.rb
+3|PULL_REQUEST_TEMPLATE.md
+3|VERSION
+3|tests/test_helper.rb
+2|.github/stale.yml
+2|CHANGELOG
+2|CONTRIBUTING.md
+2|MAINTAINERS.md
+2|lib/git/branch.rb
+2|tests/units/test_archive.rb
+2|tests/units/test_bare.rb
+2|tests/units/test_config.rb
+2|tests/units/test_remotes.rb
+#+end_example
+
+** Most changed files in a time frame
+
+Lets look to see which files have changed the most in a certain time
+frame. This gives you an idea of where the activity of the project
+has been focused.
+
+#+begin_src bash :results output
+sqlite3 test.db "select count(*) as commits, sum(added) + sum(deleted) as lines_touched, name from commits, commit_files
+where commits.id = commit_files.id
+and commits.author_when >= '2016-01-01'
+group by name
+order by lines_touched desc
+limit 20" -header
+#+end_src
+
+#+RESULTS:
+#+begin_example
+commits|lines_touched|name
+22|430|lib/git/lib.rb
+2|222|CONTRIBUTING.md
+1|196|lib/git/status.rb
+1|169|tests/files/encoding/dot_git/hooks/pre-rebase.sample
+1|144|tests/units/test_merge_base.rb
+1|128|tests/files/encoding/dot_git/hooks/update.sample
+4|115|tests/units/test_lib.rb
+1|114|tests/files/encoding/dot_git/hooks/fsmonitor-watchman.sample
+4|70|lib/git/diff.rb
+1|65|tests/units/test_status.rb
+1|61|tests/units/test_diff_non_default_encoding.rb
+1|57|RELEASING.md
+1|53|tests/files/encoding/dot_git/hooks/pre-push.sample
+1|52|tests/units/test_object.rb
+7|51|.travis.yml
+1|49|tests/files/encoding/dot_git/hooks/pre-commit.sample
+1|44|tests/units/test_init.rb
+2|43|tests/units/test_remotes.rb
+1|42|tests/files/encoding/dot_git/hooks/prepare-commit-msg.sample
+2|42|tests/units/test_config.rb
+#+end_example
+** Finding commits that changed a specific file
+This is a fairly mature library that doesn't require that many
+changes. But those changes seem to be focused in =lib/git/lib.rb=.
+What do we think was going on?
+
+#+begin_src bash :results output
+sqlite3 test.db "select summary, author_name, author_when from commits, commit_files
+where commits.id = commit_files.id
+and commit_files.name = 'lib/git/lib.rb'
+and commits.author_when >= '2016-01-01'
+order by author_when desc" -column -header
+#+end_src
+
+#+RESULTS:
+#+begin_example
+summary                                              author_name  author_when              
+---------------------------------------------------  -----------  -------------------------
+Ruby version compatibility conflict solution (#453)  TIT          2020-04-05T20:33:35+03:00
+Add no verify for commit with documentation (#454)   Agora Secur  2020-04-05T17:33:04-05:00
+Remove extraneous '--' from `git stash save -- mess  Antonio Ter  2020-04-05T17:06:53-03:00
+Git::Lib#normalize_encoding early return fix (#461)  James Bunch  2020-04-05T14:15:30-07:00
+Fix issue with color escape codes after recent upda  Marcel Hoye  2020-02-10T22:29:14+01:00
+Fix describe command's dirty, abbrev, candidates, a  Harald       2020-02-06T02:13:29+01:00
+Implementation and tests required to ensure that co  James Couba  2019-12-11T10:04:03-08:00
+Support merge-base (#370)                            Evgenii Pec  2018-10-02T10:03:44-04:00
+Add support for unshallow (#377)                     Stephen Pau  2018-08-24T18:06:12-05:00
+using File as a block so that it tears down once ev  Vern Burton  2018-08-01T09:16:42-05:00
+Support 'push <remote> <branch> --delete' (#325)     Kody         2018-07-28T17:33:52+01:00
+commit with custom author date (#374)                Matias Garc  2018-07-12T16:49:52-03:00
+Check if branch contains commit (#174)               Kelly Stann  2018-07-12T06:19:21-04:00
+config_get: Fix incorrect block name (#373)          Joshua Lieb  2018-06-25T11:46:53-07:00
+Allow fetch operation to receive a `ref` param (#36  Joshua Lieb  2018-06-25T11:45:38-07:00
+Fix space prefix in tag message (#316)               Denis Defre  2018-06-20T14:02:19+02:00
+Enable set url on remotes (#338)                     Tom Potts    2018-05-03T13:48:03+01:00
+Enable mirror option for git clone and push (#342)   Guilherme M  2018-05-03T09:37:17-03:00
+Fix UTF-8 message errors (#327)                      Alexander M  2018-04-30T14:47:26+03:00
+Fix ls-files for git 2.16 (#350)                     Rafael Regg  2018-03-28T08:44:59-03:00
+Updating String#encode usage to prevent silly type   Roberto Dec  2016-02-25T12:31:33-03:00
+Fix the encoding issue - 'split': invalid byte sequ  David Varta  2016-02-16T15:42:14+00:00
+#+end_example
+
+** Change coupling by commit
+
+Let's look to see which files are changed together, which will give us
+a sense of which files are coupled together.
+
+First we'll create =query_and_pivot.rb= that we'll use to do our query
+and do the count pivot stuff to parse the output.
+
+#+begin_src ruby :tangle query_and_pivot.rb :results output
+  require 'sqlite3'
+
+  # Query the database and pivot the second result (filename) around the
+  # first result (either date or commit id) into a cochange structure
+  def query_and_loop
+    db = SQLite3::Database.new "test.db"
+
+    cochanges = yield db
+
+    file_set = []
+    prev_id = nil
+
+    ret = {}
+
+    cochanges.each do |id,name|
+      if prev_id != id
+        add_set ret, file_set
+        file_set = []
+      end
+      file_set << name unless file_set.include? name
+      prev_id = id
+    end
+    add_set ret, file_set
+    collect_and_sort ret
+  end
+
+  # Add each set into the cochange structure.  This tracks how many
+  # times each file was seen with another file, and the number of times
+  # the file was seen overall.
+  def add_set cochange, set
+    set.each do |file|
+      cochange[file] ||= {}
+      cochange[file][:count] ||= 0
+      cochange[file][:count] += 1
+      set.each do |cofile|
+        if file != cofile
+          cochange[file][cofile] ||= 0
+          cochange[file][cofile] += 1
+        end
+      end
+    end
+  end
+
+  # Turn the cochange sent into an array that is sorted by the
+  # cooralation
+  def collect_and_sort cochange
+    ret = []
+
+    cochange.each do |file, stats|
+      commits = stats[:count]
+      stats.each do |cofile, cocount|
+        coorelation = cocount / commits.to_f
+        if cofile != :count && coorelation > 0.3 && cocount > 2
+          ret << { file: file,
+                   commits: commits,
+                   cofile: cofile,
+                   coorelation: coorelation,
+                   cocount: cocount }
+        end
+      end
+    end
+
+    ret.sort { |a,b| b[:coorelation] <=> a[:coorelation] }
+  end
+
+  # Prints the results into a table that org-mode can easily reformat.
+  def print_cochange cochange
+    puts "| file | commits | cofile | coorelation | count |"
+    puts "|-|-|-|-|-|"
+
+    cochange.each do |file|
+      puts "|#{file[:file]}|#{file[:commits]}|#{file[:cofile]}|#{(file[:coorelation]*100).to_i}%|#{file[:cocount]}|"
+    end
+  end
+#+end_src
+
+And now we'll create a =cochange_by_commit.rb= script that does our
+query.
+
+#+begin_src ruby :tangle cochange_by_commit.rb :results output
+  require './query_and_pivot.rb'
+
+  cochanges = query_and_loop do |db|
+    db.execute "
+      select id, name from commit_files where id in 
+        (select commits.id from commits, commit_files 
+         where commits.id = commit_files.id and author_when >= ?
+        )", ['2011-01-01']
+  end
+
+  print_cochange cochanges
+#+end_src
+
+#+RESULTS:
+#+begin_example
+| file                          | commits | cofile                     | coorelation | count |
+|-------------------------------+---------+----------------------------+-------------+-------|
+| CHANGELOG.md                  |       4 | lib/git/version.rb         |        100% |     4 |
+| lib/git/config.rb             |       4 | tests/units/test_config.rb |        100% |     4 |
+| Gemfile.lock                  |       3 | git.gemspec                |        100% |     3 |
+| tests/units/test_config.rb    |       5 | lib/git/config.rb          |         80% |     4 |
+| lib/git.rb                    |       4 | git.gemspec                |         75% |     3 |
+| tests/units/test_remotes.rb   |       8 | lib/git/lib.rb             |         75% |     6 |
+| tests/units/test_tags.rb      |       4 | lib/git/lib.rb             |         75% |     3 |
+| tests/units/test_index_ops.rb |       8 | lib/git/lib.rb             |         75% |     6 |
+| VERSION                       |       7 | git.gemspec                |         71% |     5 |
+| tests/units/test_logger.rb    |       6 | lib/git/lib.rb             |         66% |     4 |
+| lib/git/diff.rb               |       8 | lib/git/lib.rb             |         62% |     5 |
+| tests/units/test_remotes.rb   |       8 | lib/git/base.rb            |         62% |     5 |
+| lib/git/base.rb               |      31 | lib/git/lib.rb             |         61% |    19 |
+| VERSION                       |       7 | lib/git/version.rb         |         57% |     4 |
+| tests/units/test_init.rb      |       7 | lib/git/lib.rb             |         57% |     4 |
+| tests/units/test_init.rb      |       7 | lib/git/base.rb            |         57% |     4 |
+| tests/units/test_lib.rb       |      12 | lib/git/lib.rb             |         50% |     6 |
+| tests/units/test_index_ops.rb |       8 | lib/git/base.rb            |         50% |     4 |
+| tests/test_helper.rb          |       9 | lib/git/lib.rb             |         44% |     4 |
+| lib/git/version.rb            |      12 | git.gemspec                |         41% |     5 |
+| lib/git/version.rb            |      12 | CHANGELOG.md               |         33% |     4 |
+| lib/git/version.rb            |      12 | VERSION                    |         33% |     4 |
+| tests/test_helper.rb          |       9 | tests/units/test_lib.rb    |         33% |     3 |
+#+end_example
+
+
+I'm limiting the output to only show files that have changed more than
+2 times, mainly to get the data down to something manageable to show on
+this point. The first two columns show the file name and the number
+of commits that it's in (for the selected time period). The next few
+columns show the file that changed at the same time as the first time,
+and the % of times that it was in the commit. So a correlation of 1.0
+indicates they change everytime together. For =0.75= it changes 3 out of 4
+times that the main file changes.
+
+Most of the things here make sense. Unit tests change at a high
+coupling rate as the files that they appear to test, but you also can
+see that =lib/git/lib.rb= and =lib/git/base.rb= change a lot with unit
+tests that are testing other parts of the system. Meaning, the unit
+test code isn't super modular with the classes that it's testing, and
+there's probably a bunch of stuff in these =base= and =lib= modules that
+have spread responsibilities.
+
+** Why isn't =VERSION= totally correlated to =lib/git/version.rb= ?
+
+Looking above we can see that changes to =VERSION= are correlated to
+=lib/git/version.rb= only 57% of the time. Weird. Let's see if we can
+figure out what those other changes are.
+
+We are going to use the sql =EXCEPT= keyword to first get a list of all
+of the commit ids that reference =VERSION=, and substract that from the
+list of ids that reference =lib/git/version.rb= to get the commits where they
+aren't co-occurring.
+
+#+begin_src bash :results output
+sqlite3 test.db "select id from commits where author_when >= '2011-01-01' 
+  and id in 
+    (select id from commit_files where name = 'VERSION' 
+     EXCEPT
+     select id from commit_files where name = 'lib/git/version.rb')" 
+#+end_src
+
+#+RESULTS:
+: 6d5bacd
+: 6db4fdc
+: cc6d6ef
+
+Now if we do =git show 6d5bacd= we can see that, in fact, the change was
+that =VERSION= was removed from the repo since it was restructured. Not
+a super interesting finding, but it's an anomaly so it's fun to check
+out.
+
+** Active days
+
+Let's see which days of this project were the most active.
+
+#+begin_src bash :results output
+sqlite3 test.db "select count(*), date(author_when) from commits 
+group by date(author_when) order by count(*) desc limit 10" -header -column
+#+end_src
+
+#+RESULTS:
+#+begin_example
+count(*)    date(author_when)
+----------  -----------------
+16          2013-04-11       
+14          2015-01-05       
+12          2007-11-16       
+12          2007-11-19       
+12          2014-01-13       
+11          2015-01-12       
+10          2009-02-12       
+9           2013-08-16       
+8           2009-08-01       
+8           2013-04-29       
+#+end_example
+
+Just glancing at this you can see that there's a flurry of activity
+that happened over wide gaps of time. Closing in one of the events
+you can get a sense of what happened -- someone tackled a bunch of
+backlog work on the project and merged quite a few pull requests:
+
+#+begin_src bash :results output
+sqlite3 test.db "select author_name, summary from commits where date(author_when) = '2015-01-05'"
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Roberto Decurnex|Updating checkout tests to cover `-b` option
+Roberto Decurnex|Fixing :new_branch usage on checkout
+Roberto Decurnex|Merge pull request #37 from JangoSteve/ls_remote
+Roberto Decurnex|Merge pull request #161 from xavier-calland/fetch_prune
+Roberto Decurnex|Updating `clone` RDoc Sorting clone options closes #178
+Roberto Decurnex|Merge pull request #132 from arnvald/test-branch-create-does-not-switch-branch
+Roberto Decurnex|Updating clone --b to clone --branch (just to make it a little more verbose)
+Roberto Decurnex|Merge branch 'test_unit_needs_specificity' of https://github.com/kwstannard/ruby-git into kwstannard-test_unit_needs_specificity
+Roberto Decurnex|Merge branch 'diff_fix_current_vs_head' of https://github.com/francisluong/ruby-git into francisluong-diff_fix_current_vs_head
+Roberto Decurnex|Merge branch 'NotDaveLane-master'
+Roberto Decurnex|Adding Git.clone test for :branch option
+Roberto Decurnex|Merge branch 'master' of https://github.com/NotDaveLane/ruby-git into NotDaveLane-master
+Roberto Decurnex|Merge branch 'master' of github.com:schacon/ruby-git
+Roberto Decurnex|Updating ssh_key -> git_ssh
+#+end_example
+
+If you were in charge of testing things, you'd definately want to be a
+bit more thorough than normal.
+
+** Change coupling by time
+
+Commits aren't necessarily the only unit of work on a team. Depending
+upon the process and work style, commits could be small and frequent
+(I'm sure with comments like /argggh/ and /work dammnit/) or they could be
+well structured units of work that can be thought of as logically
+discrete units.
+
+For those repositories that aren't like that, let's group changes by
+time and see if that gives us any interesting insights in to which
+files where modified together.
+
+#+begin_src ruby :tangle cochange_by_date.rb :results output
+  require './query_and_pivot.rb'
+
+  cochanges = query_and_loop do |db|
+    db.execute "
+      select date(author_when), name from commits, commit_files 
+      where commits.id = commit_files.id 
+      and author_when >= ?", ['2011-01-01']
+  end
+
+  print_cochange cochanges
+#+end_src
+
+#+RESULTS:
+#+begin_example
+| file                          | commits | cofile                        | coorelation | count |
+|-------------------------------+---------+-------------------------------+-------------+-------|
+| CHANGELOG.md                  |       4 | lib/git/version.rb            |        100% |     4 |
+| lib/git/config.rb             |       4 | tests/units/test_config.rb    |        100% |     4 |
+| tests/units/test_remotes.rb   |       6 | lib/git/lib.rb                |        100% |     6 |
+| tests/units/test_tags.rb      |       3 | lib/git/lib.rb                |        100% |     3 |
+| tests/units/test_init.rb      |       6 | lib/git/lib.rb                |        100% |     6 |
+| lib/git/object.rb             |       4 | lib/git/lib.rb                |        100% |     4 |
+| lib/git/object.rb             |       4 | lib/git/base.rb               |        100% |     4 |
+| tests/units/test_base.rb      |       4 | lib/git/lib.rb                |        100% |     4 |
+| tests/units/test_index_ops.rb |       6 | lib/git/lib.rb                |        100% |     6 |
+| lib/git/path.rb               |       4 | lib/git/base.rb               |        100% |     4 |
+| VERSION                       |       6 | lib/git/lib.rb                |         83% |     5 |
+| tests/units/test_remotes.rb   |       6 | lib/git/base.rb               |         83% |     5 |
+| lib/git/base.rb               |      18 | lib/git/lib.rb                |         83% |    15 |
+| tests/units/test_init.rb      |       6 | lib/git/base.rb               |         83% |     5 |
+| tests/units/test_config.rb    |       5 | lib/git/config.rb             |         80% |     4 |
+| lib/git.rb                    |       4 | git.gemspec                   |         75% |     3 |
+| lib/git/diff.rb               |       8 | lib/git/lib.rb                |         75% |     6 |
+| lib/git/config.rb             |       4 | README.md                     |         75% |     3 |
+| tests/units/test_base.rb      |       4 | .travis.yml                   |         75% |     3 |
+| lib/git/path.rb               |       4 | .travis.yml                   |         75% |     3 |
+| lib/git/path.rb               |       4 | lib/git/lib.rb                |         75% |     3 |
+| lib/git/path.rb               |       4 | tests/units/test_index_ops.rb |         75% |     3 |
+| .travis.yml                   |      14 | lib/git/lib.rb                |         71% |    10 |
+| tests/units/test_logger.rb    |       6 | lib/git/lib.rb                |         66% |     4 |
+| VERSION                       |       6 | git.gemspec                   |         66% |     4 |
+| tests/units/test_index_ops.rb |       6 | .travis.yml                   |         66% |     4 |
+| tests/units/test_index_ops.rb |       6 | lib/git/base.rb               |         66% |     4 |
+| tests/units/test_lib.rb       |      11 | lib/git/lib.rb                |         63% |     7 |
+#+end_example
+
+I truncated the table since there are a lot more things that are
+correlated now that we've grouped by date. A lot of things make sense
+here, but again it seems like files are changed together – a lot which
+could be nothing but makes you wonder about modularity of files.
+
+=lib/git/base.rb= and =lib/git/lib.rb= are both changed a lot (=18= times)
+and frequently changed together =83%= of the time.
+
+Perhaps things have been split up prematurely if multiple files always
+change at the same time? Or is this normal in terms of how object
+oriented encapulsation works? Based upon the generic all encompasing
+names (/base/ and /lib/) I wonder if you could guess why something would go
+into one file or another.
+
+* Knowledge and maturity
+
+1. Knowledge of a file is related to how much someone touched it
+2. Knowledge decays over time
+3. Active files means that something is changing
+4. People come and go on projects
+
+** Normalizing names
+
+One thing to note in this data is that =scott Chacon= is treated
+differently than =Scott Chacon=, similar to =Roberto Decurnex= and
+=robertodecurnex=. One simple way to normalize this is to update your index database to
+add the alias and mappings there.
+
+These need to be identified by hand and retweaked depending upon the
+particular repo you are looking at.
+
+#+begin_src bash
+sqlite3 test.db "update commits set author_name = 'Scott Chacon' where author_name = 'scott Chacon'"
+sqlite3 test.db "update commits set author_name = 'Roberto Decurnex' where author_name = 'robertodecurnex'"
+#+end_src
+
+** Authorship of a file
+
+Let's look at who "knows" about a file based upon how much they've
+authored it. I'm going to pick on =lib/git/base.rb= since that seems to
+be an exciting hotspot.
+
+#+begin_src bash :results output
+sqlite3 test.db "select name, author_name, count(commits.id) as commits, date(max(author_when)) as last_touched
+from commits, commit_files 
+where commits.id = commit_files.id
+and name = 'lib/git/base.rb' 
+group by name, author_name order by count(commits.id) desc" -column -header
+#+end_src
+
+#+RESULTS:
+#+begin_example
+name             author_name   commits     last_touched
+---------------  ------------  ----------  ------------
+lib/git/base.rb  Scott Chacon  30          2008-05-27  
+lib/git/base.rb  Roberto Decu  23          2015-01-12  
+lib/git/base.rb  Jorge Bernal  3           2008-05-06  
+lib/git/base.rb  Joe Moore     2           2013-04-29  
+lib/git/base.rb  Bryan Larsen  1           2009-10-13  
+lib/git/base.rb  Cameron Wals  1           2014-01-28  
+lib/git/base.rb  Daniel Mendl  1           2009-02-10  
+lib/git/base.rb  Harald Sitte  1           2015-01-12  
+lib/git/base.rb  James Rosen   1           2008-12-21  
+lib/git/base.rb  Jonathan Rud  1           2008-12-20  
+lib/git/base.rb  Joshua Peek   1           2008-03-15  
+lib/git/base.rb  Ken Pratt     1           2008-08-13  
+lib/git/base.rb  Michael Mall  1           2013-05-23  
+lib/git/base.rb  TJ Biddle     1           2013-06-14  
+lib/git/base.rb  Tom Potts     1           2018-05-03  
+lib/git/base.rb  Yuya.Nishida  1           2014-07-07  
+#+end_example
+
+Looks like =Scott Chacon= and =Jorge Bernal= moved on to other things in
+=2008=, and =Roberto= did a bunch of work in =2015= but the file has been
+untouched until =Tom Potts= did something in =2018=.  
+
+Note that =Roberto= last touched the specific file =lib/git/base.rb= on
+ =2015-01-12= though he was last active in the repo for another year.
+
+#+begin_src bash :results output
+sqlite3 test.db "select author_name, date(max(author_when)) as last_active 
+from commits where author_name = 'Roberto Decurnex'" -column -header
+#+end_src
+
+#+RESULTS:
+: author_name       last_active
+: ----------------  -----------
+: Roberto Decurnex  2016-02-25 
+
+** Authorship by weight
+
+We can also look to see how many lines of code were added by someone,
+to go a little deeper.  Maybe they only made 1 commit, but it changed
+every last thing?
+
+#+begin_src bash :results output
+sqlite3 test.db "select author_name, date(max(author_when)) as last_touched, sum(added) as added
+from commits, commit_files where commits.id = commit_files.id and name = 'lib/git/base.rb'
+group by author_name order by added desc" -column -header
+#+end_src
+
+#+RESULTS:
+#+begin_example
+author_name   last_touched  added     
+------------  ------------  ----------
+Scott Chacon  2008-05-27    520       
+Roberto Decu  2015-01-12    192       
+Jorge Bernal  2008-05-06    23        
+James Rosen   2008-12-21    18        
+Joe Moore     2013-04-29    13        
+Tom Potts     2018-05-03    11        
+TJ Biddle     2013-06-14    9         
+Daniel Mendl  2009-02-10    6         
+Joshua Peek   2008-03-15    4         
+Bryan Larsen  2009-10-13    2         
+Cameron Wals  2014-01-28    2         
+Jonathan Rud  2008-12-20    2         
+Ken Pratt     2008-08-13    2         
+Michael Mall  2013-05-23    2         
+Yuya.Nishida  2014-07-07    2         
+Harald Sitte  2015-01-12    1         
+#+end_example
+
+We do see that =Tom Potts= moved up a bit in the list.
+
+** Who knows about that file?
+
+If you had a question about =lib/git/base.rb= who would you ask?  =Scott
+Chacon= wrote most of it, but he hasn't been around in a while.
+=Roberto Decurnex= was the last person to make substantial changes to
+it, but that was back in =2015=. Even if he was still active on the
+project, which he doesn't appear to be, do we think he'd remember any
+of the details? Does the most recent contributor make sense to talk
+to, even though =Tom Potts= only made a small change in =2018=?
+
+We know that the file is signifigant because it used to change a lot
+with a bunch of other files. Maybe the file is super clean and
+looking at it means that all of its resposibilities are self-evident
+-- I haven't opened it up yet -- but my sense is that it probably has
+a lot of stuff in there, and that knowledge will have to be recreated
+the next time that anyone opens it up to make a change.
+
+** Stable or dead?
+
+Instead of focusing on the things that have changed, lets take a look
+at the things that haven't. Right now we don't have a good way to see
+if a file is still in latest revision, so we can put that into the
+database as well and join off of it.
+
+#+begin_src ruby :results output
+  require 'sqlite3'
+
+  db = SQLite3::Database.new "test.db"
+
+  db.execute <<-SQL
+  create table if not exists current_files (
+  name TEXT );
+  SQL
+
+  db.execute "delete from current_files;"
+
+  count = 0
+  `cd /tmp/ruby-git;git ls-files`.each_line do |file|
+    file.chomp!
+
+    db.execute "insert into current_files (name) VALUES (?)", [file]
+  
+    count += 1
+  end
+
+  puts "#{count} current files"
+#+end_src
+
+#+RESULTS:
+: 596 current files
+
+Now that we have that list, we can join off of it to get when things
+were last modified and by whom.
+
+/I'm going to filter out the =test= files since there's a lot of sample
+data there, not that test code isn't important/.
+
+#+begin_src bash :results output
+sqlite3 test.db "select current_files.name, 
+  date(max(author_when)) as last_touched,
+  author_name as author
+  from commits, commit_files, current_files
+  where commits.id = commit_files.id 
+  and commit_files.name = current_files.name
+  and current_files.name not like 'test%'
+  group by current_files.name order by max(author_when) asc" -column -header
+#+end_src
+
+#+RESULTS:
+#+begin_example
+name                          last_touched  author      
+----------------------------  ------------  ------------
+lib/git/working_directory.rb  2007-11-08    Scott Chacon
+lib/git/index.rb              2007-11-16    Scott Chacon
+LICENSE                       2008-05-26    Scott Chacon
+lib/git/stash.rb              2008-12-21    James Rosen 
+lib/git/branches.rb           2013-04-10    Roberto Decu
+lib/git/repository.rb         2013-04-10    Roberto Decu
+.gitignore                    2013-04-11    Roberto Decu
+lib/git/log.rb                2013-08-17    Roberto Decu
+Gemfile                       2014-01-13    Roberto Decu
+lib/git/remote.rb             2014-01-28    Cameron Wals
+lib/git/path.rb               2014-07-07    Yuya.Nishida
+lib/git/author.rb             2015-01-12    Roberto Decu
+lib/git/object.rb             2015-01-12    Roberto Decu
+lib/git/status.rb             2018-03-07    Vern Burton 
+lib/git/base.rb               2018-05-03    Tom Potts   
+Rakefile                      2018-05-16    Per Lundberg
+ISSUE_TEMPLATE.md             2018-06-20    Vern Burton 
+lib/git/stashes.rb            2018-08-01    Vern Burton 
+.travis.yml                   2018-08-22    Vern Burton 
+lib/git/base/factory.rb       2018-10-02    Evgenii Pech
+lib/git/config.rb             2019-09-20    Salim Afiune
+git.gemspec                   2019-12-11    James Coubal
+lib/git/diff.rb               2019-12-11    James Coubal
+.github/stale.yml             2020-01-19    Per Lundberg
+lib/git.rb                    2020-01-22    cyclotron3k 
+lib/git/branch.rb             2020-01-23    James Coubal
+CONTRIBUTING.md               2020-01-25    James Coubal
+MAINTAINERS.md                2020-01-25    James Coubal
+RELEASING.md                  2020-01-25    James Coubal
+PULL_REQUEST_TEMPLATE.md      2020-02-04    Yuta Harima 
+README.md                     2020-04-05    Alex Mayer  
+lib/git/lib.rb                2020-04-05    TIT         
+CHANGELOG.md                  2020-04-25    James Coubal
+lib/git/version.rb            2020-04-25    James Coubal
+#+end_example
+
+So from this we can see which parts of the project are pretty much
+stable from early days, =working_directory.rb= probably up through
+=object.rb= and which things have been changing for this stable project.
+In the beginning of the year there was a bunch of work for things
+related to project adminstration, like =PULL_REQUEST_TEMPLATE.mb= and
+=RELEASING.md=.
+
+* Thoughts
+
+Coding creates artifacts that change over time, and we have access to
+this data in the repositories that we share. Having everything
+accessable in SQL helps with complicated joins and analysis. I've
+scripted this in Ruby and we are looking at a Ruby project, but
+nothing that we've done has looked inside of the project itself to
+identify what are areas of note and of interest. It's been purely on
+the shape of how things are changing, what is changing together, and
+meta data analysis.
+
+Now that we've gotten a taste of what this looked like here -- and I'm
+sure there's much more we can look into -- there are a few other
+sources of meta data that we should look at:
+
+1. Issues/tickets and how they related to the code
+2. Mailing lists? Chat rooms? other discussions around the repository
+3. Projects that rely upon this as a dependency, and how/if those
+   users are putting in tickets or bug fixes into the code
+4. Looking into the =gemspec= and =Gemfile= to examine this project's
+   dependencies to see what's going on there.
+
+But this is already long enough.
+
+* References
+
+1. [[https://pragprog.com/titles/atcrime/your-code-as-a-crime-scene/][Your Code as a Crime Scene: Use Forensic Techniques to Arrest Defects, Bottlenecks, and Bad Design in Your Programs]]
+2. [[https://pragprog.com/titles/atevol/software-design-x-rays/][Software Design X-Rays: Fix Technical Debt with Behavioral Code Analysis]]
+
+
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

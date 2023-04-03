@@ -1,1 +1,0 @@
-../content/articles/2020/styling_hugo_diffs/update_patches.sh

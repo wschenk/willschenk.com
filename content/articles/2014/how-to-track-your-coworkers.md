@@ -6,7 +6,6 @@ tags:
   - toys
   - ruby
   - redis
-  - howto
 disqus_id: silvrback-wschenk-9332
 aliases:
   - "/how-to-track-your-coworkers/"

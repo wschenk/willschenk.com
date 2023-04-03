@@ -3,7 +3,6 @@ title: Bot Design Patterns
 subtitle: different ways to make different bots
 date: "2014-11-11"
 tags:
-  - overview
   - bots
 aliases:
   - "/bot-design-patterns/"

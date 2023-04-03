@@ -1,5 +1,6 @@
 ---
 title: Living with a Chromebook
+subtitle: so nice
 date: 2017-12-22T12:37:08.199Z
 tags:
   - chromebook

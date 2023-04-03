@@ -4,9 +4,7 @@ subtitle: building fast, searchable, functional sites that fail gracefully
 tags:
   - middleman
   - ruby
-  - howto
   - static_sites
-  - overview
 date: 2015-05-08
 aliases:
   - "/slow-data-and-fast-sites/"

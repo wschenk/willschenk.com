@@ -1,0 +1,237 @@
+#+title: Setting up Org Mode
+#+subtitle: why people use emacs
+#+date: 2020-06-16
+#+tags[]: howto, emacs
+#+draft: true
+
+* Quick Basics
+
+org-mode is a powerful system for note taking and organizing those
+notes.  It's just text.  It's a system with building blocks for you to
+build whatever workflow you find useful and important. Lets look at
+some quick features.
+
+* TODO Configuring =.emacs=
+
+Install =org-superstar= and =org-tempo=
+
+** Keys
+
+#+BEGIN_SRC emacs-lisp
+(global-set-key (kbd "C-c l") 'org-store-link)
+(global-set-key (kbd "C-c a") 'org-agenda)
+(global-set-key (kbd "C-c c") 'org-capture)
+
+
+(bind-key "M-<UP>" 'org-move-subtree-up)
+(define-key org-mode-map (kbd "M-S-<UP>") 'org-shiftmetaup)
+(define-key org-mode-map (kbd "M-S-<DOWN>") 'org-shiftmetadown)
+(define-key org-mode-map (kbd "M-<UP>") 'org-move-subtree-up)
+(define-key org-mode-map (kbd "M-<DOWN>") 'org-move-subtree-down)
+#+END_SRC
+
+** Additional functionality 
+We can add some short cuts using [[https://orgmode.org/manual/Structure-Templates.html][Structure Templates]]. 
+
+#+begin_src emacs-lisp
+(require 'org-tempo)
+#+end_src
+
+And then you can type =<sTAB= at the begining of a line to get a source
+block for example.
+
+** Appearance
+#+begin_src emacs-lisp
+
+(add-hook 'org-mode-hook (lambda () (org-superstar-mode 1)))
+
+(with-eval-after-load 'org
+  (setq org-startup-indented t) ; Enable `org-indent-mode' by default
+  (setq org-log-done t) ; Set time for when things were completed
+  (setq org-hide-emphasis-markers t) ; Not show typographical commands
+  )
+#+end_src
+
+* TODO Linking
+
+=C-c l= while you are floating around in your emacing,
+
+=C-c C-l= to insert that link inside of org mode.
+
+* Visibility
+One thing that's nice is to be able to limit what you are seeing in
+the page.
+
+When on the Using =C-c C-x b= you can create a linked buffer that
+just has what's in your view.  This is very nice since you don't need
+to worry about how big the document is distracting you while editing.
+
+When you are in that buffer, the same key strokes will bring you back
+*** Great, love checks
+- [ ] Lokos like a check
+- 
+*** Item 1
+*** Item 2.
+
+* TODO Setting up capture
+
+#+BEGIN_SRC emacs-lisp
+(setq org-capture-templates
+      '(("t" "Todo" entry (file+headline "~/org/notes.org" "Tasks")
+         "* TODO %?\n  %i\n  %a")
+        ("j" "Journal" entry (file+datetree "~/org/journal.org")
+         "* %?\nEntered on %U\n  %i\n  %a")))
+#+END_SRC
+
+* TODO Setting up agenda
+
+=C-c a= Opens up agenda, but there's nothing there.  Lets open the
+=~/org/notes.org= file, and type =C-c [= to add it to the list.
+
+Then we can do =C-c a n= to show all of the to do.
+
+* TODO org-babel
+** Enabling languages
+Enable other languages other than elisp inside of =M-x configuration=.
+Look for "Org Babel Load Languages" and then select which ones you'd
+like.
+
+** Value output
+Turn on python.  For python I find it also makes sense to set the
+intepreter to =pyhton3=.
+
+We can the create a named table of values
+
+#+NAME: with-rownames
+| one | 1 | 2 | 3 | 4 |  5 |
+| two | 6 | 7 | 8 | 9 | 10 |
+
+And pass it in to a python script.
+
+#+BEGIN_SRC python :var tab=with-rownames :rownames yes
+  return [[val + 10 for val in row] for row in tab]
+#+END_SRC
+
+#+RESULTS:
+| one | 11 | 12 | 13 | 14 | 15 |
+| two | 16 | 17 | 18 | 19 | 20 |
+
+Or plotting, where the output is a file.
+
+#+begin_src python :results file
+import matplotlib, numpy
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+fig=plt.figure(figsize=(4,2))
+x=numpy.linspace(-15,15)
+plt.plot(numpy.sin(x)/x)
+fig.tight_layout()
+plt.savefig('images/python-matplot-fig.png')
+return 'images/python-matplot-fig.png' # return filename to org-mode
+#+end_src
+
+#+RESULTS:
+[[file:]]
+** Other values
+
+For shell scripts org shows the results.  For others, we get the final
+value of the function.  We can override this using the =:results output=
+option. For example, if we want the output to be treated as in =org=
+mode, we could do =:results output org=:
+
+#+begin_src ruby :results output org
+puts "* This is a heading"
+puts "** This is a subheading with a tag :example:"
+#+end_src
+
+#+RESULTS:
+#+begin_src org
+  ,* This is a heading
+  ,** COMMENT This is a subheading with a tag :example:
+
+#+end_src
+** Plotting
+
+Make sure you load the gnuplot language in =org-babel=, install =gnuplot=
+on your machine using =apt install gnuplot=, and install =gnuplot= from
+ELPA using =M-x package-install gnuplot=.
+
+Then define a table with a name =#+NAME:=
+
+#+NAME: basic-plot
+|   x |         y1 |         y2 |
+| 0.1 |      0.425 |      0.375 |
+| 0.2 |     0.3125 |     0.3375 |
+| 0.3 | 0.24999993 | 0.28333338 |
+| 0.4 |      0.275 |    0.28125 |
+| 0.5 |       0.26 |       0.27 |
+| 0.6 | 0.25833338 | 0.24999993 |
+| 0.7 | 0.24642845 | 0.23928553 |
+| 0.8 |    0.23125 |     0.2375 |
+| 0.9 | 0.23333323 |  0.2333332 |
+|   1 |     0.2225 |       0.22 |
+|     |            |            |
+
+#+begin_src gnuplot :var data=basic-plot :exports code :file file.png
+set title "Putting it All Together"
+
+set xlabel "X"
+set xrange [0:1]
+set xtics 0,0.1,1
+
+
+set ylabel "Y"
+set yrange [0.2:0.5]
+set ytics 0.2,0.05,0.5
+
+
+plot data u 1:2 w p lw 2 title 'x vs. y1', \
+     data u 1:3 w lp lw 1 title 'x vx. y2'
+#+end_src
+
+#+RESULTS:
+[[file:file.png]]
+** UML
+
+First you need to install =plantuml=.  =sudo apt install plantuml= on
+debian.  This installs a whole bunch of stuff on your machine,
+specifically java if you haven't yet.
+
+Then find out where the =plantuml.jar= file is installed, which I did
+with =dpkg -L plantuml=.  In my case, it's
+=/usr/share/plantuml/plantuml.jar=.
+
+Then we need to tell emacs where this is.
+
+#+begin_src emacs-lisp
+(setq org-plantuml-jar-path (expand-file-name "/usr/share/plantuml/plantuml.jar"))
+#+end_src
+
+
+Turn on =PlantUML= in Org Babel Load Languages, which I did with =custimize= but you can also do
+
+#+begin_src emacs-lisp
+(org-babel-do-load-languages 'org-babel-load-languages '((plantuml . t)))
+#+end_src
+
+#+BEGIN_SRC plantuml :file draft.png
+Alice -> Bob: Authentication Request
+Bob --> Alice: Authentication Response
+#+END_SRC
+
+#+RESULTS:
+[[file:draft.png]]
+
+* References
+
+1. [[https://orgmode.org/worg/org-tutorials/orgtutorial_dto.html#:~:text=Introduction,step%20instructions%20and%20plentiful%20screenshots.][Org Tutorial]]
+2. [[https://orgmode.org/manual/Capture-templates.html#Capture-templates][Capture Templates]]
+3. [[https://orgmode.org/manual/Working-with-Source-Code.html#Working-with-Source-Code][Working with Source Code]]
+4. [[https://orgmode.org/manual/Structure-Templates.html][Structure Templates]]
+5. [[http://www.howardism.org/Technical/Emacs/capturing-intro.html][Org Capturing Introduction]]
+6. [[https://irreal.org/blog/?p=8694][An Introduction to Org Capture]]
+7. [[https://www.masteringemacs.org/article/mastering-key-bindings-emacs][Mastering Key Bindings Emacs]]
+8. [[http://www.howardism.org/Technical/Emacs/orgmode-wordprocessor.html][Org as a Word Processor]]
+9. https://sachachua.com/blog/2014/01/tips-learning-org-mode-emacs/
+10. https://org-babel.readthedocs.io/en/latest/header-args/
+11. [[https://plantuml.com/emacs][Integrating PlantUML with emacs]]

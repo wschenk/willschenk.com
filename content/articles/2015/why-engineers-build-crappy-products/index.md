@@ -3,7 +3,6 @@ title: Why Engineers build crappy products
 subtitle: looks like it was designed by an engineer
 tags:
   - product
-  - overview
 date: 2015-02-21
 aliases:
   - "/why-engineers-build-crappy-products/"

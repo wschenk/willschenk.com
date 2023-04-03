@@ -1,0 +1,510 @@
+#+title: Setting up knative eventing
+#+subtitle: lets send some messages
+#+tags[]: knative, kubernetes, eventing
+#+date: 2021-12-13
+#+aliases[]: /articles/2021/setting_up_knative_eventing
+
+Here's a walk through of how to setup [[https://knative.dev/docs/eventing/][knative eventing]].  I couldn't
+find this information in one place and it took longer than I expected
+to sort it out.
+
+There are a couple of ways you can use eventing.  One is to sent
+messages directly to specific services.  This I outline walk through
+as a direct event.
+
+Another is to use a broker and a trigger.  A [[https://knative.dev/docs/eventing/broker/][broker]] is basically the
+place you send stuff to, and then you define specific listeners by
+creating a [[https://knative.dev/docs/eventing/broker/triggers/][trigger]].
+
+A third way it to use a [[https://knative.dev/docs/eventing/channels/][channel]] and then create a [[https://knative.dev/docs/eventing/channels/subscriptions/][subscription]] to that
+channel.
+
+* What's the differene?
+
+Brokers/Trigger and Channels/Subscriptions are very very similar. The
+code that you use to send an event, in knative parlance, an [[https://knative.dev/docs/eventing/sources/][event
+source]] is exactly the same, and the code you use to receive an event,
+or an [[https://knative.dev/docs/eventing/sinks/][event sink]] is exactly the same, the difference is in the
+deployment configuration and what the underlying service is that
+provides the event routing.
+
+Note that the sources that are described in the knative documentation
+are the default ones, but writing your own is as simple as creating a
+=binding= (which gives you a =K_SINK= environment variable which will
+target your event), so it doesn't need to be all that complicated.
+
+Also a bit confusing, is that brokers are themselves sinks, as well as
+sources.
+
+With brokers and triggers, you can setup event type filtering on the
+trigger itself so that your service will only see messages of a
+specific type.
+
+For channels I think you need to to the filtering on the receiving
+side.
+
+* Install =knative-eventing=
+Since we've setup the knative operator previously, lets tell it to
+turn on eventing.
+
+=eventing.yaml=
+#+begin_src yaml :tangle eventing.yaml
+  apiVersion: v1
+  kind: Namespace
+  metadata:
+    name: knative-eventing
+  ---
+  apiVersion: operator.knative.dev/v1alpha1
+  kind: KnativeEventing
+  metadata:
+    name: knative-eventing
+    namespace: knative-eventing
+
+#+end_src
+
+And then apply:
+
+#+begin_src bash :results output
+  kubectl apply -f eventing.yaml
+#+end_src
+
+#+RESULTS:
+: namespace/knative-eventing configured
+: knativeeventing.operator.knative.dev/knative-eventing unchanged
+
+Check the status of the deployment
+
+#+begin_src bash :results output
+  kubectl get deployment -n knative-eventing
+#+end_src
+
+* Deploy the test services
+** Create the echo service
+(/Code is below/)
+
+#+begin_src bash :results output
+  kn service create ruby-echo --image wschenk/ruby-echo -a networking.knative.dev/disableAutoTLS=true
+#+end_src
+
+** Create the send service
+(/Code is below/)
+
+#+begin_src bash :results output
+  kn service create ruby-send --image wschenk/ruby-send -a networking.knative.dev/disableAutoTLS=true
+#+end_src
+
+* Receiving events
+
+** Direct event test
+*** Create the source
+This created an event source that sends an event every minute.  We
+tell it to send the message directly to =ruby-echo=, the service that we
+just created.
+
+#+begin_src bash :results output
+  kn source ping create heartbeat-source \
+    --schedule "*/1 * * * *" \
+    --sink ksvc:ruby-echo
+#+end_src
+
+#+RESULTS:
+: Ping source 'heartbeat-source' created in namespace 'default'.
+
+*** View results
+
+This is deployed on my domain, yours should be different.
+
+#+begin_src bash :results output
+curl http://ruby-echo.default.gitgratitude.com
+#+end_src
+
+#+RESULTS:
+: Hello from the ruby eco service
+: {"specversion"=>"1.0", "id"=>"0dd72dfa-eac9-40a1-b48b-00df271cd62e", "source"=>"/apis/v1/namespaces/default/pingsources/heartbeat-source", "type"=>"dev.knative.sources.ping", "data_encoded"=>"", "data"=>"", "time"=>"2021-12-14T18:50:00.060257784Z"}
+
+*** Cleanup
+
+#+begin_src bash :results output
+  kn source ping delete heartbeat-source
+#+end_src
+
+#+RESULTS:
+: Ping source 'heartbeat-source' deleted in namespace 'default'.
+
+** Broker and Trigger test
+*** Create the Broker
+
+#+begin_src bash :results output
+kn broker create default
+#+end_src
+
+#+RESULTS:
+: Broker 'default' successfully created in namespace 'default'.
+*** Create the source
+Here we are using the ping source again, but pointing it to
+=broker:default= instead of the service.
+
+#+begin_src bash :results output
+  kn source ping create heartbeat-source \
+    --schedule "*/1 * * * *" \
+    --sink broker:default
+#+end_src
+
+#+RESULTS:
+: Ping source 'heartbeat-source' created in namespace 'default'.
+
+*** Create the trigger
+Now that we are pinging the broker, we need to tell the broker to send
+that message type to our service, =ruby-echo=.
+
+#+begin_src bash :results output
+  kn trigger create heartbeat-trigger \
+     --broker default \
+     --filter type=dev.knative.sources.ping \
+     --sink ksvc:ruby-echo
+#+end_src
+
+#+RESULTS:
+: Trigger 'heartbeat-trigger' successfully created in namespace 'default'.
+
+*** View results
+
+#+begin_src bash :results output
+  curl http://ruby-echo.default.gitgratitude.com
+#+end_src
+
+#+RESULTS:
+: Hello from the ruby echo service
+: {"specversion"=>"1.0", "id"=>"1aef1313-e8ea-4b14-9d91-691f6ecbcc03", "source"=>"/apis/v1/namespaces/default/pingsources/heartbeat-source", "type"=>"dev.knative.sources.ping", "data_encoded"=>"", "data"=>"", "time"=>"2021-12-14T18:57:00.319157126Z", "knativearrivaltime"=>"2021-12-14T18:57:00.319736536Z"}
+
+*** Cleanup
+
+#+begin_src bash :results output
+  kn broker delete default
+  kn source ping delete heartbeat-source
+  kn trigger delete heartbeat-trigger
+#+end_src
+
+#+RESULTS:
+: Broker 'default' successfully deleted in namespace 'default'.
+: Ping source 'heartbeat-source' deleted in namespace 'default'.
+: Trigger 'heartbeat-trigger' deleted in namespace 'default'.
+
+** Channel test
+*** Channel
+Simple.
+
+#+begin_src bash :results output
+  kn channel create heartbeat
+#+end_src
+
+#+RESULTS:
+: Channel 'heartbeat' created in namespace 'default'.
+
+*** Ping the heartbeat channel
+This is sending to =channel:heartbeat=
+
+#+begin_src bash :results output
+  kn source ping create heartbeat-source \
+    --schedule "*/1 * * * *" \
+    --sink channel:heartbeat
+#+end_src
+
+#+RESULTS:
+: Ping source 'heartbeat-source' created in namespace 'default'.
+*** Subscribe to the event
+Here we create the subscription, which goes to our service.
+
+#+begin_src bash :results output
+  kn subscription create heartbeat-sub \
+     --channel heartbeat \
+     --sink ruby-echo
+#+end_src
+
+#+RESULTS:
+: Subscription 'heartbeat-sub' created in namespace 'default'.
+
+*** See the results
+
+#+begin_src bash :results output
+  curl http://ruby-echo.default.gitgratitude.com
+#+end_src
+
+#+RESULTS:
+: Hello from the ruby echo service
+: {"specversion"=>"1.0", "id"=>"88171ffc-3008-4df4-98cd-c157ef5a1aea", "source"=>"/apis/v1/namespaces/default/pingsources/heartbeat-source", "type"=>"dev.knative.sources.ping", "data_encoded"=>"", "data"=>"", "time"=>"2021-12-14T18:59:00.082372715Z"}
+
+*** Cleanup
+
+#+begin_src bash :results output
+  kn channel delete heartbeat
+  kn source ping delete heartbeat-source
+  kn subscription delete heartbeat-sub
+#+end_src
+
+#+RESULTS:
+: Channel 'heartbeat' deleted in namespace 'default'.
+: Ping source 'heartbeat-source' deleted in namespace 'default'.
+: Subscription 'heartbeat-sub' deleted in namespace 'default'.
+
+* Sending events
+
+Now we can look at creating and sending events.  The receiving side is
+the same, but we need to create a service that will send a message.
+In each scenario this will be the same code, but depending upon how we
+deploy it, it will have a different =K_SINK= value in the environment.
+
+** Direct binding
+*** Create direct binding
+
+#+begin_src bash :results output
+  kn source binding create direct-binding \
+     --subject Service:serving.knative.dev/v1:ruby-send \
+     --sink ruby-echo 
+
+#+end_src
+
+#+RESULTS:
+: Sink binding 'direct-binding' created in namespace 'default'.
+
+*** Test
+
+#+begin_src bash results output
+  curl http://ruby-echo.default.gitgratitude.com
+#+end_src
+
+#+RESULTS:
+: Hello from the ruby echo service
+
+#+begin_src bash :results output
+  curl http://ruby-send.default.gitgratitude.com?message=Hello
+#+end_src
+
+#+RESULTS:
+: sent
+
+#+begin_src bash :results output
+  curl http://ruby-echo.default.gitgratitude.com
+#+end_src
+
+#+RESULTS:
+: Hello from the ruby echo service
+: {"specversion"=>"1.0", "id"=>"1234-1234-1234", "source"=>"/mycontext", "type"=>"com.example.someevent", "data_encoded"=>"{\"message\":\"Hello\"}", "data"=>{"message"=>"Hello"}, "datacontenttype"=>"application/json"}
+
+*** Clean up
+
+#+begin_src bash :results output
+  kn source binding delete direct-binding
+#+end_src
+
+** Through a broker
+*** Create a broker
+
+#+begin_src bash :results output
+  kn broker create default
+#+end_src
+
+#+RESULTS:
+
+*** Create the trigger
+
+#+begin_src bash :results output
+  kn trigger create send-trigger \
+     --broker default \
+     --filter type=com.example.someevent \
+     --sink ksvc:ruby-echo
+
+#+end_src
+
+#+RESULTS:
+: Trigger 'send-trigger' successfully created in namespace 'default'.
+
+*** Create the binding
+#+begin_src bash :results output
+  kn source binding create broker-binding \
+     --subject Service:serving.knative.dev/v1:ruby-send \
+     --sink broker:default
+#+end_src
+
+#+RESULTS:
+: Sink binding 'broker-binding' created in namespace 'default'.
+
+*** Test
+
+#+begin_src bash results output
+  curl http://ruby-echo.default.gitgratitude.com
+#+end_src
+
+#+RESULTS:
+: Hello from the ruby echo service
+
+#+begin_src bash :results output
+  curl http://ruby-send.default.gitgratitude.com?message=Hello
+#+end_src
+
+#+RESULTS:
+: sent
+
+
+#+begin_src bash :results output
+  curl http://ruby-echo.default.gitgratitude.com
+#+end_src
+
+#+RESULTS:
+: Hello from the ruby echo service
+: {"specversion"=>"1.0", "id"=>"1234-1234-1234", "source"=>"/mycontext", "type"=>"com.example.someevent", "data_encoded"=>"{\"message\":\"Hello\"}", "data"=>{"message"=>"Hello"}, "datacontenttype"=>"application/json", "knativearrivaltime"=>"2021-12-14T23:44:09.238452314Z"}
+
+
+*** Cleanup
+#+begin_src bash :results output
+  kn trigger delete send-trigger
+  kn source binding delete broker-binding
+#+end_src
+
+#+RESULTS:
+: Trigger 'send-trigger' deleted in namespace 'default'.
+: Sink binding 'broker-binding' deleted in namespace 'default'.
+
+** On a channel
+
+*** Create channel
+Simple.
+
+#+begin_src bash :results output
+  kn channel create chatter
+#+end_src
+
+*** Create source binding to the channel
+
+#+begin_src bash :results output
+  kn source binding create chat-binding \
+     --subject Service:serving.knative.dev/v1:ruby-send \
+     --sink channel:chatter
+#+end_src
+
+
+*** Subscribe to the event
+Here we create the subscription, which goes to our service.
+
+#+begin_src bash :results output
+  kn subscription create message-sub \
+     --channel chatter \
+     --sink ruby-echo
+#+end_src
+
+#+RESULTS:
+: Subscription 'message-sub' created in namespace 'default'.
+*** Test
+
+#+begin_src bash results output
+  curl http://ruby-echo.default.gitgratitude.com
+#+end_src
+
+#+RESULTS:
+: Hello from the ruby echo service
+
+#+begin_src bash :results output
+  curl http://ruby-send.default.gitgratitude.com?message=Hello
+#+end_src
+
+#+RESULTS:
+: sent
+
+
+#+begin_src bash :results output
+  curl http://ruby-echo.default.gitgratitude.com
+#+end_src
+
+#+RESULTS:
+: Hello from the ruby echo service
+: {"specversion"=>"1.0", "id"=>"1234-1234-1234", "source"=>"/mycontext", "type"=>"com.example.someevent", "data_encoded"=>"{\"message\":\"Hello\"}", "data"=>{"message"=>"Hello"}, "datacontenttype"=>"application/json"}
+
+
+*** Cleanup
+
+#+begin_src bash :results output
+  kn channel delete chatter
+  kn source binding delete chat-binding
+  kn subscription delete message-sub
+#+end_src
+
+* Code
+** ruby-echo
+
+#+begin_src ruby :tangle ruby-echo.rb
+  require 'sinatra'
+  require "cloud_events"
+
+  class EventHolder
+    def self.add_event( e )
+      @events ||= []
+      @events << e.to_h
+    end
+
+    def self.eventstring
+      @events ||= []
+      @events.join( "\n" )
+    end
+  end
+
+  get '/' do
+    "Hello from the ruby echo service\n#{EventHolder.eventstring}\n"
+  end
+
+  cloud_events_http = CloudEvents::HttpBinding.default
+
+  post "/" do
+    event = cloud_events_http.decode_event request.env
+    logger.info "Received CloudEvent: #{event.to_h}"
+    EventHolder.add_event( event )
+  end
+
+#+end_src
+
+** ruby-send
+
+#+begin_src ruby :tangle ruby-send.rb
+  require 'sinatra'
+  require "cloud_events"
+  require "net/http"
+  require "uri"
+
+  def send_message( data )
+    event = CloudEvents::Event.create spec_version:      "1.0",
+                                      id:                "1234-1234-1234",
+                                      source:            "/mycontext",
+                                      type:              "com.example.someevent",
+                                      data_content_type: "application/json",
+                                      data:              data
+
+    cloud_events_http = CloudEvents::HttpBinding.default
+    headers, body = cloud_events_http.encode_event event
+    Net::HTTP.post URI(ENV['K_SINK']), body, headers
+  end
+
+  get '/' do
+    if params[:message]
+      if ENV['K_SINK']
+        send_message( {message: params[:message] })
+        return "sent"
+      else
+        return "K_SINK not defined"
+      end
+    else
+      return 'Try passing in a message'
+    end
+  end
+
+
+  get '/keys' do
+    ENV.keys.collect { |key| "#{key}=#{ENV[key]}" }.join( "\n" )
+  end
+#+end_src
+* References
+1. https://knative.dev/docs/eventing/sinks/
+1. https://knative.dev/docs/eventing/sources/ping-source/
+1. https://opensource.com/article/21/2/knative-eventing
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

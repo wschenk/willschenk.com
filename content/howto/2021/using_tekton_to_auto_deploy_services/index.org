@@ -1,0 +1,727 @@
+#+title: Using Tekton to auto deploy services
+#+subtitle: a long way to get to git push heroku
+#+tags[]: kubernetes, knative, tekton, github
+#+date: 2021-12-03
+#+draft: true
+
+We are going to continue in our setting up a knative environment and are going to add automated builds.
+
+* Install =tekton=
+
+** Local Machine
+
+#+begin_src bash :results output
+  brew tap tektoncd/tools
+  brew install tektoncd/tools/tektoncd-cli
+#+end_src
+
+And then verify
+
+#+begin_src bash :results output
+  tkn version
+#+end_src
+
+#+RESULTS:
+: Client version: 0.21.0
+: Pipeline version: v0.30.0
+
+** Add =pipeline=
+#+begin_src bash :results output
+  kubectl apply --filename https://storage.googleapis.com/tekton-releases/pipeline/latest/release.yaml
+#+end_src
+
+And make sure everything is running:
+
+#+begin_src bash :results output
+  kubectl get pods --namespace tekton-pipelines
+#+end_src
+
+#+RESULTS:
+: NAME                                           READY   STATUS    RESTARTS   AGE
+: tekton-pipelines-controller-6d88d765d8-t6sv8   1/1     Running   0          43s
+: tekton-pipelines-webhook-747d874687-mhlfs      1/1     Running   0          42s
+
+** Add =triggers=
+
+#+begin_src bash :results output
+  kubectl apply --filename https://storage.googleapis.com/tekton-releases/triggers/latest/release.yaml
+  kubectl apply --filename https://storage.googleapis.com/tekton-releases/triggers/latest/interceptors.yaml
+#+end_src
+
+** Add the dashboard
+
+#+begin_src bash :results output
+  kubectl apply --filename https://github.com/tektoncd/dashboard/releases/latest/download/tekton-dashboard-release.yaml
+#+end_src
+
+And then we can connect to it:
+
+#+begin_src bash
+  kubectl --namespace tekton-pipelines port-forward svc/tekton-dashboard 9097:9097
+#+end_src
+
+And visit [[http://localhost:9097]]
+
+
+* Tasks
+** Example
+
+#+begin_src yaml :tangle task-hello.yaml
+  apiVersion: tekton.dev/v1beta1
+  kind: Task
+  metadata:
+    name: hello
+  spec:
+    steps:
+      - name: hello
+        image: ubuntu
+        command:
+          - echo
+        args:
+          - "Hello World!"
+#+end_src
+
+#+begin_src bash :results output
+  kubectl apply -f task-hello.yaml
+#+end_src
+
+#+RESULTS:
+: task.tekton.dev/hello configured
+
+And then run it
+
+#+begin_src bash :results output
+  tkn task start hello 
+#+end_src
+
+#+RESULTS:
+: TaskRun started: hello-run-nrfwh
+: 
+: In order to track the TaskRun progress run:
+: tkn taskrun logs hello-run-nrfwh -f -n default
+
+And we can see the output as
+
+#+begin_src bash :results output
+  tkn taskrun logs hello-run-xwjfd -f -n default
+#+end_src
+
+#+RESULTS:
+: [hello] Hello World!
+
+** Install =git-clone= task
+
+#+begin_src bash :results output
+  kubectl apply -f https://raw.githubusercontent.com/tektoncd/catalog/main/task/git-clone/0.5/git-clone.yaml
+#+end_src
+
+#+RESULTS:
+: task.tekton.dev/git-clone created
+
+*** Test
+
+#+begin_src yaml :tangle git-clone-run.yaml
+  apiVersion: tekton.dev/v1beta1
+  kind: TaskRun
+  metadata:
+    generateName: git-clone-run-
+    namespace: default
+  spec:
+    params:
+    - name: url
+      value: https://github.com/wschenk/homepage
+    serviceAccountName: ""
+    taskRef:
+      name: git-clone
+    workspaces:
+    - emptyDir: {}
+      name: output
+#+end_src
+
+#+begin_src bash :results output
+  kubectl create -f git-clone-run.yaml
+#+end_src
+
+#+RESULTS:
+: taskrun.tekton.dev/git-clone-run-b2hcj created
+
+** Install =kaniko= task
+
+We can use kaniko to build and push our image to a repository.
+
+#+begin_src bash :results output
+  kubectl apply -f https://raw.githubusercontent.com/tektoncd/catalog/main/task/kaniko/0.5/kaniko.yaml
+#+end_src
+
+#+RESULTS:
+: task.tekton.dev/kaniko created
+
+** Install the =kn= task
+
+#+begin_src bash :results output
+    kubectl apply -f https://raw.githubusercontent.com/tektoncd/catalog/main/task/kn/0.1/kn.yaml
+    kubectl apply -f https://raw.githubusercontent.com/tektoncd/catalog/main/task/kn/0.1/support/kn-deployer.yaml
+#+end_src
+
+#+RESULTS:
+: task.tekton.dev/kn created
+: serviceaccount/kn-deployer-account unchanged
+: clusterrole.rbac.authorization.k8s.io/kn-deployer unchanged
+: clusterrolebinding.rbac.authorization.k8s.io/kn-deployer-binding unchanged
+
+*** Test
+
+#+begin_src yaml :tangle kn_task_run.yml
+  apiVersion: tekton.dev/v1beta1
+  kind: TaskRun
+  metadata:
+    generateName: kn-run-
+    namespace: default
+  spec:
+    params:
+    - name: ARGS
+      value:
+      - service
+      - update
+      - helloworld-go
+      - --env
+      - TARGET=tekton
+    - name: kn-image
+      value: gcr.io/knative-releases/knative.dev/client/cmd/kn:latest
+    resources: {}
+    serviceAccountName: kn-deployer-account
+    taskRef:
+      name: kn
+#+end_src
+
+#+begin_src bash :results output
+kubectl create -f kn_task_run.yml
+#+end_src
+
+#+RESULTS:
+: taskrun.tekton.dev/kn-run-m49b4 created
+
+#+begin_src bash
+curl http://helloworld-go.default.gitgratitude.com
+#+end_src
+
+
+#+RESULTS:
+: Hello tekton!
+
+** Debug task
+
+#+begin_src yaml :tangle debug-task.yaml
+  apiVersion: tekton.dev/v1beta1
+  kind: Task
+  metadata:
+    name: debug
+    labels:
+      app.kubernetes.io/version: "0.1"
+    annotations:
+      tekton.dev/pipelines.minVersion: "0.12.1"
+      tekton.dev/tags: debug
+  spec:
+    description: >-
+      This runs ls
+
+    params:
+    - name: directory
+      description: Where to list
+      default: ["/workspace"]
+    workspaces:
+    - name: source
+
+    steps:
+    - name: ls
+      image: ubuntu
+      script: |
+        #!/usr/bin/env bash
+        echo "Hello from Bash!"
+        ls -lR /workspace
+#+end_src
+
+#+begin_src bash
+  kubectl apply -f debug-task.yaml
+#+end_src
+
+#+RESULTS:
+: task.tekton.dev/debug created
+
+
+* Assemble pipeline
+** Add docker login secret
+
+#+begin_src bash
+  kubectl create secret docker-registry dockercreds \
+          --docker-server=https://index.docker.io/v1/ \
+          --docker-username=<DOCKERHUB_USERNAME> \
+          --docker-password=<DOCKERHUB_PASSWORD> \
+          --docker-email <DOCKERHUB_EMAIL>
+#+end_src
+
+#+begin_src yaml :tangle dockerhub_service.yaml
+  apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: dockerhub-service
+  secrets:
+    - name: dockercreds
+#+end_src
+
+#+begin_src bash
+  kubectl apply -f dockerhub_service.yaml
+#+end_src
+
+#+RESULTS:
+: serviceaccount/dockerhub-service created
+
+** Add =PipelineResource= for your project
+
+#+begin_src yaml :tangle repo-resource.yaml
+  apiVersion: tekton.dev/v1alpha1
+  kind: PipelineResource
+  metadata:
+    name: homepage-git
+    namespace: default
+  spec:
+    type: git
+    params:
+      - name: url
+        value: https://github.com/wschenk/homepage.git
+      - name: revision
+        value: main
+  ---
+  apiVersion: tekton.dev/v1alpha1
+  kind: PipelineResource
+  metadata:
+    name: homepage-image
+  spec:
+    type: image
+    params:
+      - name: url
+        value: wschenk/homepage
+#+end_src
+
+#+begin_src bash :results output
+  kubectl apply -f repo-resource.yaml
+#+end_src
+
+#+RESULTS:
+: pipelineresource.tekton.dev/homepage-git unchanged
+: pipelineresource.tekton.dev/homepage-image unchanged
+
+** Build task
+
+#+begin_src yaml :tangle build-docker-image-from-git-source.yaml
+  apiVersion: tekton.dev/v1beta1
+  kind: Task
+  metadata:
+    name: build-docker-image-from-git-source
+  spec:
+    params:
+      - name: pathToDockerFile
+        type: string
+        description: The path to the dockerfile to build
+        default: $(resources.inputs.docker-source.path)/Dockerfile
+      - name: pathToContext
+        type: string
+        description: |
+          The build context used by Kaniko
+          (https://github.com/GoogleContainerTools/kaniko#kaniko-build-contexts)        
+        default: $(resources.inputs.docker-source.path)
+    resources:
+      inputs:
+        - name: docker-source
+          type: git
+      outputs:
+        - name: builtImage
+          type: image
+    steps:
+      - name: build-and-push
+        image: gcr.io/kaniko-project/executor:v0.17.1
+        # specifying DOCKER_CONFIG is required to allow kaniko to detect docker credential
+        env:
+          - name: "DOCKER_CONFIG"
+            value: "/tekton/home/.docker/"
+        command:
+          - /kaniko/executor
+        args:
+          - --dockerfile=$(params.pathToDockerFile)
+          - --destination=$(resources.outputs.builtImage.url)
+          - --context=$(params.pathToContext)
+#+end_src
+
+#+begin_src bash :results output
+  kubectl apply -f build-docker-image-from-git-source.yaml
+#+end_src
+
+#+RESULTS:
+: task.tekton.dev/build-docker-image-from-git-source created
+
+** Test the build
+
+#+begin_src yaml :tangle build-test.yaml
+  apiVersion: tekton.dev/v1beta1
+  kind: TaskRun
+  metadata:
+    generateName: build-homepage-
+  spec:
+    serviceAccountName: dockerhub-service
+    taskRef:
+      name: build-docker-image-from-git-source
+    params:
+      - name: pathToDockerFile
+        value: Dockerfile
+    resources:
+      inputs:
+        - name: docker-source
+          resourceRef:
+            name: homepage-git
+      outputs:
+        - name: builtImage
+          resourceRef:
+            name: homepage-image
+
+#+end_src
+
+#+begin_src bash
+  kubectl apply -f build-test.yaml
+#+end_src
+
+#+RESULTS:
+
+
+** Build and deploy pipeline
+
+#+begin_src yaml :tangle build-and-deploy-pipeline.yaml
+  apiVersion: tekton.dev/v1beta1
+  kind: Pipeline
+  metadata:
+    name: build-and-deploy
+  spec:
+    params:
+      - name: service_name
+        type: string
+      - name: image
+        type: string
+    resources:
+      - name: docker-source
+        type: git
+      - name: builtImage
+        type: image
+    tasks:
+      - name: build-image
+        taskRef:
+          name: build-docker-image-from-git-source
+        resources:
+          inputs:
+            - name: docker-source
+              resource: docker-source
+          outputs:
+            - name: builtImage
+              resource: builtImage
+      - name: update-service
+        runAfter:
+          - build-image
+        taskRef:
+          name: kn
+        params:
+          - name: ARGS
+            value:
+              - service
+              - update
+              - $(params.service_name)
+              - --image
+              - $(params.image)
+
+#+end_src
+
+#+begin_src bash :results output
+  kubectl apply -f build-and-deploy-pipeline.yaml
+#+end_src
+
+#+RESULTS:
+: pipeline.tekton.dev/build-and-deploy configured
+** Run the pipeline
+
+#+begin_src yaml :tangle build-run.yaml
+  apiVersion: tekton.dev/v1beta1
+  kind: PipelineRun
+  metadata:
+    generateName: build-and-deploy-
+  spec:
+    pipelineRef:
+      name: build-and-deploy
+    params:
+    - name: service_name
+      value: homepage
+    - name: image
+      value: wschenk/homepage
+    resources:
+    - name: builtImage
+      resourceRef:
+        name: homepage-image
+    - name: docker-source
+      resourceRef:
+        name: homepage-git
+    serviceAccountNames:
+      - taskName: build-image
+        serviceAccountName: dockerhub-service
+      - taskName: update-service
+        serviceAccountName: kn-deployer-account
+
+#+end_src
+
+#+begin_src bash 
+  kubectl create -f build-run.yaml
+#+end_src
+
+#+RESULTS:
+: pipelinerun.tekton.dev/build-and-deploy-s4s9k created
+
+* Github Triggers
+** Service account
+
+#+begin_src yaml :tangle trigger-sa.yaml
+  apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: tekton-triggers-sa
+  ---
+  apiVersion: rbac.authorization.k8s.io/v1
+  kind: RoleBinding
+  metadata:
+    name: triggers-eventlistener-binding
+  subjects:
+  - kind: ServiceAccount
+    name: tekton-triggers-sa
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: tekton-triggers-eventlistener-roles
+  ---
+  apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRoleBinding
+  metadata:
+    name: triggers-eventlistener-clusterbinding
+  subjects:
+  - kind: ServiceAccount
+    name: tekton-triggers-sa
+    namespace: default
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: tekton-triggers-eventlistener-clusterroles
+#+end_src
+#+begin_src bash :results output
+kubectl apply -f trigger-sa.yaml
+#+end_src
+
+#+RESULTS:
+: serviceaccount/tekton-triggers-sa unchanged
+: rolebinding.rbac.authorization.k8s.io/triggers-eventlistener-binding unchanged
+: clusterrolebinding.rbac.authorization.k8s.io/triggers-eventlistener-clusterbinding unchanged
+
+** Event Display Service
+#+begin_src yaml :tangle event-display.yaml
+  apiVersion: v1
+  kind: Service
+  metadata:
+    name: event-display
+    labels:
+      app: event-display
+  spec:
+    type: ClusterIP
+    ports:
+      - name: listener
+        port: 8080
+        protocol: TCP
+    selector:
+      app: event-display
+  ---
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: event-display
+    labels:
+      name: event-display
+  spec:
+    hostname: event-display
+    containers:
+      - image: gcr.io/knative-releases/github.com/knative/eventing-sources/cmd/event_display
+        name: web
+#+end_src
+#+begin_src bash :results output
+  kubectl apply -f event-display.yaml
+#+end_src
+
+#+RESULTS:
+: service/event-display unchanged
+: pod/event-display unchanged
+
+** TriggerTemplates
+
+#+begin_src yaml :tangle trigger-template.yaml
+  apiVersion: triggers.tekton.dev/v1beta1
+  kind: TriggerTemplate
+  metadata:
+    name: pipeline-template
+  spec:
+    params:
+    - name: gitrevision
+      description: The git revision
+      default: main
+    - name: gitrepositoryurl
+      description: The git repository url
+    - name: message
+      description: The message to print
+      default: This is the default message
+    - name: contenttype
+      description: The Content-Type of the event
+    resourcetemplates:
+    - apiVersion: tekton.dev/v1beta1
+      kind: PipelineRun
+      metadata:
+        generateName: triggered-build-run-
+      spec:
+        pipelineRef:
+          name: build-and-deploy
+        params:
+        - name: service_name
+          value: homepage
+        - name: image
+          value: wschenk/homepage
+        resources:
+        - name: docker-source
+          resourceSpec:
+            type: git
+            params:
+            - name: revision
+              value: $(tt.params.gitrevision)
+            - name: url
+              value: $(tt.params.gitrepositoryurl)
+        - name: builtImage
+          resourceRef:
+            name: homepage-image
+        serviceAccountNames:
+          - taskName: build-image
+            serviceAccountName: dockerhub-service
+          - taskName: update-service
+            serviceAccountName: kn-deployer-account
+      - apiVersion: tekton.dev/v1alpha1
+        kind: PipelineResource
+        metadata:
+          name: event-to-sink-\$(uid)
+          namespace: \$(params.namespace)
+        spec:
+          type: cloudEvent
+          params:
+            - name: targetURI
+              value: http://event-display.getting-started.svc.cluster.local
+#+end_src
+
+#+begin_src bash
+  kubectl apply -f trigger-template.yaml
+
+#+end_src
+
+#+RESULTS:
+: triggertemplate.triggers.tekton.dev/pipeline-template created
+
+** TriggerBinding
+
+#+begin_src yaml :tangle trigger-binding.yaml
+  apiVersion: triggers.tekton.dev/v1alpha1
+  kind: TriggerBinding
+  metadata:
+    name: pipeline-binding
+  spec:
+    params:
+      - name: gitrevision
+        value: $(body.head_commit.id)
+      - name: gitrepositoryurl
+        value: "https://github.com/$(body.repository.full_name)"
+
+#+end_src
+
+#+begin_src bash
+  kubectl apply -f trigger-binding.yaml
+
+#+end_src
+
+#+RESULTS:
+: triggerbinding.triggers.tekton.dev/pipeline-binding configured
+
+** Event Listener
+
+#+begin_src yaml :tangle event-listener.yaml
+  apiVersion: triggers.tekton.dev/v1alpha1
+  kind: EventListener
+  metadata:
+    name: pipeline-listener
+  spec:
+    serviceAccountName: tekton-triggers-sa
+    triggers:
+      - bindings:
+        - ref: pipeline-binding
+        template:
+          ref: pipeline-template
+
+#+end_src
+
+#+begin_src bash
+  kubectl apply -f event-listener.yaml
+#+end_src
+
+#+RESULTS:
+: eventlistener.triggers.tekton.dev/pipeline-listener configured
+
+
+** test
+
+#+begin_src bash
+  kubectl port-forward service/el-pipeline-listener 8080 &
+#+end_src
+
+Request URL: http://github.default.gitgratitude.com
+Request method: POST
+Accept: */*
+content-type: application/x-www-form-urlencoded
+User-Agent: GitHub-Hookshot/ca6e663
+X-GitHub-Delivery: 63519954-5768-11ec-898e-db602e580904
+X-GitHub-Event: push
+X-GitHub-Hook-ID: 332119478
+X-GitHub-Hook-Installation-Target-ID: 434393067
+X-GitHub-Hook-Installation-Target-Type: repository
+X-Hub-Signature: sha1=32d331953735b740d2cec7d6659f0aec914cb486
+X-Hub-Signature-256: sha256=75e0ddb1298547ea3f85162c583716699dcfb3f85432f704216901cde928d724
+
+#+begin_src bash
+curl -v \
+-H 'X-GitHub-Event: push' \
+-H 'X-Hub-Signature: sha1=ba0cdc263b3492a74b601d240c27efe81c4720cb' \
+-H 'Content-Type: application/json' \
+-d @payload.json \
+http://localhost:8080
+#+end_src
+** Create proxy service
+
+#+begin_src bash
+  kn service create github --image ghcr.io/wschenk/proxy:latest --env REMOTE_TARGET=http://el-pipeline-listener.default.svc.cluster.local
+#+end_src
+
+#+RESULTS:
+
+* References
+
+1. https://tekton.dev/
+2. https://hub.tekton.dev/tekton/task/docker-build
+3. https://hub.tekton.dev/tekton/task/kn
+4. https://hub.tekton.dev/tekton/task/kaniko
+5. https://github.com/tektoncd/triggers/tree/v0.17.0/docs/getting-started
+6. https://tanzu.vmware.com/developer/guides/tekton-gs-p2/
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

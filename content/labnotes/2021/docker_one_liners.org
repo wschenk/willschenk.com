@@ -1,0 +1,128 @@
+#+title: Docker One Liners
+#+subtitle: Why install
+#+tags[]: docker
+#+date: 2021-02-12
+#+aliases[]: /articles/2021/docker_one_liners
+
+I use docker in my workflow as an application and environment manager.
+I switch between multiple physical computers a lot, and like to have
+things self contained within work spaces that I can move from one
+computer to another easily, normally using `git`.  Here are a few
+tricks that I use to have the lightest touch on my local installation
+as possible.
+
+* Orientation
+
+If you want to install a specific set of software, you use a
+`Dockerfile` to create an `image`.  If the `image` is already on
+docker hub, you don't need to write a Dockerfile.
+
+Images are used to create containers, which are images that have
+started up.  They could then be stopped and restarted if you need to,
+but they have long running state.  Starting a container with `--rm`
+means that it cleans itself up after it ends, which is often what I
+want; go away after my attention wanders off.
+
+Volumes -- either docker managed or a directory exposed on the local
+file system -- is a way for the storage that a container uses to be
+more durable.  If you are running something "for real" you probably
+want to keep the data somewhere "outside" of the container so that if
+it goes away, or you update to a different image, you still have the
+data.  I don't really use this feature.
+
+* Transient vs Semi-permanent vs Permanent
+
+My usage of Docker can either be to poke at a piece of software, play
+around with it for a bit longer, or use it more seriously.  One gets a
+transient container that deletes on shutdown, the next gets a name and
+sticks around, and the final one has long term storage outside of the
+container.
+
+| Idea | Pattern                                             |
+|------+-----------------------------------------------------|
+| Poke | `docker run -it --rm`                               |
+| Play | `docker run -it --name something`                   |
+| Use  | `docker run -d --name something -v storage:storage` |
+
+* Bash template for semi-permanent
+
+In my projects I have a file called `LOCALSERVERS` that I run to make
+sure that the right containers are installed and started up when I
+start developing.  The pattern is to create one if it doesn't exist,
+and then start it if it's not started.  These containers are meant to
+stick around at least until I move on to other projects.
+
+#+begin_src bash
+if [ "$(docker container ls -a | grep pg-postgis | wc -l)" == "0" ]; then
+    echo Creating pg-postgis container
+    docker run --name pg-postgis -d -p 5432:5432 mdillon/postgis
+fi
+
+if [ "$(docker ps | grep pg-postgis | wc -l)" == "0" ]; then
+    echo Starting pg-postgis container
+    docker start pg-postgis
+fi
+#+end_src
+
+* Docker-compose
+
+When you have a bunch of interelated services, using
+=docker-compose.yml= is a great way to set things up.  Especially if you
+have volumes to attach and keep around.  It's worth mentioning that
+this is super useful, even if it doesn't fit into the 'one-liner'
+limitation.
+
+* Postgis
+
+Lets startup a postgres container that has postgis extensions
+installed:
+
+#+begin_src bash
+  docker run --name postgis -d -p 5432:5432 mdillon/postgis
+#+end_src
+
+
+* Pgadmin
+
+Need a web interface to run SQL commands?
+
+#+begin_src bash
+docker run -p 4000:80 \
+       --name pgadmin \
+       -e 'PGADMIN_DEFAULT_EMAIL=wschenk@gmail.com' \
+       -e 'PGADMIN_DEFAULT_PASSWORD=SuperSecret' \
+       -d dpage/pgadmin4
+#+end_src
+
+* Dive
+
+Explore your built images:
+
+#+begin_src bash
+docker run --rm -it \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    wagoodman/dive:latest <image>
+#+end_src
+
+* Redis
+
+Easy temporary redis instance.
+
+#+begin_src bash
+docker run --rm -it redis
+
+#+end_src
+
+* Web Proxy
+
+#+begin_src bash
+  docker run --rm -it -p 8080:8080 -p 8081:8081 mitmproxy/mitmproxy mitmweb --web-host 0.0.0.0
+#+end_src
+
+* References
+1. [[https://docs.docker.com/get-docker/][Installing Docker]]
+2. [[https://hub.docker.com/r/mdillon/postgis/][mdillon/postgis]]
+3. [[https://www.pgadmin.org/download/pgadmin-4-container/][PgAdmin Container]]
+4. [[https://github.com/wagoodman/dive][Dive]]
+5. [[https://redis.io/][Redis]]
+

@@ -1,0 +1,398 @@
+#+title: Uploading to S3 on the command line
+#+subtitle: throwing data into a bucket
+#+tags[]: bash, ruby, s3, spaces, curl
+#+date: 2021-08-22
+#+aliases[]: /articles/2021/uploading_to_s3_on_the_command_line
+
+I want to store data from a shell scripts on a S3 compatible bucket
+from with in a docker container.
+
+I'm going to be doing this on digital ocean, but I assume that any API
+compatible service would work.
+
+* Setup spaces in digital ocean
+
+I'm going to be using digital ocean for these tests, and I setup my
+bucket with the following terraform snippet.
+
+#+begin_src terraform
+  resource "digitalocean_spaces_bucket" "gratitude-public" {
+    name   = "gratitude-public"
+    region = "nyc3"
+
+    cors_rule {
+      allowed_headers = ["*"]
+      allowed_methods = ["GET"]
+      allowed_origins = ["*"]
+      max_age_seconds = 3000
+    }
+  }
+#+end_src
+
+* Environment Variables
+
+| =AWS_ACCESS_KEY_ID=     | spaces id                   |
+| =AWS_SECRET_ACCESS_KEY= | access key                  |
+| =AWS_END_POINT=         | =nyc3.digitaloceanspaces.com= |
+| =BUCKET_NAME=           | the bucket name             |
+
+* Using ruby
+
+We'll first look at how to make a simple script to upload a file using
+a self contained ruby script.
+
+#+begin_src ruby :tangle upload.rb
+  require 'bundler/inline'
+
+  gemfile do
+    source 'https://rubygems.org'
+    gem 'aws-sdk-s3'
+    gem 'rexml'
+  end
+
+  def upload_object(s3_client, bucket_name, file_name)
+    response = s3_client.put_object(
+      body: File.read(file_name),
+      bucket: bucket_name,
+      key: file_name,
+      acl: 'public-read'
+    )
+    if response.etag
+      return true
+    else
+      return false
+    end
+  rescue StandardError => e
+    puts "Error uploading object: #{e.message}"
+    return false
+  end
+
+  def run_me
+    ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_END_POINT', 'BUCKET_NAME'].each do |key|
+      throw "Set #{key}" if ENV[key].nil?
+    end
+
+    region = 'us-east-1'
+    s3_client = Aws::S3::Client.new(access_key_id: ENV['AWS_ACCESS_KEY_ID'],
+                                    secret_access_key: ENV['AWS_SECRET_ACCESS_KEY'],
+                                    endpoint: ENV['AWS_END_POINT'],
+                                    region: region)
+    uploaded = upload_object(s3_client, ENV['BUCKET_NAME'], 'upload.rb')
+    puts "Uploaded = #{uploaded}"
+  end
+
+  run_me if $PROGRAM_NAME == __FILE__
+#+end_src
+
+* Using curl (failure)
+
+This /does not work/ because the signature style isn't apt.
+
+#+begin_src bash :tangle upload.sh
+  if [ -z "${AWS_ACCESS_KEY_ID}" ] ; then
+     echo Set AWS_ACCESS_KEY_ID
+     exit 1
+  fi
+
+  if [ -z "${AWS_SECRET_ACCESS_KEY}" ] ; then
+     echo Set AWS_SECRET_ACCESS_KEY
+     exit 1
+  fi
+
+  if [ -z "${AWS_END_POINT}" ] ; then
+     echo Set AWS_END_POINT
+     exit 1
+  fi
+
+  if [ -z "${BUCKET_NAME}" ] ; then
+     echo Set BUCKET_NAME
+     exit 1
+  fi
+
+  if [ -z "${1}" ] ; then
+    echo Usage $0 filename
+    exit 1
+  fi
+
+  echo Good to upload ${1}
+
+  #echo $AWS_END_POINT
+  AWS_END_POINT=https://gratitude-public.nyc3.digitaloceanspaces.com
+  file=${1}
+  bucket="${BUCKET_NAME}"
+  contentType="application/octet-stream"
+  dateValue=`date -uR`
+  resource="/${bucket}/${file}"
+
+  stringToSign="PUT\n\n${contentType}\n${dateValue}\n${resource}"
+  echo $stringToSign
+  signature=`echo -en ${stringToSign} | openssl sha1 -hmac ${AWS_SECRET_ACCESS_KEY} -binary | base64`
+
+  echo $signature
+  echo $AWS_END_POINT
+
+
+  curl -X PUT -T "${file}" \
+       -H "Host: ${AWS_END_POINT}" \
+       -H "Date: ${dateValue}" \
+       -H "Content-Type: ${contentType}" \
+       -H "Authorization: AWS ${AWS_ACCESS_KEY_ID}:${signature}" \
+       ${AWS_END_POINT}/${resource}
+#+end_src
+* Using curl part two
+
+This uses a different signature style which works to digital ocean.
+
+#+begin_src bash :tangle upload2.sh
+  #!/bin/sh -u
+
+  # To the extent possible under law, Viktor Szakats (vsz.me)
+  # has waived all copyright and related or neighboring rights to this
+  # script.
+  # CC0 - https://creativecommons.org/publicdomain/zero/1.0/
+
+  # Upload a file to Amazon AWS S3 using Signature Version 4
+  #
+  # docs:
+  #   https://docs.aws.amazon.com/general/latest/gr/sigv4-create-canonical-request.html
+  #
+  # requires:
+  #   curl, openssl 1.x, GNU sed, LF EOLs in this file
+
+  fileLocal="${1:-example-local-file.ext}"
+  bucket="${2:-example-bucket}"
+  region="${3:-}"
+  storageClass="${4:-STANDARD}"  # or 'REDUCED_REDUNDANCY'
+
+  my_openssl() {
+    if [ -f /usr/local/opt/openssl@1.1/bin/openssl ]; then
+      /usr/local/opt/openssl@1.1/bin/openssl "$@"
+    elif [ -f /usr/local/opt/openssl/bin/openssl ]; then
+      /usr/local/opt/openssl/bin/openssl "$@"
+    else
+      openssl "$@"
+    fi
+  }
+
+  my_sed() {
+    if which gsed > /dev/null 2>&1; then
+      gsed "$@"
+    else
+      sed "$@"
+    fi
+  }
+
+  awsStringSign4() {
+    kSecret="AWS4$1"
+    kDate=$(printf         '%s' "$2" | my_openssl dgst -sha256 -hex -mac HMAC -macopt "key:${kSecret}"     2>/dev/null | my_sed 's/^.* //')
+    kRegion=$(printf       '%s' "$3" | my_openssl dgst -sha256 -hex -mac HMAC -macopt "hexkey:${kDate}"    2>/dev/null | my_sed 's/^.* //')
+    kService=$(printf      '%s' "$4" | my_openssl dgst -sha256 -hex -mac HMAC -macopt "hexkey:${kRegion}"  2>/dev/null | my_sed 's/^.* //')
+    kSigning=$(printf 'aws4_request' | my_openssl dgst -sha256 -hex -mac HMAC -macopt "hexkey:${kService}" 2>/dev/null | my_sed 's/^.* //')
+    signedString=$(printf  '%s' "$5" | my_openssl dgst -sha256 -hex -mac HMAC -macopt "hexkey:${kSigning}" 2>/dev/null | my_sed 's/^.* //')
+    printf '%s' "${signedString}"
+  }
+
+  iniGet() {
+    # based on: https://stackoverflow.com/questions/22550265/read-certain-key-from-certain-section-of-ini-file-sed-awk#comment34321563_22550640
+    printf '%s' "$(my_sed -n -E "/\[$2\]/,/\[.*\]/{/$3/s/(.*)=[ \\t]*(.*)/\2/p}" "$1")"
+  }
+
+  # Initialize access keys
+
+  if [ -z "${AWS_CONFIG_FILE:-}" ]; then
+    if [ -z "${AWS_ACCESS_KEY_ID:-}" ]; then
+      echo 'AWS_CONFIG_FILE or AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY envvars not set.'
+      exit 1
+    else
+      awsAccess="${AWS_ACCESS_KEY_ID}"
+      awsSecret="${AWS_SECRET_ACCESS_KEY}"
+      awsRegion='us-east-1'
+    fi
+  else
+    awsProfile='default'
+
+    # Read standard aws-cli configuration file
+    # pointed to by the envvar AWS_CONFIG_FILE
+    awsAccess="$(iniGet "${AWS_CONFIG_FILE}" "${awsProfile}" 'aws_access_key_id')"
+    awsSecret="$(iniGet "${AWS_CONFIG_FILE}" "${awsProfile}" 'aws_secret_access_key')"
+    awsRegion="$(iniGet "${AWS_CONFIG_FILE}" "${awsProfile}" 'region')"
+  fi
+
+  # Initialize defaults
+
+  fileRemote="${fileLocal}"
+
+  if [ -z "${region}" ]; then
+    region="${awsRegion}"
+  fi
+
+  echo "Uploading" "${fileLocal}" "->" "${bucket}" "${region}" "${storageClass}"
+  echo "| $(uname) | $(my_openssl version) | $(my_sed --version | head -1) |"
+
+  # Initialize helper variables
+
+  httpReq='PUT'
+  authType='AWS4-HMAC-SHA256'
+  service='s3'
+  baseUrl=".${service}.amazonaws.com"
+  baseUrl=".nyc3.digitaloceanspaces.com"
+  dateValueS=$(date -u +'%Y%m%d')
+  dateValueL=$(date -u +'%Y%m%dT%H%M%SZ')
+  if hash file 2>/dev/null; then
+    contentType="$(file --brief --mime-type "${fileLocal}")"
+  else
+    contentType='application/octet-stream'
+  fi
+
+  # 0. Hash the file to be uploaded
+
+  if [ -f "${fileLocal}" ]; then
+    payloadHash=$(my_openssl dgst -sha256 -hex < "${fileLocal}" 2>/dev/null | my_sed 's/^.* //')
+  else
+    echo "File not found: '${fileLocal}'"
+    exit 1
+  fi
+
+  # 1. Create canonical request
+
+  # NOTE: order significant in ${headerList} and ${canonicalRequest}
+
+  headerList='content-type;host;x-amz-content-sha256;x-amz-date;x-amz-server-side-encryption;x-amz-storage-class'
+
+  canonicalRequest="\
+  ${httpReq}
+  /${fileRemote}
+
+  content-type:${contentType}
+  host:${bucket}${baseUrl}
+  x-amz-content-sha256:${payloadHash}
+  x-amz-date:${dateValueL}
+  x-amz-server-side-encryption:AES256
+  x-amz-storage-class:${storageClass}
+
+  ${headerList}
+  ${payloadHash}"
+
+  # Hash it
+
+  canonicalRequestHash=$(printf '%s' "${canonicalRequest}" | my_openssl dgst -sha256 -hex 2>/dev/null | my_sed 's/^.* //')
+
+  # 2. Create string to sign
+
+  stringToSign="\
+  ${authType}
+  ${dateValueL}
+  ${dateValueS}/${region}/${service}/aws4_request
+  ${canonicalRequestHash}"
+
+  # 3. Sign the string
+
+  signature=$(awsStringSign4 "${awsSecret}" "${dateValueS}" "${region}" "${service}" "${stringToSign}")
+
+  # Upload
+
+  curl --location --proto-redir =https --request "${httpReq}" --upload-file "${fileLocal}" \
+    --header "Content-Type: ${contentType}" \
+    --header "Host: ${bucket}${baseUrl}" \
+    --header "X-Amz-Content-SHA256: ${payloadHash}" \
+    --header "X-Amz-Date: ${dateValueL}" \
+    --header "X-Amz-Server-Side-Encryption: AES256" \
+    --header "X-Amz-Storage-Class: ${storageClass}" \
+    --header "Authorization: ${authType} Credential=${awsAccess}/${dateValueS}/${region}/${service}/aws4_request, SignedHeaders=${headerList}, Signature=${signature}" \
+    "https://${bucket}${baseUrl}/${fileRemote}"
+#+end_src
+* Debian aws cli tools
+
+#+begin_src dockerfile :tangle Dockerfile.awscli
+  FROM debian:11
+  RUN apt update && apt install -y unzip curl
+  RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && unzip awscliv2.zip && ./aws/install 
+
+      #RUN apt install -y wget gnupg
+      #RUN wget -O- -q http://s3tools.org/repo/deb-all/stable/s3tools.key | apt-key add -
+    #RUN wget -O /etc/apt/sources.list.d/s3tools.list http://s3tools.org/repo/deb-all/stable/s3tools.list
+    #RUN apt update && apt install s3cmd
+  CMD bash
+#+end_src
+
+Then build with
+
+#+begin_src bash
+docker build . -f Dockerfile.awscli -t awscli
+#+end_src
+
+Now run it, passing in the right environment variables:
+
+#+begin_src bash
+  docker run --rm -it \
+         -e AWS_ACCESS_KEY_ID \
+         -e AWS_SECRET_ACCESS_KEY \
+         -e AWS_END_POINT \
+         -e BUCKET_NAME \
+         awscli
+#+end_src
+
+Then to list the buckets:
+
+#+begin_src bash
+aws s3 ls --endpoint=${AWS_END_POINT}
+#+end_src
+
+And to copy a file over:
+
+#+begin_src bash
+aws s3 cp testfile s3://${BUCKET_NAME}/testfile --acl public-read --endpoint=${AWS_END_POINT} 
+#+end_src
+* s3cmd
+
+#+begin_src Dockerfile :tangle Dockerfile.s3cmd
+FROM debian:11
+RUN apt update
+RUN apt install -y curl unzip python python-setuptools # python-dateutil python-setuptools
+WORKDIR /tmp
+RUN curl -LJO https://github.com/s3tools/s3cmd/releases/download/v2.1.0/s3cmd-2.1.0.zip && \
+    unzip s3cmd-2.1.0.zip && rm s3cmd-2.1.0.zip && cd s3cmd-2.1.0 && \
+    python setup.py install && rm -rf /tmp/s3cmd-2.1.0
+WORKDIR /app
+CMD bash
+#+end_src
+
+#+begin_src bash
+docker build . -f Dockerfile.s3cmd -t s3cmd
+#+end_src
+
+#+begin_src bash
+  docker run --rm -it \
+         -e AWS_ACCESS_KEY_ID \
+         -e AWS_SECRET_ACCESS_KEY \
+         -e AWS_END_POINT \
+         -e BUCKET_NAME \
+         s3cmd
+#+end_src
+
+Then to copy over a file
+
+#+begin_src bash
+  s3cmd put testfile2 s3://${BUCKET_NAME} --acl-public \
+        --host=nyc3.digitaloceanspaces.com \
+        --host-bucket=${BUCKET}s.nyc3.digitaloceanspaces.com
+
+#+end_src
+
+=s3cmd= has a lot more functionality other than copying, so if you are
+looking for something more complex -- like mirroring -- it is worth
+exploring.
+
+* References
+
+1. https://superuser.com/questions/279986/uploading-files-to-s3-account-from-linux-command-line
+2. https://gist.github.com/chrismdp/6c6b6c825b07f680e710
+3. https://tmont.com/blargh/2014/1/uploading-to-s3-in-bash
+4. https://s3tools.org/s3cmd
+5. https://github.com/s3tools/s3cmd/issues/1018
+6. https://docs.digitalocean.com/products/spaces/resources/s3cmd/
+7. https://gist.github.com/vszakats/2917d28a951844ab80b1
+         
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

@@ -2,8 +2,6 @@
 title: Leveraging disposability for exploration
 subtitle: how to play around without leaving a mess
 tags:
-  - howto
-  - overview
   - docker
   - node
   - transient

@@ -1,0 +1,83 @@
+#+title: K8 Dashboard on Docker Desktop
+#+subtitle: what's going on
+#+tags[]: kubernetes, docker
+#+date: 2021-11-28
+#+aliases[]: /articles/2021/k8_dashboard_on_docker_desktop
+
+Pretty easy to setup, but here are the steps.
+
+* Docker Desktop
+
+To easily get going on a local Mac, you can install the compoents
+using homebrew.
+
+#+begin_src bash
+  brew install --cask docker
+  brew install kubernetes-cli
+  brew install kn
+#+end_src
+
+Start up Docker, and then turn on kubernetes and make sure that you
+have a running node.
+
+#+begin_src bash :results output
+  kubectl get nodes
+#+end_src
+
+#+RESULTS:
+: NAME             STATUS   ROLES                  AGE     VERSION
+: docker-desktop   Ready    control-plane,master   5h59m   v1.21.5
+
+* Install kubenetes dashboard
+It's nice to have a local dashboard to see whats' going on.
+
+#+begin_src bash :results output
+  kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.4.0/aio/deploy/recommended.yaml
+#+end_src
+
+Then create a service account =account.yaml=:
+
+#+begin_src yaml :tangle account.yaml
+  apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: admin-user
+    namespace: kubernetes-dashboard
+  ---
+  apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRoleBinding
+  metadata:
+    name: admin-user
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: cluster-admin
+  subjects:
+  - kind: ServiceAccount
+    name: admin-user
+    namespace: kubernetes-dashboard
+#+end_src
+
+Apply it:
+
+#+begin_src bash :results output
+  kubectl apply -f account.yaml
+#+end_src
+
+Then you can get the token into your clipboard:
+
+#+begin_src bash
+  kubectl -n kubernetes-dashboard get secret \
+          $(kubectl -n kubernetes-dashboard get sa/admin-user -o jsonpath="{.secrets[0].name}") \
+          -o go-template="{{.data.token | base64decode}}" | \
+    pbcopy
+#+end_src
+
+Finally, setup a proxy to access the dashboard:
+
+#+begin_src bash
+kubectl proxy &
+#+end_src
+
+And point your browser to [[http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/]]
+

@@ -1,5 +1,6 @@
 ---
-title: "Who am I"
+title: About
 ---
 
-Bio tbd.
+Hello, this is me.
+

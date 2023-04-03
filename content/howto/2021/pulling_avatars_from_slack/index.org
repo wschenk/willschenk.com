@@ -1,0 +1,307 @@
+#+title: Pulling avatars from slack
+#+subtitle: Basic bot integration
+#+tags[]: slack, nextjs, bot
+#+date: 2021-12-19
+#+aliases[]: /articles/2021/pulling_avatars_from_slack
+
+* Create a slack app
+First we need to [[https://api.slack.com/authentication/basics][create a slack application]].
+
+Create a new app, and add the following scopes
+
+- =users:read.email=
+- =users:read=
+- =users.profile:read=
+- =chat:write:bot=
+
+** Manifest
+  
+We are going to use a
+manifest, so we can tweak things as we go.
+
+#+begin_src yaml :tangle manifest.yaml
+  _metadata:
+    major_version: 1
+  display_information:
+    name: HappyFunCorp App
+  settings:
+    org_deploy_enabled: false
+    socket_mode_enabled: false
+    is_hosted: false
+    token_rotation_enabled: false
+
+#+end_src
+
+* Create the database and schema
+
+#+begin_src bash :results output
+  npm install prisma
+  npx prisma init
+#+end_src
+
+Setup the schema in =prisma/schema.prisma=
+
+#+begin_src text :tangle prisma/schema.prisma
+  generator client {
+    provider = "prisma-client-js"
+  }
+
+  datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+  }
+
+  model SlackUser {
+    id           String       @id
+    name         String
+    email        String?
+    deleted      Boolean
+    admin        Boolean?
+    restricted   Boolean?
+    bot          Boolean
+    tz           String?
+    title        String?
+    skype        String?
+    real_name    String?
+    display_name String?
+    status_text  String?
+    status_emoji String?
+    custom_image Boolean?
+    original_image String?
+    }
+#+end_src
+
+Start a database if you don't have one
+
+#+begin_src bash
+  docker run -d -e POSTGRES_PASSWORD=awesome_password -p 5432:5432 postgres
+#+end_src
+
+And create the migrations
+
+#+begin_src bash :results output
+  npx prisma migrate dev --name init
+#+end_src
+
+* Installing =@slack/bolt=
+
+#+begin_src bash :results output
+npm install @slack/bot dotenv
+#+end_src
+
+* =users-list.js=
+
+#+begin_src javascript :tangle users-list.js
+  const { App } = require('@slack/bolt');
+  require('dotenv').config()
+  const { PrismaClient } = require('@prisma/client')
+  const prisma = new PrismaClient()
+
+  const fs = require('fs')
+
+  const app = new App({
+    signingSecret: process.env.SLACK_SIGNING_SECRET,
+    token: process.env.SLACK_BOT_TOKEN,
+  });
+
+  (async () => {
+      console.log( "Getting user list from slack" )
+      const slackdata = await app.client.users.list()
+
+
+      if( slackdata["ok"] ) {
+          const data = []
+          slackdata["members"].map( (e) => {            
+              data.push({
+                  id: e["id"],
+                  name: e["name"],
+                  email: e["profile"]["email"],
+                  deleted: e["deleted"],
+                  admin: e["is_admin"],
+                  restricted: e["is_restricted"],
+                  bot: e["is_bot"],
+                  tz: e["tz"],
+                  title: e["profile"]["title"],
+                  skype: e["profile"]["skype"],
+                  real_name: e["profile"]["real_name"],
+                  display_name: e["profile"]["display_name"],
+                  status_text: e["profile"]["status_text"],
+                  status_email: e["profile"]["status_email"],
+                  status_emoji: e["profile"]["status_emoji"],
+                  custom_image: e["profile"]["is_custom_image"],
+                  original_image: e["profile"]["image_original"],
+              })
+          })
+
+          console.log( `Found ${data.length} accounts, updating database` );
+
+          while( data.length > 0 ) {
+              const e = data.pop();
+
+              // console.log( `Updating/created ${e['name']}` )
+
+              const user = await prisma.slackUser.upsert({
+                  where: { id: e['id'] },
+                  update: e,
+                  create: e
+              })
+
+          }
+
+          console.log( "Done" );
+      }
+  })();
+
+#+end_src
+* Create a =nextjs= app
+
+** Base
+#+begin_src bash
+  npm install next react react-dom
+#+end_src
+
+Update =package.json=:
+
+#+begin_src json
+  {
+      "scripts": {
+          "dev": "next dev",
+          "build": "next build",
+          "start": "next start",
+          "lint": "next lint"
+      }
+  }
+#+end_src
+
+And then create a sample =pages/index.js=
+
+#+begin_src javascript :tangle pages/index.js
+  const { PrismaClient } = require("@prisma/client");
+  const prisma = new PrismaClient();
+  const { MessageSender } = require("../components/messageSender");
+
+  function Home({ users }) {
+    return (
+      <div>
+        <div className="d-flex flex-wrap justify-content-around">
+          {users.map((u) => (
+            <div key={u.id} className="card mt-3" style={{ width: "18rem" }}>
+              <div className="card-body">
+                {u.custom_image && (
+                  <img src={u.original_image} className="card-img-top" />
+                )}
+                <h5 className="card-title">{u.name}</h5>
+                <p className="card-text">
+                  {u.real_name}
+                  <br />
+                  {u.title}
+                  <br />
+                  <a href={`mailto:${u.email}`}>{u.email}</a>
+                </p>
+                <MessageSender user={u} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  export async function getServerSideProps(context) {
+    const users = await prisma.slackUser.findMany({
+      where: {
+        deleted: false,
+        restricted: false,
+      },
+    });
+
+    return {
+      props: { users }, // will be passed to the page component as props
+    };
+  }
+  export default Home;
+#+end_src
+
+And also the =MessageSender= component in =components/messageSender.jsx=:
+
+#+begin_src javascript :tangle components/messageSender.jsx
+  export const MessageSender = ({ user }) => {
+    return (
+      <form action="/api/sendMessage" method="get">
+        <input
+          type="text"
+          name="message"
+          placeholder={`message to ${user.name}`}
+        />
+        <input type="hidden" name="id" value={user.id} />
+        <button type="submit" className="btn-primary">
+          Send
+        </button>
+      </form>
+    );
+  };
+#+end_src
+
+** Sending a message
+
+Lets create the api call to actually send the message:
+
+#+begin_src javascript :tangle components/sendMessage.js
+  const { App } = require("@slack/bolt");
+
+  export default async function handler(req, res) {
+    const app = new App({
+      signingSecret: process.env.SLACK_SIGNING_SECRET,
+      token: process.env.SLACK_BOT_TOKEN,
+    });
+
+    const { id, message } = req.query;
+
+    console.log(`Sending ${message} to ${id}`);
+
+    if (id && message) {
+      try {
+        // Call the chat.postMessage method using the WebClient
+        const result = await app.client.chat.postMessage({
+          channel: id,
+          text: message,
+        });
+
+        console.log(result);
+
+        res.status(200).json({ id, message, ok: result.ok });
+      } catch (error) {
+        console.error(error);
+        res.status(500).json({ id, message, result: error.toString() });
+      }
+
+      res.status(200).json({ id, message, action: "Sent" });
+    } else {
+      res.status(404).json({ action: "Not Sent", reason: "Missing params" });
+    }
+  }
+#+end_src
+
+** Styling
+
+#+begin_src bash
+  npm install bootstrap
+#+end_src
+
+=pages/_app.js=:
+#+begin_src javascript :tangle pages/_app.js
+  // pages/_app.js
+  import 'bootstrap/dist/css/bootstrap.css'
+
+  export default function MyApp({ Component, pageProps }) {
+      return <div className="container">
+          <Component {...pageProps} />
+          </div>
+  }
+#+end_src
+
+
+* References
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

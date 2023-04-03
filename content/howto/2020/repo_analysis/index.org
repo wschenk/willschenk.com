@@ -1,0 +1,250 @@
+#+title: Repo analysis
+#+subtitle: looking at the open source eco system
+#+tags[]: git, foss
+#+date: 2020-08-17
+#+draft: true
+
+* List of repositories
+
+We'll need a list of repositories that we want to look at.  Here's a
+smattering of things that I track.
+
+We want to track specifically git-remotes across multiple hosting
+providers.  While [[https://github.com][GitHub]] is clearly the leader and has a special place
+in the ecosystem, it's not the only game in town.  In some way you
+could say that GitHub is good for corporate and "open source" hosting,
+while the others are more around "free software" and people doing
+things on their own.
+
+#+begin_src bash :tangle repo_list
+https://github.com/ruby-git/ruby-git.git
+https://github.com/camping/camping.git
+https://github.com/huginn/huginn.git
+https://github.com/alpinejs/alpine.git
+https://github.com/hundredrabbits/Dotgrid.git
+https://github.com/plotly/plotly.js.git
+https://github.com/mouse-reeve/fedireads.git
+https://github.com/alpinejs/alpine.git
+https://github.com/trailofbits/algo.git
+https://github.com/lovasoa/dezoomify.git
+https://github.com/szymonkaliski/archivist.git
+https://github.com/pikapkg/snowpack-init.git
+https://github.com/dominictarr/scalable-secure-scuttlebutt.git
+https://github.com/fpereiro/backendlore.git
+https://github.com/yusefnapora/pixelbook-linux.git
+https://github.com/sissbruecker/linkding.git
+https://github.com/hakimel/reveal.js.git
+https://github.com/automaticmode/active_workflow.git
+https://github.com/z0al/unread.git
+https://github.com/ipfs-shipyard/react-ipfs-url.git
+https://github.com/3b1b/manim.git
+https://github.com/mathieudutour/medium-to-own-blog.git
+https://github.com/marylychee/ssb-website-2.0.git
+https://github.com/ianstormtaylor/slate.git
+https://github.com/dangerousbeans/secret-islands.git
+https://github.com/davedx/mars-power.git
+https://github.com/dangerousbeans/vue-ssb.git
+https://github.com/cimryan/teslausb.git
+https://github.com/GoogleChromeLabs/comlink.git
+https://github.com/minamarkham/formation.git
+https://github.com/ipfs-shipyard/ipfs-deploy.git
+https://github.com/0x20/hackerspace-blueprint.git
+https://github.com/vadimdemedes/pastel.git
+https://github.com/cjdelisle/cjdns.git
+http://git.sv.gnu.org/r/guile.git
+https://git.sr.ht/~vdupras/collapseos
+https://git.sr.ht/~vpzom/lotide
+https://git.sr.ht/~ft/zuke
+https://gitlab.com/nonguix/nonguix.git
+https://gitlab.com/gitlab-org/gitter/webapp.git
+https://gitlab.com/staltz/manyverse.git
+https://gitlab.com/planglois/nonguix.git
+#+end_src
+
+* Get the repos to the local file system
+
+We need to actually pull down these repositories onto the local
+system.  When it run it a second time, its faster to update than it is
+to clone.
+
+Especially since the list above results in about 1.7G of source
+data. (This includes whatever is in the repository, including all
+historical commits.)
+
+#+begin_src bash :tangle syncer.bash
+  #!/bin/bash
+
+  WORKDIR=/tmp/repos
+
+  mkdir -p $WORKDIR
+
+  while IFS= read -r repo
+  do
+      PROJDIR=$(echo ${repo} | sed 's/.*\/\///g')
+
+      mkdir -p ${WORKDIR}/${PROJDIR}
+      cd ${WORKDIR}/${PROJDIR}
+
+      if [ -d repo ]; then
+          echo Updating repository ${repo}
+          cd repo
+          git pull origin master
+      else
+          echo Initial clone of ${repo}
+          git clone ${repo} repo
+      fi
+  done < repo_list
+
+#+end_src
+
+* Checking for files of note in a project
+
+Ruby projects have =Gemfile=, node projects have =package.json=.  Let's
+try and recognize them, and make a map in the top level directory to
+understand a bit more about how they interact with the rest of the
+ecosystem.
+
+#+begin_src ruby :tangle profile.rb
+  require 'json'
+
+  WORKDIR="/tmp/repos"
+
+  Fingerprint = Struct.new :dir,
+                           :license,
+                           :readme,
+                           :gemfile,
+                           :gemfilelock,
+                           :gemspec,
+                           :packagejson,
+                           :packagelockjson,
+                           :dockerfile,
+                           :changelog,
+                           :funding,
+                           :maintainers,
+                           :issue_template,
+                           :pull_request_template,
+                           :ci
+
+  def patterncheck dir, pattern
+    Dir.entries( dir ).select do |f|
+      f =~ /#{pattern}/i
+    end
+  end
+
+  def exactcheck dir, pattern
+    if Dir.exist? dir
+      Dir.entries( dir ).select do |f|
+        f == pattern
+      end
+    end
+  end
+
+  def repo_checker dir
+    i = Fingerprint.new
+
+    i.dir = dir
+    i.license = patterncheck dir, "license"
+    i.readme = patterncheck dir, "readme"
+    i.gemfile = exactcheck dir, "Gemfile"
+    i.gemfilelock = exactcheck dir, "Gemfile.lock"
+    i.gemspec = patterncheck dir, ".gemspec"
+    i.packagejson = exactcheck dir, "package.json"
+    i.packagelockjson = exactcheck dir, "package-lock.json"
+    i.dockerfile = exactcheck dir, "Dockerfile"
+    i.changelog = patterncheck dir, "changelog"
+    i.maintainers = patterncheck dir, "maintainers"
+    i.issue_template = patterncheck dir, "issue_template"
+    i.funding = exactcheck "#{dir}/.github", "FUNDING.yml"
+    i.pull_request_template = patterncheck dir, "pull_request_template"
+
+    i
+  end
+
+  `find #{WORKDIR} -name repo -type d -print`.each_line do |dir|
+    dir.chomp!
+    info = repo_checker dir
+
+    if info.changelog
+      puts "#{dir} changelog"
+    end
+    File.open( "#{dir}/../profile.json", "w" ) { |out| out.puts info.to_h.to_json }
+
+  
+  end
+
+#+end_src
+
+* Git Stats
+
+Using =askgit= we can do some high level querying to see what's going on in the repository.
+
+#+begin_src bash :tangle gitstats.bash :results output
+  #!/bin/bash
+
+  WORKDIR=/tmp/repos
+
+  function runstats {
+      cd $1
+      pwd
+
+      if [ ! -f ../first_commit.json ]; then
+          askgit "select message, author_name, author_email, author_when 
+                 from commits order by committer_when asc limit 1" --format json > ../first_commit.json
+      fi
+
+      askgit "select summary, author_name, author_when, additions 
+             from commits order by additions desc limit 10" --format json > ../big_adds.json
+      askgit "select summary, author_name, author_when, deletions 
+             from commits order by deletions desc limit 10" --format json > ../big_dels.json
+
+      askgit "select count(*) as count, author_name 
+             from commits group by author_name 
+             order by count desc" --format json > ../commiters.json
+
+      askgit "select strftime(\"%Y-%m\", author_when) as 'month', 
+         count(*) as total_commits, sum(additions), sum(deletions)
+         from commits group by strftime(\"%Y-%me\", author_when) 
+         order by strftime(\"%Y-%m\", author_when);" --format json > ../commits_timeline.json
+
+
+      askgit "select name, commits.id, commits.message, author_name, author_email, author_when 
+             from tags, commits where tags.target_type = commits.id order by author_when" --format json > ../tags.json
+
+      askgit "select name, commits.id, author_when from tags, commits 
+             where tags.target_type = commits.id order by author_when" --format csv > ../tags.csv 
+
+      PREV_DATE=$(askgit "select min(author_when) as first from commits" --format csv |grep -v first)
+      while IFS=, read -r tag id date; do
+          if [[ "$tag" != "name" ]]; then
+              echo ${tag},${id},${PREV_DATE},${date}
+              PREV_DATE=${date}
+          fi
+      done < ../tags.csv > ../tag_ranges.csv
+
+      #mkdir -p ../tags
+
+      #while IFS=, read -r tag id start end; do
+      #echo $tag
+      #askgit "select count(*) as count from commits where author_when > '${start}' and author_when <= '${end}'" --format json | jq .count 
+      #askgit "select count(*) as count, author_name from commits where author_when > '${start}' and author_when <= '${end}' group by author_name order by count desc"
+      #done < ../tag_ranges.csv
+  }
+
+
+  find ${WORKDIR} -name repo -type d -print |  
+  while IFS= read -r repo
+  do
+  runstats $repo
+  exit
+      echo repo is $repo
+  done
+#+end_src
+
+#+RESULTS:
+: /tmp/repos/github.com/ruby-git/ruby-git.git/repo
+
+* References
+
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

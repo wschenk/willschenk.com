@@ -1,0 +1,300 @@
+#+title: Setting up an IPFS Node
+#+subtitle: using docker-compose and certbot
+#+tags[]: ipfs, docker, docker-compose, certbot
+#+date: 2019-09-07
+#+aliases[]: /articles/2019/setting_up_an_ipfs_node
+
+IPFS nodes that run in the broswer communicate over websockets to the main network.  Lets walk through how to setup a IPFS server that your browser code can connect to in addition to the public gateways.
+
+* Strategy
+1. Wire everything up with =docker-compose=
+2. Create and configure an =ipfs= container
+3. Setup =nginx= with dummy certificate
+4. Replace that certificate with =certbot=
+5. Setup =certbot= to auto renew the certificates
+
+* Requirements
+You will need:
+
+1. A server with a domain or subdomain to use =certbot= to get a certificate
+2. A working docker-compose install
+
+I'm using a prebuilt docker image on [[https://www.digitalocean.com/][Digital Ocean]] but the key part is to get the domain name.
+* Setting up =ipfs=
+** =docker-compose= setup
+
+We are going to pull from the official ipfs docker image.  The =IPFS_PROFILE= environment variable is used on the initial repository installation configure a specific profile, in this case =server=, which will remove some of the local network scanning stuff that could make your hosting provider uneasy.  We will also define the storage directory in =/ipfsdata= which we will mount to the local file system in =./data/ipfs=.  This is to keep any local data around if you remove the server or decide to upgrade your installation, but it's not strictly necessary if you are using this as a sort of cache.
+
+We expose some ports here. =4001= is the ipfs swarm port and needs to be open to the world.  If you are running a firewall you should unblock that port. =8080= is the local gateway which will we expose only to localhost, =8081= is where we are going to run the websocket listener -- we will proxy through =nginx= later in this document, and =5001= is the api server which should not be exposed externally.
+
+#+BEGIN_SRC yml
+version: '3'
+services:
+  ipfs:
+    image: ipfs/go-ipfs:latest
+    environment:
+      - IPFS_PROFILE=server
+      - IPFS_PATH=/ipfsdata
+    volumes:
+      - ./data/ipfs:/ipfsdata
+    ports:
+      - "4001:4001"
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:8081:8081"
+      - "127.0.0.1:5001:5001"
+#+END_SRC
+
+** Verifying basic install
+
+#+BEGIN_SRC bash
+docker-compose up -d ipfs
+#+END_SRC
+
+Look at the logs to make sure that it's started up:
+
+#+BEGIN_SRC bash
+docker-compose logs ipfs
+#+END_SRC
+
+See if it's connected to any peers:
+
+#+BEGIN_SRC bash
+docker-compose exec ipfs ipfs swarm peers
+#+END_SRC
+
+See if we can get any data:
+
+#+BEGIN_SRC bash
+curl http://127.0.0.1:8080/ipfs/QmPChd2hVbrJ6bfo3WBcTW4iZnpHm8TEzWkLHmLpXhF68A
+#+END_SRC
+
+** Configuring websockets and relay
+Add the websocket listener and RelayHop
+
+#+BEGIN_SRC bash
+docker-compose exec ipfs ipfs config Addresses.Swarm '["/ip4/0.0.0.0/tcp/4001", "/ip4/0.0.0.0/tcp/8081/ws", "/ip6/::/tcp/4001"]' --json
+docker-compose exec ipfs ipfs config --bool Swarm.EnableRelayHop true 
+docker-compose exec ipfs ipfs config --bool Swarm.EnableAutoNATService true
+docker-compose exec ipfs ipfs config --bool Swarm.EnableAutoRelay true
+#+END_SRC
+
+And then restart
+
+#+BEGIN_SRC bash
+docker-compose restart ipfs
+#+END_SRC
+* Adding =nginx= and =certbot= containers
+
+We are going to use =docker-compose= to setup 3 services.
+
+1. nginx
+2. certbot
+3. ipfs
+
+=nginx= will listen on HTTP (80) and HTTPS (443).  On port 80 it will redirect to 443, and our content will either be served from there or proxied back to the =ipfs= node.  The configuration, letsencrypt keys, and certbot web data will be exposed as volumes to be configure nginx, and to share data with the =certbot= service.
+
+=certbot= as a service will be used to update our certificates when they expire.  We will manually coordinate the initial certificate generation, and the role of this service is mainly to deal with refreshing them as the certificates expire.  This shares two volumes with the =nginx= server to store the certificates themselves, as well as managing the web handshake. No ports are exposed.
+
+
+#+BEGIN_SRC yml
+version: '3'
+services:
+  nginx:
+    image: nginx:1.17.2
+    ports:
+      - "80:80"
+      - "443:443"
+      - "4003:4003"
+    volumes:
+      - ./data/nginx:/etc/nginx/conf.d
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+  ipfs:
+    image: ipfs/go-ipfs:latest
+    environment:
+      - IPFS_PROFILE=server
+      - IPFS_PATH=/ipfsdata
+    volumes:
+      - ./data/ipfs:/ipfsdata
+    ports:
+      - "4001:4001"
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:8081:8081"
+      - "127.0.0.1:5001:5001"
+#+END_SRC
+* NGINX & Certbot
+** Create NGINX config
+
+We configure nginx to listen on ports 80 and 443.  For the HTTP server, we give it a name (in my case =ssb.willschenk.com=) and redirect everything to the =https= server, except the location =/.will-known/acme-challenege/= which =certbot= is going to use to negotiate with the letsencrypt servers to generate our certficate.  You'll notice that this directory is shared with the =certbot= docker image.
+
+On the HTTPS side, we are pointing to our certificate folder and nginx configuration that we will get from certbot.  And then we proxy most of the traffic to the =ipfs= container.  Note that we are using =http://ipfs:8081= which, inside of the =nginx= container configured using =docker-compose=, will point to the =ipfs= container managed by =docker-compose=.
+
+Put this file in =./data/nginx/app.conf=:
+
+#+BEGIN_SRC conf
+server {
+    listen 80;
+    server_name ssb.willschenk.com;
+    location / {
+        return 301 https://$host$request_uri;
+    }
+
+    location /.well-known/acme-challenge/ {
+    	root /var/www/certbot;
+    }
+}
+server {
+    listen 443 ssl;
+    server_name ssb.willschenk.com;
+
+    ssl_certificate /etc/letsencrypt/live/ssb.willschenk.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/ssb.willschenk.com/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+    
+    location / {
+    	proxy_pass http://ipfs:8080;
+    	proxy_set_header Host $host;
+    	proxy_cache_bypass $http_upgrade;
+    }
+}
+
+server {
+    listen 4003 ssl;
+    server_name ssb.willschenk.com;
+
+    ssl_certificate /etc/letsencrypt/live/ssb.willschenk.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/ssb.willschenk.com/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+    
+    location / {
+        proxy_pass http://ipfs:8081;
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+
+#+END_SRC
+
+** Pull down certbot config files for nginx
+
+#+BEGIN_SRC bash
+  data_path=./data/certbot
+  mkdir -p "$data_path/conf"
+  curl -s https://raw.githubusercontent.com/certbot/certbot/master/certbot-nginx/certbot_nginx/tls_configs/options-ssl-nginx.conf > "$data_path/conf/options-ssl-nginx.conf"
+  curl -s https://raw.githubusercontent.com/certbot/certbot/master/certbot/ssl-dhparams.pem > "$data_path/conf/ssl-dhparams.pem"
+#+END_SRC
+
+** Setup initial certificates
+
+nginx won't startup ssl without a certificate, and we need to have the http server running for the certbot handshake.  To get around this we will create a temporary self-signed certificate that we will use to set things up.
+
+#+BEGIN_SRC bash
+domain=ssb.willschenk.com
+path=/etc/letsencrypt/live/$domain
+mkdir -p ./data/certbot/conf/live/$domain
+docker-compose run --rm --entrypoint "\
+  openssl req -x509 -nodes -newkey rsa:1024 -days 1\
+    -keyout '$path/privkey.pem' \
+    -out '$path/fullchain.pem' \
+    -subj '/CN=localhost'" certbot
+#+END_SRC
+
+** Get the real certs
+
+First start up the ipfs and nginx containers
+
+#+BEGIN_SRC bash
+docker-compose up -d ipfs
+docker-compose up -d nginx
+#+END_SRC
+
+Check out the logs for nginx to make sure that there are no errors, with =docker-compose logs nginx=.  If it has successfully started up, remove the temporary certificates:
+
+#+BEGIN_SRC bash
+docker-compose run --rm --entrypoint "\
+  rm -Rf /etc/letsencrypt/live/$domain && \
+  rm -Rf /etc/letsencrypt/archive/$domain && \
+  rm -Rf /etc/letsencrypt/renewal/$domain.conf" certbot
+#+END_SRC
+
+Then start a on-off certbot container to do the request, changing your email address:
+
+#+BEGIN_SRC bash
+email_arg=wschenk@gmail.com
+docker-compose run --rm --entrypoint "\
+  certbot certonly --webroot -w /var/www/certbot \
+    --email $email_arg \
+    -d $domain
+    --rsa-key-size 4096 \
+    --agree-tos \
+    --force-renewal" certbot
+#+END_SRC
+
+Answer some questions, and you should now have some valid certificates.
+
+** Restart everything
+
+Now lets bring everything down, and start it up like it will in the future:
+
+#+BEGIN_SRC bash
+docker-compose down
+docker-compose up -d
+#+END_SRC
+
+And remember you can check the individual logs with =docker-compose logs name= where name is one of =ipfs=, =nginx=, =certbot=
+
+* Testing it out
+** Checking to see if you have =ipfs= peers
+
+From the host machine:
+
+#+BEGIN_SRC bash
+curl http://127.0.0.1:5001/api/v0/swarm/peers|jq
+#+END_SRC
+
+Or using the ipfs command inside of the container:
+
+#+BEGIN_SRC bash
+docker-compose exec ipfs ipfs swarm peers
+#+END_SRC
+** Checking to see if your new public gateway works
+You can do this from your webbrowser or the command line.
+
+#+BEGIN_SRC bash
+curl https://ssb.willschenk.com/ipfs/QmPChd2hVbrJ6bfo3WBcTW4iZnpHm8TEzWkLHmLpXhF68A
+#+END_SRC
+** Checking to make sure that API isn't exposed to the internet
+
+From another computer, make sure that you haven't exposed this port to the wild wild world:
+
+#+BEGIN_SRC bash
+curl http://ssb.willschenk.com:5001/api/v0/swarm/peers|jq
+#+END_SRC
+
+** Checking WebSockets
+
+Visit [[https://www.websocket.org/echo.html]] and put in the address of your server to make sure that you can connect over websockets.  In my case, it's =wss://ssb.willschenk.com:4003=
+
+* Conclusion
+From here you should be able to start working with your node directly.  In a later post we'll use some JavaScript code in the browser that will connect to your peer and walk through actually using the node a bit more.  Have fun!
+
+* References
+1. [[https://medium.com/@pentacent/nginx-and-lets-encrypt-with-docker-in-less-than-5-minutes-b4b8a60d3a71][nginx and docker]]
+2. [[https://raw.githubusercontent.com/wmnnd/nginx-certbot/master/init-letsencrypt.sh][init-letsencrypt.sh]]
+3. [[https://medium.com/textileio/tutorial-setting-up-an-ipfs-peer-part-ii-67a99cd2c5][Setting up an IPFS Peer]]
+4. [[https://hackernoon.com/public-ipfs-node-behind-nginx-reverse-proxy-5682747f174b][ipfs node behing reverse proxy]]
+5. https://github.com/ipfs/js-ipfs/tree/master/examples
+6. https://hub.docker.com/r/ipfs/js-ipfs
+7. https://github.com/ipfs/js-ipfs#running-js-ipfs-with-docker
+8. https://github.com/ipfs/js-ipfs/blob/master/init-and-daemon.sh

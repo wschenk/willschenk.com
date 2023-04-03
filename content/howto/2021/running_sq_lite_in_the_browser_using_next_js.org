@@ -1,0 +1,212 @@
+#+title: Running SQLite in the browser using NextJS
+#+subtitle: Why not?
+#+tags[]: sqlite, browser, nextjs
+#+date: 2021-12-19
+#+aliases[]: /articles/2021/running_sq_lite_in_the_browser_using_next_js
+
+* End API
+
+Our goal is to be able to load a sqlite3 database using =useBinaryFile=,
+load up the database engine using =useDB=, and get the results using
+=useDBQuery=.
+
+#+begin_src typescript
+  const data = useBinaryFile( sqlliteURL )
+  const db = useDB(data);
+  const [query, setQuery] = useState( "SELECT name FROM  sqlite_schema WHERE type ='table' AND name NOT LIKE 'sqlite_%';" )
+  const results = useDBQuery( db, data, query )
+
+  return <p>You have {results.size} rows</p>
+#+end_src
+
+Lets walk though how to make that happen.
+
+* Install sql.js
+
+First we install the =wasm= files, and we serve them out of =/public=.
+
+#+begin_src bash
+  npm install sql.js
+  cp node_modules/sql.js/dist/sql-wasm.js public
+  cp node_modules/sql.js/dist/sql-wasm.wasm public
+#+end_src
+
+* =/public/sql-loader.js=
+
+Now, outside of the NextJS managed javascript universe create a file
+that will add the script tag to load up =sql-wasm.js= and =sql-wasm.wasm=
+into the browser.
+
+#+begin_src javascript
+  console.log( "Adding sql-wasm.js script tag")
+  const s = document.createElement( 'script' );
+  s.setAttribute( 'src', '/sql-wasm.js' );
+  document.body.appendChild( s );
+
+  window.loadSQL = async () => {
+      console.log( "loadSQL function called" )
+
+      return await initSqlJs({
+          locateFile: file => `/${file}`
+        })
+  }
+#+end_src
+
+* =lib/useDB.tsx=
+
+Now we create a custom react hook to use load up the database.
+
+The first =useEffect= runs once, and looks to see if there's a =window=
+object.  If there is, it's running on the browser, so it sets up an
+interval to see if the =loadSQL= function has been defined.  If it has,
+this means that the =sql-loader.js= script has been evaluated.  Once's
+that's true, will call =setWindowWatcher= which will cause the second
+=useEffect= to rerun.
+
+The second =useEffect= called the function setup by =sql-loader.js=, which
+loads the SQLite database engine.  Once this is done ie called
+=setEngine=.
+
+Once the =engine= and =data= are set, the third =useEffect= is run, which
+actually instantiates a new =SQL.Database= (called =engine.Database= in
+the code.)
+
+At this point, the db is set, so we can use =useDBQuery= to get the
+results.  We pass in =db= (which will change if we switch to a new
+database file) and a query, and it returns the result.
+
+#+begin_src typescript
+  import { useEffect, useState } from "react"
+
+  export function useDB(data) {
+      const [engine, setEngine] = useState(null)
+      const [db, setDB] = useState(null)
+      const [windowWatcher,setWindowWatcher] = useState(false);
+
+      useEffect( () => {
+          if( window ) {
+              console.log("Running in a browser, checking for loadSQL" )
+        
+              const timer = setInterval( () => {
+                  console.log( "Polling..." );
+
+                  // @ts-ignore
+                  if( window.loadSQL ) {
+                      console.log("Clearing timer")
+                      clearInterval( timer );
+                      setWindowWatcher(true)
+                  }
+              }, 500)
+          }
+      }, [])
+
+      useEffect( () => {
+          console.log( "Looking for loadSQL")
+          // @ts-ignore
+          if( window.loadSQL ) {
+              console.log( "Should try initSQLJS")
+              // @ts-ignore
+              window.loadSQL().then( (db) => {
+                  console.log( "I have the database" )
+                  setEngine( db )
+              })
+          }
+          return () => {}
+      }, [windowWatcher] )
+    
+      useEffect( () => {
+          if( engine && data ) {
+              console.log( "Starting up the engine")
+
+              // @ts-ignore
+              setDB( new engine.Database(new Uint8Array(data) ))
+          }
+
+          return () => {}
+      }, [data,engine] )
+
+      return db
+  }
+
+  export function useDBQuery( db, query ) {
+      const [results, setResults] = useState(null)
+
+      useEffect( () => {
+          if( db ) {
+              console.log( `Running query ${query}`)
+              const r = db.exec(query)
+              console.log(r)
+              // @ts-ignore
+              window.results = r;
+              setResults( r )
+          }
+      }, [db, query])
+
+      return results;
+  }
+#+end_src
+
+* Loading up a file
+
+An easy way to load a binary file is:
+
+=useBinaryFile.tsx=
+#+begin_src javascript
+  import { useEffect, useState } from "react";
+
+  export default function useBinaryFile( url ) {
+      const [dataFile, setDataFile] = useState(null)
+
+      useEffect( () => {
+          console.log( `Loading ${url}`)
+
+          fetch(
+              url
+          ).then( (res) => {
+              res.arrayBuffer().then( (data) => setDataFile( data ))
+          })
+
+          return () => { console.log( "Unmounted binary file") }
+      }, [url]);
+
+      return dataFile
+  }
+#+end_src
+
+* Tying it all together
+
+Now to trigger the loading of =sql-loader.js= you just need to put a
+script tag in the pages that you use =useDB= on:
+
+#+begin_src jsx
+    <Script type="module" strategy='beforeInteractive' src="/sql-loader.js"/>
+#+end_src
+
+If you don't put this tag in, =window.loadSQL= will never be define, and
+=setWindowWatcher= will never be true.
+
+* Generic =ResultsTable=
+Here's a little starting point to show the results:
+
+#+begin_src rjsx
+  export function ResultTable( {results} ) {
+      if( !results ) {
+          return <div></div>
+      }
+      return (
+          <table className="w-full">
+              <thead>
+                  <tr>
+                      {results[0].columns.map( (c) => <th key={c}>{c}</th>)}
+                  </tr>
+              </thead>
+              <tbody>
+                  {results[0].values.map( (r) => <tr key={r}>
+                      {r.map( (v) => <td key={v}>{v}</td> )}
+                  </tr>)}
+              </tbody>
+          </table>
+      )
+  }
+#+end_src
+

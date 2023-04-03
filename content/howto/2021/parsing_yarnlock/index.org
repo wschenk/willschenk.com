@@ -1,0 +1,173 @@
+#+title: Parsing yarn.lock
+#+subtitle: another random format
+#+tags[]: ruby, yarn, packagemanagers, javascript
+#+date: 2021-01-07
+#+draft: true
+
+[[https://yarnpkg.com/][yarn]] is another package manager in the npm ecosystem that was designed
+to address some shortcomings with the [[https://www.npmjs.com/][npm]] command.  It uses the same
+packages and repository, but is faster for larger projects.  npm has
+incorperated some of the best features of yarn over the years, so in
+terms of functionality it's sort of a wash, but we have another lock
+file format to content with.
+
+* Parsing with JS
+
+We are going to try [[https://www.npmjs.com/package/@yarnpkg/lockfile][@yarnpkg/lockfile]].
+
+#+begin_src bash
+yarn add @yarnpkg/lockfile
+#+end_src
+
+This, handily, will create a =yarn.lock= file that we can use.
+
+Now to the code:
+
+#+begin_src js :tangle parse.js
+  const fs = require('fs');
+  const lockfile = require('@yarnpkg/lockfile');
+  //import fs from 'fs';
+  //import * as lockfile from '@yarnpkg/lockfile';
+
+  let file = fs.readFileSync('/home/wschenk/gratitude/yarn.lock', 'utf8');
+  let json = lockfile.parse(file);
+
+  console.log(json);
+#+end_src
+
+However, this package doesn't really seem to be up to date, the last
+release was a few years ago.
+
+* Parsing with =ruby-yarnlock=
+
+There's a package which uses this node package, called [[https://github.com/hiromi2424/ruby-yarnlock][ruby-yarnlock]].  Let's try that:
+
+#+begin_src ruby :tangle parse_gem.rb
+  require 'bundler/inline'
+
+  gemfile do
+    source 'https://rubygems.org'
+    gem 'yarnlock'
+  end
+
+  data = File.read( '/home/wschenk/gratitude/yarn.lock' )
+
+  parsed = Yarnlock.parse data
+
+  pp parsed
+#+end_src
+
+This fails with =MODULE_NOT_FOUND=.
+
+Rather than figuring out whatever node-awesomeness causes this, lets
+just unroll it all by hand.
+
+* Parsing with Ruby
+
+#+begin_src ruby :tangle parse.rb
+  require 'yaml'
+
+  def parse_yaml_lock data
+    packages = []
+
+    package = nil
+    deps = nil
+    data.each_line do |line|
+      line.chomp!
+
+      if line[0] == '#'
+  #      puts 'Comment'
+      elsif line[0] == ' '
+        parsed = line.split( " " )
+  #      puts "#{parsed[0]}:#{parsed[1]}"
+        strip_quotes = parsed[1].gsub( /\"/, "" ) if parsed[1]
+        if deps
+          deps << [parsed[0], strip_quotes]
+        else
+          case parsed[0]
+          when "version"
+            package[:version] = strip_quotes
+          when "resolved"
+            package[:resolved] = strip_quotes
+          when "integrity"
+            package[:integrity] = strip_quotes
+          when "dependencies:"
+            deps = []
+            package[:dependencies] = deps
+          end
+        end
+      elsif line[0] == nil
+  #      puts 'newline'
+      else
+        packages << package if package
+        package = {}
+        deps = nil
+        package_name = line.gsub( /@.*/, "" ).gsub( /"/, '' )
+        package[:name] = package_name
+      end
+    end
+
+    packages << package if package
+
+    packages
+  end
+
+  data = File.open( '/home/wschenk/gratitude/yarn.lock' )
+
+  parsed = parse_yaml_lock data
+
+  pp parsed
+
+#+end_src
+
+* Getting package information
+
+The [[https://docs.npmjs.com/cli/v6][NPM API]] uses couchdb under the hood, and we aren't going to do
+anything super exciting with it other than to query the package info.
+So lets write a simple ruby "client" for it.
+
+#+begin_src ruby :tangle package_info.rb
+  require 'bundler/inline'
+
+  gemfile do
+    source 'https://rubygems.org'
+    gem 'faraday'
+    gem 'json'
+  end
+
+  def package_info name
+    response = Faraday.get "https://registry.npmjs.org/#{name}"
+
+    if response.status == 200
+      data = JSON.parse response.body
+
+      data
+    else
+      :unknown
+    end
+  end
+
+  pp package_info( "@yarnpkg/lockfile" )
+#+end_src
+
+Basically, we are just parsing json here so nothing exciting.
+
+* Getting download information
+
+Weirdly, npm doesn't store download counts by version, but rather
+version per time slice.  This is interesting in a way, but I'm looking
+for absolute numbers.
+
+
+
+* References
+
+1. https://github.com/hiromi2424/ruby-yarnlock
+2. https://stackoverflow.com/questions/54875055/multiple-versions-of-the-same-package-in-the-yarn-lock-file
+3. https://medium.com/@scinos/de-duplicating-yarn-lock-ae30be4aa41a
+4. https://docs.npmjs.com/cli/v6
+5. https://github.com/npm/registry/blob/master/docs/download-counts.md
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

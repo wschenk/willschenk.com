@@ -1,1 +1,0 @@
-../content/articles/2019/computer_setup_script/bootstrap.sh

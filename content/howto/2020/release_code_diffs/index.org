@@ -1,0 +1,518 @@
+#+title: Release code diffs
+#+subtitle: What changes between releases
+#+tags[]: packagemangers, npm, bundler, git
+#+date: 2020-10-26
+#+aliases[]: /articles/2020/release_code_diffs
+
+When tracking and upgrading software you want to have an idea of what
+changed.  Looking at the readme is helpful, and projects that [[https://keepachangelog.com/en/1.0.0/][keep a
+changelog]] are polite and friendly, but it's nice to actually get down
+to it and see what the changes actually are.
+
+* Loading the repo and finding the tags
+
+We first need to look at where the code is from.  In [[https://willschenk.com/articles/2020/looking_at_gemfiles/][looking at
+gemfiles]] we found how to see what gem you are currently working with,
+and in [[https://willschenk.com/articles/2020/looking_at_packagejson/][looking and package.json]] we did the same for =npm=.  The logic in
+the same once we have
+
+1. Repo
+2. Original tag
+3. New tag
+
+For testing purposes, we are assuming that you've pulled this
+information out from your package manager and we know that
+
+#+ATTR_HTML: :class table table-striped
+| Package          |                              middleman |
+| Repository       | https://github.com/middleman/middleman |
+| Original Version |                                  4.3.3 |
+| New version      |                                  4.3.9 |
+
+We'll start by cloning or updating the repo into a directory.  In this
+case, the repo will go into =/tmp/middleman/repo=.  Our analysis will go
+in =/tmp/middleman=.
+
+#+begin_src ruby :tangle version_compare.rb :results output
+  require 'pp'
+
+  WORKDIR='/tmp'
+
+  repo='https://github.com/middleman/middleman'
+  current_version='4.3.3'
+  new_version='4.3.9'
+
+  def load_repo repo
+    dir = repo.gsub( /.*\//, "" )
+    repo_dir = "#{WORKDIR}/#{dir}/repo"
+
+    if File.exists? repo_dir
+      system( "cd #{repo_dir};git pull origin master" )
+    else
+      system( "mkdir -p #{WORKDIR}/#{dir}" )
+      system( "cd #{WORKDIR}/#{dir};git clone #{repo} repo" )
+    end
+
+    repo_dir
+  end
+
+  repo_dir = load_repo( repo )
+
+  puts "Repo directory: #{repo_dir}"
+#+end_src
+
+#+RESULTS:
+: Repo directory: /tmp/middleman/repo
+
+* Tags
+
+Now that we have the repo, we need to find the tags in the project.
+We'll pull down a list of all the tags in the project.
+
+
+#+begin_src ruby :tangle version_compare.rb :results output
+  latest_tags = `cd #{repo_dir};git tag --sort=-v:refname`.lines.collect { |x| x.chomp }
+
+  puts "latest_tag : #{latest_tags.first}"
+#+end_src
+
+#+RESULTS:
+: latest_tag : v5.0.0.rc.1
+
+** Semver
+
+Lets parse the tags to see if they are version numbers, if they are
+prereleases, and be able to tell if there is a high patch version that
+matches our criteria.
+
+#+begin_src ruby :tangle version_compare.rb :results output
+  require 'bundler/inline'
+
+  gemfile do
+    source 'https://rubygems.org'
+    gem 'semver2', '3.4.2', require: 'semver'
+  end
+
+  tag_info = latest_tags.collect { |tag| SemVer.parse_rubygems tag }
+#+end_src
+
+We can filter through the versions to find only those without any
+prerelease info (like =.rc.1= or =.beta-2= that are canditidate releases)
+and print out what the current latest is:
+
+#+begin_src ruby :tangle version_compare.rb :results output
+  releases = tag_info.select { |x| x.prerelease == "" }
+  puts "latest_release : #{releases.first}"
+#+end_src
+
+#+RESULTS:
+: latest_release : v4.3.10
+
+Now we can write some methods to match our versions to tags:
+
+#+begin_src ruby :tangle version_compare.rb :results output
+  def find_tag tag_info, latest_tags, version_string
+    version = SemVer.parse_rubygems version_string
+  
+    tag_info.each_with_index do |tag, idx|
+      if tag == version
+        return latest_tags[idx]
+      end
+    end
+
+    nil
+  end
+
+  current_tag = find_tag tag_info, latest_tags, current_version
+  new_tag = find_tag tag_info, latest_tags, new_version
+
+  if current_tag.nil?
+    puts "Couldn't find current_version #{current_version}"
+  end
+
+  if new_tag.nil?
+    puts "Couldn't find new_version #{new_version}"
+  end
+
+  if current_tag.nil? || new_tag.nil?
+    exit 1
+  end
+
+  puts "current_tag: #{current_tag}"
+  puts "new_tag    : #{new_tag}"
+#+end_src
+
+#+RESULTS:
+: current_tag: v4.3.3
+: new_tag    : v4.3.9
+
+We can also look to see what is the latest patch release for the same
+major and minor version that we're running.  According to =semver=
+standards -- and it's not totally clear how strictly these are
+followed or even if they make sense -- patch releases should be bug
+fixes only and totally compatible.
+
+#+begin_src ruby :tangle version_compare.rb :results output
+  def find_latest_patch tag_info, version_string
+    version = SemVer.parse_rubygems version_string
+
+    tag_info.each do |tag|
+      return tag if tag.major == version.major && tag.minor = version.minor
+    end
+
+    nil
+  end
+
+  highest_patch = find_latest_patch tag_info, new_tag
+  puts "most compatible patch: #{highest_patch}"
+#+end_src
+
+#+RESULTS:
+: most compatible patch: v4.3.10
+
+* Change information
+
+Now that we have identified the tags, we can start to ask questions
+about what happened between those two results.  We'll use the =git log=
+command, which is amazingly powerful and super cool.
+
+/Super cool/.  You heard me.
+
+These are the formatting options that we'll be using:
+
+#+ATTR_HTML: :class table table-striped
+| Option | Description  |
+| =%aI=    | Commit time  |
+| =%h=     | Hash         |
+| =%ae=    | Author email |
+| =%an=    | Author name  |
+| =%s=     | Summary      |
+
+We're going to output a log of the changes that happened between the
+tags.  We'll have to do some crazy =regex= to pull out the fields.
+
+#+begin_src ruby :tangle version_compare.rb :results output
+  git_cmd = "git log --reverse --pretty='format:%aI|%h|%ae|%an|%s' #{current_tag}..#{new_tag}"
+
+  commits = `cd #{repo_dir};#{git_cmd}`.lines.collect do |x|
+    x.chomp
+    md = /(.*?)\|(.*?)\|(.*?)\|(.*?)\|(.*)/.match( x )
+    { date: md[1], hash: md[2], email: md[3], name: md[4], summary: md[5] }
+  end
+
+  puts "Most recent change: #{commits.first[:date]}"
+  puts "Oldest change     : #{commits.last[:date]}"
+#+end_src
+
+#+RESULTS:
+: Most recent change: 2018-01-20T08:26:10+09:00
+: Oldest change     : 2020-09-09T14:06:57-07:00
+
+We can can calculate how many days have passed bewteen the releases like so
+
+#+begin_src ruby :tangle version_compare.rb :results output
+
+require 'time'
+oldest = Time.parse( commits.first[:date] )
+newest = Time.parse( commits.last[:date] )
+days_passed = (newest - oldest) / (60 * 60 * 24) # Seconds in a day
+
+puts "Days passed : #{days_passed}"
+#+end_src
+
+#+RESULTS:
+: Days passed : 963.9033217592593
+
+Which is a bit unnecessarily precise but gives you a sense of all the
+years that have gone by.
+
+** Tickets
+
+A lot of projects put a ticket number in the commit, in the format of
+=#nnn= where =n= is an integer.  For projects that use Jira, these are
+generally three letters, a dash, and a number, but either way they
+start with a =#=.  So lets print out those issues that we find in the
+commit summary messages.
+
+#+begin_src ruby :tangle version_compare.rb :results output
+issues = commits.collect do |commit|
+  md = /\#([^\s\)\]]*)/.match( commit[:summary] )
+  md ? md[1] : nil
+end.select { |x| x }.sort
+
+pp issues
+#+end_src
+
+Which gives us:
+
+#+RESULTS:
+: ["2083", "2143", "2287", "2316", "2323", "2327", "2348"]
+
+From here we could try and figure out what issue tracker this
+repository is using, and then cross reference that to see what has
+been going on.
+
+In the case of this repository we see in =.github/CONTRIBUTING.md= that
+it uses [[https://github.com/middleman/middleman/issues][GitHub Issues]] which is pretty common and popular for GitHub
+hosted projects, and not like /shocking/ or anything.
+
+** A brief excursion into the =CHANGELOG=
+
+The commit messages are semi automated, and if you look at the [[https://keepachangelog.com/en/1.0.0/][keeping
+a changelog site]] they recommend against dumping in commit messages
+directly.  Lets try and parse out the changelog in the repo to see if
+we are missing any other issues or interesting things.
+
+This is a fairly straightforward way to "parse" this file, but since
+it's freeform we don't know if many projects support it.  This works
+as a quick scaffold now though.
+
+#+begin_src ruby :tangle version_compare.rb :results output
+
+  changes = {}
+
+  if File.exists? "#{repo_dir}/CHANGELOG.md"
+    scan_version = nil
+    entries = []
+    headline_re = /\#{1,3} (.*)/
+
+    File.read( "#{repo_dir}/CHANGELOG.md" ).each_line do |line|
+      line.chomp!
+      md = headline_re.match( line )
+      if md
+        if current_version && entries.length > 0
+          changes[scan_version] = entries
+          entries = []
+        end
+        scan_version = md[1]
+      elsif line != ""
+        entries << line
+      end
+    end
+
+    if current_version && entries.length > 0
+      changes[scan_version] = entries
+    end
+  end
+
+  if changes[new_version]
+    puts "Found change log for #{new_version}"
+  else
+     puts "No entry for #{new_version}"
+  end
+
+  if changes[current_version]
+    puts "Found change log for #{current_version}"
+  else
+   puts "No entry for #{current_version}"
+  end
+
+#+end_src
+
+Which yields:
+
+#+RESULTS:
+: No entry for 4.3.9
+: Found change log for 4.3.3
+
+So not that useful in this case.
+
+** Seeing the authors
+
+*** Using the CLI 
+One thing you can do with regular (/awesome/) git cli is something
+called [[https://git-scm.com/docs/git-shortlog][git shortlog]] which shows you a rolled up version of commits by
+authors.  Here I'm using =-n= which sorts by author commits.
+
+#+begin_src sh :results output
+cd /tmp/middleman/repo
+git shortlog -n v4.3.3..v4.3.9
+#+end_src
+
+And we can see that =Thomas Reynolds= seems to have done most of the
+maintence work.
+
+#+RESULTS:
+#+begin_example
+Thomas Reynolds (13):
+      Bump minor
+      Lock old bundler
+      Disable bind test on travis
+      Update changelog [ci skip]
+      Prep
+      Add Ruby 2.7.0 to CI
+      Prepare 4.3.6
+      Disable therubyracer
+      Bump
+      Prep release
+      Update changelog
+      Fix #2083
+      Prep 4.3.9
+
+Alexey Vasiliev (1):
+      Update kramdown to avoid CVE-2020-14001 in v4 (#2348)
+
+Johnny Shields (1):
+      Fix ignore of I18n files (#2143)
+
+Julik Tarkhanov (1):
+      Reset Content-Length header when rewriting (#2316)
+
+Leigh McCulloch (1):
+      Loosen activesupport dependence (#2327)
+
+Maarten (1):
+      Fix i18n with anchor v4 (#2287)
+
+bravegrape (1):
+      Add empty image alt tag if alt text not specified (#2323)
+
+#+end_example
+
+We can also include =-s= to show the summary only, in other words
+doesn't include the commit one liner.
+
+#+begin_src sh :results output
+cd /tmp/middleman/repo
+git shortlog -n -s v4.3.3..v4.3.9
+#+end_src
+
+#+RESULTS:
+:     13	Thomas Reynolds
+:      1	Alexey Vasiliev
+:      1	Johnny Shields
+:      1	Julik Tarkhanov
+:      1	Leigh McCulloch
+:      1	Maarten
+:      1	bravegrape
+
+** Using code to summarize authors
+
+We can recreate this view pretty simply:
+
+#+begin_src ruby :tangle version_compare.rb :results output
+authors = {}
+commits.each do |c|
+  authors[c[:name]] ||= 0
+  authors[c[:name]] += 1
+end
+
+authors.keys.sort { |a,b| authors[b] <=> authors[a] }.each do |author|
+  printf "%10d %s\n", authors[author], author
+end
+#+end_src
+
+#+RESULTS:
+:        13 Thomas Reynolds
+:         1 Johnny Shields
+:         1 Maarten
+:         1 Julik Tarkhanov
+:         1 bravegrape
+:         1 Leigh McCulloch
+:         1 Alexey Vasiliev
+
+The sort order is slight different, but =1= is =1=...
+
+* Listing the files changed
+
+Between the two versions we want to see everything that changed.  We
+can do this using the =git diff= command, and pass in =--numstat= to see
+the files that changed.
+
+#+begin_src sh :results output
+cd /tmp/middleman/repo
+git diff --numstat v4.3.3..v4.3.9
+#+end_src
+
+#+RESULTS:
+#+begin_example
+18	0	.devcontainer/Dockerfile
+37	0	.devcontainer/devcontainer.json
+4	0	.travis.yml
+29	0	CHANGELOG.md
+2	2	Gemfile
+17	24	Gemfile.lock
+316	315	middleman-cli/features/preview_server.feature
+11	0	middleman-core/features/default_alt_tag.feature
+4	0	middleman-core/features/i18n_link_to.feature
+67	11	middleman-core/features/ignore.feature
+5	2	middleman-core/features/liquid.feature
+17	0	middleman-core/features/markdown_kramdown.feature
+1	1	middleman-core/features/relative_assets.feature
+1	1	middleman-core/features/relative_assets_helpers_only.feature
+0	0	middleman-core/fixtures/default-alt-tags-app/config.rb
+1	0	middleman-core/fixtures/default-alt-tags-app/source/empty-alt-tag.html.erb
+-	-	middleman-core/fixtures/default-alt-tags-app/source/images/blank.gif
+1	0	middleman-core/fixtures/default-alt-tags-app/source/meaningful-alt-tag.html.erb
+2	0	middleman-core/lib/middleman-core/core_extensions/default_helpers.rb
+9	0	middleman-core/lib/middleman-core/core_extensions/i18n.rb
+5	0	middleman-core/lib/middleman-core/core_extensions/inline_url_rewriter.rb
+4	0	middleman-core/lib/middleman-core/renderers/kramdown.rb
+1	1	middleman-core/lib/middleman-core/template_renderer.rb
+1	1	middleman-core/lib/middleman-core/version.rb
+1	1	middleman-core/middleman-core.gemspec
+1	1	middleman/middleman.gemspec
+#+end_example
+
+=--numstat= shows you the lines of code added and deleted, and from this
+it looks like most of the work on the repo was in the test directory
+for a feature named =preview server=.  The actual number of changes to
+the main source code seems pretty small, but if we want to take a look
+at what those changes are:
+
+#+begin_src sh :results output
+cd /tmp/middleman/repo
+git diff v4.3.3..v4.3.9 '*.rb'
+#+end_src
+
+Which shows a huge output of the diffs of all the code files from the
+one tag to the other. I'll spare you from scrolling through, but if we
+look just at the =version.rb= file you can see that it shows the diffs
+from where you start to where you end up -- in this case, from version
+=4.3.3= to =4.3.9.
+
+#+begin_src sh :results output
+cd /tmp/middleman/repo
+git diff v4.3.3..v4.3.9 '*version.rb'
+#+end_src
+
+#+RESULTS:
+#+begin_example
+diff --git a/middleman-core/lib/middleman-core/version.rb b/middleman-core/lib/middleman-core/version.rb
+index 42bc84bc..753d3c87 100644
+--- a/middleman-core/lib/middleman-core/version.rb
++++ b/middleman-core/lib/middleman-core/version.rb
+@@ -1,5 +1,5 @@
+ module Middleman
+   # Current Version
+   # @return [String]
+-  VERSION = '4.3.3'.freeze unless const_defined?(:VERSION)
++  VERSION = '4.3.9'.freeze unless const_defined?(:VERSION)
+ end
+#+end_example
+
+* In summary
+
+Given a [[https://willschenk.com/articles/2020/looking_at_gemfiles/][Gemfile.lock]] or a [[https://willschenk.com/articles/2020/looking_at_packagejson/][package-lock.json]] we can see which version
+of a module you are currently running, where the code is hosted, and
+which is the latest version.  From here we can pull down the repo,
+look for the tags that marked each specific version, and see who
+worked on it and what the overall diffs are to see /exactly what code
+has changed/.  This works if the code is hosted on github, or any other
+giy repository.
+
+In addition to looking at the repositories between the tags, we can
+also also pull in static analysis for other parts of the project.  We
+can [[https://willschenk.com/articles/2020/gitlog_in_sqlite/][put the gitlog in SQLite]] and do further analysis.
+
+Each of these steps needs further refinement but we've got all of the
+major pieces together.
+
+* References
+1. [[https://semver.org/][Semantic Versioning 2.0.0]]
+2. [[https://keepachangelog.com/en/1.0.0/][Keep a changelong]]
+3. [[https://git-scm.com/docs/git-shortlog][git shortlog]]
+
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

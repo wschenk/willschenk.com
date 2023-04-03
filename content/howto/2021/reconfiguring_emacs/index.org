@@ -1,0 +1,365 @@
+#+title: Configuring Emacs
+#+subtitle: I just figured out use-package
+#+tags[]: emacs
+#+date: 2021-02-14
+#+draft: true
+
+* Seperate out =customize= stuff
+
+Here you need to make sure that you have a =~/.emacs.d/custom-file.el=
+for =M-x customize= to store things from.
+
+#+begin_src elisp :tangle init.el
+(setq custom-file "~/.emacs.d/custom-file.el")
+(load-file custom-file)
+#+end_src
+
+* Move backups to a seperate directory
+
+This moves all the automatic backups to the =~/.saves= directory so you
+don't have =~= files littering things everywhere.
+
+#+begin_src elisp :tangle init.el
+;; Backups
+(setq
+   backup-by-copying t      ; don't clobber symlinks
+   backup-directory-alist
+    '(("." . "~/.saves/"))    ; don't litter my fs tree
+   delete-old-versions t
+   kept-new-versions 6
+   kept-old-versions 2
+   version-control t)
+#+end_src
+
+* Clean up tabs
+
+#+begin_src elisp :tangle init.el
+;; https://www.emacswiki.org/emacs/NoTabs
+(setq-default indent-tabs-mode nil)
+(setq-default tab-width 2)
+#+end_src
+
+* Fonts
+
+#+begin_src elisp :tangle init.el
+(set-face-font 'default "Inconsolata Light 12")
+#+end_src
+* Add your functions
+
+#+begin_src elisp :tangle init.el
+(load-file "~/.emacs.d/functions.el")
+(load-file "~/.emacs.d/shortcuts.el")
+(load-file "~/.emacs.d/blog.el")
+
+#+end_src
+
+* Initialize packages and their sources
+
+Here we tell emacs where we want to get packages from, and install
+=use-package= if it hasn't been already.
+
+#+begin_src elisp :tangle init.el
+(package-initialize)
+(add-to-list 'package-archives
+             '("gnu" . "http://elpa.gnu.org/packages/") t)
+
+(add-to-list 'package-archives
+             '("melpa" . "http://melpa.org/packages/") t)
+
+(add-to-list 'package-archives
+             '("stable melpa" . "http://stable.melpa.org/packages/") t)
+
+(when (not (package-installed-p 'use-package))
+  (package-refresh-contents)
+  (package-install 'use-package))
+#+end_src
+
+* Visuals
+
+Remove toolbar and scroll bar
+
+#+begin_src elisp :tangle init.el
+(tool-bar-mode 0)
+(scroll-bar-mode 0)
+#+end_src
+
+Set the theme, add moody to organize the mode bar, and add time.
+
+#+begin_src elisp :tangle init.el
+  (use-package moody
+    :ensure t
+    :config
+    (setq x-underline-at-descent-line t)
+    (moody-replace-mode-line-buffer-identification)
+    (moody-replace-vc-mode))
+
+  (use-package modus-themes
+    :ensure                         ; omit this to use the built-in themes
+    :init
+    ;; Add all your customizations prior to loading the themes
+    (setq modus-themes-slanted-constructs t
+          modus-themes-bold-constructs nil
+          modus-themes-mode-line 'moody
+          )
+
+    ;; Load the theme files before enabling a theme (else you get an error).
+    (modus-themes-load-themes)
+    :config
+    ;; Load the theme of your choice:
+    (modus-themes-load-vivendi)
+    )
+
+  (use-package time
+    :ensure nil
+    :config (display-time-mode t))
+
+  (use-package battery
+    :ensure nil
+    :config (display-battery-mode t))
+
+  (use-package display-line-numbers
+    :ensure nil
+    :hook (prog-mode . display-line-numbers-mode)
+    (yaml-mode . display-line-numbers-mode))
+
+  (use-package diminish
+    :ensure t
+    :defer t
+    :after use-package)
+
+#+end_src
+
+Add =beacon= to make the cursor stand out
+
+#+begin_src elisp :tangle init.el
+(use-package beacon
+  :ensure t
+  :diminish beacon-mode
+  :config (beacon-mode t))
+#+end_src
+
+Display line numbers for programming modes:
+
+#+begin_src elisp :tangle init.el
+(use-package display-line-numbers
+  :ensure nil
+  :hook (prog-mode . display-line-numbers-mode)
+  (yaml-mode . display-line-numbers-mode))
+#+end_src
+
+* Dashboard
+
+#+begin_src elisp :tangle init.el
+  ;; Startup Screen
+  (use-package all-the-icons
+    :ensure t)
+
+  (use-package dashboard
+    :ensure t
+    :config
+    (setq dashboard-banner-logo-title "Welcome to Emacs Dashboard")
+    ;; Set the banner
+    (setq dashboard-startup-banner 'logo)
+    (setq dashboard-items '((recents  . 5)
+                          (bookmarks . 5)
+                          (projects . 5)
+                          (agenda . 5)))
+    (setq dashboard-set-heading-icons t)
+    (setq dashboard-set-file-icons t)
+    (dashboard-setup-startup-hook)
+    )
+#+end_src
+
+* Navigation
+
+Use projectile to navigate to projects, selectrum to make the choices
+in minibuffer selections better, and add precient to do smarter
+filtering.
+
+#+begin_src elisp :tangle init.el
+  (use-package projectile
+    :ensure t
+    :init
+    (projectile-mode +1)
+    :bind (:map projectile-mode-map
+                ("C-c p" . projectile-command-map)))
+
+  (use-package selectrum
+    :ensure t
+    :config
+    (selectrum-mode +1))
+
+  (use-package selectrum-prescient
+    :ensure t
+    :config
+    ;; to make sorting and filtering more intelligent
+    (selectrum-prescient-mode +1))
+
+  (use-package ag :ensure t)
+#+end_src
+
+* Org-mode
+
+#+begin_src elisp :tangle init.el
+;; Org mode
+(use-package org
+  :ensure t
+  :bind (
+	 ("C-c l" . org-store-link)
+	 ("C-c a" . org-agenda)
+	 ("C-c c" . org-capture))
+  :config
+  (require 'org-tempo)
+  (setq org-startup-indented t) ; Enable `org-indent-mode' by default
+  (setq org-log-done t) ; Set time for when things were completed
+  (setq org-hide-emphasis-markers t) ; Not show typographical commands
+  (setq org-plantuml-jar-path (expand-file-name "/usr/share/plantuml/plantuml.jar"))
+  )
+
+(use-package org-superstar
+  :ensure t
+  :config
+  (add-hook 'org-mode-hook (lambda () (org-superstar-mode 1))))
+
+(setq org-capture-templates
+      '(("t" "Todo" entry (file+headline "~/org/notes.org" "Tasks")
+         "* TODO %?\n  %i\n  %a")
+        ("i" "Idea" entry (file+headline "~/org/notes.org" "Ideas")
+         "* TODO %?\n  %i\n  %a")
+        ("w" "Work Task" entry (file+datetree "~/org/work.org")
+         "* TODO %?\n  %i\n  %a")
+        ("j" "Journal" entry (file+datetree "~/org/journal.org")
+         "* %?\nEntered on %U\n  %i\n  %a")))
+#+end_src
+
+* RSS Reader
+
+#+begin_src elisp :tangle init.el
+;; elfeed
+
+(defun elfeed-eww-browse ()
+  "Wrapper to open eww and mark elfeed as read"
+  (interactive)
+  (let ((link (elfeed-entry-link elfeed-show-entry)))
+    (when link
+      (eww-browse-url link))))
+
+(use-package elfeed
+  :ensure t
+  :bind (
+	 ("C-x w" . elfeed))
+  :config
+  (define-key elfeed-show-mode-map (kbd "B") 'elfeed-eww-browse)
+  )
+
+(use-package elfeed-org
+  :ensure t
+  :config
+  (elfeed-org))
+#+end_src
+
+* Magit
+
+So small, but so awesome
+
+#+begin_src elisp :tangle init.el
+(use-package magit
+  :ensure t
+  :bind ("C-x g" . magit-status))
+
+#+end_src
+
+* PDF Reading
+
+#+begin_src elisp :tangle init.el
+(use-package pdf-tools
+  :ensure t
+  :config
+  (pdf-tools-install))
+
+(use-package org-pdftools
+  :ensure t
+  :hook (org-load . org-pdftools-setup-link))
+#+end_src
+
+* Company mode
+
+#+begin_src elisp :tangle init.el
+(use-package company
+  :ensure t
+  :bind (:map company-active-map
+         ("C-n" . company-select-next)
+         ("C-p" . company-select-previous))
+  :config
+  (setq company-idle-delay 0.3)
+  (global-company-mode t))
+#+end_src
+
+* Set =PATH= correctly
+
+#+begin_src elisp :tangle init.el
+(use-package exec-path-from-shell
+  :ensure t
+  :config
+  (exec-path-from-shell-copy-env "PATH"))
+#+end_src
+
+* Docker
+
+#+begin_src elisp :tangle init.el
+  (use-package docker
+    :ensure t
+    :bind ("C-c C-d" . docker))
+
+  (use-package dockerfile-mode :ensure t)
+
+#+end_src
+
+* Web Editing
+
+#+begin_src elisp :tangle init.el
+(use-package yaml-mode :ensure t)
+
+(use-package web-mode
+  :ensure t
+  :config
+  (add-to-list 'auto-mode-alist '("\\.phtml\\'" . web-mode))
+  (add-to-list 'auto-mode-alist '("\\.tpl\\.php\\'" . web-mode))
+  (add-to-list 'auto-mode-alist '("\\.[agj]sp\\'" . web-mode))
+  (add-to-list 'auto-mode-alist '("\\.as[cp]x\\'" . web-mode))
+  (add-to-list 'auto-mode-alist '("\\.erb\\'" . web-mode))
+  (add-to-list 'auto-mode-alist '("\\.mustache\\'" . web-mode))
+  (add-to-list 'auto-mode-alist '("\\.djhtml\\'" . web-mode))
+  (add-to-list 'auto-mode-alist '("\\.html?\\'" . web-mode)))
+#+end_src
+* Shell Commands
+
+#+begin_src elisp :tangle init.el
+(use-package exec-path-from-shell
+  :ensure t
+  :config
+  (exec-path-from-shell-copy-env "PATH"))
+#+end_src
+
+* Vterm
+
+#+begin_src bash
+sudo apt-get install cmake libtool-bin
+#+end_src
+
+=M-x package-install vterm=
+
+#+begin_src elisp
+
+#+end_src
+* References
+
+1. https://www.masteringemacs.org/article/spotlight-use-package-a-declarative-configuration-tool
+2. https://suvratapte.medium.com/configuring-emacs-from-scratch-use-package-c30382297877
+3. http://cachestocaches.com/2015/8/getting-started-use-package/
+4. https://suvratapte.medium.com/configuring-emacs-from-scratch-use-package-c30382297877
+5. https://dustinlacewell.github.io/emacs.d/#org02c2dff
+
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

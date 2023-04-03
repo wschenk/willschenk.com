@@ -1,0 +1,304 @@
+#+title: Setting up redis and nat-connector with FaasD
+#+subtitle: Storage for your functions
+#+tags[]: redis, nats, openfaas
+#+date: 2021-02-22
+#+aliases[]: /articles/2021/setting_up_services_with_faasd
+
+Lets look at how we expand our =faasd= server to include a couple of
+services.  We'll first add a redis server and some simple ruby code to
+add a counter, and then we'll build and add the =nats-connector= to be
+able publish and subscribe to events.
+
+* About =/var/lib/faasd/docker-compose.yaml=
+This looks like a =docker-compose= file, and I believe that it actually
+does use the same code that parses the file of that name, but it
+doesn't use =docker= to set up the containers.  This is what =faasd= does.
+The biggest difference I've noticed is how it treats networking.  The
+short of it is that you need to use the ip address of the main faasd
+gateway to access the servers, not the name of the service in the
+file.  So, instead of pointing your client to =redis= or =gateway= you
+point them to =10.62.0.1=.
+
+* Redis
+** Setting up Redis
+First thing is we need to log into our faasd server, and create the
+storage directory with the right user.
+
+#+begin_src bash
+sudo mkdir -p /var/lib/faasd/redis/data
+sudo chown -R 1000:1000 /var/lib/faasd/redis/data
+#+end_src
+
+Then we need to add the redis instance in =/var/lib/faasd/docker-compose.yaml=:
+
+#+begin_src yaml
+  redis:
+    image: docker.io/library/redis:6.0.10-alpine
+    volumes:
+      # we assume cwd == /var/lib/faasd
+      - type: bind
+        source: ./redis/data
+        target: /data
+    cap_add:
+      - CAP_NET_RAW
+    entrypoint: /usr/local/bin/redis-server --appendonly yes
+    user: "1000"
+    ports:
+      - "10.62.0.1:6379:6379"
+#+end_src
+
+Note that if you get a "Background saving error" this is probably
+because you have an open redis port and [[https://github.com/docker-library/redis/issues/44#issuecomment-274287156][someone is scanning you]].
+
+The =10.62.0.1= is the default network that =faasd= sets up.
+
+Then we restart:
+
+#+begin_src bash
+sudo systemctl daemon-reload
+sudo systemctl restart faasd
+#+end_src
+
+We can look at the logs using:
+
+#+begin_src bash
+sudo journalctl -t openfaas:redis -f
+#+end_src
+
+** Writing our function
+
+Back on our machine, lets create a simple ruby function that
+increments and returns the value from redis.
+
+#+begin_src bash
+faas-cli new counter --lang ruby
+#+end_src
+
+Inside of the counter directory, we need to add the redis gem:
+
+#+begin_src bash
+cd counter
+bundler add redis
+#+end_src
+
+And now we can write our handler:
+
+#+begin_src ruby
+  require 'redis'
+
+  class Handler
+    def run(req)
+      redis = Redis.new( host: ENV['redis_host'] )
+    
+      redis.incr "test_key"
+    end
+  end
+#+end_src
+
+And inside of our =counter.yml= file we can add the following
+environment variable so we don't hard code the address of the redis
+instance in our container.
+
+#+begin_src yaml
+  counter:
+    lang: ruby
+    handler: ./counter
+    image: wschenk/counter:latest
+    environment:
+      redis_host: "10.62.0.1"
+#+end_src
+
+You'll want to replace that =wschenk= with your docker user.
+
+Then we can load it:
+
+#+begin_src bash
+faas-cli up --filter counter
+#+end_src
+
+And run it:
+
+#+begin_src bash :results
+echo | faas-cli invoke counter
+#+end_src
+
+And you should see a number go up and up!
+
+* Publishing and subscribing to messages
+
+The [[https://github.com/openfaas/nats-connector][nats-connector]] is a way to have functions called when messages are
+sent to certain topics in your nats instance.  Lets see how that
+works.
+
+** Installing the =nats-connector=:
+
+I couldn't find the latest version of =nats-connector= on docker, so
+here's how to build it:
+
+#+begin_src bash
+git clone https://github.com/openfaas/nats-connector
+cd nats-connector
+docker build . -t wschenk/nats-connector:0.2.4
+docker push wschenk/nats-connector:0.2.4
+#+end_src
+
+Pretty simple. (Change =wschenk= to be your username.)
+
+** Setting up =docker-compose.yaml=
+
+Back on your =faads= server, lets first open up =nats= to our functions
+and then add in the =nats-connector=:
+
+/This section should already be there/:
+#+begin_src yaml
+  nats:
+    image: docker.io/library/nats-streaming:0.11.2
+    command:
+      - "/nats-streaming-server"
+      - "-m"
+      - "8222"
+      - "--store=memory"
+      - "--cluster_id=faas-cluster"
+    ports:
+      - "10.62.0.1:4222:4222"
+      - "10.62.0.1:8222:8222"
+#+end_src
+
+And then add:
+
+#+begin_src yaml
+  nats-connector:
+    image: docker.io/wschenk/nats-connector:0.2.4
+    environment:
+      upstream_timeout: "1m2s"
+      gateway_url: "http://gateway:8080"
+      topics: "nats-test,topic-foo,"
+      print_response: "true"
+      print_body_response: "true"
+      basic_auth: "true"
+      secret_mount_path: "/run/secrets/"
+      topic_delimiter: ","
+      asynchronous_invocation: "false"
+    volumes:
+      # we assume cwd == /var/lib/faasd
+      - type: bind
+        source: ./secrets/basic-auth-user
+        target: /run/secrets/basic-auth-user
+      - type: bind
+        source: ./secrets/basic-auth-password
+        target: /run/secrets/basic-auth-password
+    cap_add:
+      - CAP_NET_RAW
+    depends_on:
+      - nats
+      - gateway
+#+end_src
+
+Be sure to change the image name to your build, if you don't want to
+use mine.
+
+** Publish
+
+#+begin_src bash
+faas-cli new publishtest --lang ruby --append stack.yml
+cd publishtest
+bundle add nats-pure
+#+end_src
+
+And then a simple handler
+
+#+begin_src ruby
+  require 'nats/io/client'
+
+  class Handler
+    def run(req)
+      puts "Trying to connect to #{ENV['nats_host']}"
+
+      nats = NATS::IO::Client.new
+    
+      nats.connect(ENV['nats_host'])
+      puts "Connected to #{nats.connected_server}"
+
+      puts "Sending message"
+      nats.publish('nats-test', 'You done?')
+
+      puts "Flushing"
+      nats.flush(1)
+      nats.close
+    end
+  end
+#+end_src
+
+And then in =stack.yml=:
+
+#+begin_src yaml
+  publishtest:
+    lang: ruby
+    handler: ./publishtest
+    image: wschenk/publishtest:latest
+    environment:
+      nats_host: "10.62.0.1"
+#+end_src
+
+** Receive
+
+#+begin_src 
+faas-cli new receivetest --lang ruby --append stack.yml
+#+end_src
+
+And inside of =stack.yml= add an annotations section
+
+#+begin_src yaml
+  receivetest:
+    lang: ruby
+    handler: ./receivetest
+    image: wschenk/receivetest:latest
+    annotations:
+      topic: "nats-test"
+#+end_src
+
+We don't need to do anything particular with this handler, we just
+want to look at the logs to see if it gets triggered.
+
+** Running
+
+On your dev machine:
+
+#+begin_src bash
+faas-cli up
+#+end_src
+
+Then on the =faasd= server:
+
+#+begin_src bash
+journalctl -f
+#+end_src
+
+(Or if you want to be more targeted:)
+
+#+begin_src bash
+journalctl -t openfaas-fn:receivetest -f
+#+end_src
+
+And on your client machine:
+
+#+begin_src bash
+echo | faas-cli invoke publishtest
+#+end_src
+
+
+
+
+* References
+
+1. https://github.com/openfaas/faasd
+2. https://gumroad.com/l/serverless-for-everyone-else
+3. https://github.com/docker-library/redis/issues/128
+4. https://github.com/docker-library/redis/issues/44#issuecomment-274287156
+5. https://github.com/openfaas/nats-connector
+6. https://twitter.com/alexellisuk/status/1318841881439199233/photo/1
+
+
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

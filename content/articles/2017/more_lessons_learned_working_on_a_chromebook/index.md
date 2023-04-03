@@ -1,5 +1,6 @@
 ---
 title: More lessons learned working on a Chromebook
+subtitle: still so nice
 date: 2017-11-20T15:05:48.138Z
 tags:
   - chromebook

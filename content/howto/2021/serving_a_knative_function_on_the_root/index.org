@@ -1,0 +1,249 @@
+#+title: Serving a knative function on the root
+#+subtitle: root to services
+#+tags[]: kubernetes, knative, kourier
+#+date: 2021-12-01
+#+aliases[]: /articles/2021/serving_a_knative_function_on_the_root
+
+I want to deploy everything as a knative service, including the root
+of the domain.
+
+*Update*: I found an easyier way.
+
+* Easy way
+
+Turn on =auto-tls= and =autocreate-cluster-domain-claims=:
+
+#+begin_src bash :results output
+  kubectl patch configmap config-network --namespace knative-serving -p '{"data":{"auto-tls":"Enabled","autocreate-cluster-domain-claims":"true"}}'
+#+end_src
+
+Then
+
+#+begin_src bash
+kn domain create gitgratitude.com --ref=homepage
+#+end_src
+
+That's it.
+
+* Hardway
+
+Left here for the record.
+
+* Add =ingress-nginx=
+
+#+begin_src bash :results output
+  helm upgrade --install ingress-nginx ingress-nginx \
+       --repo https://kubernetes.github.io/ingress-nginx \
+       --namespace ingress-nginx --create-namespace
+#+end_src
+
+* Configure =letsencrypt=
+
+Make sure to change your email address
+
+=nginx-certs.yml:=
+#+begin_src yaml :tangle nginx-certs.yaml
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod-nginx
+spec:
+  acme:
+    # You must replace this email address with your own.
+    # Let's Encrypt will use this to contact you about expiring
+    # certificates, and issues related to your account.
+    email: wschenk@gmail.com
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      # Secret resource that will be used to store the account's private key.
+      name: prod-issuer-account-key-nginx
+    # Add a single challenge solver, HTTP01 using nginx
+    solvers:
+    - http01:
+        ingress:
+          class: nginx
+#+end_src
+
+#+begin_src bash :results output
+  kubectl apply -f nginx-certs.yaml
+#+end_src
+
+* DNS
+** Find the ip
+
+#+begin_src bash :results output
+  kubectl --namespace ingress-nginx get service ingress-nginx-controller -o json| jq ".status.loadBalancer.ingress[0].ip"
+#+end_src
+
+#+RESULTS:
+: "137.184.240.185"
+
+** Create DNS entry
+
+#+begin_src bash :results output
+  doctl compute domain records create gitgratitude.com --record-type A --record-data 137.184.240.185 --record-name \@
+#+end_src
+
+#+RESULTS:
+: ID           Type    Name    Data               Priority    Port    TTL     Weight
+: 280663245    A       @       137.184.240.185    0           0       1800    0
+
+* Add a simple knative service
+
+We are setting the min scale to 1 so there's no startup time for this service.
+
+#+begin_src bash :results output
+  kubectl service create homepage --image gcr.io/knative-samples/homepage --scale-min 1
+#+end_src
+
+Which will result in this being deployed internally as
+[[http://homepage.default.svc.cluster.local]]
+
+* Simple reverse proxy service
+** Code
+This is available on [[https://github.com/wschenk/proxy]]
+
+#+begin_src javascript :tangle proxy.js
+  const http = require('http');
+  const httpProxy = require('http-proxy');
+
+  const remote = process.env.REMOTE_TARGET || "http://homepage.default.svc.cluster.local";
+
+  console.log( "Proxy starting up on port 3000" );
+  console.log( `Proxing to ${remote}` );
+
+  httpProxy.createProxyServer({
+      target: remote,
+      changeOrigin: true
+  }).listen(3000);
+#+end_src
+
+I'm packaging this up at ghcr.io/wschenk/proxy
+
+** Setup the proxy service
+
+#+begin_src yaml :tangle proxy.yaml
+  kind: Deployment
+  apiVersion: apps/v1
+  metadata:
+    name: homepage-proxy
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        app: homepage-proxy
+    template:
+      metadata:
+        labels:
+          app: homepage-proxy
+      spec:
+        containers:
+          - name: homepage-proxy
+            image: ghcr.io/wschenk/proxy
+            imagePullPolicy: Always
+            ports:
+              - containerPort: 3000
+                name: http
+            env:
+            - name: REMOTE_TARGET
+              value: http://homepage.default.svc.cluster.local
+
+  ---
+  apiVersion: v1
+  kind: Service
+  metadata:
+    name: homepage-proxy
+
+  spec:
+    ports:
+      - protocol: TCP
+        port: 80
+        targetPort: http
+    selector:
+      app: homepage-proxy
+#+end_src
+
+#+begin_src bash :results output
+  kubectl apply -f proxy.yaml
+#+end_src
+
+#+RESULTS:
+: deployment.apps/homepage-proxy configured
+: service/homepage-proxy unchanged
+
+* Create =ingress.yaml=
+
+=ingress.yaml=:
+#+begin_src yaml :tangle ingress.yaml
+  apiVersion: networking.k8s.io/v1
+  kind: Ingress
+  metadata:
+    name: gitgratitude-root
+    annotations:
+      # add an annotation indicating the issuer to use.
+      cert-manager.io/cluster-issuer: letsencrypt-prod-nginx
+      kubernetes.io/tls-acme: "true"
+  spec:
+    ingressClassName: nginx
+    tls:
+      - hosts:
+        - gitgratitude.com
+        secretName: gratitude-root-tls
+    rules:
+      - host: gitgratitude.com
+        http:
+          paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name:  homepage-proxy
+                  port:
+                    number: 80
+#+end_src
+
+#+begin_src bash :results output
+  kubectl apply -f ingress.yaml
+#+end_src
+
+#+RESULTS:
+: ingress.networking.k8s.io/gitgratitude-root configured
+
+* Testing
+
+#+begin_src bash :results output
+kn service update helloworld-go --env TARGET="World"
+#+end_src
+
+#+begin_src bash :results output
+  curl https://gitgratitude.com
+#+end_src
+
+#+RESULTS:
+: Hello World!
+
+#+begin_src bash :results output
+kn service update helloworld-go --env TARGET="from knative"
+#+end_src
+
+#+begin_src bash :results output
+  curl https://gitgratitude.com
+#+end_src
+
+#+RESULTS:
+: Hello from knative!
+
+* Conclusion
+
+The reverse proxy is a little bit weird, since we are proxying through
+a couple of different layers, but this allows us to deploy everything
+as a knative service.
+
+* References
+
+1. https://github.com/http-party/node-http-proxy#setup-a-basic-stand-alone-proxy-server
+2. https://www.starkandwayne.com/blog/public-traffic-into-knative-on-gke/
+      
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

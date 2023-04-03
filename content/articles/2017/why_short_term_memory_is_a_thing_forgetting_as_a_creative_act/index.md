@@ -1,9 +1,9 @@
 ---
 title: "Why Short Term memory is a thing: forgetting as a creative act"
+subtitle: Philosophy meets computer science
 date: 2017-03-08T21:48:09.200Z
 tags:
   - tesla
-  - overview
 ---
 
 Our new app [TezLab](http://tezlabapp.com) pulls in data from your phone and your car to show you how to use your car better. It helps you understand your driving habits, how you use your battery, and shows you what other drivers are up to. In order to do this, we need fairly sophisticated ways of understanding the world.
