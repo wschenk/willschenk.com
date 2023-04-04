@@ -2,17 +2,17 @@
 title: "Will Schenk"
 ---
 
-# Will Schenk
+I am a father, entrepreneur, technologist and aspiring woodsman.
 
-This is my little corner of the internet. I use it to document things that I'm working on and as a place to keep track of different things.
+I live in [the woods of Northwest Connecticut](https://cornwallct.org/) where our four boys run around outside. I live with [Ksenia](https://twitter.com/Kseniase_). We also have 2 dogs, (old man) Happy and (puppy) Pheonix. I have a lumber mill and all the kids love using the tractor.
 
-After 20 years in NYC, we bought a house [northwest Connecticut](https://cornwallct.org/) in the beginning of 2020. We came up for a long weekend, and now we live here.
+I cofounded [HappyFunCorp](https://happyfuncorp.com) in Sept 2009, but left when my wife died of a brain hemmorage in Janurary of 2020. We sold the company later that year in November.
 
-My wife suddenly passed away from a brain hemmorage in Janurary 2022. Our children were 3, 5, and 7 at the time. I pulled back from [HappyFunCorp](https://happyfuncorp.com), and we sold it in November of 2022. My partner Ben Schippers and I founded the company in 2011.
+Active projects:
 
-Now I work on:
-
-- [Tezlab](https://tezlabapp.com) a companion app for Tesla owners.
-- [GitGratitude](https://gitgratitude.com) giving back to the open source community
-- [Cornwall Market](https://cornwallmarket.com) a local grocery store and chocolate emporium
-- [Fine and Fair Food](http://fineandfairfoods.com/) we are a climate-forward and decolonial chocolate and natural ingredients company. Our mission is to properly reward the stewards of Earth's most fragile
+|                                                    |                                                                                                                                                                                     |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Tezlab](https://tezlabapp.com)                    | A mobile app for EV owners. Our mission at TezLab is to help extend Tesla's vision by supporting and accelerating the transition to EVs using the very best design and engineering. |
+| [GitGratitude](https://gitgratitude.com)           | GitGratitude is a software platform that helps makes sense of the world of open source software                                                                                     |
+| [Cornwall Market](https://cornwallmarket.com)      | Cornwall Marklet serves the local community with food, with a specialy of chocolate products and local ingredients. Opening June 2023.                                              |
+| [Fine and Fair Food](http://fineandfairfoods.com/) | We are a climate-forward and decolonial chocolate and natural ingredients company.                                                                                                  |
