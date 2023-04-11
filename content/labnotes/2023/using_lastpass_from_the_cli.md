@@ -40,6 +40,20 @@ fi
   POCKET_PASS=`lpass show –password pocketcasts.com |awk '/Password/ { print $2}'`
 ```
 
+Or if you want to pull stuff using ruby:
+
+```ruby
+  require 'open3'
+
+  # Run the "lpass show" command to retrieve the Instapaper API key and username
+  output, status = Open3.capture2('lpass', 'show', 'Instapaper API Key')
+  if status.success?
+    # Extract the API key and username from the output
+    api_key = output.match(/Consumer ID: (.+)/)[1]
+    api_secret = output.match(/Consumer Secret: (.+)/)[1] 
+  end
+```
+
 ## References
 
 1. https://github.com/lastpass/lastpass-cli
