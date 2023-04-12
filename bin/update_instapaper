@@ -1,0 +1,67 @@
+#!/usr/bin/env ruby 
+
+require 'bundler/inline'
+
+gemfile do
+  source 'https://rubygems.org'
+
+  gem 'instapaper', '~> 1.0', '>= 1.0.1'
+end
+
+require 'open3'
+require 'net/http'
+require 'json'
+
+def get_keys
+  if !system("lpass status")
+    system "lpass login wschenk@gmail.com"
+  end
+
+  # Run the "lpass show" command to retrieve the Instapaper API key and username
+  output, status = Open3.capture2('lpass', 'show', 'Instapaper API Key')
+  if status.success?
+    # Extract the API key and username from the output
+    api_key = output.match(/Consumer ID: (.+)/)[1]
+    api_secret = output.match(/Consumer Secret: (.+)/)[1] 
+
+    # Replace API_KEY and USERNAME placeholders with retrieved va lues
+    endpoint = 'https://www.instapaper.com/api/1.1/bookmarks/list'
+    params = {
+      'username' => `lpass show 'instapaper.com' --username`.chomp,
+      'password' => `lpass show 'instapaper.com' --password`.chomp,
+      'api_key' => api_key,
+      'api_secret' => api_secret
+    }
+
+    return params
+  end
+
+  throw "Couldn't get credentials"
+end
+
+puts "Getting creds from lastpass"
+creds = get_keys
+
+credentials = {
+  consumer_key: creds['api_key'],
+  consumer_secret: creds['api_secret']
+}
+
+puts "Getting instapaper token"
+client = Instapaper::Client.new(credentials)
+token = client.access_token(creds['username'], creds['password'])
+# => #<Instapaper::Credentials oauth_token="710c838347ae178b4a92c6912e7e72e16c7e42f2" oauth_token_secret="XSXuU7TxBCzbKLjHH4R5iv8wfESLjeY9DI9sAdRBmCnui1E64m">
+
+client.oauth_token = token.oauth_token
+client.oauth_token_secret = token.oauth_token_secret
+
+client.verify_credentials
+
+starred = client.bookmarks(folder_id: 'starred').bookmarks.collect do |b|
+  b.attributes
+end
+
+puts "Writing file"
+File.open( "data/starred_instapaper.json", "w") do |out|
+  out << JSON.pretty_generate( starred )
+end

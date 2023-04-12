@@ -1,0 +1,98 @@
+#!/usr/bin/env ruby 
+
+require 'bundler/inline'
+
+gemfile do
+  source 'https://rubygems.org'
+
+  gem 'httparty', '~> 0.17.3'
+  gem 'json', '~> 2.6', '>= 2.6.3'
+end
+
+require 'open3'
+
+def get_keys
+  if !system("lpass status")
+    system "lpass login wschenk@gmail.com"
+  end
+
+  # Run the "lpass show" command to retrieve the Instapaper API key and username
+  output, status = Open3.capture2('lpass', 'show', 'Feedly API Key')
+  if status.success?
+    # Extract the API key and username from the output
+    token = output.match(/Access Token: (.+)/)[1]
+    refresh = output.match(/Refresh Token: (.+)/)[1] 
+
+    params = {
+      'token' => token,
+      'refresh' => refresh
+    }
+
+    return params
+  end
+
+  throw "Couldn't get credentials"
+end
+
+def get_profile( creds )
+  response = HTTParty.get('https://cloud.feedly.com/v3/profile',
+     headers: {
+          "Authorization" => "Bearer #{creds['token']}",
+          "cache-control" => "no-cache"
+     }
+  )
+
+  puts "Profile response #{response.code}"
+  JSON.parse(response.body)
+end
+
+def get_starred( user_id, creds )
+  tag = "user/#{user_id}/tag/global.saved"
+  url = "https://cloud.feedly.com/v3/streams/contents"
+
+  response = HTTParty.get(url, {
+    query: {
+      streamId: tag
+    },
+    headers: {
+          "Authorization" => "Bearer #{creds['token']}",
+          "cache-control" => "no-cache"
+    }
+     }
+  )
+
+  puts "Starred response #{response.code}"
+
+  JSON.parse(response.body)
+end
+
+creds = get_keys
+
+profile = get_profile( creds )
+
+puts "Profile id #{profile["id"]}"
+
+starred = get_starred( profile["id"], creds )
+
+puts 'Writing starred'
+
+# pp starred['items']
+
+File.open( "data/starred_feedly.json", "w" ) do |out|
+  data = starred['items'].collect do |i|
+    {
+      title: i['title'],
+      author: i['author'],
+      published: i['published'],
+      originId: i['originId'],
+      url: i['canonicalUrl'],
+      alternate: (i['alternate'] || [{}]).first['href'],
+      keywords: i['keywords'],
+      summary: (i['summary'] || {})['content']
+    }
+  end
+
+  out << JSON.pretty_generate( data )
+end
+
+# user/:userId/tag/global.saved
