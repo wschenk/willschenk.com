@@ -1,0 +1,72 @@
+#!/usr/bin/env ruby
+
+require 'bundler/inline'
+
+gemfile do
+  source 'https://rubygems.org'
+
+  gem 'httparty', '~> 0.17.3'
+  gem 'json', '~> 2.6', '>= 2.6.3'
+end
+
+SITE_ID="willschenk.com"
+
+if !system("lpass status")
+  system "lpass login wschenk@gmail.com"
+end
+
+token = `lpass show "plausible api" | awk '/Notes/ {print $2}'`.chomp
+
+def year_stats( token, year )
+  by = year.to_i
+  ey = by + 1
+
+  response = HTTParty.get("https://plausible.io/api/v1/stats/breakdown", {
+    query: {
+      site_id: SITE_ID,
+      period: "custom",
+      limit: 10,
+      property: "event:page",
+      date: "#{by}-01-01,#{ey}-01-01"
+    },
+    headers: {
+          "Authorization" => "Bearer #{token}",
+          "cache-control" => "no-cache"
+    }
+    }
+  )
+
+  response.parsed_response['results']
+end
+
+def rolling_stats( token )
+  response = HTTParty.get("https://plausible.io/api/v1/stats/breakdown", {
+    query: {
+      site_id: SITE_ID,
+      period: "12mo",
+      limit: 10,
+      property: "event:page",
+    },
+    headers: {
+          "Authorization" => "Bearer #{token}",
+          "cache-control" => "no-cache"
+    }
+    }
+  )
+
+  response.parsed_response['results']
+end
+
+current_year = Time.new.year
+
+(2023..current_year).each do |year|
+  puts year
+  File.open( "data/year_stats_#{year}.json", "w" ) do |out|
+    out << JSON.pretty_generate( year_stats( token, year ))
+  end
+end
+
+File.open( "data/year_stats_rolling.json", "w" ) do |out|
+  puts "Last 12 months"
+  out << JSON.pretty_generate( rolling_stats( token ) )
+end
