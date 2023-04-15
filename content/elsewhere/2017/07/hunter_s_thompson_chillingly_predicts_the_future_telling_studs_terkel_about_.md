@@ -1,0 +1,11 @@
+---
+title: "Hunter S. Thompson Chillingly Predicts the Future, Telling Studs Terkel About the Coming Revenge of the Economically & Technologically “Obsolete” (1967)"
+date: 2017-07-18
+origin: http://www.openculture.com/2017/07/hunter-thompson-predicts-the-future-telling-studs-terkel-about-the-coming-revenge-of-the-economically-technologically-obsolete-1967.html
+alternate: http://www.openculture.com/2017/07/hunter-thompson-predicts-the-future-telling-studs-terkel-about-the-coming-revenge-of-the-economically-technologically-obsolete-1967.html
+type: link
+---
+
+<p>Image  via Wikimedia Commons Half a century ago, Hunter S. Thompson got his big journalistic break with a book called Hell's Angels: The Strange and Terrible Saga of the Outlaw Motorcycle Gangs. In it he provided a curious and fearful public with a look into the inner workings of one of the most outwardly menacing social […]<br>
+</p>
+<p><a rel="nofollow" href="http://www.openculture.com/2017/07/hunter-thompson-predicts-the-future-telling-studs-terkel-about-the-coming-revenge-of-the-economically-technologically-obsolete-1967.html">Hunter S. Thompson Chillingly Predicts the Future, Telling Studs Terkel About the Coming Revenge of the Economically &amp; Technologically “Obsolete” (1967)</a> is a post from: <a href="http://www.openculture.com">Open Culture</a>. Follow us on <a href="https://www.facebook.com/openculture">Facebook</a>, <a href="https://twitter.com/#!/openculture">Twitter</a>, and <a href="https://plus.google.com/108579751001953501160/posts">Google Plus</a>, or get our <a href="http://www.openculture.com/dailyemail">Daily Email</a>. And don't miss our big collections of <a href="http://www.openculture.com/freeonlinecourses">Free Online Courses</a>, <a href="http://www.openculture.com/freemoviesonline">Free Online Movies</a>, <a href="http://www.openculture.com/free_ebooks">Free eBooks</a>, <a href="http://www.openculture.com/freeaudiobooks">Free Audio Books</a>, <a href="http://www.openculture.com/freelanguagelessons">Free Foreign Language Lessons</a>, and <a href="http://www.openculture.com/free_certificate_courses">MOOCs</a>.</p>

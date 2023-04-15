@@ -1,0 +1,102 @@
+#!/usr/bin/env ruby
+
+require 'json'
+require 'fileutils'
+
+def generate_dir( date )
+  "content/elsewhere/#{date.strftime( '%Y/%m')}"
+end
+
+def sanitize_title( title )
+  title.gsub( / /, "_").gsub( /[^A-Za-z0-9_]/, "" ).downcase[0..75]
+end
+
+
+# Feedly
+posts = JSON.parse( File.read( 'data/starred_feedly.json' ) )
+
+puts "#{posts.count} posts"
+
+posts.each do |post|
+  date = Time.at( post['published'].to_i / 1000 )
+
+  dir = generate_dir( date )
+  FileUtils.mkdir_p( dir )
+  # puts "#{date} #{generate_dir(date)} #{sanitize_title(post['title'])}"
+
+  File.open( "#{dir}/#{sanitize_title(post['title'])}.md", "w") do |out|
+    out << "---\n"
+    out << "title: \"#{post['title'].gsub(/\"/, "")}\"\n"
+    out << "date: #{date.strftime("%Y-%m-%d")}\n"
+    out << "origin: #{post['url']}\n"
+    out << "alternate: #{post['alternate']}\n"
+    out << "type: link\n"
+    out << "---\n\n"
+    out << post['summary']
+  end
+end
+
+# Pocketcasts
+podcasts = JSON.parse( File.read( 'data/starred_podcasts.json' ) )
+puts "#{podcasts.count} podcasts"
+
+podcasts.each do |podcast|
+  date = Time.new(podcast['published'])
+
+  dir = generate_dir( date )
+  FileUtils.mkdir_p( dir )
+
+  File.open( "#{dir}/#{sanitize_title(podcast['episodeTitle'])}.md", "w") do |out|
+    out << "---\n"
+    out << "title: \"#{podcast['episodeTitle'].gsub(/\"/, "")}\"\n"
+    out << "date: #{date.strftime("%Y-%m-%d")}\n"
+    out << "origin: #{podcast['audioUrl']}\n"
+    out << "podcast: #{podcast['podcastUrl']}\n"
+    out << "type: podcast\n"
+    out << "---\n\n"
+    out << podcast['notes']
+  end
+end
+
+# Github
+repos = JSON.parse( File.read( 'data/starred_repos.json' ) )
+puts "#{repos.count} repos"
+
+repos.each do |repo|
+  date = Time.new(repo['starred_at'])
+
+  dir = generate_dir( date )
+  FileUtils.mkdir_p( dir )
+
+  File.open( "#{dir}/#{sanitize_title(repo['name'])}.md", "w") do |out|
+    out << "---\n"
+    out << "title: \"#{repo['full_name'].gsub(/\"/, "")}\"\n"
+    out << "date: #{date.strftime("%Y-%m-%d")}\n"
+    out << "origin: #{repo['html_url']}\n"
+    out << "type: repo\n"
+    out << "---\n\n"
+    out << repo['description']
+  end
+end
+
+# Instapaper
+
+reads = JSON.parse( File.read( 'data/starred_instapaper.json' ) )
+puts "#{reads.count} reads"
+
+reads.each do |read|
+  date = Time.new(read['time'])
+
+  dir = generate_dir( date )
+  FileUtils.mkdir_p( dir )
+
+  File.open( "#{dir}/#{sanitize_title(read['title'])}.md", "w") do |out|
+    out << "---\n"
+    out << "title: \"#{read['title'].gsub(/\"/, "")}\"\n"
+    out << "date: #{date.strftime("%Y-%m-%d")}\n"
+    out << "origin: #{read['url']}\n"
+    out << "type: read\n"
+    out << "---\n\n"
+
+  end
+end

@@ -1,0 +1,11 @@
+---
+title: "Sci-Fi Radio: Hear Radio Dramas of Sci-Fi Stories by Ray Bradbury, Philip K. Dick, Ursula K. LeGuin & More (1989)"
+date: 2017-06-16
+origin: http://www.openculture.com/2017/06/sci-fi-radio-hear-radio-dramas-of-sci-fi-stories-by-ray-bradbury-philip-k-dick-ursula-k-leguin-more-1989.html
+alternate: http://www.openculture.com/2017/06/sci-fi-radio-hear-radio-dramas-of-sci-fi-stories-by-ray-bradbury-philip-k-dick-ursula-k-leguin-more-1989.html
+type: link
+---
+
+<p>Image by Mr.Hasgaha, via Flickr Commons If you dig through our archives, you can find no shortage of finely-produced radio dramatizations of your favorite science fiction stories. During the 1950s, NBC's Dimension X adapted stories by the likes of Isaac Asimov, Ray Bradbury, Robert Heinlein, and even Kurt Vonnegut. Later in the '50s, X Minus One continued that tradition, dramatizing […]<br>
+</p>
+<p><a rel="nofollow" href="http://www.openculture.com/2017/06/sci-fi-radio-hear-radio-dramas-of-sci-fi-stories-by-ray-bradbury-philip-k-dick-ursula-k-leguin-more-1989.html"><i>Sci-Fi Radio</i>: Hear Radio Dramas of Sci-Fi Stories by Ray Bradbury, Philip K. Dick, Ursula K. LeGuin &amp; More (1989)</a> is a post from: <a href="http://www.openculture.com">Open Culture</a>. Follow us on <a href="https://www.facebook.com/openculture">Facebook</a>, <a href="https://twitter.com/#!/openculture">Twitter</a>, and <a href="https://plus.google.com/108579751001953501160/posts">Google Plus</a>, or get our <a href="http://www.openculture.com/dailyemail">Daily Email</a>. And don't miss our big collections of <a href="http://www.openculture.com/freeonlinecourses">Free Online Courses</a>, <a href="http://www.openculture.com/freemoviesonline">Free Online Movies</a>, <a href="http://www.openculture.com/free_ebooks">Free eBooks</a>, <a href="http://www.openculture.com/freeaudiobooks">Free Audio Books</a>, <a href="http://www.openculture.com/freelanguagelessons">Free Foreign Language Lessons</a>, and <a href="http://www.openculture.com/free_certificate_courses">MOOCs</a>.</p>
