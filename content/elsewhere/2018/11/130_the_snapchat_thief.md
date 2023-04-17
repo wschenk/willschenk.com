@@ -3,7 +3,54 @@ title: "#130 The Snapchat Thief"
 date: 2018-11-08
 origin: https://chrt.fm/track/15E3G4/traffic.megaphone.fm/GLT8967905844.mp3?updated=1644000913
 podcast: 
+linkUrl: https://pca.st/3DoU
 type: podcast
+author: Gimlet
 ---
 
-<p>This week, a new Super Tech Support: after Lizzie&#39;s Snapchat gets hacked, things start getting really creepy. Alex investigates.</p><p><strong>Michael Bazzell&#39;s Podcast</strong></p><p><a href="https://inteltechniques.com/podcast.html">The complete Security and Privacy Podcast</a></p><p><strong>Steps Michael Bazzell Gave Alex to Protect Himself</strong></p><p><a href="https://www.cnet.com/how-to/how-to-port-your-landline-number-to-google-voice/">How to port your phone number</a></p><p><a href="https://www.washingtonpost.com/technology/2018/07/12/your-password-has-likely-been-stolen-heres-what-do-about-it/?utm_term&#61;.f78b27fbd519">Password Manager</a></p><p><a href="https://play.google.com/store/apps/details?id&#61;com.google.android.apps.authenticator2&amp;hl&#61;en_US">Google Authenticator</a></p><p><a href="https://www.yubico.com/">Yubikey</a></p><p><a href="https://inteltechniques.com/data/workbook.pdf">Michael&#39;s workbook to freeze your credit and remove yourself from public records websites</a></p><p><a href="https://mysudo.com/">Sudo</a></p><p><strong>Stories about Sim Swapping and OGUsers by Vice/Motherboard</strong></p><p>By Lorenzo Francheschi-Bicchierai</p><p><a href="https://motherboard.vice.com/en_us/article/vbqax3/hackers-sim-swapping-steal-phone-numbers-instagram-bitcoin">The SIM Hijackers</a></p><p><a href="https://motherboard.vice.com/en_us/article/zm8a9y/how-to-protect-yourself-from-sim-swapping-hacks">How to Protect Yourself From SIM Swapping Hacks</a></p><p><a href="https://motherboard.vice.com/en_us/article/a3q7mz/hacker-allegedly-stole-millions-bitcoin-sim-swapping">‘TELL YOUR DAD TO GIVE US BITCOIN:’ How a Hacker Allegedly Stole Millions by Hijacking Phone Numbers</a></p><p><a href="https://motherboard.vice.com/en_us/article/3ky5a5/criminals-recruit-telecom-employees-sim-swapping-port-out-scam">How Criminals Recruit Telecom Employees to Help Them Hijack SIM Cards</a></p><p><a href="https://motherboard.vice.com/en_us/article/wjka95/sim-swapper-arrest-bitcoin-luxury-cars">Alleged 19-Year-Old SIM Swapper Used Stolen Bitcoin to Buy Luxury Cars</a></p><p><a href="https://motherboard.vice.com/en_us/article/7x3may/cops-arrest-sim-swapper-14-million-cryptocurrency">Cops Arrest Infamous SIM Swapper Who Allegedly Stole $14 Million in Cryptocurrency</a></p><p>By Joseph Cox</p><p><a href="https://motherboard.vice.com/en_us/article/5984zn/listen-to-sim-jacking-account-ransom-instagram-email-tmobile">&#39;I Could Ruin Your Business Right Now&#39;: Listen to a SIM-Jacking, Account-Stealing Ransom</a></p><p><strong>The Organization that Lizzie Donated To</strong></p><p><a href="https://byteback.org/">Byte Back</a></p><p> </p><p>Learn more about your ad choices. Visit <a href="https://podcastchoices.com/adchoices">podcastchoices.com/adchoices</a></p>
+This week, a new Super Tech Support: after Lizzie's Snapchat gets hacked, things start getting really creepy. Alex investigates.
+
+**Michael Bazzell's Podcast**
+
+[The complete Security and Privacy Podcast](https://inteltechniques.com/podcast.html)
+
+**Steps Michael Bazzell Gave Alex to Protect Himself**
+
+[How to port your phone number](https://www.cnet.com/how-to/how-to-port-your-landline-number-to-google-voice/)
+
+[Password Manager](https://www.washingtonpost.com/technology/2018/07/12/your-password-has-likely-been-stolen-heres-what-do-about-it/?utm_term=.f78b27fbd519)
+
+[Google Authenticator](https://play.google.com/store/apps/details?id=com.google.android.apps.authenticator2&hl=en_US)
+
+[Yubikey](https://www.yubico.com/)
+
+[Michael's workbook to freeze your credit and remove yourself from public records websites](https://inteltechniques.com/data/workbook.pdf)
+
+[Sudo](https://mysudo.com/)
+
+**Stories about Sim Swapping and OGUsers by Vice/Motherboard**
+
+By Lorenzo Francheschi-Bicchierai
+
+[The SIM Hijackers](https://motherboard.vice.com/en_us/article/vbqax3/hackers-sim-swapping-steal-phone-numbers-instagram-bitcoin)
+
+[How to Protect Yourself From SIM Swapping Hacks](https://motherboard.vice.com/en_us/article/zm8a9y/how-to-protect-yourself-from-sim-swapping-hacks)
+
+[‘TELL YOUR DAD TO GIVE US BITCOIN:’ How a Hacker Allegedly Stole Millions by Hijacking Phone Numbers](https://motherboard.vice.com/en_us/article/a3q7mz/hacker-allegedly-stole-millions-bitcoin-sim-swapping)
+
+[How Criminals Recruit Telecom Employees to Help Them Hijack SIM Cards](https://motherboard.vice.com/en_us/article/3ky5a5/criminals-recruit-telecom-employees-sim-swapping-port-out-scam)
+
+[Alleged 19-Year-Old SIM Swapper Used Stolen Bitcoin to Buy Luxury Cars](https://motherboard.vice.com/en_us/article/wjka95/sim-swapper-arrest-bitcoin-luxury-cars)
+
+[Cops Arrest Infamous SIM Swapper Who Allegedly Stole $14 Million in Cryptocurrency](https://motherboard.vice.com/en_us/article/7x3may/cops-arrest-sim-swapper-14-million-cryptocurrency)
+
+By Joseph Cox
+
+['I Could Ruin Your Business Right Now': Listen to a SIM-Jacking, Account-Stealing Ransom](https://motherboard.vice.com/en_us/article/5984zn/listen-to-sim-jacking-account-ransom-instagram-email-tmobile)
+
+**The Organization that Lizzie Donated To**
+
+[Byte Back](https://byteback.org/)
+
+Learn more about your ad choices. Visit [podcastchoices.com/adchoices](https://podcastchoices.com/adchoices)
+

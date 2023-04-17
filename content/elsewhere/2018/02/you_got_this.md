@@ -4,6 +4,8 @@ date: 2018-02-20
 origin: https://glitch.com/you-got-this
 alternate: https://glitch.com/you-got-this
 type: link
+author: Andy Baio
 ---
 
 a free 20-page zine about making web apps with Node.js
+

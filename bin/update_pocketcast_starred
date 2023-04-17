@@ -1,0 +1,165 @@
+#!/usr/bin/env ruby
+
+require 'bundler/inline'
+
+gemfile do
+  source 'https://rubygems.org'
+
+  gem 'httparty', '~> 0.17.3'
+  gem 'json', '~> 2.6', '>= 2.6.3'
+end
+
+require 'open3'
+require 'pp'
+
+class Pocketcast
+  def get_keys
+    puts "Getting keys from LastPass"
+    if !system("lpass status")
+      system "lpass login wschenk@gmail.com"
+    end
+
+    # Run the "lpass show" command to retrieve the Instapaper API key and username
+    output, status = Open3.capture2('lpass', 'show', 'pocketcasts.com')
+    if status.success?
+      # Extract the API key and username from the output
+      user = output.match(/Username: (.+)/)[1]
+      password = output.match(/Password: (.+)/)[1] 
+
+      params = {
+        'email' => user,
+        'password' => password
+      }
+
+      return params
+    end
+
+    throw "Couldn't get credentials"
+  end
+
+  def token
+    if !@token
+      keys = get_keys
+      puts "Logging in"
+      response = HTTParty.post('https://api.pocketcasts.com/user/login', {
+        query: {
+          email: keys['email'],
+          password: keys['password'],
+          scope: 'webplayer'
+        },
+        headers: {
+          # "Authorization" => "Bearer #{creds['token']}",
+          "cache-control" => "no-cache"
+        }
+      } )
+
+      data = JSON.parse( response.body )
+      @token = data['token']
+      @email = data['email']
+      @user_uuid = data['uuid']
+    end
+
+    @token
+  end
+
+  def starred
+    if !@starred
+      response = HTTParty.post('https://api.pocketcasts.com/user/starred', {
+        query: {
+        },
+        headers: {
+          "Authorization" => "Bearer #{token}",
+          "cache-control" => "no-cache"
+        }
+      } )
+
+      @starred = JSON.parse( response.body )
+    end
+
+    @starred['episodes']
+  end
+
+  def podcasts
+    if !@podcasts
+      response = HTTParty.post('https://api.pocketcasts.com/user/podcast/list', {
+        body: {v:1}.to_json,
+        headers: {
+          "Authorization" => "Bearer #{token}",
+          "cache-control" => "no-cache",
+        }
+      } )
+
+      @podcasts ||= {}
+
+      JSON.parse(response.body)['podcasts'].each do |p|
+        @podcasts[p['uuid']] = p
+      end
+    end
+
+    @podcasts
+  end
+
+  def share_link episode
+    @share_links ||= {}
+
+    if !@share_links[episode['uuid']]
+      response = HTTParty.post('https://api.pocketcasts.com/podcasts/share_link', {
+        body: {
+          episode: episode['uuid'],
+          podcast: episode['podcastUuid']
+        }.to_json,
+        headers: {
+          "Authorization" => "Bearer #{token}",
+          "cache-control" => "no-cache",
+        }
+      } )
+
+      @share_links[episode['uuid']] = JSON.parse( response.body )
+    end
+
+    @share_links[episode['uuid']]
+  end
+
+  def notes uuid
+    @notes ||= {}
+
+    if !@notes[uuid]
+      response = HTTParty.get("https://cache.pocketcasts.com/episode/show_notes/#{uuid}", {
+        headers: {
+          "Authorization" => "Bearer #{token}",
+          "cache-control" => "no-cache",
+          "Content-Type" => "application/json"
+        }
+      } )
+
+      @notes[uuid] = JSON.parse( response.body )
+    end
+
+    @notes[uuid]
+  end
+end
+
+pc = Pocketcast.new
+
+data = pc.starred.collect do |p|
+  notes = pc.notes(p['uuid']) || {}
+  podcast = pc.podcasts[p['podcastUuid']] || {}
+  puts p['title']
+
+  {
+    episodeTitle: p['title'],
+    audioUrl: p['url'],
+    podcastUrl: podcast['url'],
+    linkUrl: pc.share_link(p)['url'],
+    published: p['published'],
+    podcastTitle: p['podcastTitle'],
+    author: p['author'],
+    description: podcast['description'],
+    notes: notes['show_notes']
+  }
+end
+
+File.open( "data/starred_podcasts.json", "w" ) do |out|
+  out << JSON.pretty_generate( data )
+end
+

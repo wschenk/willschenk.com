@@ -4,6 +4,7 @@ date: 2017-11-15
 origin: 
 alternate: http://justtypestuff.com/
 type: link
+author: Andy Baio
 ---
 
-<a href="http://distractionware.com/blog/2017/11/constellation/">just type stuff</a>, a new toy from Terry Cavanagh
+[just type stuff](http://distractionware.com/blog/2017/11/constellation/), a new toy from Terry Cavanagh

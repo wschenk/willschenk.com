@@ -4,5 +4,6 @@ date: 2019-02-19
 origin: https://kottke.org/19/02/a-detailed-map-of-medieval-trade-routes-in-europe-asia-and-africa
 alternate: https://kottke.org/19/02/a-detailed-map-of-medieval-trade-routes-in-europe-asia-and-africa
 type: link
+author: Jason Kottke
 ---
 

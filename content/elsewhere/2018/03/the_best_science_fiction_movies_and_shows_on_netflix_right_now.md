@@ -4,6 +4,8 @@ date: 2018-03-23
 origin: https://motherboard.vice.com/en_us/article/mbxepx/what-to-watch-on-netflix-science-fiction
 alternate: https://motherboard.vice.com/en_us/article/mbxepx/what-to-watch-on-netflix-science-fiction
 type: link
+author: Matthew Gault
 ---
 
 Motherboard’s guide to binging good sci-fi stories.
+

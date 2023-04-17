@@ -3,7 +3,121 @@ title: "OCCULTURE 127: Sandor Katz // The Art & Alchemy of Fermentation & The Wa
 date: 2019-04-16
 origin: https://traffic.libsyn.com/secure/45minuteradiohour/127_Sandor_Katz_Free.mp3?dest-id=416224
 podcast: https://liberohio.com
+linkUrl: https://pca.st/0rvd8u79
 type: podcast
+author: Occulture Media
 ---
 
-Sandor Katz in the house to talk to us a bit about the art and alchemy of fermentation. Sandor is a New York Times bestselling author. His books include Wild Fermentation and The Art of Fermentation, both of which we drew on for the chat here. <p>Fermentation is one of the steps in the ancient alchemical process, both the material and spiritual versions. It’s also an easy and practical way to reclaim your food and your health, because fermented foods are easy to make yourself and can help revitalize your gut microbiome, which has become quite the hot topic in health and wellness circles in the last couple years. And we get into that as well, this war on bacteria that a lot of us are unknowing participants in. Hopefully after this chat we’re a bit more comfortable with the culture growing inside and on us.</p> <p> </p> <p>PATREON EXTENSION</p> <p>Listen at <a href="https://www.patreon.com/occulture">patreon.com/occulture</a></p> <ul><li>The potential energy efficiency benefits of fermentation</li><li>The spiritual aspect of fermentation</li><li>The alchemy of fermentation and what we can learn about ourselves from observing the process</li><li>The effect of globalization on fermentation practices and fermented foods</li><li>What you need to get started fermenting (hint: not much!)</li></ul> <p> </p> <p>RESOURCES</p> <ul><li><a href="https://www.indiebound.org/book/9781603586283">Wild Fermentation on IndieBound</a></li><li><a href="https://amzn.to/2D8cobJ">Wild Fermentation on Amazon</a></li><li><a href="https://www.indiebound.org/book/9781603582865">The Art of Fermentation on IndieBound</a></li><li><a href="https://amzn.to/2D8bSKP">The Art of Fermentation on Amazon</a></li><li><a href="https://www.wildfermentation.com/">Sandor’s website</a></li></ul> <p> </p> <p>DONATE</p> <p>If recurring monthly support via Patreon isn’t your thing, we do accept <a href="https://www.occulturepodcast.com/donate">one time-donations</a> via PayPal, Bitcoin, Ethereum and Ripple. Every little bit helps.</p> <p> </p> <p>MERCH</p> <p>Tees, tanks, hoodies, hats. Check ‘em out on our <a href="https://www.occulturepodcast.com/merch/">website</a> or at our <a href="https://www.etsy.com/shop/OcculturePodcast">Etsy shop</a>.</p> <p> </p> <p>SOCIAL</p> <ul><li><a href="https://twitter.com/occulturepod">Twitter</a></li><li><a href="https://www.instagram.com/occulture_podcast/">Instagram</a></li><li><a href="https://www.facebook.com/occulturepodcast/">Facebook</a></li><li><a href="https://occulturepodcast.tumblr.com/">Tumblr</a></li></ul> <p> </p> <p>MUSIC</p> <p><a href="https://soundcloud.com/thevulturex/2-i-want-to-be-a-robot-tribute"> Vestron Vulture - “I Want to Be a Robot (Tribute to Giorgio Moroder)”</a></p> <p> </p> <p>PRODUCTION &amp; LICENSING</p> <p>This podcast is produced in the Kingdom of Ohio and is licensed under <a href="https://creativecommons.org/licenses/by-nc/4.0/legalcode"> Creative Commons Attribution-NonCommercial 4.0 International</a>.</p> <p>Executive Producers: Mike K., Carter Y., Mauricio G., Alyssa S., Daniel R., Kelly C., Bruce H., David G., Jeremy V., Marcelo T., Christopher B., Timothy W., Nick F., Michael Q., Jamaica J., Mute Ryan, John W., Paul S., Andy E., Colleen F., Catalina M., Saliyah S., Raymond G., Kevin C., Michael S., Blake S., Kyle A., Megan B.</p> <p> </p> <p>REMINDER</p> <p>Love yourself. Think for yourself. Question authority.</p>
+Sandor Katz in the house to talk to us a bit about the art and alchemy of fermentation. Sandor is a New York Times bestselling author. His books include Wild Fermentation and The Art of Fermentation, both of which we drew on for the chat here.
+
+Fermentation is one of the steps in the ancient alchemical process, both the material and spiritual versions. It’s also an easy and practical way to reclaim your food and your health, because fermented foods are easy to make yourself and can help revitalize your gut microbiome, which has become quite the hot topic in health and wellness circles in the last couple years. And we get into that as well, this war on bacteria that a lot of us are unknowing participants in. Hopefully after this chat we’re a bit more comfortable with the culture growing inside and on us.
+
+ 
+
+&nbsp;
+
+ 
+
+PATREON EXTENSION
+
+ 
+
+Listen at [patreon.com/occulture](https://www.patreon.com/occulture)
+
+ 
+- The potential energy efficiency benefits of fermentation
+- The spiritual aspect of fermentation
+- The alchemy of fermentation and what we can learn about ourselves from observing the process
+- The effect of globalization on fermentation practices and fermented foods
+- What you need to get started fermenting (hint: not much!)
+ 
+
+&nbsp;
+
+ 
+
+RESOURCES
+
+ 
+- [Wild Fermentation on IndieBound](https://www.indiebound.org/book/9781603586283)
+- [Wild Fermentation on Amazon](https://amzn.to/2D8cobJ)
+- [The Art of Fermentation on IndieBound](https://www.indiebound.org/book/9781603582865)
+- [The Art of Fermentation on Amazon](https://amzn.to/2D8bSKP)
+- [Sandor’s website](https://www.wildfermentation.com/)
+ 
+
+&nbsp;
+
+ 
+
+DONATE
+
+ 
+
+If recurring monthly support via Patreon isn’t your thing, we do accept [one time-donations](https://www.occulturepodcast.com/donate) via PayPal, Bitcoin, Ethereum and Ripple. Every little bit helps.
+
+ 
+
+&nbsp;
+
+ 
+
+MERCH
+
+ 
+
+Tees, tanks, hoodies, hats. Check ‘em out on our [website](https://www.occulturepodcast.com/merch/) or at our [Etsy shop](https://www.etsy.com/shop/OcculturePodcast).
+
+ 
+
+&nbsp;
+
+ 
+
+SOCIAL
+
+ 
+- [Twitter](https://twitter.com/occulturepod)
+- [Instagram](https://www.instagram.com/occulture_podcast/)
+- [Facebook](https://www.facebook.com/occulturepodcast/)
+- [Tumblr](https://occulturepodcast.tumblr.com/)
+ 
+
+&nbsp;
+
+ 
+
+MUSIC
+
+ 
+
+[Vestron Vulture - “I Want to Be a Robot (Tribute to Giorgio Moroder)”](https://soundcloud.com/thevulturex/2-i-want-to-be-a-robot-tribute)
+
+ 
+
+&nbsp;
+
+ 
+
+PRODUCTION & LICENSING
+
+ 
+
+This podcast is produced in the Kingdom of Ohio and is licensed under [Creative Commons Attribution-NonCommercial 4.0 International](https://creativecommons.org/licenses/by-nc/4.0/legalcode).
+
+ 
+
+Executive Producers: Mike K., Carter Y., Mauricio G., Alyssa S., Daniel R., Kelly C., Bruce H., David G., Jeremy V., Marcelo T., Christopher B., Timothy W., Nick F., Michael Q., Jamaica J., Mute Ryan, John W., Paul S., Andy E., Colleen F., Catalina M., Saliyah S., Raymond G., Kevin C., Michael S., Blake S., Kyle A., Megan B.
+
+ 
+
+&nbsp;
+
+ 
+
+REMINDER
+
+ 
+
+Love yourself. Think for yourself. Question authority.
+

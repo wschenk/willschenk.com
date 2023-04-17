@@ -4,5 +4,6 @@ date: 2018-09-11
 origin: 
 alternate: http://feedproxy.google.com/~r/FourShortLinks/~3/v6qhhoBV3Tc/four-short-links-11-september-2018
 type: link
+author: Nat Torkington
 ---
 
