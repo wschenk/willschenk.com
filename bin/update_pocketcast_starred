@@ -120,6 +120,22 @@ class Pocketcast
     @share_links[episode['uuid']]
   end
 
+  def podcast_info( uuid )
+    if !podcasts[uuid]
+      puts "Loading #{uuid}"
+
+      response = HTTParty.get("https://podcast-api.pocketcasts.com/podcast/full/#{uuid}",
+        headers: {
+          "Authorization" => "Bearer #{token}",
+          "cache-control" => "no-cache",
+        } )
+
+      podcasts[uuid] = JSON.parse(response.body)['podcast']
+    end
+
+    podcasts[uuid]
+  end    
+
   def notes uuid
     @notes ||= {}
 
@@ -139,27 +155,43 @@ class Pocketcast
   end
 end
 
-pc = Pocketcast.new
+if __FILE__ == $0
+  pc = Pocketcast.new
 
-data = pc.starred.collect do |p|
-  notes = pc.notes(p['uuid']) || {}
-  podcast = pc.podcasts[p['podcastUuid']] || {}
-  puts p['title']
+  podcasts = {}
 
-  {
-    episodeTitle: p['title'],
-    audioUrl: p['url'],
-    podcastUrl: podcast['url'],
-    linkUrl: pc.share_link(p)['url'],
-    published: p['published'],
-    podcastTitle: p['podcastTitle'],
-    author: p['author'],
-    description: podcast['description'],
-    notes: notes['show_notes']
-  }
+  data = pc.starred.collect do |p|
+    notes = pc.notes(p['uuid']) || {}
+    podcast = pc.podcast_info(p['podcastUuid']) || {}
+    puts p['title']
+    if podcast['url'].nil?
+      pp p
+      pp podcast
+      exit
+    end
+
+    podcasts[podcast['url']] ||= {title:p['podcastTitle'],count:0}
+    podcasts[podcast['url']][:count] += 1
+
+    {
+      episodeTitle: p['title'],
+      audioUrl: p['url'],
+      podcastUrl: podcast['url'],
+      linkUrl: pc.share_link(p)['url'],
+      published: p['published'],
+      podcastTitle: p['podcastTitle'],
+      author: p['author'],
+      description: podcast['description'],
+      notes: notes['show_notes']
+    }
+  end
+
+  File.open( "data/starred_podcasts.json", "w" ) do |out|
+    out << JSON.pretty_generate( data )
+  end
+
+  podcasts = podcasts.sort_by { |k, v| v[:count] }.reverse.to_h
+  File.open( "data/podcasts.json", "w" ) do |out|
+    out << JSON.pretty_generate( podcasts )
+  end
 end
-
-File.open( "data/starred_podcasts.json", "w" ) do |out|
-  out << JSON.pretty_generate( data )
-end
-

@@ -2,7 +2,7 @@
 title: Playing with tailwindcss
 subtitle: An excersize in minimilism
 tags:
-  - tailwindcss
+  - tailwind
 date: "2020-02-01"
 aliases:
   - "/articles/2020/playing_with_tailwind"
@@ -51,7 +51,7 @@ There are two sections here, one for the header and the other for the bio. Let's
 First, let's tweak some overall colors. We can search for "background" to see the classes available, so let's add a few. Change the body background, maybe the text color, and the background color of the header.
 
 ```html
-<body class="bg-gray-100 text-gray-800">
+<body class="bg-gray-100 text-faded-800">
   <div class="bg-blue-500"></div>
 </body>
 ```
@@ -208,7 +208,7 @@ This looks like it will get out of hand a bit as we add more, say `a` tags, but 
 Now we can add different pages to the site. We'll start with a boiler plate that contains all of our previous code in a template. On the top we have the header, and a simple _sidebar_ that we'll wire up to view things on the page.
 
 ```html
-<body class="bg-gray-100 text-gray-900">
+<body class="bg-gray-100 text-faded-900">
   <div class="bg-blue-500 pt-16 pb-20 shadow-lg">
     <img src="logo.svg" class="mx-auto h-10 w-auto" />
   </div>
@@ -223,7 +223,7 @@ Now we can add different pages to the site. We'll start with a boiler plate that
   </div>
 
   <template id="login">
-    <button class="m-4 px-4 py-2 bg-blue-500 text-gray-100 rounded">
+    <button class="m-4 px-4 py-2 bg-blue-500 text-faded-100 rounded">
       Login
     </button>
   </template>

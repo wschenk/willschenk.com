@@ -77,10 +77,15 @@ starred = get_starred( profile["id"], creds )
 
 puts 'Writing starred'
 
-# pp starred['items']
+blogs = {}
 
 File.open( "data/starred_feedly.json", "w" ) do |out|
   data = starred['items'].collect do |i|
+    html = i['origin']['htmlUrl']
+    blogs[html] ||= {}
+    blogs[html][:title] = i['origin']['title']
+    blogs[html][:count] ||= 0
+    blogs[html][:count] += 1
     {
       title: i['title'],
       author: i['author'],
@@ -96,4 +101,5 @@ File.open( "data/starred_feedly.json", "w" ) do |out|
   out << JSON.pretty_generate( data )
 end
 
-# user/:userId/tag/global.saved
+blogs = blogs.sort_by { |k, v| v[:count] }.reverse.to_h
+File.open( "data/blogs.json", "w" ) { |o| o << JSON.pretty_generate(blogs) }

@@ -1,0 +1,43 @@
+#!/usr/bin/env ruby
+require 'bundler/inline'
+require 'net/http'
+
+gemfile do
+  source 'https://rubygems.org'
+  gem 'nokogiri'
+  gem 'json'
+end
+
+if ARGV[0].nil?
+  puts "Usage:"
+  puts "link_info url"
+  exit 1
+end
+
+def fetch_url(url)
+  uri = URI(url)
+  response = Net::HTTP.get_response(uri)
+  return response.body, response['last-modified']
+end
+
+def extract_information(html)
+  doc = Nokogiri::HTML(html)
+
+  ret = {}
+  ret[:doc_title] = doc.at_css('title').content.strip rescue 'N/A'
+  ret[:author] = doc.at_css("meta[name='author']")['content'].strip rescue 'N/A'
+  ret[:ogtitle] = doc.at_css("meta[property='og:title']")['content'].strip rescue 'N/A'
+  ret[:ogdescription] = doc.at_css("meta[property='og:description']")['content'].strip rescue 'N/A'
+
+  ret
+end
+
+def main url
+  html, last_modified = fetch_url(url)
+  info = extract_information(html)
+
+  puts JSON.pretty_generate( info )
+
+end
+
+main ARGV[0]

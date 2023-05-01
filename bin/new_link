@@ -1,0 +1,77 @@
+#!/usr/bin/env ruby
+
+require 'bundler/inline'
+require 'json'
+require 'fileutils'
+
+gemfile do
+  source 'https://rubygems.org'
+  gem 'tty-prompt', '0.23.1'
+end
+
+data = { link: ARGV[0] }
+
+system "which pbpaste"
+
+if $? == 0
+  puts "Found pbpaste"
+  if data[:link]
+    data[:quote] = `pbpaste`.chomp
+  else
+    data[:link] = `pbpaste`.chomp
+  end
+else
+  puts "Nope"
+end
+
+prompt = TTY::Prompt.new
+
+data[:link] = prompt.ask( "What are you sharing?", default: data[:link] )
+
+puts "Loading link info..."
+
+info = JSON.parse( `./bin/link_info #{data[:link]}`)
+
+pp info
+puts
+
+title_options = [info["doc_title"], info["ogtitle"], "custom"].select { |x| x }
+if title_options.size == 0
+  puts "Title not found"
+  data[:title] = prompt.ask( "Title:" )
+else
+  data[:title] = prompt.select( "Title:", title_options )
+end
+
+if data[:title] == "custom"
+  data[:title] = prompt.ask( "Title:")
+end
+
+data[:description] = prompt.ask( "Description:", default: info["ogdescription"] )
+data[:author] = prompt.ask( "Author:", default: info["author"] )
+
+pp data
+
+directory = Time.new.strftime( "content/elsewhere/%Y/%m")
+
+file_name = data[:title].
+  gsub(/[^0-9a-zA-Z]/, '_').
+  gsub(/_+/, '_').
+  gsub(/^_+|_+$/, '').
+  downcase
+
+puts "#{directory}/#{file_name}"
+FileUtils.mkdir_p directory
+
+outfile = "#{directory}/#{file_name}.md"
+puts "Writing #{outfile}"
+
+File.open( outfile, "w" ) do |out|
+  out << "---\n"
+  out << "title: #{data[:title]}\n"
+  out << "date: #{Time.now.strftime( "%Y-%m-%d")}\n"
+  out << "origin: #{data[:link]}\n"
+  out << "type: link\n"
+  out << "author: #{data[:author]}\n"
+  out << "---\n\n#{data[:description]}\n"
+end
