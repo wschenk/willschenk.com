@@ -2,7 +2,7 @@
 title: "Richard Dennis Bartlett on Teal, Scuttlebutt and Solarpunk"
 date: 2018-09-02
 origin: https://anchor.fm/s/4d71708/podcast/play/1255337/https%3A%2F%2Fd3ctxlq1ktw2nl.cloudfront.net%2Fproduction%2F2018-8-2%2F4364485-44100-1-226dbb902ef01.mp3
-podcast: 
+podcast: http://stephenreid.net
 linkUrl: https://pca.st/40avvj7m
 type: podcast
 author: Stephen Reid

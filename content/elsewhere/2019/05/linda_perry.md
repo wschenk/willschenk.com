@@ -2,7 +2,7 @@
 title: "Linda Perry"
 date: 2019-05-07
 origin: https://chtbl.com/track/39E17/podtrac.com/pts/redirect.mp3/traffic.omny.fm/d/clips/e73c998e-6e60-432f-8610-ae210140c5b1/ff0ba2f2-f33c-4193-aba2-ae32006cd633/ec500f1e-88d2-4342-bb8b-ae3200966813/audio.mp3?utm_source=Podcast&in_playlist=11c188a1-cb86-4869-9c57-ae32006cd63c
-podcast: 
+podcast: https://brokenrecordpodcast.com/
 linkUrl: https://pca.st/cnId
 type: podcast
 author: Pushkin Industries

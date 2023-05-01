@@ -2,7 +2,7 @@
 title: "#140 The Roman Mars Mazda Virus"
 date: 2019-04-11
 origin: https://chrt.fm/track/15E3G4/traffic.megaphone.fm/GLT8937432626.mp3?updated=1644002283
-podcast: 
+podcast: http://gimletmedia.com/shows/reply-all
 linkUrl: https://pca.st/51XD
 type: podcast
 author: Gimlet

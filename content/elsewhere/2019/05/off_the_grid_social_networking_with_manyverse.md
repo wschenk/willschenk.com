@@ -39,5 +39,5 @@ Show Notes:
 - [The Changelog #326: The insider perspective on the event-stream compromise with Dominic Tarr](https://changelog.com/podcast/326)
 - [License Zero](https://licensezero.com/) - gainful open software development
 
-Something missing or broken? [PRs welcome!](https://github.com/thechangelog/show-notes/blob/master/podcast/changelog-interviews-346.md)
+Something missing or broken? [PRs welcome!](https://github.com/thechangelog/show-notes/blob/master/podcast/the-changelog-346.md)
 

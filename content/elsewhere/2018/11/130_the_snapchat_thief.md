@@ -2,7 +2,7 @@
 title: "#130 The Snapchat Thief"
 date: 2018-11-08
 origin: https://chrt.fm/track/15E3G4/traffic.megaphone.fm/GLT8967905844.mp3?updated=1644000913
-podcast: 
+podcast: http://gimletmedia.com/shows/reply-all
 linkUrl: https://pca.st/3DoU
 type: podcast
 author: Gimlet

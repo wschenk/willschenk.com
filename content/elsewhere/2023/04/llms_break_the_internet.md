@@ -46,7 +46,7 @@ For the fiscal year 2021, Alphabet (Google’s parent company) reported revenues
 - Google Cloud: $14.9 billion
 - Google Play and other sources: $25.1 billion
 
-Something missing or broken? [PRs welcome!](https://github.com/thechangelog/show-notes/blob/master/podcast/changelog-interviews-534.md)
+Something missing or broken? [PRs welcome!](https://github.com/thechangelog/show-notes/blob/master/podcast/the-changelog-534.md)
 
 Timestamps:
 

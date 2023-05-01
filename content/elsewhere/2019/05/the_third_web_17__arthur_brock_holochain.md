@@ -2,7 +2,7 @@
 title: "The Third Web #17 - Arthur Brock, Holochain"
 date: 2019-05-09
 origin: https://feeds.soundcloud.com/stream/618318591-arthurfalls-holo-mixdown.mp3
-podcast: 
+podcast: https://soundcloud.com/arthurfalls
 linkUrl: https://pca.st/gv18q5xc
 type: podcast
 author: Arthur Falls

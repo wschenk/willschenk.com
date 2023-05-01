@@ -2,7 +2,7 @@
 title: "Episode 23: Guix with Ludovic Courtès"
 date: 2019-06-21
 origin: https://media.librelounge.org/episodes/023-guix-with-ludo/librelounge-ep-023.mp3
-podcast: 
+podcast: https://librelounge.org
 linkUrl: https://pca.st/wbx3
 type: podcast
 author: Libre Lounge

@@ -2,7 +2,7 @@
 title: "Pants on Fire"
 date: 2019-04-18
 origin: https://chrt.fm/track/4G278/stitcher.simplecastaudio.com/222c02f7-b1ca-4c8b-96f2-03e4a3aaf18c/episodes/28cf4417-8326-4bcc-8e09-053da8007daf/audio/128/default.mp3?aid=rss_feed&awCollectionId=222c02f7-b1ca-4c8b-96f2-03e4a3aaf18c&awEpisodeId=28cf4417-8326-4bcc-8e09-053da8007daf&feed=LkRPyEJS
-podcast: 
+podcast: http://outsideinradio.org/
 linkUrl: https://pca.st/19P3
 type: podcast
 author: NHPR

@@ -2,7 +2,7 @@
 title: "Why Hackers Are Stoked That Beto O’Rourke Was One Of Them"
 date: 2019-03-27
 origin: https://sphinx.acast.com/cyber/whyhackersarestokedthatbetoo-rourkewasoneofthem/media.mp3
-podcast: 
+podcast: https://www.vice.com/en_us/topic/cyber
 linkUrl: https://pca.st/eZe7
 type: podcast
 author: VICE

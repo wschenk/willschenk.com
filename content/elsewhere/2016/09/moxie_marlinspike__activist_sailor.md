@@ -2,7 +2,7 @@
 title: "Moxie Marlinspike // Activist Sailor"
 date: 2016-09-27
 origin: https://traffic.libsyn.com/secure/59north/Moxie_Marlinspike_v2.m4a?dest-id=160915
-podcast: 
+podcast: http://www.59-north.com/podcast
 linkUrl: https://pca.st/Ps29
 type: podcast
 author: 59º North Sailing Podcasts

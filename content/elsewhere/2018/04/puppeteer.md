@@ -5,4 +5,4 @@ origin: https://github.com/puppeteer/puppeteer
 type: repo
 ---
 
-Headless Chrome Node.js API
+Node.js API for Chrome 
