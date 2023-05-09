@@ -1,5 +1,5 @@
 ---
-title: Stanford Director: AI Scientists’ “Frontal Cortex Is Massively Underdeveloped”
+title: "Stanford Director: AI Scientists’ “Frontal Cortex Is Massively Underdeveloped”"
 date: 2023-05-08
 origin: https://futurism.com/the-byte/stanford-ai-scientists-frontal-cortex-underdeveloped
 type: link
