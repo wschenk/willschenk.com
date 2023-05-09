@@ -1,0 +1,42 @@
+#!/usr/bin/env ruby
+
+require 'bundler/inline'
+require 'net/http'
+
+gemfile do
+  source 'https://rubygems.org'
+  gem 'nokogiri'
+  gem 'json'
+  gem 'ruby-openai'
+end
+
+if ARGV[0].nil?
+  puts "summarize <url>"
+  exit 1
+end
+
+uri = URI(ARGV[0])
+response = Net::HTTP.get_response(uri)
+
+puts "Loading #{uri}"
+doc = Nokogiri::HTML(response.body)
+
+doc.xpath('//script').remove # remove script tags
+doc.xpath('//style').remove  # remove style tags
+text = doc.xpath('//text()').text.strip
+
+puts "Calling ChatGPT"
+
+token = `lpass show "OpenAI Key" | awk '/Notes/ {print $2}'`.chomp
+client = OpenAI::Client.new(access_token: token)
+
+content = "#{text}\n\ntl;dr\n"
+response = client.chat(
+  parameters: {
+      model: "gpt-3.5-turbo", # Required.
+      messages: [{ role: "user", content: content}], # Required.
+      temperature: 0.7,
+  })
+
+puts "\n"
+puts response.dig("choices", 0, "message", "content")
