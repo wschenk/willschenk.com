@@ -1,0 +1,346 @@
+#+title: Setting up emacs re-re-dux
+#+subtitle: What is more fun that configuring emacs?
+#+tags[]: emacs
+#+date: 2023-06-06
+
+Can we ever stop setting up emacs?  I don't think it's possible, no.
+Lets do it again, with a nice clean setup using [[https://github.com/rougier/nano-emacs/tree/master][Nano Emacs]].
+
+* Compiling emacs
+
+First lets get ourselves a clean emacs from [[https://github.com/d12frosted/homebrew-emacs-plus][d12frosted/homebrew-emacs-plus]].
+
+#+begin_src bash
+  $ brew tap d12frosted/emacs-plus
+  $ brew install emacs-plus --with-imagemagick --with-native-comp --with-modern-sexy-v2-icon
+  $ ln -s /opt/homebrew/opt/emacs-plus@28/Emacs.app /Applications
+#+end_src
+
+This will take a nice little while.
+
+Also, some fonts:
+
+#+begin_src bash
+  $ brew tap homebrew/cask-fonts
+  $ brew install font-roboto
+  $ brew install font-roboto-slab
+  $ brew install font-roboto-mono
+#+end_src
+
+* Installing straight.el
+
+Lets turn off =package.el= in =~/.emacs.d/early-init.el=:
+
+#+begin_src elisp :tangle ~/.emacs.d/early-init.el
+  (setq package-enable-at-startup nil)
+#+end_src
+
+Then we can set some sane defaults in =~/.emacs.d/init.el=
+
+#+begin_src elisp :tangle ~/.emacs.d/init.el
+  (defconst *spell-check-support-enabled* nil) ;; Enable with t if you prefer
+  (defconst -is-a-mac (eq system-type 'darwin))
+  (setq custom-file (locate-user-emacs-file "custom.el"))
+
+  ;; Backups
+  (setq
+   backup-by-copying t      ; don't clobber symlinks
+   backup-directory-alist
+   '(("." . "~/.saves/"))    ; don't litter my fs tree
+   delete-old-versions t
+   kept-new-versions 6
+   kept-old-versions 2
+   version-control t
+   global-visual-line-mode t)
+
+  ;; Cleaning up some visual mess
+  (tool-bar-mode 0)
+  (scroll-bar-mode 0)
+
+  ;; Safe themes
+  (setq custom-safe-themes t)
+
+#+end_src
+
+* os stuff
+
+From [[https://github.com/purcell/emacs.d]]:
+
+#+begin_src elisp :tangle ~/.emacs.d/init.el
+  (when -is-a-mac
+    (setq mac-command-modifier 'meta)
+    (setq mac-option-modifier 'none)
+    ;; Make mouse wheel / trackpad scrolling less jerky
+    (setq mouse-wheel-scroll-amount '(1
+                                      ((shift) . 5)
+                                      ((control))))
+    (dolist (multiple '("" "double-" "triple-"))
+      (dolist (direction '("right" "left"))
+        (global-set-key (read-kbd-macro (concat "<" multiple "wheel-" direction ">")) 'ignore)))
+    (global-set-key (kbd "M-`") 'ns-next-frame)
+    (global-set-key (kbd "M-h") 'ns-do-hide-emacs)
+    (global-set-key (kbd "M-˙") 'ns-do-hide-others)
+    (with-eval-after-load 'nxml-mode
+      (define-key nxml-mode-map (kbd "M-h") nil))
+    (global-set-key (kbd "M-ˍ") 'ns-do-hide-others) ;; what describe-key reports for cmd-option-h
+    )
+#+end_src
+
+* =straight.el=
+
+From [[https://jeffkreeftmeijer.com/emacs-straight-use-package/][Jeff Kreeftmeijer]]:
+
+#+begin_src elisp :tangle ~/.emacs.d/init.el
+;; straight.el
+(defvar bootstrap-version)
+(let ((bootstrap-file
+       (expand-file-name "straight/repos/straight.el/bootstrap.el" user-emacs-directory))
+      (bootstrap-version 6))
+  (unless (file-exists-p bootstrap-file)
+    (with-current-buffer
+        (url-retrieve-synchronously
+         "https://raw.githubusercontent.com/radian-software/straight.el/develop/install.el"
+         'silent 'inhibit-cookies)
+      (goto-char (point-max))
+      (eval-print-last-sexp)))
+  (load bootstrap-file nil 'nomessage))
+
+(straight-use-package 'use-package)
+
+(use-package straight
+  :custom
+  (straight-use-package-by-default t))
+#+end_src
+
+* =org-mode=
+
+I'm a big fan of =org-mode=, especially =org-tempo=
+
+#+begin_src elisp :tangle ~/.emacs.d/init.el
+  ;; Org mode awesome
+  (use-package org
+    :ensure t
+    :bind (
+       ("C-c l" . org-store-link)
+       ("C-c a" . org-agenda)
+       ("C-c c" . org-capture))
+    :config
+    (require 'org-tempo)
+    ;; (setq org-startup-indented t) ; Enable `org-indent-mode' by default
+    (setq org-log-done t) ; Set time for when things were completed
+    (setq org-hide-emphasis-markers t) ; Not show typographical commands
+    (setq org-plantuml-jar-path (expand-file-name "/usr/share/plantuml/plantuml.jar"))
+    )
+
+  (use-package org-superstar
+    :ensure t
+    :config
+    (add-hook 'org-mode-hook (lambda () (org-superstar-mode 1))))
+#+end_src
+
+* Searching and execing
+
+#+begin_src elisp :tangle ~/.emacs.d/init.el
+  ;; Counsel
+  (use-package counsel :ensure t)
+
+  ;; Exec from shell
+  (use-package exec-path-from-shell
+    :ensure t
+    :config
+    (exec-path-from-shell-copy-env "PATH"))
+
+#+end_src
+* =nano-emacs=
+
+#+begin_src elisp :tangle ~/.emacs.d/init.el
+
+  ;; Nano Emacs
+  (straight-use-package
+   '(nano-emacs :type git :host github :repo "rougier/nano-emacs"))
+
+  (require 'nano)
+
+#+end_src
+
+* Matching the system theme
+
+Adapted from [[https://github.com/Lambda-Emacs/lambda-emacs/blob/ed060ac3a219ba053107724503a3e0ecf5ac3c4a/lambda-library/lambda-setup/lem-setup-theme.el#L81][Lambda Theme]].  We add a hook to
+=ns-system-appearance-change-functions= and then make sure that we
+toggle the nano theme based upon the current setting in
+=ns-system-appearance=.
+
+#+begin_src elisp :tangle ~/.emacs.d/init.el
+  ;; See https://github.com/d12frosted/homebrew-emacs-plus#system-appearance-change
+  (defun nano-sync-theme (appearance)
+  "Sync the nano theme with the system theme"
+  (if
+   (string= nano-theme-var ns-system-appearance)
+   (message "Theme is good")
+   (nano-toggle-theme)))
+
+  (when -is-a-mac
+    (add-hook 'ns-system-appearance-change-functions #'nano-sync-theme))
+
+#+end_src
+
+#+RESULTS:
+| nano-sync-theme |
+
+* Icons
+
+#+begin_src elisp :tangle ~/.emacs.d/init.el
+  (use-package all-the-icons
+    :if (display-graphic-p))
+
+  ;; M-x all-the-icons-install-fonts
+
+#+end_src
+
+* Programming
+
+#+begin_src elisp :tangle ~/.emacs.d/init.el
+  ;; Magit and Projectile
+
+  (use-package magit
+    :ensure t
+    :bind ("C-x g" . magit-status))
+
+  (use-package projectile
+    :ensure t
+    :init
+    (projectile-mode +1)
+    :config
+    (setq projectile-completion-system 'default)
+    :bind (:map projectile-mode-map
+                ("C-c p" . projectile-command-map)))
+
+  (use-package ag :ensure t)
+
+  (use-package docker
+    :ensure t
+    :bind ("C-c C-d" . docker))
+
+  (use-package dockerfile-mode
+    :ensure t)
+  
+  (use-package terraform-mode :ensure t)
+  (use-package toml-mode :ensure t)
+  (use-package yaml-mode :ensure t)
+  #+end_src
+
+
+* Elfeed
+
+#+begin_src elisp :tangle ~/.emacs.d/init.el
+  ;; elfeed
+
+  (defun elfeed-eww-browse ()
+    "Wrapper to open eww and mark elfeed as read"
+    (interactive)
+    (let ((link (elfeed-entry-link elfeed-show-entry)))
+      (when link
+        (eww-browse-url link))))
+
+  (use-package elfeed
+    :ensure t
+    :bind (
+       ("C-x w" . elfeed))
+    :config
+    (define-key elfeed-show-mode-map (kbd "B") 'elfeed-eww-browse)
+    )
+
+  (use-package elfeed-org
+    :ensure t
+    :config
+    (elfeed-org))
+
+#+end_src
+
+* Better =dired=
+
+#+begin_src elisp :tangle ~/.emacs.d/init.el
+  (let ((gls (executable-find "gls")))
+    (when gls (setq insert-directory-program gls)))
+
+  (use-package dired-subtree
+    :ensure t
+    :after dired
+    :config
+    (setq dired-subtree-use-backgrounds nil)
+    (bind-key "<tab>" #'dired-subtree-toggle dired-mode-map)
+    (bind-key "<backtab>" #'dired-subtree-cycle dired-mode-map))
+#+end_src
+
+* Shell Modes
+
+#+begin_src elisp :tangle ~/.emacs.d/init.el
+  ;; Install a better terminal
+
+  (use-package vterm :ensure t)
+
+  (defun shell-here ()
+  "Opens up a new shell in the directory associated with the
+current buffer's file. The shell is renamed to match that
+directory to make multiple shell windows easier."
+  (interactive)
+  (let* ((parent (if (buffer-file-name)
+                     (file-name-directory (buffer-file-name))
+                   default-directory))
+         (height (/ (frame-total-lines) 3))
+         (name   (car (last (split-string parent "/" t))))
+         (bufname (concat "*shell: " name "*")))
+    (delete-other-windows)
+    (split-window-vertically (- height))
+    (other-window 1)
+    (switch-to-buffer bufname)
+    (shell bufname)
+    ))
+
+(global-set-key (kbd "C-!") 'shell-here)
+
+(defun live-preview ()
+  "Opens up a web browser in the current directory"
+  (interactive)
+    (let* ((parent (if (buffer-file-name)
+                     (file-name-directory (buffer-file-name))
+                   default-directory))
+         (height (/ (frame-total-lines) 3))
+         (name   (car (last (split-string parent "/" t))))
+         (bufname (concat "*preview: " name "*")))
+    (delete-other-windows)
+    (split-window-vertically (- height))
+    (other-window 1)
+    (switch-to-buffer bufname)
+    (unless (get-buffer-process bufname)
+      (async-shell-command "npx live-server" bufname))))
+
+#+end_src
+
+* Mastodon
+
+Haha, why not?
+
+#+begin_src elisp :tangle ~/.emacs.d/init.el
+  (use-package emojify
+    :hook (after-init . global-emojify-mode))
+
+  (use-package mastodon
+    :ensure t
+    :config
+    (setq mastodon-instance-url "https://floss.social"
+          mastodon-active-user "wschenk"))
+
+#+end_src
+
+* References
+
+1. https://github.com/d12frosted/homebrew-emacs-plus
+2. https://notes.alexkehayias.com/emacs-natural-title-bar-with-no-text-in-macos/
+3. https://jeffkreeftmeijer.com/emacs-straight-use-package/   
+4. https://github.com/purcell/emacs.d
+5. https://github.com/Lambda-Emacs/lambda-emacs
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
