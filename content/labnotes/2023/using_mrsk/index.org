@@ -1,0 +1,282 @@
+#+title: Using Mrsk
+#+subtitle: Deployment testing
+#+tags[]: mrsk
+#+date: 2023-06-05
+
+* Create a simple app
+First lets create a new, simple sintara app
+
+#+begin_src bash
+  bundle init
+  bundle add sinatra puma
+  bundle add rerun --group development
+#+end_src
+
+A simple =config.ru=:
+
+#+begin_src ruby :tangle config.ru
+  require File.expand_path('app', File.dirname(__FILE__))
+
+  run App
+#+end_src
+
+And then a very simple =app.rb=
+
+#+begin_src ruby :tangle app_nonredis.rb
+  require 'sinatra/base'
+
+  class App < Sinatra::Base
+    get '/' do
+      "Hello world!!!"
+    end
+
+    get '/up' do
+      "Yup"
+    end
+  end
+#+end_src
+
+Test with
+
+#+begin_src bash
+  bundle exec rackup
+#+end_src
+
+* Install =mrsk=
+
+#+begin_src bash
+  bundle add mrsk --group development
+  alias mrsk="bundle exec mrsk"
+#+end_src
+
+Create the config file
+
+#+begin_src bash :results raw
+  mrsk init
+#+end_src
+
+#+RESULTS:
+Created configuration file in config/deploy.yml
+Created .env file
+Created sample hooks in .mrsk/hooks
+
+
+This will create =config/deploy.yml=.  For these tests, I created a
+server and it's IP is below.
+
+#+begin_src yaml :tangle config/deploy.yml
+service: sampleapp
+image: wschenk/sampleapp
+
+servers:
+  - 95.216.175.53
+
+registry:
+  username: wschenk
+  password:
+    - MRSK_REGISTRY_PASSWORD
+#+end_src
+
+* Create docker token
+
+I'm using [[https://hub.docker.com/][dockerhub]] to host my images.  You'll need to [[https://hub.docker.com/settings/security?generateToken=true][generate a
+token]], and then put it in your =.env= file.
+
+Best practices are to *not store the token in the file*, but pull them
+out using a password manager.  I'm using lasspass, so it looks like
+this:
+
+#+begin_src erb :tangle .env.erb
+MRSK_REGISTRY_PASSWORD=<%= `lpass show "Docker Token" | awk '/Notes/ {print $2}'`.strip %>
+#+end_src
+
+Which we can then generate =.env= from using
+
+#+begin_src bash
+mrsk envify
+#+end_src
+
+Be sure to put =.env= into =.gitignore=!
+
+* Create docker file
+
+Make sure that you have curl installed in your image, otherwise the
+health checks will fail!
+
+#+begin_src dockerfile :tangle Dockerfile
+  ARG RUBY_VERSION=3.1.4
+  FROM ruby:$RUBY_VERSION-slim as base
+
+  RUN apt-get update -qq && \
+      apt-get install --no-install-recommends -y build-essential curl
+
+  RUN gem update --system --no-document && \
+      gem install -N bundler:2.2.32 && \
+      bundle config set --local without development
+
+  # Rack app lives here
+  WORKDIR /app
+
+  # Install application gems
+  COPY Gemfile* .
+  RUN bundle install --without development
+
+  RUN useradd ruby --home /app --shell /bin/bash
+  USER ruby:ruby
+
+  # Copy application code
+  COPY --chown=ruby:ruby . .
+
+  # Start the server
+  EXPOSE 3000
+  CMD ["bundle", "exec", "rackup", "--host", "0.0.0.0", "--port", "3000"]
+#+end_src
+
+* Setup the servers
+
+The initial run for this took me =230= seconds.
+
+#+begin_src bash
+  mrsk setup
+#+end_src
+
+One problem I had initially was that I didn't have =curl= in my image,
+which didn't make it work very well!
+
+* Testing
+
+On your local machine, run =curl=
+
+#+begin_src bash :results raw
+curl http://95.216.175.53
+#+end_src
+
+#+RESULTS:
+Hello world!
+
+Now if we change our =app.rb= and run =mrsk deploy=, it only takes =29 seconds= and we can see
+
+#+begin_src bash :results raw
+curl http://95.216.175.53
+#+end_src
+
+#+RESULTS:
+Hello world! From the redeploy
+
+* Setting up a remote builder
+
+I'm building this locally on my M1 mac, and docker is running through
+emulation.  Lets have it build everything on the remote machine.  Add
+this to the =config/deploy.yml=
+
+#+begin_src yaml :tangle config/deploy.yml
+  builder:
+    remote:
+      arch: amd64
+      host: ssh://root@95.216.175.53
+      
+#+end_src
+
+This only builds the =amd64= architecture, and it happens on a remote
+server.  Which happens to be the server that we are deploying to.
+
+* Setting up an appliance
+
+a/k/a redis
+
+Lets see how to add a redis database to our system.
+
+First we need to add the accessory to our =config/deploy.yml= file:
+
+#+begin_src yaml :tangle config/deploy.yml
+  accessories:
+    redis:
+      image: redis:latest
+      roles:
+        - web
+      port: "36379:6379"
+      volumes:
+        - /var/lib/redis:/data
+  env:
+    REDIS_URL: redis://95.216.175.53:36379/1
+#+end_src
+
+Then we need to set it up:
+
+#+begin_src bash
+  mrsk accessory boot redis
+#+end_src
+
+We can then see the status
+
+#+begin_src bash :results raw
+  mrsk accessory details redis
+#+end_src
+
+#+RESULTS:
+  INFO [4e06f84c] Running docker ps --filter label=service=sampleapp-redis on 95.216.175.53
+  INFO [4e06f84c] Finished in 1.446 seconds with exit status 0 (successful).
+CONTAINER ID   IMAGE          COMMAND                  CREATED         STATUS         PORTS                                         NAMES
+712f345b9cbb   redis:latest   "docker-entrypoint.s…"   7 minutes ago   Up 7 minutes   0.0.0.0:36379->6379/tcp, :::36379->6379/tcp   sampleapp-redis
+
+This starts up the app.  Now we need to update our code to actually
+use it!
+
+#+begin_src bash
+  bundle add redis
+#+end_src
+
+Then our =app.rb=:
+
+#+begin_src ruby :tangle app.rb
+  require 'sinatra/base'
+  require 'redis'
+
+  class App < Sinatra::Base
+    get '/' do
+      redis = Redis.new( url: ENV['REDIS_URL'] )
+      count = redis.incr("counter")
+      "Hello world, called #{count} times"
+    end
+
+    get '/up' do
+      "Yup"
+    end
+  end
+#+end_src
+
+#+begin_src bash :results raw
+curl http://95.216.175.53
+#+end_src
+
+#+RESULTS:
+Hello world, called 1 times
+
+And
+
+#+begin_src bash :results raw
+curl http://95.216.175.53
+#+end_src
+
+#+RESULTS:
+Hello world, called 2 times
+
+* Thoughts
+
+I like tools that let you throw together sites really quickly.  This
+is really interesting since it makes it easy to setup a fleet of
+servers, though that isn't something that I need to do that often.
+
+You'd need to setup load balancers in front and probably something
+like cloudflare to handle SSL and all that stuff, but its way simplier
+than kubernetes.
+
+I really like the ability to have it run off of a totally unsetup
+server, it installs docker and everything else for you.  Very nifty.
+
+I'd like to see something like this but configured [[https://caddyserver.com/][Caddy]] instead and
+let you host many sites on one platform.
+
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
