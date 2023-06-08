@@ -1,5 +1,5 @@
 ---
-title: Eugenics in the Twenty-First Century: New Names, Old Ideas - Truthdig
+title: Eugenics in the Twenty-First Century New Names, Old Ideas
 date: 2023-06-07
 origin: https://www.truthdig.com/dig-series/eugenics/
 type: link
