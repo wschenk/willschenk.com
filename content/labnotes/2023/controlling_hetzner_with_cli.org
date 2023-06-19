@@ -1,0 +1,118 @@
+#+title: Controlling Hetzner with CLI
+#+subtitle: Simple wrapper scripts
+#+tags[]: hetzner, cloud, cli
+#+date: 2023-06-19
+
+* Install the cli
+
+#+begin_src bash
+brew install hcloud
+#+end_src
+
+Go into your https://console.hetzner.cloud/ and get an API key.
+
+* Creating a server
+
+Then create a context for your script to use, for example:
+
+#+begin_src bash
+  hcloud context create willschenk
+#+end_src
+
+Then we can see if its in use:
+
+#+begin_src bash :results raw
+  hcloud context list
+#+end_src
+
+#+RESULTS:
+ACTIVE   NAME
+ *        willschenk
+
+List servers:
+
+#+begin_src bash :results raw
+  hcloud server list
+#+end_src
+
+
+#+RESULTS:
+ID   NAME   STATUS   IPV4   IPV6   PRIVATE NET   DATACENTER   AGE
+
+Nothing there!  Lets create one.  First we need to select an image,
+and we can see if they have any debian-12 images:
+
+#+begin_src bash :results raw
+hcloud image list | grep debian-12
+#+end_src
+
+#+RESULTS:
+114690387   system   debian-12            Debian 12            x86            -            5 GB        Tue Jun 13 02:00:02 EDT 2023   -
+114690389   system   debian-12            Debian 12            arm            -            5 GB        Tue Jun 13 02:00:03 EDT 2023   -
+
+Looks good.  We can also list out server types using
+
+#+begin_src bash
+  hcloud server-type list
+#+end_src
+
+And we will chose =cx11= which has =1 core=, =2GB of ram=, and =20GB= of storage.
+
+Finally we'll want to add a =ssh key= to the server so we can log in.
+If you haven't done so already, configure yours into the cloud
+console.
+
+You can list them out using
+
+#+begin_src bash :results raw
+  hcloud ssh-key listes
+#+end_src
+
+#+RESULTS:
+ID         NAME                FINGERPRINT                                       AGE
+11424818   wschenk@gmail.com   b0:80:12:6e:1e:8e:ee:3f:4f:03:56:2c:1e:4d:4d:29   14d
+
+
+So lets do it:
+
+#+begin_src bash
+  hcloud server create --name apple --type cx11 --image debian-12 --ssh-key 11424818
+#+end_src
+
+Lets run this and we get:
+
+#+begin_src bash
+
+5.8s [===================================] 100.00%
+Waiting for server 33932970 to have started
+ ... done                                                                                                                                                                             Server 33932970 created
+IPv4: 65.108.63.49
+IPv6: 2a01:4f9:c012:6903::1
+IPv6 Network: 2a01:4f9:c012:6903::/64
+#+end_src
+
+And, in this case, you should be able to log on to the machine using
+
+#+begin_src bash
+ssh root@65.108.63.49
+#+end_src
+
+* Deleting a server
+
+We can remove the server that we created using
+
+#+begin_src bash :result raw
+hcloud server delete 33932970es
+#+end_src
+
+#+RESULTS:
+: Server 33932970 deleted
+
+* References
+
+1. https://github.com/hetznercloud/cli
+2. https://console.hetzner.cloud/
+
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
