@@ -1,0 +1,250 @@
+#+title: Using the cloudflare API
+#+subtitle: setting A records ez
+#+tags[]: cloudflare, cloud, cli
+#+date: 2023-06-20
+
+The goal here is to see how to add and update =A= records on our
+cloudflare managed domain using shell scripting.  Eventually we'll
+wire this, [[labnotes/2023/controlling_hetzner_with_cli/][the hetzner]] command line client, and some [[/labnotes/2023/using_mrsk/][mrsk inspired
+scripts]] to get a machine up and running quickly.
+
+First some basic unix tools to make it easier to manupulate json:
+
+#+begin_src bash
+  brew install jq jo
+#+end_src
+
+* Get the Key
+
+We'll need an API key, so lets [[https://developers.cloudflare.com/fundamentals/api/get-started/create-token/][go get that]].
+
+1. Go to the [[https://dash.cloudflare.com/profile/api-tokens][api-tokens page]] in your profile.
+2. =Create a Token=
+3. Select =Edit zone DNS= template
+4. I'm limiting it to a specific zone.
+5. Copy and store the resulting token.
+
+* Test the token
+
+#+begin_src bash :results raw code
+  curl -X GET "https://api.cloudflare.com/client/v4/user/tokens/verify" \
+       -H "Authorization: Bearer ${CF_TOKEN}" \
+       -H "Content-Type:application/json" | jq
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+{
+  "result": {
+    "id": "726441c7a18f40e6ed5444a4635effd2",
+    "status": "active"
+  },
+  "success": true,
+  "errors": [],
+  "messages": [
+    {
+      "code": 10000,
+      "message": "This API Token is valid and active",
+      "type": null
+    }
+  ]
+}
+#+end_src
+
+* Finding your zone identifier
+
+I'm using =willschenk.com= here but feel free to adjust.
+
+#+NAME: zone-id
+#+begin_src bash :results raw code
+  export ZONE=willschenk.com
+
+  curl -X GET \
+       "https://api.cloudflare.com/client/v4/zones?name=${ZONE}&status=active" \
+       -H "Authorization: Bearer ${CF_TOKEN}" \
+       -H "Content-Type:application/json" | jq -r '{"result"}[] | .[0] | .id'
+#+end_src
+
+And in my case, we get:
+
+#+RESULTS: zone-id
+#+begin_src bash
+7b3f2ff4b23ab88aa09326590263561b
+#+end_src
+
+* Listing out your records
+
+#+begin_src bash :results raw org
+  export ZONE_ID=7b3f2ff4b23ab88aa09326590263561b
+
+  curl -X GET \
+       https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records \
+       -H 'Content-Type: application/json' \
+       -H  "Authorization: Bearer ${CF_TOKEN}" | \
+      jq -r '{"result"}[] | .[] | "| \(.id) | \(.type) | \(.name) | \(.content) |"'
+#+end_src
+
+Which yields something like:
+
+#+ATTR_HTML: :class table table-striped table-dark
+| 7d2953... | CNAME | summarizer.willschenk.com | twilight-butterfly-9726.fly.dev |
+| e45be8... | CNAME | willschenk.com            | wschenk.github.io               |
+| 31fb96... | CNAME | www.willschenk.com        | wschenk.github.io               |
+| f278db... | TXT   | dev.willschenk.com        | google-si...                    |
+| e35e0f... | TXT   | willschenk.com            | ALIAS for wschenk.github.io     |
+| d93a74... | TXT   | willschenk.com            | google-si...                    |
+
+* Looking up a record
+
+#+begin_src bash :results raw code
+  export ZONE_ID=7b3f2ff4b23ab88aa09326590263561b
+  export RECORD=apple.willschenk.com
+
+  curl -X GET \
+       https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records?name=${RECORD} \
+       -H 'Content-Type: application/json' \
+       -H  "Authorization: Bearer ${CF_TOKEN}" | \
+      jq -r '{"result"}[] | .[0] | .id'
+#+end_src
+
+And if you have a result, it will be something like:
+
+#+RESULTS:
+#+begin_src bash
+425a21b7d74e958230f9f50d82adc836
+#+end_src
+
+* Adding a record
+
+#+begin_src bash :results raw code
+  export ZONE=willschenk.com
+  export ZONE_ID=7b3f2ff4b23ab88aa09326590263561b
+  export NAME=apple
+  export IP=65.108.63.49
+
+  jo type=A name=${NAME}.${ZONE} content=${IP} ttl=1 proxied=false | \
+      curl -X POST \
+           https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records \
+           -d @- \
+           -H 'Content-Type: application/json' \
+           -H  "Authorization: Bearer ${CF_TOKEN}" | \
+      jq
+#+end_src
+
+If the name is new, you'll see something like:
+
+#+RESULTS:
+#+begin_src bash
+{
+  "result": {
+    "id": "3a7b82024e407dc58814b89fa5f45795",
+    "zone_id": "7b3f2ff4b23ab88aa09326590263561b",
+    "zone_name": "willschenk.com",
+    "name": "apple.willschenk.com",
+    "type": "A",
+    "content": "65.108.63.49",
+    "proxiable": true,
+    "proxied": false,
+    "ttl": 1,
+    "locked": false,
+    "meta": {
+      "auto_added": false,
+      "managed_by_apps": false,
+      "managed_by_argo_tunnel": false,
+      "source": "primary"
+    },
+    "comment": null,
+    "tags": [],
+    "created_on": "2023-06-20T17:20:39.753139Z",
+    "modified_on": "2023-06-20T17:20:39.753139Z"
+  },
+  "success": true,
+  "errors": [],
+  "messages": []
+}
+#+end_src
+
+You'll get an error if something already exists, so lets wire it all together.
+
+* Updating or adding a record
+
+#+begin_src bash :results raw code
+  export ZONE_ID=7b3f2ff4b23ab88aa09326590263561b
+  export RECORD=apple.willschenk.com
+  export IP=65.108.63.49
+
+  RECORD_ID=$(
+      curl -X GET \
+           https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records?name=${RECORD} \
+           -H 'Content-Type: application/json' \
+           -H  "Authorization: Bearer ${CF_TOKEN}" | \
+          jq -r '{"result"}[] | .[0] | .id')
+
+  if [[ $RECORD_ID == 'null' ]]; then
+      echo Creating ${RECORD}
+      jo type=A name=${RECORD} content=${IP} ttl=1 proxied=false | \
+          curl -X POST \
+               https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records \
+               -d @- \
+               -H 'Content-Type: application/json' \
+               -H  "Authorization: Bearer ${CF_TOKEN}" | \
+          jq
+  else
+      echo Updating $RECORD_ID
+      jo type=A name=${RECORD} content=${IP} ttl=1 proxied=false | \
+          curl -X PUT \
+               "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records/${RECORD_ID}" \
+               -d @- \
+               -H 'Content-Type: application/json' \
+               -H  "Authorization: Bearer ${CF_TOKEN}" | \
+          jq
+  fi
+
+#+end_src
+
+This first checks to see if there's already an =A= record, and if not it
+created one.  Otherwise, it updates it.
+
+Either way it returns the latest info.
+
+#+RESULTS:
+#+begin_src bash
+Creating apple.willschenk.com
+{
+  "result": {
+    "id": "425a21b7d74e958230f9f50d82adc836",
+    "zone_id": "7b3f2ff4b23ab88aa09326590263561b",
+    "zone_name": "willschenk.com",
+    "name": "apple.willschenk.com",
+    "type": "A",
+    "content": "65.108.63.49",
+    "proxiable": true,
+    "proxied": false,
+    "ttl": 1,
+    "locked": false,
+    "meta": {
+      "auto_added": false,
+      "managed_by_apps": false,
+      "managed_by_argo_tunnel": false,
+      "source": "primary"
+    },
+    "comment": null,
+    "tags": [],
+    "created_on": "2023-06-20T17:30:53.819641Z",
+    "modified_on": "2023-06-20T17:30:53.819641Z"
+  },
+  "success": true,
+  "errors": [],
+  "messages": []
+}
+#+end_src
+
+* References
+
+1. https://developers.cloudflare.com/fundamentals/api/get-started/create-token/
+2. https://gist.github.com/Tras2/cba88201b17d765ec065ccbedfb16d9a
+3. https://chrisoldwood.blogspot.com/2020/08/simple-tables-from-json-data-with-jq.html
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
