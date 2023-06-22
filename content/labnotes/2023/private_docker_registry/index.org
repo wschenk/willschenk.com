@@ -1,0 +1,256 @@
+#+title: Deploying a private docker registry
+#+subtitle: Deployment testing
+#+tags[]: docker
+#+date: 2023-06-21
+
+I wanted to see how hard it was to deploy my own [[https://docs.docker.com/registry/deploying/][docker registry]].
+It's not that hard and we have the benefit of living in our own little
+eco system.  Here's the [[registry.sh][final script]] to deploy a private registry
+server on a stock debian/Ubuntu instance.  Lets walk through it.
+
+* Deploy the registry container
+
+The idea is that you copy this script over to the remote machine and run it.
+We setup a couple of things
+
+1. First check to see if =docker= is installed, and install it if not.
+   
+#+begin_src bash :tangle registry.sh
+  #!/bin/bash
+
+  HOST=registry.willschenk.com
+
+  echo Checking to see if docker is installed
+  if ! docker -v ; then
+      curl -fsSL https://get.docker.com | sh
+  fi
+
+#+end_src
+
+* Caddy
+
+We are going to use =caddy-docker-proxy= as our main webserver.  This
+will watch the host system for docker containers that contain the
+=caddy= label, and automatically configure =Caddy= to serve them up.  We
+also get https out of this so that's cool.
+
+1. Create the network =caddy= if it doesn't exist
+2. Create =caddy_data= and =caddy_config= so certs and other things survive containers
+3. Finally, start up the =caddy= container itself.
+   
+#+begin_src bash :tangle registry.sh
+  ####
+  # Caddy
+
+  echo Checking for caddy network
+  if [[ -z $(docker network ls | grep caddy) ]]; then
+      echo -n Creating
+      docker network create caddy
+  fi
+
+  echo Checking for caddy_data volume
+  if [[ -z "$(docker volume ls | grep caddy_data)" ]]; then
+      echo -n Creating
+      docker volume create caddy_data
+  fi
+
+  echo Checking for caddy_config volume
+  if [[ -z "$(docker volume ls | grep caddy_config)" ]]; then
+      echo -n Creating
+      docker volume create caddy_config
+  fi
+
+  docker pull lucaslorentz/caddy-docker-proxy:ci-alpine
+
+  echo Stopping caddy if already started
+  docker stop caddy && docker rm caddy
+
+  echo Starting caddy
+  docker run \
+         --detach \
+         --name caddy \
+         --network caddy \
+         --publish 80:80 \
+         --publish 443:443 \
+         --publish 443:443/udp \
+         --env CADDY_INGRESS_NETWORKS=caddy \
+         --volume /var/run/docker.sock:/var/run/docker.sock \
+         --volume caddy_data:/data \
+         --volume caddy_config:/config \
+         lucaslorentz/caddy-docker-proxy:ci-alpine
+#+end_src
+
+* Registry container
+
+Now on to the registry itself.
+
+1. =registry_data= is where the images get stored
+2. =registry_auth= is where the username/passwords live
+   
+#+begin_src bash :tangle registry.sh
+  ##### Registry
+  # Create the data volume
+  # This is where the push images will live
+
+  echo Checking for registry_data volume
+  if [[ -z "$(docker volume ls | grep registry_data)" ]]; then
+      echo -n Creating
+      docker volume create registry_data
+  fi
+
+  echo Checking for registry_auth volume
+  if [[ -z "$(docker volume ls | grep registry_auth)" ]]; then
+      echo -n Creating
+      docker volume create registry_auth
+  fi
+
+  ####
+  # Registry user file
+  # Create a htpasswd file in registry_auth container
+  # This will get mounted in the registry container later
+  # Needs to use -B for bcrypt
+
+  docker run \
+         --rm \
+         --volume registry_auth:/auth \
+         httpd:2 htpasswd -Bcb /auth/htpasswd registry-user password
+
+  docker pull registry:latest
+
+  echo Removing the old registry if started
+  docker stop registry && docker rm registry
+
+  echo Creating the registry container
+  docker run \
+         --detach \
+         --name registry \
+         --volume registry_data:/registry_data \
+         --volume registry_auth:/auth \
+         --network caddy \
+         --label caddy=${HOST} \
+         --label caddy.reverse_proxy='/v2/* {{upstreams 5000}}' \
+         --env REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY=/registry_data \
+         --env REGISTRY_AUTH=htpasswd \
+         --env "REGISTRY_AUTH_HTPASSWD_REALM=Registry Realm" \
+         --env REGISTRY_AUTH_HTPASSWD_PATH=/auth/htpasswd \
+         --publish 5000:5000 \
+         registry
+
+#+end_src
+
+* Copy and run
+
+#+begin_src bash
+  scp registry.sh root@registry.willschenk.com:/root && \
+      ssh root@registry.willschenk.com bash /root/registry.sh
+#+end_src
+
+* Basic test
+
+#+begin_src bash :results raw code
+curl https://registry.willschenk.com/v2/_catalog | jq
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+{
+  "errors": [
+    {
+      "code": "UNAUTHORIZED",
+      "message": "authentication required",
+      "detail": [
+        {
+          "Type": "registry",
+          "Class": "",
+          "Name": "catalog",
+          "Action": "*"
+        }
+      ]
+    }
+  ]
+}
+#+end_src
+
+OK, so lets try and log in
+
+#+begin_src bash :results raw code
+docker login registry.willschenk.com -u registry-user -p password
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+Login Succeeded
+#+end_src
+
+Then:
+#+begin_src bash :results raw code
+curl -u registry-user:password https://registry.willschenk.com/v2/_catalog | jq
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+{
+  "repositories": [
+  ]
+}
+#+end_src
+
+* Tag and push
+
+Lets first log into the server and see what's in the =registry_data= volume.
+
+Server:
+#+begin_src bash
+  root@apple:~# docker volume inspect registry_data | awk '/Mountpoint/ {print $2}'
+  "/var/lib/docker/volumes/registry_data/_data",
+  root@apple:~# du -sh /var/lib/docker/volumes/registry_data/_data
+  4.0K	/var/lib/docker/volumes/registry_data/_data
+#+end_src
+
+Now lets try to actually push something there.  We'll pull down
+=hello-world=, tag it with the new name
+=registry.willschenk.com/hello-world= and then push it.
+
+Client:
+#+begin_src bash
+  docker pull hello-world
+  docker tag hello-world:latest registry.willschenk.com/hello-world
+  docker push registry.willschenk.com/hello-world
+#+end_src
+
+Now back on the server:
+#+begin_src bash
+root@apple:~# du -sh /var/lib/docker/volumes/registry_data/_data
+148K	/var/lib/docker/volumes/registry_data/_data
+#+end_src
+
+We've gone from =4.0K= to =148K= so something happened!
+
+And if we check over the api itself:
+
+#+begin_src bash :results raw code
+curl -u registry-user:password https://registry.willschenk.com/v2/_catalog | jq
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+{
+  "repositories": [
+    "hello-world"
+  ]
+}
+#+end_src
+
+* Notes
+
+- Right now =registry.willschenk.com= specified at the top of the file
+- Probably want to update that user/password combo
+
+* References
+1. https://github.com/lucaslorentz/caddy-docker-proxy
+2. https://www.baeldung.com/ops/docker-private-registry
+3. https://www.digitalocean.com/community/tutorials/how-to-set-up-a-private-docker-registry-on-ubuntu-22-04
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
