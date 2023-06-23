@@ -1,0 +1,105 @@
+#+title: Using caddy docker proxy
+#+subtitle: straight from the dockerfiles
+#+tags[]: docker, caddy, caddy-docker-proxy
+#+date: 2023-06-22
+
+[[https://github.com/lucaslorentz/caddy-docker-proxy][caddy-docker-proxy]] works by listening to docker events, and when it
+sees a container or service that has a =caddy= label will automatically
+configure a [[https://caddyserver.com/][Caddy Server]] to proxy that traffic.  Caddy takes care of
+the TLS certificate so, if you've got a domain name configured to
+point to the server, you have an easy way to deploy a container to the
+internet.
+
+* Setup on the server
+
+First you'll need to get yourself a server, and then point some DNS
+records to it.  I'm going to use =apple.willschenk.com= and
+=banana.willschenk.com=.
+
+First you need to create a =caddy= network.  All of your containers
+after this should be on the =caddy= network and this where the traffic
+will go.
+
+#+begin_src bash
+  docker network create caddy
+#+end_src
+
+Then we need to create some volumes to store the caddy data on.  This
+will mainly be the letsencrypt certificates.
+
+#+begin_src bash
+  docker volume create caddy_data
+  docker volume create caddy_config
+#+end_src
+
+Now start it up.  Be sure to change the email address -- this gets
+passed to [[https://letsencrypt.org/][letsencrypt]] when your certs are generated.
+
+#+begin_src bash
+  docker run \
+         --detach \
+         --name caddy \
+         --network caddy \
+         --publish 80:80 \
+         --publish 443:443 \
+         --publish 443:443/udp \
+         --label caddy.email=wschenk@gmail.com \
+         --env CADDY_INGRESS_NETWORKS=caddy \
+         --volume /var/run/docker.sock:/var/run/docker.sock \
+         --volume caddy_data:/data \
+         --volume caddy_config:/config \
+         lucaslorentz/caddy-docker-proxy:ci-alpine
+#+end_src
+
+We mount the =docker.sock= so that this container can communicate with
+the underlying docker server and watch for deploy events.  It runs on
+the =caddy= network except where we've opened it up on the HTTP and HTTPS ports.
+
+* Deploy a container
+
+First we need to build ourselves an image and push it to a repository.
+Since I'm on a mac and we are going to deploy on intel hardware, we'll
+use =buildx= to build for both architectures.  This is on my laptop.
+
+#+begin_src bash
+  docker buildx build . \
+         --push \
+         --platform linux/arm64/v8,linux/amd64 \
+         --tag registry.willschenk.com/summarize
+#+end_src
+
+Now we can go back to the server and do:
+
+#+begin_src bash
+  docker pull registry.willschenk.com/summarize
+
+  docker run \
+         --detach \
+         --name summarize \
+         --network caddy \
+         --label caddy=banana.willschenk.com \
+         --label caddy.reverse_proxy='{{upstreams 8080}}' \
+         registry.willschenk.com/summarize
+#+end_src
+
+And we can check out the logs to make sure that it started correct:
+
+#+begin_src bash
+$ docker logs summarize
+Puma starting in single mode...
+* Puma version: 6.2.2 (ruby 3.0.3-p157) ("Speaking of Now")
+*  Min threads: 0
+*  Max threads: 5
+*  Environment: development
+*          PID: 1
+* Listening on http://0.0.0.0:8080
+Use Ctrl-C to stop
+#+end_src
+
+* Troubleshooting
+
+Be sure to build for the right architecture!
+
+Make sure that your container starts up correctly, if it doesn't then
+you won't get the certificates and the errors inside of the caddy
+container log isn't useful.

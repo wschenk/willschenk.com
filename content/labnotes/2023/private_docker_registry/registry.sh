@@ -1,6 +1,7 @@
 #!/bin/bash
 
 HOST=registry.willschenk.com
+EMAIL=wschenk@gmail.com
 
 echo Checking to see if docker is installed
 if ! docker -v ; then
@@ -41,6 +42,7 @@ docker run \
        --publish 80:80 \
        --publish 443:443 \
        --publish 443:443/udp \
+       --label caddy.email=${EMAIL} \
        --env CADDY_INGRESS_NETWORKS=caddy \
        --volume /var/run/docker.sock:/var/run/docker.sock \
        --volume caddy_data:/data \
