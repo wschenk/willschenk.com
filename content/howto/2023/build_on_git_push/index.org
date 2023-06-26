@@ -1,0 +1,188 @@
+#+title: Build on git push
+#+subtitle: build your own stuff
+#+tags[]: git, build, docker
+#+date: 2023-06-26
+
+I miss the days of =git push heroku=.  How hard would it be to do this
+ourselves?
+
+I did find an old project called [[https://github.com/mislav/git-deploy][git-deploy]] which integrates very
+nicely with the git command, but has a bunch of =ruby= and =rails=
+specific stuff inside of the build script itself.  I love ruby, but
+I'm in more of a =docker= based life-style right now.  So i took the
+opportinity to time travel back into blogs from the early '10s to pick
+apart this information for you!
+
+* Diagram                                                          :noexport:
+#+begin_src plantuml :noexport: :file plan.png
+!theme carbon-gray
+scale 500 width
+laptop->server: init_repo
+laptop->server: git push
+server->build: post_receive
+activate build
+build->build: docker build
+return laptop logs
+laptop->server: docker deploy
+#+end_src
+
+* The Basic Plan
+#+RESULTS:
+[[file:plan.png]]
+
+* Create the =app= user
+
+First we are going to setup [[https://git-scm.com/book/en/v2/Git-on-the-Server-Setting-Up-the-Server][git on the server]].  We'll create an =app=
+user that will do the deployment and host the repositories.
+
+Connect to the server and create the user with the =docker= group so it
+can do builds.  We'll copy of the =.ssh= keys so that we can log in
+without a password.
+
+Finally, lets create a place for the apps to live.
+
+#+begin_src bash
+  ssh root@apple.willschenk.com
+
+  adduser app -g docker
+  adduser app sudo
+  cp -r ~root/.ssh ~app
+  chown -R app:app ~app/.ssh
+
+  mkdir /apps
+  chown app:app /apps
+#+end_src
+
+* Create an empty repo and push to it
+
+On the server:
+
+#+begin_src bash
+  ssh app@apple.willschenk.com
+
+  mkdir -p /apps/apple.willschenk.com
+  cd /apps/apple.willschenk.com
+  git init --bare
+  git config core.sharedRepository group
+#+end_src
+
+* Adding a =post-receive= hook
+
+#+begin_src bash
+  groupmod -a -U git docker
+#+end_src
+
+Then in =/apps/summarize.willschenk.com/hooks/post-receive=:
+
+#+begin_src bash
+  #!/bin/bash
+
+  read oldrev newrev refname
+  echo newrev is $newrev
+
+  BASENAME=$(basename $PWD)
+  echo Building $BASENAME
+
+  WORKDIR=`mktemp -d`
+  echo Checking out $newrev to $WORKDIR
+
+  git --work-tree=$WORKDIR checkout -f $newrev
+
+  cd $WORKDIR
+  echo Running build
+
+  docker build . \
+         -t registry.willschenk.com/${BASENAME} \
+         -t registry.willschenk.com/${BASENAME}:$newrev \
+         --push
+#+end_src
+
+Then make sure it's executable
+
+#+begin_src bash
+  chmod +x post-receive
+#+end_src
+
+And also make sure that you've logged into your registry!
+
+#+begin_src bash
+  docker login registry.willschenk.com -u registry-user -p password
+#+end_src
+
+* Test it out
+
+Back on your laptop:
+
+Lets pull down a repo, give it a =Dockerfile=, and push it to our server
+to see if it builds.
+
+#+begin_src bash
+  git clone https://github.com/lkhrs/eleventy-simple
+  cd eleventy-simple
+  git remote add production app@apple.willschenk.com:/apps/apple.willschenk.com
+#+End_src
+
+Lets create a =Dockerfile= that we'll use to build this up:
+
+#+begin_src dockerfile :tangle eleventy-simple/Dockerfile
+  FROM node:18 as build
+  WORKDIR /app
+  COPY package* .
+  RUN npm install
+  COPY . .
+  RUN npx @11ty/eleventy
+
+  FROM jitesoft/lighttpd
+  COPY --from=build /app/_site/ /var/www/html/
+#+end_src
+
+Now push:
+
+#+begin_src bash
+  git add .
+  git commit -m "Adding dockerfile"
+  git push production main
+#+end_src
+
+And you should see it build and push to the repository in your git
+client!
+
+* Manual deploy
+
+On the server you can test this with:
+
+#+begin_src bash
+    docker pull registry.willschenk.com/apple.willschenk.com:latest
+    docker run \
+           --detach \
+           --name apple \
+           --network caddy \
+           --label caddy=apple.willschenk.com \
+           --label caddy.reverse_proxy='{{upstreams 80}}' \
+           registry.willschenk.com/apple.willschenk.com:latest
+#+end_src
+
+So it works, it builds and is in the registry.  This isn't a
+generalized solution but its a good start.
+
+* References
+
+Look at all this going back in time!
+
+1. https://github.com/mislav/git-deploy
+1. https://github.com/mislav/git-deploy/blob/master/lib/hooks/post-receive.sh
+1. https://ryanflorence.com/deploying-websites-with-a-tiny-git-hook/
+1. https://gist.github.com/ryanflorence/585746
+1. https://gist.github.com/francoisromain/58cabf43c2977e48ef0804848dee46c3   
+1. https://longair.net/blog/2011/04/09/missing-git-hooks-documentation/
+2. https://githooks.com/
+3. https://dokku.com/docs/deployment/methods/git/
+4. https://github.com/dokku/dokku/blob/0a14835f1b064c114454221701eb4f5de0250a91/plugins/git/functions#L68
+2. https://www.digitalocean.com/community/tutorials/how-to-use-git-hooks-to-automate-development-and-deployment-tasks
+3. https://github.com/aitemr/awesome-git-hooks
+4. https://www.omerkatz.com/blog/2013/2/15/git-hooks-part-1-the-basics
+4. https://whatthecommit.com/
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
