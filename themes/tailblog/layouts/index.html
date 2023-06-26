@@ -30,159 +30,46 @@
   </div>
 </div>
 
-<div class="md:grid grid-cols-2">
-  <div>
-    <h2 class="text-xl font-bold pb-4"><a class="hover:underline" href="/top">Recent popular posts</a></h2>
 
-    {{ $pages := dict }}
-    {{ range .Site.RegularPages }}
-      {{ $pages = merge $pages (dict .RelPermalink .)}}
-      {{ $page := . }}
-      {{ range .Aliases }}
-        {{ $pages = merge $pages (dict . $page) }}
-        {{ $concat := print . "/"}}
-        {{ $pages = merge $pages (dict $concat $page) }}
-      {{ end }}
+<div class="p-2">
+  {{ $dateFormat := default "Jan 2" (index .Site.Params "date_format") }}
+  {{ $.Scratch.Set "lastYear" "" }}
+  {{ $.Scratch.Set "lastMonth" "" }}
+  {{ range ( where .Site.RegularPages "Section" "!=" "elsewhere" ) }}
+
+  {{ $year := .Date.Year }}
+  {{ $month := .Date.Month }}
+
+  {{ $lastYear := $.Scratch.Get "lastYear"}}
+  {{ $lastMonth := $.Scratch.Get "lastMonth"}}
+  {{ if eq $lastYear "" }}
+    <h3 class="text-lg text-body text-right font-bold pt-t pb-2 text-center">{{ $month }} {{ $year }}</h3>
+  {{ else }}
+    {{ if ne $year $lastYear }}
+      <h3 class="text-xl font-bold py-4 text-center">{{ $year }}</h3>
     {{ end }}
 
-    <table>
-      {{ range .Site.Data.year_stats_rolling }}
-        {{ $visitors := .visitors }}
-        {{ with index $pages .page }}
-          <tr>
-            <td class="text-right align-top pr-2">
-              <p class="text-lg">{{ .Date.Format "Jan 2, 2006" }}</p>
-              <p class="text-sm text-gray-500">{{ $visitors }} visitors</p>
+    {{ if ne $month $lastMonth }}
+      <h3 class="text-lg text-bold text-right font-bold pt-4 pb-2">{{ $month }}</h3>
+    {{ end }}
+  {{ end }}
 
-              </td>
-            <td>
-              <a class="text-lg" href="{{.RelPermalink}}">{{ .Title | markdownify }}</a>
-            
-              {{ if .Params.Subtitle }}
-                <p class="text-gray-500 italic mr-2">
-                  {{ .Params.Subtitle | markdownify }}
-                </p>
-              {{ end }}
+  {{ $.Scratch.Set "lastYear" $year }}
+  {{ $.Scratch.Set "lastMonth" $month }}
 
-              {{ range .Params.tags }}
-                <a class="text-slate-700" href="{{ "/tags/" | relURL }}{{ . | urlize }}">{{ . }}</a>
-              {{ end }}
-            </td>
-          </tr>
-          {{ end }}
-        {{ end }}
-    </table>
-  </div>
+      <a class="flex block w-full mb-2" href="{{ .RelPermalink }}">
+        <span class="hidden md:inline text-gray-500 flex-none w-[10ch]">{{ .Section }}</span>
+        <p class="inline">
+          {{ if .Draft }}DRAFT: {{end}}{{.Title | markdownify}}
+          <span class="block md:hidden text-sm text-gray-600">{{ .Params.Subtitle | markdownify }}</span>
+        </p>
+        <span class="grow">
+          <span class="hidden md:inline ml-2 px-2 border-gray border-b border-dotted text-sm text-gray-600">{{ .Params.Subtitle | markdownify }}</span>
+        </span>
+        <span>{{ humanize .Date.Day }}</span>
+      </a>
 
-  <div>
-    <h2 class="text-xl font-bold pb-4"><a class="hover:underline" href="/elsewhere">Elsewhere on the web</a></h2>
-
-    <table >
-      {{ range first 5 (where .Site.RegularPages "Section" "elsewhere")}}
-      <tr>
-        <td class="text-right pr-4 align-top pb-4">
-          <p class="font-bold">{{ .Date.Format "2006-01-02" }}</p>
-          <p class="text-gray-500">
-            {{ .Params.type }}
-            {{ if .Params.author }}
-            from {{ .Params.author }}
-            {{ end }}
-          </p>
-      
-        </td>
-        <td class="align-top pb-4">
-          {{ $url := .Params.linkUrl }}
-          {{ if not $url }}
-          {{ $url = .Params.origin }}
-          {{ end }}
-          {{ if not $url }}
-          {{ $url = .Params.alternate }}
-          {{ end }}
-          <a class="hover:underline font-bold" href="{{$url}}">{{.Title}}</a>
-          {{ .Summary }}
-        </td>
-      </tr>
       {{ end }}
-    </table>
-      
-    <p class="font-bold py-4"><a class="hover:underline" href="/elsewhere">More...</a></p>
-
-  </div>
 </div>
 
-<div class="md:flex">
-  <div>
-    <h2 class="text-xl font-semibold"><a href="/articles">Articles</a></h2>
-
-    <table class="table-auto">
-      {{ range first 5 (where .Site.RegularPages "Section" "articles") }}
-      <tr>
-        <td class="text-right align-top text-lg">{{ .Date.Format "Jan 2, 2006" }}</td>
-        <td class="pl-4">
-          <a class="text-lg" href="{{ .RelPermalink }}">{{ if .Draft }}DRAFT: {{end}}{{ .Title | markdownify }}</a>
-
-          {{ if .Params.Subtitle }}
-            <p class=" text-gray-500 italic mr-2">{{ .Params.Subtitle | markdownify }}</p>
-          {{ end }}
-  
-          {{ range .Params.tags }}
-            <a class="text-slate-700" href="{{ "/tags/" | relURL }}{{ . | urlize }}">{{ . }}</a>
-          {{ end }}
-        </td>
-      </tr>
-      {{end }}
-      <tr><td></td><td class="pl-4"><a href="/articles">More...</a></td></tr>
-    </table>
-
-  </div>
-
-  <div>
-    <h2 class="text-lg font-semibold"><a href="/howto">Howto</a></h2>
-
-    <table class="table-auto">
-      {{ range first 5 (where .Site.RegularPages "Section" "howto") }}
-      <tr>
-        <td class="text-right align-top text-lg">{{ .Date.Format "Jan 2, 2006" }}</td>
-        <td class="pl-4">
-          <a class="text-lg" href="{{ .RelPermalink }}">{{ if .Draft }}DRAFT: {{end}}{{ .Title | markdownify }}</a>
-
-          {{ if .Params.Subtitle }}
-            <p class=" text-gray-500 italic mr-2">{{ .Params.Subtitle | markdownify }}</p>
-          {{ end }}
-  
-          {{ range .Params.tags }}
-            <a class="text-slate-700" href="{{ "/tags/" | relURL }}{{ . | urlize }}">{{ . }}</a>
-          {{ end }}
-        </td>
-      </tr>
-      {{end }}
-      <tr><td></td><td class="pl-4"><a href="/howtos">More...</a></td></tr>
-    </table>
-  </div>
-
-  <div>
-    <h2 class="text-lg font-semibold"><a href="/labnotes">Labnotes</a></h2>
-
-    <table class="table-auto">
-      {{ range first 5 (where .Site.RegularPages "Section" "labnotes") }}
-      <tr>
-        <td class="text-right align-top text-lg">{{ .Date.Format "Jan 2, 2006" }}</td>
-        <td class="pl-4">
-          <a class="text-lg" href="{{ .RelPermalink }}">{{ if .Draft }}DRAFT: {{end}}{{ .Title | markdownify }}</a>
-
-          {{ if .Params.Subtitle }}
-            <p class=" text-gray-500 italic mr-2">{{ .Params.Subtitle | markdownify }}</p>
-          {{ end }}
-  
-          {{ range .Params.tags }}
-            <a class="text-slate-700" href="{{ "/tags/" | relURL }}{{ . | urlize }}">{{ . }}</a>
-          {{ end }}
-        </td>
-      </tr>
-      {{end }}
-      <tr><td></td><td class="pl-4"><a href="/labnotes">More...</a></td></tr>
-
-    </table>
-  </div>
-</div>
 {{ end }}
