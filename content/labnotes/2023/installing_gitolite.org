@@ -1,0 +1,154 @@
+#+title: Installing gitolite
+#+subtitle: Intercepting git
+#+tags[]: git, gitolite
+#+date: 2023-06-30
+
+* Setup
+
+#+begin_src bash
+  ssh root@apple.willschenk.com
+  adduser gitolite
+#+end_src
+
+From your laptop, copy your public key
+
+#+begin_src bash
+  scp ~/.ssh/id_ed25519.pub root@apple.willschenk.com/home/gitolite/admin.pub
+
+#+end_src
+
+The back on the server:
+
+#+begin_src bash
+  chown gitolite ~gitolite/admin.pub
+  sudo -u gitolite bash
+  cd
+#+end_src
+
+Then checkout and install
+
+#+begin_src bash
+  git clone https://github.com/sitaramc/gitolite
+  mkdir -p $HOME/bin
+  gitolite/install -to $HOME/bin
+  $HOME/bin/gitolite setup -pk admin.pub
+#+end_src
+
+* Add a new server
+
+OK, back on your laptop pull out the =gitolite-admin= repo:
+
+#+begin_src bash
+  git clone gitolite@apple.willschenk.com:gitolite-admin 
+#+end_src
+
+Then add a new repo inside of =conf/gitolite.conf=
+
+#+begin_src bash
+repo gitolite-admin
+    RW+     =   Will
+
+repo summarize
+    RW+     = @all
+#+end_src
+
+And check it in to create the new repo
+
+#+begin_src bash
+  git commit -a -m "Adding new repository"
+  git push origin master
+  Enumerating objects: 7, done.
+  Counting objects: 100% (7/7), done.
+  Delta compression using up to 8 threads
+  Compressing objects: 100% (3/3), done.
+  Writing objects: 100% (4/4), 384 bytes | 384.00 KiB/s, done.
+  Total 4 (delta 0), reused 0 (delta 0), pack-reused 0
+  remote: Initialized empty Git repository in /home/gitolite/repositories/summarize.git/
+  To apple.willschenk.com:gitolite-admin
+     6666923..d5562f8  master -> master
+#+end_src
+
+It's created the new repo.  So, lets see if we can make it work.
+Clone repo, and then add a remote and push:
+
+#+begin_src bash
+  git remote add test gitolite@apple.willschenk.com:summarize
+  git push test
+  Enumerating objects: 104, done.
+  Counting objects: 100% (104/104), done.
+  Delta compression using up to 8 threads
+  Compressing objects: 100% (100/100), done.
+  Writing objects: 100% (104/104), 59.90 KiB | 5.99 MiB/s, done.
+  Total 104 (delta 41), reused 0 (delta 0), pack-reused 0
+  remote: Resolving deltas: 100% (41/41), done.
+  To apple.willschenk.com:summarize
+   ,* [new branch]      main -> main
+#+end_src
+
+
+* How does it work
+
+When you first run setup, you pass it in a public key.  This gets put
+into =.ssh/authorized_keys=, with the following options:
+
+#+begin_src bash
+  command="/home/gitolite/bin/gitolite-shell Will",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty
+#+end_src
+
+This means that everytime your user connects the server, it calls
+=gitolite-shell= with your user, that it can find via the ssh key.
+
+If you try to connect directly, it will show you the repositories that you have access to
+
+#+begin_src bash :results code
+  ssh gitolite@apple.willschenk.com
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+hello Will, this is gitolite@apple running gitolite3 v3.6.12-5-g9987ee5 on git 2.39.2
+
+ R W	gitolite-admin
+ R W	summarize
+ R W	super
+#+end_src
+
+Create new repositories by checking out the =gitolite-admin= repository,
+changing the config file, and then an update hook will run =gitolite
+compile= and the new repository will be created.
+
+On the server, you can look at the logs in =~/.gitolite/logs= which will
+give you a sense of what it is doing.
+
+#+begin_src bash
+  ssh	ARGV=Will	SOC=git-receive-pack 'gitolite-admin'	FROM=68.114.83.119
+  pre_git	gitolite-admin	Will	W	any	refs/.*
+      system,git,shell,-c,git-receive-pack '/home/gitolite/repositories/gitolite-admin.git'
+  update	gitolite-admin	Will	W	refs/heads/master	66669231fa5da0435c48532004d9e1b45454d...
+      system,gitolite compile
+      system,git init --bare >&2
+      system,gitolite compile-template-data
+      system,/home/gitolite/bin/commands/compile-template-data
+      system,gitolite trigger POST_COMPILE
+      system,/home/gitolite/bin/triggers/post-compile/ssh-authkeys,POST_COMPILE
+      system,/home/gitolite/bin/triggers/post-compile/update-git-configs,POST_COMPILE
+      system,/home/gitolite/bin/triggers/post-compile/update-gitweb-access-list,POST_COMPILE
+      system,/home/gitolite/bin/commands/access,%,gitweb,R,any
+      system,/home/gitolite/bin/commands/git-config,-r,%,gitweb\.
+      system,/home/gitolite/bin/triggers/post-compile/update-git-daemon-access-list,POST_COMPILE
+      system,/home/gitolite/bin/commands/access,%,daemon,R,any
+  END
+#+end_src
+
+The =gitolite-shell= command is responsible for figuring out who you
+are, what you are trying to do, and then it delgates things to the
+native git commands, which will be one of =git-upload-pack=,
+=git-receive-pack=, or =git-upload-archive=.
+
+* References
+
+1. https://github.com/sitaramc/gitolite
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

@@ -1,9 +1,6 @@
 ---
-title: About
+title: Will Schenk
 ---
-
-## Will Schenk
-
 
 I am a father, entrepreneur, technologist and aspiring woodsman.
 

@@ -1,9 +1,9 @@
 ;; set the directory
-(setq blog-mode-base-dir "/home/wschenk/willschenk.com/content/articles")
+(setq blog-mode-base-dir "/Users/wschenk/willschenk.com/content")
 (require 'transient)
 
 (defun blog-mode-file-peek (pattern file)
-  (let ((result (car (process-lines "awk" "-F: " (concat pattern " {print $2}") file))))
+  (let ((result (car (process-lines-ignore-status "awk" "-F: " (concat pattern " {print $2}") file))))
     (if result
         (replace-regexp-in-string "\"" "" result)
       "")))
@@ -44,7 +44,7 @@
 
 (defun blog-mode-refresh-data ()
   (setq blog-mode-entries nil)
-  (dolist (file (process-lines "find" blog-mode-base-dir  "-maxdepth" "2" "-print"))
+  (dolist (file (process-lines "find" blog-mode-base-dir "(" "-name" "*.org" "-or" "-name" "*.md" ")" "-maxdepth" "4" "-print"))
     (let ((entry (blog-mode-parse file)))
       (if entry
           (push (blog-mode-parse file) blog-mode-entries)))))
