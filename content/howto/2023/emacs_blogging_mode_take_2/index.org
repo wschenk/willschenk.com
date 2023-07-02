@@ -1,0 +1,342 @@
+#+title: Emacs Blogging mode take 2
+#+subtitle: emacs and hugo sitting in a tree
+#+tags[]: emacs, hugo, elisp, tabulated-list-mode
+#+date: 2023-07-02
+
+I've moved the structure of my site around so I thought I'd [[/howto/2021/emacs_blogging_mode/][change up
+how I managed posts]].  Also, it was way too slow!
+
+Lets get into it.
+
+* Set it up
+#+begin_src elisp :tangle blog.el
+  ;; set the directory
+  (setq blog-mode-base-dir "/Users/wschenk/willschenk.com/content")
+
+  ;; from magit
+  (require 'transient)
+  
+#+end_src
+
+* List out all the files
+
+In my =content= directory I have:
+
+| =articles=  | long posts                                        |
+| =howtos=    | walk throughs on how to do something              |
+| =labnotes=  | notes to my future self on how to build something |
+| =fragments= | more like short term microposts                   |
+
+Most new things are =org= but there are a lot of old =md= files.  This
+finds them all up to a certain depth.
+
+#+begin_src elisp :tangle blog.el
+  (defun blog-mode-file-list ()
+    (process-lines
+     "find"
+     blog-mode-base-dir
+     "(" "-name" "*.org" "-or" "-name" "*.md" ")"
+     "-maxdepth" "4"
+     "-print"))
+
+#+end_src
+
+#+RESULTS:
+: blog-mode-file-list
+
+* Parsing front matter
+
+Rather than calling out to =awk= 4 times per post, lets wrap it all into
+one.  Also, we can reuse this for both org and md files.
+
+#+begin_src elisp :tangle blog.el
+  (setq blog-parse-front-matter-awk "
+  BEGIN { FS=\":\"; IGNORECASE=1 }
+  /title:/ { print \"title:\" $2 }
+  /date:/  { print \"date:\" $2 }
+  /tags/  { print \"tags:\" $2 }
+  /draft:/ { print \"draft:\" $2 }
+  /^$/ {exit}")
+
+  (defun remove-quotes (string)
+    (replace-regexp-in-string "\"" "" string))
+
+  (defun blog-mode-parse-file (file)
+    (let ((file-properties (make-hash-table :test 'equal)))
+
+      (dolist (line 
+               (process-lines-ignore-status
+                "awk"
+                blog-parse-front-matter-awk
+                file))
+        (let ((prop (split-string line ": ")))
+          (message (car prop))
+          (unless (gethash (car prop) file-properties)
+            (puthash (car prop) (cadr prop) file-properties))))
+      (list file (vector
+                  (gethash "title" file-properties "")
+                  (gethash "draft" file-properties "")
+                  (remove-quotes (gethash "date" file-properties ""))
+                  (gethash "tags" file-properties "")))))
+#+end_src
+
+#+RESULTS:
+: blog-mode-parse-file
+
+#+begin_src elisp 
+  (blog-mode-parse-file "./index.org")
+#+end_src
+
+#+RESULTS:
+| ./index.org | [Emacs Blogging mode take 2 true 2023-06-28 emacs, hugo, elisp, tabulated-list-mode] |
+
+* Refresh the full list
+
+#+begin_src elisp :tangle blog.el
+  (defun blog-mode-refresh-data ()
+    (setq blog-mode-entries
+          (mapcar 'blog-mode-parse-file (blog-mode-file-list)))
+    blog-mode-entries)
+
+#+end_src
+
+#+RESULTS:
+: blog-mode-refresh-data
+
+* Define derived-mode
+
+This is the same as before.
+
+#+begin_src elisp :tangle blog.el
+(define-derived-mode blog-mode tabulated-list-mode "blog-mode" "Major mode Blog Mode, to edit hugo blogs"
+  (setq tabulated-list-format [("Title" 60 t)
+                               ("Draft" 5 nil)
+                               ("Date"  11 t)
+                               ("Tags" 0 nil)])
+  (setq tabulated-list-padding 2)
+  (setq tabulated-list-sort-key (cons "Date" t))
+  (use-local-map blog-mode-map)
+  (tabulated-list-init-header))
+
+(defun blog-list ()
+  (interactive)
+  (pop-to-buffer "*Blog Mode*" nil)
+  (blog-mode)
+  (blog-mode-refresh-data)
+  (setq tabulated-list-entries (-non-nil blog-mode-entries))
+  (tabulated-list-print t))
+
+#+end_src
+
+
+* Create the mode map
+
+Here I'm defining some functions that are specific to our mode.
+
+#+ATTR_HTML: :class table table-striped
+| =?= | Help                      |
+| =o= | Open the selected file    |
+| =r= | Refresh lists             |
+| =d= | Only show drafts          |
+| =p= | Only show published posts |
+| =a= | Show all posts            |
+| =c= | Create a new post         |
+| =s= | Start the hugo process    |
+
+For fun I also created a =transient= popup which shows all of this.
+
+#+begin_src elisp :tangle blog.el
+  (defvar blog-mode-map nil "keymap for blog-mode")
+
+  (setq blog-mode-map (make-sparse-keymap))
+
+  (define-key blog-mode-map (kbd "?") 'blog-mode-help)
+  (define-key blog-mode-map (kbd "o") 'blog-mode-open)
+  (define-key blog-mode-map (kbd "<return>") 'blog-mode-open)
+  (define-key blog-mode-map (kbd "d") 'blog-mode-drafts)
+  (define-key blog-mode-map (kbd "a") 'blog-mode-all)
+  (define-key blog-mode-map (kbd "p") 'blog-mode-published)
+  (define-key blog-mode-map (kbd "r") 'blog-mode-refresh-all)
+  (define-key blog-mode-map (kbd "c") 'blog-mode-create-menu)
+  (define-key blog-mode-map (kbd "s") 'blog-mode-start-hugo)
+  (define-key blog-mode-map (kbd "RET") 'blog-mode-open)
+
+  (transient-define-prefix blog-mode-help ()
+    "Help transient for blog mode."
+    ["Blog mode help"
+     ("o" "Open" blog-mode-open)
+     ("d" "Drafts" blog-mode-drafts)
+     ("a" "All" blog-mode-all)
+     ("p" "Published" blog-mode-published)
+     ("r" "Refresh" blog-mode-refresh-all)
+     ("c" "Create post" blog-mode-make-draft)
+     ("s" "Start hugo" blog-mode-start-hugo)
+     ])
+#+end_src
+
+* Actions: open
+
+I set the key to be the filename, so =(find-file
+(tabulated-list-get-id))= opens the file.
+
+#+begin_src elisp :tangle blog.el
+  (defun blog-mode-open ()
+    (interactive)
+    (find-file (tabulated-list-get-id)))
+#+end_src
+
+* Actions: All/Published/Drafts
+
+These functions filter the =blog-mode-entries= variable to filter what
+is displayed.  I'm not sure how I feel about calling
+=tabulated-list-print= each time but it seems to work.
+
+#+begin_src elisp :tangle blog.el
+  (defun blog-mode-refresh-all ()
+    (interactive)
+    (progn
+      (blog-mode-refresh-data)
+      (setq tabulated-list-entries (-non-nil blog-mode-entries))
+      (tabulated-list-print t)))
+
+  (defun blog-mode-all () 
+    (interactive)
+    (progn
+      (setq tabulated-list-entries (-non-nil blog-mode-entries))
+      (tabulated-list-print t)))
+
+  (defun blog-mode-drafts () 
+    (interactive)
+    (progn
+      (setq tabulated-list-entries 
+            (-filter (lambda (x)
+                       (string= "true"
+                                (aref (car (cdr x)) 1))) (-non-nil blog-mode-entries)))
+      (tabulated-list-print t)))
+
+  (defun blog-mode-published () 
+    (interactive)
+    (progn
+      (setq tabulated-list-entries 
+            (-filter (lambda (x)
+                       (string= ""
+                                (aref (car (cdr x)) 1))) blog-mode-entries)))
+      (tabulated-list-print t))
+#+end_src
+
+* Actions: create a new post
+
+I like my urls to be the same as the title, so the first function here
+normalizes the title to fit in the filesystem.  I've forgotten where I
+copied this code from, by thank you internet.
+
+I have two types of posts.  "mini" which just means its a standalone
+file, and a full post, which is in a directory.  I also turn on
+automatic =org-babel-tangle= on save, which I set as a local org
+variable.
+
+#+begin_src elisp :tangle blog.el
+  (defun string-title-to-filename (str)
+    "FooBar => foo_bar"
+    (let ((case-fold-search nil))
+      (setq str (replace-regexp-in-string "\\([a-z0-9]\\)\\([A-Z]\\)" "\\1_\\2" str))
+      (setq str (replace-regexp-in-string "\\([A-Z]+\\)\\([A-Z][a-z]\\)" "\\1_\\2" str))
+      (setq str (replace-regexp-in-string "-" "_" str)) ; FOO-BAR => FOO_BAR
+      (setq str (replace-regexp-in-string "_+" "_" str))
+      (setq str (replace-regexp-in-string " " "_" str))
+      (downcase str)))
+
+  (transient-define-prefix blog-mode-create-menu ()
+    "Command for create blog post"
+    ["Blog mode help"
+     ("a" "Article" blog-mode-make-article-draft)
+     ("h" "Howto" blog-mode-make-howto-draft)
+     ("l" "Labnote" blog-mode-make-labnote-draft)
+     ("f" "Fragment" blog-mode-make-fragment-draft)
+     ])
+
+  (defun blog-mode-make-article-draft ()
+    "Create a new article"
+    (interactive)
+    (blog-mode-make-draft "articles" false))
+
+  (defun blog-mode-make-howto-draft ()
+    "Create a new howto"
+    (interactive)
+    (blog-mode-make-draft "howto" nil))
+
+  (defun blog-mode-make-labnote-draft ()
+    "Create a new labnote"
+    (interactive)
+    (blog-mode-make-draft "labnotes" nil))
+
+  (defun blog-mode-make-fragment-draft ()
+    "Create a new fragment"
+    (interactive)
+    (blog-mode-make-draft "fragments" t))
+
+  (defun blog-mode-make-draft (folder mini)
+    "Little function to create a org file inside of the blog"
+    (interactive)
+    (let* (
+           (title (read-from-minibuffer "Title: "))
+           (year (format-time-string "%Y"))
+           (filename (string-title-to-filename title))
+           (rootpath (concat blog-mode-base-dir "/" folder "/" year "/" filename))
+           (path (if mini (concat rootpath ".org") (concat rootpath "/index.org")))
+           )
+      (set-buffer (find-file path))
+      (insert "#+title: " title "\n")
+      (insert "#+date: " (format-time-string "%Y-%m-%d") "\n")
+      (insert "#+draft: true\n")
+      (unless mini
+        (insert "\n* References\n# Local Variables:\n# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)\n# End:\n"))))
+
+#+end_src
+
+
+* Actions: Command start hugo
+
+This is probably too particular for my machine, since I run hugo
+inside of a docker container so I need to start it with a script, but
+this function starts hugo if it isn't running, then waits 5 seconds to
+call =open= to bring it up in the browser.
+
+#+begin_src elisp :tangle blog.el
+  (defun blog-mode-start-hugo ()
+    "Starts up a hugo watch process"
+    (interactive)
+    (let* (
+           (default-directory "/Users/wschenk/willschenk.com")
+           (height (/ (frame-total-lines) 3))
+           (name "*shell hugo process"))
+      (delete-other-windows)
+      (split-window-vertically (- height))
+      (other-window 1)
+      (switch-to-buffer name)
+      (unless (get-buffer-process name)
+        (async-shell-command "cd /Users/willschenk.com;./dev.sh" name))
+      (async-shell-command "sleep 5;open http://localhost:1313" (get-buffer "*hugo web opener*"))))
+  
+#+end_src
+
+* Plug it in
+
+#+begin_src elisp :tangle blog.el
+  (global-set-key (kbd "C-c d") 'blog-list)
+
+#+end_src
+
+* References
+
+1. https://pagefault.se/post/lets-build-docker-mode-part-1/
+2. https://www.gnu.org/software/emacs/manual/html_node/elisp/File-Name-Components.html#File-Name-Components
+3. http://lgmoneda.github.io/2017/03/15/elisp-summary.html#loops
+4. http://ergoemacs.org/emacs/elisp_vector.html
+5. https://stackoverflow.com/questions/2234860/lisp-filter-out-results-from-list-not-matching-predicate
+6. https://vallyscode.github.io/posts/tabulated-list-mode/
+
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
+
