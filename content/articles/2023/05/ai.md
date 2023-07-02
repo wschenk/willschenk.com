@@ -1,3 +1,6 @@
+---
+draft: true
+---
 
 Critique of How Not to Think about ChatGPT by Claire Berlinski
 
