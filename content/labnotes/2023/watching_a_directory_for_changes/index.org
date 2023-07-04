@@ -1,0 +1,224 @@
+#+title: Watching a directory for changes
+#+date: 2023-07-03
+#+draft: true
+
+[[https://github.com/emcrisostomo/fswatch][fswatch]] is a cross platform command that will let you watch a
+directory for changes.  Lets give it a try:
+
+#+begin_src
+  brew install fswatch
+#+end_src
+
+And we can test it
+
+#+begin_src bash
+  mkdir
+  fsevent tmp
+#+end_src
+
+And then in another terminal:
+
+#+begin_src bash
+  touch tmp/b
+#+end_src
+
+And see if the first one prints out anything!
+
+* Docker
+
+Ok so that's simple.  Lets see if we can put it in a =Docker= container
+and see if it works across volumes
+
+#+begin_src dockerfile :tangle Dockerfile
+  from debian:12
+
+  run apt-get -q update && apt-get install -y fswatch
+
+  cmd fswatch /data
+#+end_src
+
+Then build
+
+#+begin_src bash
+  docker build . -t fswatch_test
+#+end_src
+
+Finally, start it up to test:
+
+#+begin_src 
+docker run --rm -it -v ./tmp:/data fswatch_test
+#+end_src
+
+* Filtering on events
+
+Events are a funny name here, because we can use it both to look at
+the =Created= and =Updated= event, but also to filter out on file types
+like =IsFile= or =IsDirectory=.
+
+#+begin_src bash
+  fswatch -x --event Updated --event IsFile tmp
+#+end_src
+
+* Simple job processing queue
+
+Lets have two scripts, one that writes files out into a directory when
+recording events, and another that loads them up as they come in and
+does something with them.
+
+=job_add=:
+
+#+begin_src bash :tangle job_add
+  #!/bin/bash
+
+  directory=queue
+  mkdir -p ${directory}
+  if [ -z "$1" ]; then
+      command=event=ping
+  else
+      command=${@}
+  fi
+
+  time=$(date +"%Y-%m-%d-%H:%M:%S")
+
+  outfile=${directory}/${time}.job
+
+  jo ${command} > ${outfile}
+  cat ${outfile}
+#+end_src
+
+We can take a look at this and some various outputs:
+
+#+begin_src bash :results code
+bash job_add
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+{"event":"ping"}
+#+end_src
+
+or
+
+#+begin_src bash :results code
+bash job_add event=build id=1234
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+{"event":"build","id":1234}
+#+end_src
+
+* Watch for new files
+
+Now we can implement =job_watcher=.  This first looks into the =queue=
+directory for all of the =job= files, and if it don't have a =log= file
+then calls =process_job=.  After that, it starts up =fswatch= and runs
+each file as it changes.
+
+#+begin_src bash :tangle job_watcher
+  #!/bin/bash
+
+  function setup {
+      directory=queue
+      mkdir -p ${directory}
+  }
+
+  # Watch for file changes
+  function watch_for_changes {
+      fswatch --event Updated \
+              --event IsFile \
+              ${directory} | \
+          while read line ;
+          do
+              # Only react to .job files
+              if [[ $line =~ ".job" ]]; then
+                  if [ -f $line ]; then
+                      process_job $line
+                  fi
+              fi
+          done
+  }
+
+  # Look for all jobs that haven't been run yet
+  function catch_up {
+      ls -1 ${directory}/*job | \
+          while read job ;
+          do
+            outfile=$(echo $job | sed s/\.job/\.log/)
+
+            if [ ! -f $outfile ]; then
+                echo Running $job
+                process_job $job
+            fi
+          done
+  }
+
+  function process_job {
+      type=$(cat $1 | jq -r '.event')
+      outfile=$(echo $1 | sed s/\.job/\.log/)
+
+      if [ $type == 'ping' ]; then
+          echo pong > $outfile
+          echo Got ping event
+      else
+          echo error > $outfile
+          echo Unknown event $type
+      fi
+
+  }
+
+  setup
+  catch_up
+  watch_for_changes
+
+#+end_src
+
+* Dockerfy
+
+And lets see if we can communicate across the containers!  With a new
+=Dockerfile.watcher= file:
+
+#+begin_src dockerfile :tangle Dockerfile.watcher
+  from debian:12
+
+  run apt-get -q update && apt-get install -y fswatch jo jq git
+
+  workdir /app
+  copy job_watcher .
+
+  cmd bash /app/job_watcher
+#+end_src
+
+Easy build with:
+
+#+begin_src bash
+  docker build . -f Dockerfile.watcher -t watcher_test
+#+end_src
+
+Then
+
+#+begin_src bash
+  docker run --rm -it -v ./queue:/app/queue watcher_test
+#+end_src
+
+Then if we add a couple of jobs
+
+#+begin_src bash
+  bash job_add
+  bash job_add event=test
+#+end_src
+
+
+We'll get in return:
+
+#+begin_src 
+Got ping event
+Unknown event test
+#+end_src
+
+
+
+* References
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

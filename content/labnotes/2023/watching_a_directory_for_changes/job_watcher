@@ -1,0 +1,54 @@
+#!/bin/bash
+
+function setup {
+    directory=queue
+    mkdir -p ${directory}
+}
+
+# Watch for file changes
+function watch_for_changes {
+    fswatch --event Updated \
+            --event IsFile \
+            ${directory} | \
+        while read line ;
+        do
+            # Only react to .job files
+            if [[ $line =~ ".job" ]]; then
+                if [ -f $line ]; then
+                    process_job $line
+                fi
+            fi
+        done
+}
+
+# Look for all jobs that haven't been run yet
+function catch_up {
+    ls -1 ${directory}/*job | \
+        while read job ;
+        do
+          outfile=$(echo $job | sed s/\.job/\.log/)
+
+          if [ ! -f $outfile ]; then
+              echo Running $job
+              process_job $job
+          fi
+        done
+}
+
+function process_job {
+    type=$(cat $1 | jq -r '.event')
+    outfile=$(echo $1 | sed s/\.job/\.log/)
+
+    if [ $type == 'ping' ]; then
+        echo pong > $outfile
+        echo Got ping event
+    else
+        echo error > $outfile
+        echo Unknown event $type
+    fi
+
+}
+
+setup
+catch_up
+watch_for_changes
