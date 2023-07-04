@@ -1,52 +1,60 @@
 {{ define "main" }}
-  {{ if eq .Kind "taxonomy" }}
-  <h1 class="text-xl font-bold">Tags</h1>
+{{ if eq .Kind "taxonomy" }}
+<h1 class="text-xl font-bold">Tags</h1>
 
 <table class="table-auto mt-6">
-      {{ range $.Site.Taxonomies.tags.ByCount }}
-      <tr>
-        <th class="text-lg text-right font-normal pr-8 w-60"><a href="/tags/{{ .Name }}">{{ .Name }}</a></th>
-        <td class="">{{ .Count }} Articles</td>
-      </tr>
-    {{ end }}
-  </table>
-  {{ else }}
-  
-  {{ $dateFormat := default "Jan 2" (index .Site.Params "date_format") }}
-{{ $.Scratch.Set "lastYear" ""}}
-<h1 class="text-xl font-bold">{{ .Type | humanize }}</h1>
-
-<table class="table-auto">
-  <tbody>
-    {{ range .Pages }}
-    {{ $year := .Date.Year }}
-    {{ $lastYear := $.Scratch.Get "lastYear"}}
-    {{ if ne $year $lastYear }}
-      {{ $.Scratch.Set "lastYear" $year }}
-      <tr><th class="text-right w-40 pt-8">{{ $year }}</th></tr>
-    {{ end }}
-
-    <tr>
-      <td class="text-right align-top"><span class="text-lg">{{ .Date.Format "Jan 2" }}</span>
-        <br/>
-        <span class="text-gray-500 italic"><a href="/{{ .Section }}">{{ .Section }}</a></span>
-      </td>
-      <td class="pl-4 pb-4">
-        <a class="text-lg" href="{{ .RelPermalink }}">{{ if .Draft }}DRAFT: {{end}}{{ .Title | markdownify }}</a>
-
-        {{ if .Params.Subtitle }}
-        <p class=" text-gray-500 italic mr-2">{{ .Params.Subtitle | markdownify }}</p>
-      {{ end }}
-  
-      {{ range .Params.tags }}
-      <a class="text-slate-700" href="{{ "/tags/" | relURL }}{{ . | urlize }}">{{ . }}</a>
-    {{ end }}
-  
-      </td>
-    </tr>
-    {{ end }}
-  </tbody>
+  {{ range $.Site.Taxonomies.tags.ByCount }}
+  <tr>
+    <th class="text-lg text-right font-normal pr-8 w-60"><a href="/tags/{{ .Name }}">{{ .Name }}</a></th>
+    <td class="">{{ .Count }} Articles</td>
+  </tr>
+  {{ end }}
 </table>
+{{ else }}
+  
+{{ $dateFormat := default "Jan 2" (index .Site.Params "date_format") }}
+{{ $.Scratch.Set "lastYear" ""}}
+<h1 class="text-xl font-bold">{{ .Type | humanize }} {{.Data.Term }}</h1>
+
+{{ $dateFormat := default "Jan 2" (index .Site.Params "date_format") }}
+{{ $.Scratch.Set "lastYear" "" }}
+{{ $.Scratch.Set "lastMonth" "" }}
+{{ range .Pages }}
+
+  {{ $year := .Date.Year }}
+  {{ $month := .Date.Month }}
+
+  {{ $lastYear := $.Scratch.Get "lastYear"}}
+  {{ $lastMonth := $.Scratch.Get "lastMonth"}}
+  {{ if eq $lastYear "" }}
+    <h3 class="text-lg text-body text-right font-bold pt-t pb-2 text-center">{{ $month }} {{ $year }}</h3>
+  {{ else }}
+    {{ if ne $year $lastYear }}
+      <h3 class="text-xl font-bold py-4 text-center">{{ $year }}</h3>
+    {{ end }}
+
+    {{ if ne $month $lastMonth }}
+      <h3 class="text-lg text-bold text-right font-bold pt-4 pb-2">{{ $month }}</h3>
+    {{ end }}
+  {{ end }}
+
+  {{ $.Scratch.Set "lastYear" $year }}
+  {{ $.Scratch.Set "lastMonth" $month }}
+
+      <a class="flex block w-full mb-2" href="{{ .RelPermalink }}">
+        <span class="hidden md:inline text-gray-500 flex-none w-[10ch]">{{ .Section }}</span>
+        <p class="inline">
+          {{ if .Draft }}DRAFT: {{end}}{{.Title | markdownify}}
+          <span class="block md:hidden text-sm text-gray-600">{{ .Params.Subtitle | markdownify }}</span>
+        </p>
+        <span class="grow hidden md:inline ml-2 px-2 border-gray border-b border-dotted text-sm text-gray-600">{{ .Params.Subtitle | markdownify }}</span>
+        <span class="grow inline md:hidden"></span>
+        <span>{{ humanize .Date.Day }}</span>
+      </a>
+
+      {{ end }}
+</div>
+
 {{ end }}
 
 {{ end }}
