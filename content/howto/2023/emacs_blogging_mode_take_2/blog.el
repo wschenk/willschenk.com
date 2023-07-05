@@ -177,7 +177,7 @@ BEGIN { FS=\":\"; IGNORECASE=1 }
          )
     (set-buffer (find-file path))
     (insert "#+title: " title "\n")
-    (insert "#+date: " (format-time-string "%Y-%m-%d") "\n")
+    (insert "#+date: " (format-time-string "%Y-%m-%dT%H:%M:%S") "\n")
     (insert "#+draft: true\n")
     (unless mini
       (insert "\n* References\n# Local Variables:\n# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)\n# End:\n"))))

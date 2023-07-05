@@ -1,11 +1,11 @@
 	
 ---
 title: Modern Improvements
-date: 2023-06-30
+date: 2023-06-30T06:15:15
 quote: Henry David Thoreau, Walden
 ---
 
-As with our colleges, so with a hundred "modern improvements"; there
+> As with our colleges, so with a hundred "modern improvements"; there
 is an illusion about them; there is not always a positive advance. The
 devil goes on exacting compound interest to the last for his early
 share and numerous succeeding investments in them. Our inventions are
