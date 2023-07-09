@@ -148,7 +148,7 @@ BEGIN { FS=\":\"; IGNORECASE=1 }
 (defun blog-mode-make-article-draft ()
   "Create a new article"
   (interactive)
-  (blog-mode-make-draft "articles" false))
+  (blog-mode-make-draft "articles" nil))
 
 (defun blog-mode-make-howto-draft ()
   "Create a new howto"
