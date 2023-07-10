@@ -1,0 +1,201 @@
+#+title: Playing with unocss
+#+subtitle: Slimmer than tailwind, but still cool
+#+tags[]: unocss, tailwind
+#+date: 2023-07-10T05:46:33
+
+I stumbled upon [[https://antfu.me/posts/reimagine-atomic-css][Anthony Fu's Reimagine Atomic CSS]] post the other day,
+and his fine work on [[https://unocss.dev/][unocss]].
+
+The basic idea simply scan the HTML/whatever files for all of the
+classes that are used, and then generate the css based on that.  This
+results in a much faster build time, and also smaller CSS files.  And
+you can use the same classes that you are used to with Tailwind.
+
+#+begin_src bash :results code
+wc -c site/main.css
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+    3371 site/main.css
+#+end_src
+
+That's only 3K!
+
+There's also a couple of other cool features.  One that I think is
+very useful is the [[https://unocss.dev/presets/web-fonts][web fonts preset]], which does some boilerplate
+lifting that's a bit awkward in Tailwind.
+
+#+begin_src javascript
+  import presetWebFonts from '@unocss/preset-web-fonts';
+
+  const fonts = presetWebFonts({
+    provider: 'google', // default provider
+    fonts: {
+      header: "Averia Serif Libre",
+    }
+  })
+
+#+end_src
+
+Lets get started on how to use it without any fancy frameworks.
+
+* =live-server=
+
+First we can start up a live server with
+
+#+begin_src bash
+  mkdir site
+  npx live-server site
+#+end_src
+
+* Basic page with unocss runtime
+
+=site/basic.html=
+#+begin_src html :tangle site/basic.html
+  <html>
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+      <title>Base Template</title>
+
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@unocss/reset/tailwind.min.css">
+      <script src="https://cdn.jsdelivr.net/npm/@unocss/runtime/attributify.global.js"></script>
+    </head>
+
+    <body p-2 md:p-0 h-full>
+      <header max-w-screen-lg mx-auto md:flex justify-between py-4>
+        <h1 font-bold text-4xl md:inline-block>
+          Basic template
+        </h1>
+
+        <ul pt-2>
+          <li md:inline-block ml-4><a href="/basic.html">basic</a></li>
+          <li md:inline-block ml-4><a href="/inline.html">inline</a></li>
+        </ul>
+      </header>
+
+      <h2 max-w-screen-lg mx-auto font-bold text-2xl py-4>This is a page</h2>
+
+      <p max-w-screen-lg mx-auto>I really really like it</p>
+
+    </body>
+  </html>
+  
+#+end_src
+
+* Generating css using watch
+
+That's nice any easy, but lets setup our own config file, and we can
+add a couple of other plugins to make things easier.
+
+
+=uno.config.ts=:
+
+#+begin_src javascript :tangle uno.config.ts
+  // uno.config.ts
+  import { defineConfig, presetAttributify, presetUno, presetTypography } from 'unocss'
+  import presetWebFonts from '@unocss/preset-web-fonts';
+
+  const fonts = presetWebFonts({
+    provider: 'google', // default provider
+    fonts: {
+      header: "Averia Serif Libre",
+    }
+  })
+
+  export default defineConfig({
+    presets: [
+      presetAttributify({ /* preset options */}),
+      presetUno(),
+      fonts,
+      presetTypography()
+      // ...custom presets
+    ],
+  })
+#+end_src
+
+Then create =package.json= as
+
+#+begin_src javascript :tangle package.json
+  {
+    "scripts": {
+      "dev": "unocss \"site/**/*.html\" -o site/main.css --watch & live-server site",
+      "build": "unocss \"site/**/*.html\" -o site/main.css"
+    },
+    "devDependencies": {
+      "live-server": "^1.2.2",
+      "unocss": "^0.53.4"
+    }
+  }
+
+#+end_src
+
+And set it up and run
+
+#+begin_src bash
+  curl -o site/reset.css https://cdn.jsdelivr.net/npm/@unocss/reset/tailwind.min.css
+  npm i
+  npm run dev
+#+end_src
+
+Now we can replace
+
+#+begin_src html
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@unocss/reset/tailwind.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/@unocss/runtime/attributify.global.js"></script>
+#+end_src
+
+with:
+
+#+begin_src html
+  <link rel="stylesheet" href="reset.css" />
+  <link rel="stylesheet" href="main.css" />
+#+end_src
+
+That will give us:
+
+=site/inline.html=:
+
+#+begin_src html :tangle site/inline.html
+  <html>
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+      <title>Base Template</title>
+
+      <link rel="stylesheet" href="reset.css" />
+      <link rel="stylesheet" href="main.css" />
+    </head>
+
+    <body p-2 md:p-0 h-full>
+      <header max-w-screen-lg mx-auto md:flex justify-between py-4 font-header>
+        <h1 text-4xl md:inline-block>
+          Basic template
+        </h1>
+
+        <ul pt-2>
+          <li md:inline-block ml-4><a href="/basic.html">basic</a></li>
+          <li md:inline-block ml-4><a href="/inline.html">inline</a></li>
+        </ul>
+      </header>
+
+      <h2 max-w-screen-lg mx-auto font-bold text-2xl py-4>This is a page</h2>
+
+      <p max-w-screen-lg mx-auto>I really really like it</p>
+
+    </body>
+  </html>
+
+#+end_src
+
+
+* References
+
+1. [[https://unocss.dev/play/?html=DwOwhgbgfAUABHYBXANnAZgexAFwLQDOApgLYCWARpigCZw5EAe%2BKA5hik3AFZIE5l0ATzwUiOAO5EiIOAAd8AFnmM8i2AgTAUZKMDBwAFgCci6ALwAiAPSHMJIpagAJe0WDWwe6zo2btuvpGphY2BG44hmQgrE4AgiCYkUTGHl4evvD%2BvkEmZla2bvFUSDhp3pla1qiwHuDQMMAkYNHyxpjEcCSq6o2GAIz0TPgArIxoOqyGDCBQACpRBHBkS%2BEOkdGsHgO1clAbSytwBnJgrGfGYHKGcJjoGEggHnuN1s3RtVhJKccU4SilIhwKg4HD2PAjIbMPAAYxkDGMcE46HwAAY4MYyFM0VD8KxLkI-MA9s4iCgUJhnrVrF8EVAgA&config=JYWwDg9gTgLgBAbwFBzgEwKYDNgDsMDCEuOA5gDQpxhQYDOGMAgjDFMAEYCuMwWAnpVQ16jAJIBjYnSHVaDGAFVcEWSIUAVfpFJQAhmAAWgpAF84WKBBBwA5FxUS6dW0iQYAHpFjpsergA28Jg4%2BEQkwKQAFMioUIH0AFxwANpUqCm2Elx0MNYAtPEBGLbkiHBSAdDJtrRotnCmALpUTbJ0htAw2TB0ybGodtm5BR1dPbY1MJ4w%2BQGkcNMes9B6uKQYcJ0AbhhQiUuz03oBrqimavKMfanpcqJKKlEAlLLCV8ys7Ny8Ai9v9wUkmkMTuqDoEhOGGSAEYAHQAJgBqAkaFwNUMrDAfQA9Dj6CA4R0cWdBqZXnd1IwtDp9EZ%2BC9WmZnkggA&css=Q&options=N4IgLgTghgdgzgMwPYQLYgFwKgGzgUwBoQJ84AHJeASwDd9NIBXIkAd2oBMwALTAZgDsAVmI981AOY8wmQQAYAbAF8gA][Playground]]
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
