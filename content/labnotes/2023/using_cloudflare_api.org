@@ -254,11 +254,53 @@ Creating apple.willschenk.com
 }
 #+end_src
 
+* Delete a record
+
+#+begin_src bash :results raw code
+  export ZONE_ID=7b3f2ff4b23ab88aa09326590263561b
+  export RECORD=apple.willschenk.com
+
+  RECORD_ID=$(
+      curl -X GET \
+           https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records?name=${RECORD} \
+           -H 'Content-Type: application/json' \
+           -H  "Authorization: Bearer ${CF_TOKEN}" | \
+          jq -r '{"result"}[] | .[0] | .id')
+
+  if [[ $RECORD_ID == 'null' ]]; then
+      echo ${RECORD} doesn\'t exist!
+  else
+      echo Deleting $RECORD_ID
+
+      curl -X DELETE \
+           "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records/${RECORD_ID}" \
+           -d @- \
+           -H 'Content-Type: application/json' \
+           -H  "Authorization: Bearer ${CF_TOKEN}" | \
+          jq
+  fi
+
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+Deleting 5682275094b8e7726688afb8290b9372
+{
+  "result": {
+    "id": "5682275094b8e7726688afb8290b9372"
+  },
+  "success": true,
+  "errors": [],
+  "messages": []
+}
+#+end_src
+
 * References
 
 1. https://developers.cloudflare.com/fundamentals/api/get-started/create-token/
-2. https://gist.github.com/Tras2/cba88201b17d765ec065ccbedfb16d9a
-3. https://chrisoldwood.blogspot.com/2020/08/simple-tables-from-json-data-with-jq.html
+2. https://developers.cloudflare.com/api/operations/dns-records-for-a-zone-delete-dns-record
+3. https://gist.github.com/Tras2/cba88201b17d765ec065ccbedfb16d9a
+4. https://chrisoldwood.blogspot.com/2020/08/simple-tables-from-json-data-with-jq.html
    
 # Local Variables:
 # eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
