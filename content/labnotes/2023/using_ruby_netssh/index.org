@@ -1,0 +1,217 @@
+#+title: Using ruby netssh
+#+subtitle: Connect to a server
+#+tags[]: ruby, netssh
+#+date: 2023-07-10T16:38:43
+
+I want to see how to provision a server directly, but looking into
+[[https://github.com/capistrano/sshkit/tree/master][SSHKit]] it's a bit heavy handed and too object oriented for what I
+need.  So lets use [[https://github.com/net-ssh/net-ssh][net-ssh]] and [[https://github.com/net-ssh/net-scp][net-scp]] directly.
+
+We'll mock out how to connect to a server, create a user, copy over
+our public key and setup permissions for everything to work correctly.
+
+* Setup
+#+begin_src bash
+  bundle init
+  bundle add net-ssh net-scp ed25519 bcrypt_pbkdf
+#+end_src
+
+That gives us:
+
+#+begin_src ruby :tangle Gemfile
+  source "https://rubygems.org"
+
+  gem "net-ssh", "~> 7.1"
+  gem "ed25519", "~> 1.3"
+  gem "bcrypt_pbkdf", "~> 1.1"
+  gem "net-scp", "~> 4.0"
+#+end_src
+
+* Testing server connect
+Connect as =root= and then print the =hostname= and =uname= of the machine.
+
+#+begin_src ruby :tangle server_connect.rb :results output code
+  require 'net/ssh'
+
+  host=ENV['SSH_HOST'] || 'apple.willschenk.com'
+
+  puts "Trying to connect to root@#{host}"
+  Net::SSH.start(host, 'root', timeout: 5 ) do |ssh|
+    puts ssh.exec! "hostname"
+    puts ssh.exec! "uname -a"
+  end
+#+end_src
+
+#+RESULTS:
+#+begin_src ruby
+Trying to connect to root@apple.willschenk.com
+apple
+Linux apple 6.1.0-9-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.27-1 (2023-05-08) x86_64 GNU/Linux
+#+end_src
+
+* Checking the exit status of a command
+
+To see if a command is successful, we can check to see if
+=result.exitstatus= is 0 or not 0.
+
+#+begin_src ruby :tangle exit_status.rb :results output code
+  require 'net/ssh'
+
+  host=ENV['SSH_HOST'] || 'apple.willschenk.com'
+
+  puts "Trying to connect to root@#{host}"
+  Net::SSH.start(host, 'root', timeout: 5 ) do |ssh|
+    s = ssh.exec! "notdocker -v"
+    puts s
+    if s.exitstatus == 0
+      puts "Success"
+    else
+      puts "Error"
+    end
+
+    s = ssh.exec! "docker -v"
+    puts s
+    if s.exitstatus == 0
+      puts "Success"
+    else
+      puts "Error"
+    end
+  end
+
+#+end_src
+
+#+RESULTS:
+#+begin_src ruby
+Trying to connect to root@apple.willschenk.com
+bash: line 1: notdocker: command not found
+Error
+Docker version 24.0.2, build cb74dfc
+Success
+#+end_src
+
+* Copy a file over
+
+Lets see how to move a file over to the remote machine.
+
+#+begin_src ruby :tangle copy_file.rb :results output code
+  require 'net/scp'
+  host=ENV['SSH_HOST'] || 'apple.willschenk.com'
+
+  puts "Trying to connect to root@#{host}"
+  Net::SSH.start(host, 'root', timeout: 5 ) do |ssh|
+    s = ssh.exec! "ls /tmp/copy_file.rb"
+
+    if s.exitstatus == 0
+      puts "File exists"
+    else
+      puts "File doesn't exist"
+    end
+
+    puts "Uploading file"
+
+    ssh.scp.upload! "copy_file.rb", "/tmp/copy_file.rb"
+
+    s = ssh.exec! "ls /tmp/copy_file.rb"
+
+    if s.exitstatus == 0
+      puts "File exists"
+    else
+      puts "File doesn't exist"
+    end
+  end
+
+#+end_src
+
+#+RESULTS:
+#+begin_src ruby
+Trying to connect to root@apple.willschenk.com
+File doesn't exist
+Uploading file
+File exists
+#+end_src
+
+* Example: Create a new user and set authorized keys
+
+#+begin_src ruby :tangle user_create.rb :results output code
+  require 'net/scp'
+  host=ENV['SSH_HOST'] || 'apple.willschenk.com'
+
+  user = "gituser"
+  puts "Trying to connect to root@#{host}"
+  Net::SSH.start(host, 'root', timeout: 5 ) do |ssh|
+    puts "Creating #{user}"
+
+    res = ssh.exec! "useradd #{user} -m -g docker -s /bin/bash"
+
+    puts res
+
+    res = ssh.exec! "grep #{user} /etc/passwd"
+    puts res
+
+    if res.exitstatus != 0
+      puts "Didn't create #{user}"
+      exit
+    end
+
+    remote_home = res.split( /:/ )[5]
+
+    res = ssh.exec! "mkdir -p #{remote_home}/.ssh"
+    puts res
+    if res.exitstatus != 0
+      puts "Error creating directory"
+      exit
+    end
+
+    puts "Uploading public key"
+    ssh.scp.upload! "#{ENV['HOME']}/.ssh/id_ed25519.pub",
+                    "#{remote_home}/.ssh/authorized_keys"
+
+    puts "Fixing permissions"
+    puts ssh.exec! "chown -R #{user} #{remote_home}/.ssh"
+    puts ssh.exec! "chmod 700 #{remote_home}/.ssh"
+    puts ssh.exec! "chmod 600 #{remote_home}/.ssh/authorized_keys"
+  end
+
+#+end_src
+
+#+RESULTS:
+#+begin_src ruby
+Trying to connect to root@apple.willschenk.com
+Creating gituser
+useradd: user 'gituser' already exists
+gituser:x:1004:996::/home/gituser:/bin/bash
+
+Uploading public key
+Fixing permissions
+
+
+
+#+end_src
+
+* Connecting as a different user
+
+#+begin_src ruby :tangle user_create.rb :results output code
+  require 'net/scp'
+  host=ENV['SSH_HOST'] || 'apple.willschenk.com'
+
+  user = "gituser"
+  puts "Trying to connect to #{user}@#{host}"
+  Net::SSH.start(host, user, timeout: 5 ) do |ssh|
+    puts "Creating #{user}"
+
+    puts ssh.exec! "whoami"
+    puts ssh.exec! "pwd"
+  end
+#+end_src
+
+#+RESULTS:
+#+begin_src ruby
+Trying to connect to gituser@apple.willschenk.com
+Creating gituser
+gituser
+/home/gituser
+#+end_src
+
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
