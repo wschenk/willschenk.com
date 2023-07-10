@@ -9,7 +9,7 @@ how I managed posts]].  Also, it was way too slow!
 Lets get into it.
 
 * Set it up
-#+begin_src elisp :tangle blog.el
+#+begin_src elisp :tangle ~/.emacs.d/blog.el
   ;; set the directory
   (setq blog-mode-base-dir "/Users/wschenk/willschenk.com/content")
 
@@ -31,7 +31,7 @@ In my =content= directory I have:
 Most new things are =org= but there are a lot of old =md= files.  This
 finds them all up to a certain depth.
 
-#+begin_src elisp :tangle blog.el
+#+begin_src elisp :tangle ~/.emacs.d/blog.el
   (defun blog-mode-file-list ()
     (process-lines
      "find"
@@ -50,7 +50,7 @@ finds them all up to a certain depth.
 Rather than calling out to =awk= 4 times per post, lets wrap it all into
 one.  Also, we can reuse this for both org and md files.
 
-#+begin_src elisp :tangle blog.el
+#+begin_src elisp :tangle ~/.emacs.d/blog.el
   (setq blog-parse-front-matter-awk "
   BEGIN { FS=\":\"; IGNORECASE=1 }
   /title:/ { print \"title:\" $2 }
@@ -93,7 +93,7 @@ one.  Also, we can reuse this for both org and md files.
 
 * Refresh the full list
 
-#+begin_src elisp :tangle blog.el
+#+begin_src elisp :tangle ~/.emacs.d/blog.el
   (defun blog-mode-refresh-data ()
     (setq blog-mode-entries
           (mapcar 'blog-mode-parse-file (blog-mode-file-list)))
@@ -108,7 +108,7 @@ one.  Also, we can reuse this for both org and md files.
 
 This is the same as before.
 
-#+begin_src elisp :tangle blog.el
+#+begin_src elisp :tangle ~/.emacs.d/blog.el
 (define-derived-mode blog-mode tabulated-list-mode "blog-mode" "Major mode Blog Mode, to edit hugo blogs"
   (setq tabulated-list-format [("Title" 60 t)
                                ("Draft" 5 nil)
@@ -146,7 +146,7 @@ Here I'm defining some functions that are specific to our mode.
 
 For fun I also created a =transient= popup which shows all of this.
 
-#+begin_src elisp :tangle blog.el
+#+begin_src elisp :tangle ~/.emacs.d/blog.el
   (defvar blog-mode-map nil "keymap for blog-mode")
 
   (setq blog-mode-map (make-sparse-keymap))
@@ -180,7 +180,7 @@ For fun I also created a =transient= popup which shows all of this.
 I set the key to be the filename, so =(find-file
 (tabulated-list-get-id))= opens the file.
 
-#+begin_src elisp :tangle blog.el
+#+begin_src elisp :tangle ~/.emacs.d/blog.el
   (defun blog-mode-open ()
     (interactive)
     (find-file (tabulated-list-get-id)))
@@ -192,7 +192,7 @@ These functions filter the =blog-mode-entries= variable to filter what
 is displayed.  I'm not sure how I feel about calling
 =tabulated-list-print= each time but it seems to work.
 
-#+begin_src elisp :tangle blog.el
+#+begin_src elisp :tangle ~/.emacs.d/blog.el
   (defun blog-mode-refresh-all ()
     (interactive)
     (progn
@@ -236,7 +236,7 @@ file, and a full post, which is in a directory.  I also turn on
 automatic =org-babel-tangle= on save, which I set as a local org
 variable.
 
-#+begin_src elisp :tangle blog.el
+#+begin_src elisp :tangle ~/.emacs.d/blog.el
   (defun string-title-to-filename (str)
     "FooBar => foo_bar"
     (let ((case-fold-search nil))
@@ -295,7 +295,26 @@ variable.
 
 #+end_src
 
+* Actions: Set date
 
+Run this inside of a post to update the date to the current time.
+
+#+begin_src elisp :tangle ~/.emacs.d/blog.el
+  (defun blog-mode-update-date ()
+    (interactive)
+    (let ((orig-point (point)))
+      (goto-char (point-min))
+      (if (search-forward "#+date" nil t)
+          (progn
+            (move-beginning-of-line 1)
+            (kill-line))
+        (progn
+          (next-line)))
+      (insert "#+date: " (format-time-string "%Y-%m-%dT%H:%M:%S"))
+      (goto-char orig-point)))
+
+
+#+end_src
 * Actions: Command start hugo
 
 This is probably too particular for my machine, since I run hugo
@@ -303,7 +322,7 @@ inside of a docker container so I need to start it with a script, but
 this function starts hugo if it isn't running, then waits 5 seconds to
 call =open= to bring it up in the browser.
 
-#+begin_src elisp :tangle blog.el
+#+begin_src elisp :tangle ~/.emacs.d/blog.el
   (defun blog-mode-start-hugo ()
     "Starts up a hugo watch process"
     (interactive)
@@ -323,7 +342,7 @@ call =open= to bring it up in the browser.
 
 * Plug it in
 
-#+begin_src elisp :tangle blog.el
+#+begin_src elisp :tangle ~/.emacs.d/blog.el
   (global-set-key (kbd "C-c d") 'blog-list)
 
 #+end_src
