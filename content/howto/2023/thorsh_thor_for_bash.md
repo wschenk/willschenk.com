@@ -76,6 +76,30 @@ vi my_script
 
 *`thorsh` needs to be in the same directory as your script*
 
+## Usage
+
+```bash
+bash thorsh help
+Usage: thorsh [OPTIONS] COMMAND [args]
+
+Commands
+     help                  Show the help command
+     template name         Create a new script
+     inline name           Make a throsh script self-contained
+```
+
+### template
+
+To generate a new template file
+
+### inline
+
+Merges the `thorsh` script with the user script, which then is standalone
+
+```bash
+bash thorsh inline example > example.inlined
+```
+
 ## Why?
 
 I've been doing a bunch of server scripting lately, and I want to
