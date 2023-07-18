@@ -1,0 +1,387 @@
+#+title: erb static site builder
+#+subtitle: single file templating system
+#+tags[]: ruby tilt erb markdown
+#+date: 2023-07-18T14:02:13
+
+Sometimes you need something simple.  I wanted to build a quick script
+that will let me take a directory of =html= and =md= files, and statically
+render them with an optional layout.  Lets walk through how to put
+that together with ruby.
+
+
+* Simple erb render
+
+=simple.erb=:
+#+begin_src html :tangle simple.erb
+  <ul>
+  <% 5.times do |i| %>
+     <li><%= i %> item</li>
+  <% end %>
+  </ul>
+#+end_src
+
+And then the test script
+
+=simple.rb=:
+#+begin_src ruby :tangle simple.rb :results output code
+  require 'erb'
+
+  template = ERB.new File.read( "simple.erb" ), trim_mode: "<>" 
+  puts template.run(binding)
+  #+end_src
+
+  This gives us:
+  
+  #+RESULTS:
+  #+begin_src ruby
+  <ul>
+     <li>0 item</li>
+     <li>1 item</li>
+     <li>2 item</li>
+     <li>3 item</li>
+     <li>4 item</li>
+  </ul>
+
+  #+end_src
+
+* Nested erb render
+
+We're going to use =tilt= here to give us the nifty =yield= functionality,
+and it also makes it easy for us to include other templating engines.
+
+=layout.erb=:
+#+begin_src html :tangle layout.erb
+  <html>
+    <head>
+      <title><%= title || "Title" %></title>
+    </head>
+    <body>
+      <%= yield %>
+    </body>
+  </html>
+#+end_src
+
+=nested.rb=:
+#+begin_src ruby :tangle nested.rb :results output code
+  require 'erb'
+  require 'tilt'
+  require 'tilt/erb'
+
+  outer = Tilt::ERBTemplate.new('layout.erb')
+  html = outer.render( binding, title: nil ) do
+    Tilt::ERBTemplate.new( "simple.erb" ).render
+  end
+
+  puts html
+#+end_src
+
+Gives us:
+
+#+RESULTS:
+#+begin_src ruby
+<html>
+  <head>
+    <title>Title</title>
+  <body>
+    <ul>
+   <li>0 item</li>
+   <li>1 item</li>
+   <li>2 item</li>
+   <li>3 item</li>
+   <li>4 item</li>
+</ul>
+
+  </body>
+</html>
+#+end_src
+
+So that works great.
+
+* Front Matter
+
+Now lets look at front matter, in both an =html= file as well as a
+=markdown= file.
+
+=front_matter.html=:
+#+begin_src html :tangle front_matter.html
+  <!--
+  ---
+      title: this is an html file
+  ---
+  -->
+
+  <h1>Hello World</h1>
+
+  <p>Some really great text, its so good and I love it.</p>
+#+end_src
+
+=front_matter.md=:
+#+begin_src markdown :tangle front_matter.md
+  ---
+  title: This is a markdown file
+  ---
+
+  # Hello world
+
+  This text is also great.
+#+end_src
+
+Now lets parse it up and spit it out:
+
+=front_matter.rb=:
+#+begin_src ruby :tangle front_matter.rb :results output code
+  require 'bundler/inline'
+
+  gemfile do
+    source 'https://rubygems.org'
+    gem 'front_matter_parser', "1.0.1"
+    gem 'tilt'
+    gem 'kramdown'
+  end
+
+  require 'tilt/erb'
+  require 'tilt/kramdown'
+
+  def process( file )
+    puts "\nProcessing #{file}"
+    parsed = FrontMatterParser::Parser.parse_file(file)
+
+    title = parsed.front_matter["title"] ||= "Default Title"
+
+    outer = Tilt::ERBTemplate.new('layout.erb', default_encoding: 'UTF-8' )
+    res = outer.render( binding, title: title ) do
+      results = ERB.new( parsed.content ).result( binding )
+    
+      if file =~ /.md$/
+        Kramdown::Document.new(results).to_html
+      else
+        results
+      end
+    end
+
+    puts res
+  end
+
+  process "front_matter.html"
+  process "front_matter.md"
+#+end_src
+
+And we get:
+
+#+RESULTS:
+#+begin_src ruby
+
+Processing front_matter.html
+<html>
+  <head>
+    <title>this is an html file</title>
+  </head>
+  <body>
+    
+<h1>Hello World</h1>
+
+<p>Some really great text, its so good and I love it.</p>
+
+  </body>
+</html>
+
+Processing front_matter.md
+<html>
+  <head>
+    <title>This is a markdown file</title>
+  </head>
+  <body>
+    <h1 id="hello-world">Hello world</h1>
+
+<p>This text is also great.</p>
+
+  </body>
+</html>
+#+end_src
+
+* Putting it all together
+
+OK, so lets put this together.  We'll have all of our files in =input/=
+and it will spit everything out into =output/=.  If we find a file
+called =input/_layout.html= we will use that as our layout, otherwise
+we'll hardcode something in the script that will use [[https://watercss.kognise.dev/][watercss]].  We
+will add access to the =site= so we can loop over pages.
+
+=simple_gen.rb=:
+#+begin_src ruby :tangle simple_gen.rb :results output code
+  #!/usr/bin/env ruby
+  
+  require 'bundler/inline'
+
+  gemfile do
+    source 'https://rubygems.org'
+    gem 'front_matter_parser', "1.0.1"
+    gem 'tilt'
+    gem 'kramdown'
+  end
+
+  require 'tilt/erb'
+  require 'tilt/kramdown'
+
+  DEFAULT_LAYOUT = <<-HTML
+  <html>
+    <head>
+      <title><%= title %></title>
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css"></link>
+    </head>
+  <body>
+   <nav>
+     <ul>
+       <% site.pages.each do |page| %>
+         <li><a href="<%= page.link %>"><%= page.title %></a></li>
+       <% end %>
+     </ul>
+   </nav>
+   <%= yield %>
+   </body>
+  </html>
+  HTML
+
+  class InputFile
+    attr_accessor :file, :parsed, :front_matter, :content
+
+    def initialize( file, prefix )
+      @file = file[prefix.length+1..]
+      @parsed = FrontMatterParser::Parser.parse_file(file)
+      @front_matter = @parsed.front_matter
+      @content = @parsed.content
+    end
+
+    def title
+      return @file if front_matter.nil?
+      front_matter["title"] ||= "Title"
+    end
+
+    def link
+      if File.extname(file) == ".md"
+        "/" + file.gsub( /.md/, ".html" )
+      else
+        "/" + file
+      end
+    end
+  end
+
+  class Site
+    attr_accessor :dir
+
+    def initialize( dir = 'input' )
+      @dir = dir
+      @files = {}
+      Dir.glob( "#{dir}/**/*" ).each do |file|
+        add_file file
+      end
+    end
+
+    def add_file file
+      if File.file? file
+        f = InputFile.new( file, @dir )
+
+        printf "%-15s %s\n", f.file, f.title
+        if f.file == "_layout.html"
+          @layout = f
+        else
+          @files[f.file] = f
+        end
+      else
+        puts "Skipping #{file}"
+      end
+    end
+
+    def layout
+      Tilt::ERBTemplate.new do
+        @layout.nil? ? DEFAULT_LAYOUT : @layout.content
+      end
+    end
+
+    def pages
+      @files.values
+    end
+
+    def generate
+      FileUtils.mkdir_p "output"
+
+      outer = layout
+
+      @files.each do |key,file|
+        res = outer.render( binding, title: file.title, site: self ) do
+          results = ERB.new( file.content ).result( binding )
+
+          if key =~ /.md$/
+            Kramdown::Document.new(results).to_html
+          else
+            results
+          end
+        end
+
+        output_file = "output#{file.link}"
+        FileUtils.mkdir_p File.dirname( output_file )
+        puts "Writing #{output_file}"
+
+        File.open( output_file, "w" ) { |out| out << res }
+      end
+    end
+  end
+
+  s = Site.new
+  s.generate
+#+end_src
+
+Here's some sample output:
+
+#+RESULTS:
+#+begin_src ruby
+_layout.html    Title
+index.md        Title
+Skipping input/sub
+sub/1.md        First
+sub/2.md        Second
+Writing output/index.html
+Writing output/sub/1.html
+Writing output/sub/2.html
+#+end_src
+
+And we could add a /custom layout/:
+
+=input/_layout.html=:
+
+#+begin_src html :tangle input/_layout.html
+  <!doctype html>
+  <html>
+    <head>
+      <title><%= title || "Title" %></title>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio,line-clamp"></script>
+    </head>
+    <body>
+      <nav>
+        <ul class="flex justify-between">
+          <% site.pages.each do |page| %>
+          <li class="inline-block mx-2"><a href="<%= page.link %>"><%= page.title %></a></li>
+          <% end %>
+        </ul>
+      </nav>
+
+      <div class="prose">
+        <%= yield %>
+      </div>
+    </body>
+  </html>
+
+
+#+end_src
+
+* References
+
+1. [[https://code.tutsplus.com/ruby-for-newbies-the-tilt-gem--net-20027t][Ruby for Newbies: The Tilt Gem]]
+2. [[https://mkws.sh/][mkws.sh simple static site generator using bash templating]]
+      
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
