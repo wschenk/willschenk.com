@@ -98,7 +98,7 @@ class Site
 
     @files.each do |key,file|
       res = outer.render( binding, title: file.title, site: self ) do
-        results = ERB.new( file.content ).result( binding )
+        results = ERB.new( file.content ).result_with_hash( page: file, title: file.title, site: self )
 
         if key =~ /.md$/
           Kramdown::Document.new(results).to_html

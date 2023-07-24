@@ -1,0 +1,73 @@
+#+title: Indexing a hugo site using pagefind
+#+subtitle: static all the way down
+#+tags[]: hugo, pagefind
+#+date: 2023-07-23T18:53:00
+
+* Build the site
+
+Once you've built site, using `hugo` in our case, we need to run
+`pagefind` to index the output:
+
+#+begin_src bash
+  npx pagefind --source "public"
+#+end_src
+
+This will create a =_pagefind= directory in your =public= folder which has
+the index and the code to display the search results.
+
+* Adding the front end
+
+#+begin_src html
+  <link href="/_pagefind/pagefind-ui.css" rel="stylesheet">
+  <script src="/_pagefind/pagefind-ui.js" type="text/javascript"></script>
+  <div id="search" class="mt-8 hidden"></div>
+#+end_src
+
+I hide this box by default, but you can add some straigh JavaScript to
+toggle the search container.
+
+#+begin_src html
+  <script>
+    window.addEventListener('DOMContentLoaded', (event) => {
+      new PagefindUI({
+        element: "#search",
+        showImages: false
+        });
+    });
+    document.addEventListener('DOMContentLoaded', () => {
+        var element = document.getElementById('search');
+        var trigger = document.getElementById('search_toggle');
+
+        trigger.addEventListener('click', () => {
+            element.classList.toggle('hidden');
+            element.querySelector("input").value=""
+            element.querySelector("input").focus()
+        });
+    });
+
+  </script>
+#+end_src
+
+* Github build actions
+
+You can look at my [[https://github.com/wschenk/willschenk.com/blob/master/.github/workflows/hugo.yml][Github Workflow]] to build the site here, but add you
+really need to do is run =npx pagefind --source "public"= after you
+generate your site:
+
+#+begin_src yaml
+  - name: Build with Hugo
+    env:
+      # For maximum backward compatibility with Hugo modules
+      HUGO_ENVIRONMENT: production
+      HUGO_ENV: production
+    run: |
+      hugo \
+        --minify \
+        --baseURL "${{ steps.pages.outputs.base_url }}/"
+  - name: Index pagefind
+    run: npx pagefind --source "public"
+#+end_src
+
+* References
+
+1. https://pagefind.app/docs/installation/
