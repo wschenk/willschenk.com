@@ -1,0 +1,568 @@
+#+title: Sinatra with activerecord
+#+subtitle: small json server apps
+#+tags[]: ruby, sinatra, activerecord
+#+date: 2023-09-30T11:46:21
+
+I want to build a very simple sinatra app, but I also want it to
+connect to the database.  Here is the walk through for how to have a
+very base install, which includes migrations.
+
+The final code is available at [[https://github.com/wschenk/sinatra-ar-template][wschenk/sinatra-ar-template]].
+
+* Setup the base
+
+Add up your =Gemfile=:
+#+begin_src ruby :results output code
+  bundle init
+  bundle add bundler sinatra sqlite3 sinatra-activerecord puma rackup
+  bundle add rerun --group development
+#+end_src
+
+Simple =config.ru=
+
+#+begin_src ruby :tangle config.ru
+  # config.ru
+  require_relative 'app'
+
+  run Sinatra::Application
+#+end_src
+
+* Dockerize
+A pretty standard =Dockerfile=:
+
+#+begin_src dockerfile :tangle Dockerfile
+  ARG RUBY_VERSION=3.2.2
+  FROM ruby:$RUBY_VERSION-slim as base
+
+  RUN apt-get update -qq && \
+      apt-get install --no-install-recommends -y build-essential curl
+
+  RUN gem update --system --no-document && \
+      bundle config set --local without development
+
+      # Rack app lives here
+  WORKDIR /app
+
+   # Install application gems
+  COPY Gemfile* .
+  RUN bundle install --without development
+
+  RUN useradd ruby --home /app --shell /bin/bash
+  USER ruby:ruby
+
+  # Copy application code
+  COPY --chown=ruby:ruby . .
+
+  # Start the server
+  EXPOSE 3000
+    CMD ["bundle", "exec", "rackup", "--host", "0.0.0.0", "--port", "3000"]
+  #+end_src
+
+* Rake tasks
+
+And now a =Rakefile=, where we add runner tasks, docker tasks, as well
+as the =activerecord= migration tasks.
+
+#+begin_src ruby :tangle Rakefile
+  # Rakefile
+  require "sinatra/activerecord/rake"
+
+  desc "Starts up a development server that autostarts when a file changes"
+  task :dev do
+    system "PORT=3000 rerun --ignore 'views/*,index.css' \"bundler exec rackup\""
+  end
+
+  desc "Builds a Docker image and runs"
+  task :build do
+    system "docker build . -t app && docker run -it --rm -p 3000:3000 app"
+  end
+
+  namespace :db do
+    task :load_config do
+      require "./app"
+    end
+  end
+#+end_src
+
+* Setup the app
+Now an =app.rb=
+
+#+begin_src ruby :tangle app.rb
+  # app.rb
+  require 'sinatra'
+  require "sinatra/activerecord"
+  require_relative 'routes/posts.rb'
+  require_relative 'routes/account.rb'
+
+  # For cookies
+  use Rack::Session::Cookie, :key => 'rack.session',
+      :path => '/',
+      :secret => 'sosecret'
+
+  set :default_content_type, :json
+
+  get '/' do
+    {message:"Hello world."}
+  end
+
+  get '/up' do
+    {success:true}
+  end
+
+#+end_src
+
+* Database Config
+
+First create a directory for the =database.yml= file:
+
+#+begin_src bash
+  mkdir config
+#+end_src
+
+Then setup =sqlite3=:
+
+#+begin_src yaml :tangle config/database.yml
+  development:
+    adapter: sqlite3
+    database: db/development.sqlite3
+    pool: 5
+    timeout: 5000
+
+#+end_src
+
+#+begin_src bash :results output code
+  rake db:create
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+Created database 'db/development.sqlite3'
+#+end_src
+
+* Create a model
+
+We'll begin by creating 2 directories, one that stores the model logic
+and the other which defines the routes
+
+#+begin_src bash
+  mkdir routes models
+#+end_src
+
+** Database
+Let's add a model, for example =post=
+
+#+begin_src bash
+  rake db:create_migration post
+#+end_src
+
+#+RESULTS:
+: db/migrate/20230930213922_post.rb
+
+Then we can add our fields to it to it
+
+#+begin_src ruby :tangle db/migrate/20230930213922_post.rb
+  class Post < ActiveRecord::Migration[7.0]
+    def change
+      create_table :posts do |t|
+        t.string :name
+        t.text :body
+        t.timestamps
+      end
+    end
+  end
+#+end_src
+
+Then create the table
+
+#+begin_src bash :results output code
+rake db:migrate
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+== 20230930213922 Post: migrating =============================================
+-- create_table(:posts)
+   -> 0.0003s
+== 20230930213922 Post: migrated (0.0003s) ====================================
+
+#+end_src
+
+And we can verify that it's there
+
+#+begin_src bash :results output code
+  echo .schema posts | \
+      sqlite3 db/development.sqlite3 | \
+      fold -w 80 -s
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+CREATE TABLE IF NOT EXISTS "posts" ("id" integer PRIMARY KEY AUTOINCREMENT NOT 
+NULL, "name" varchar, "body" text, "created_at" datetime(6) NOT NULL, 
+"updated_at" datetime(6) NOT NULL);
+#+end_src
+*** 
+
+** Code
+
+First the model, where we tell it we need to have some required fields
+
+#+begin_src ruby :tangle models/post.rb
+  # models/post.rb
+  class Post < ActiveRecord::Base
+    validates_presence_of :name, :body
+  end
+#+end_src
+
+Then the routes itself, where we either return a list of all the posts
+or we create a post and return it.
+
+#+begin_src ruby :tangle routes/posts.rb
+  # routes/posts.rb
+  require_relative '../models/post.rb'
+
+  get '/posts' do
+    Post.all.to_json
+  end
+
+  post '/posts' do
+    p = Post.new( name: params[:name], body: params[:body] )
+    if !p.save
+      p.errors.to_json
+    else
+      p.to_json
+    end
+  end
+#+end_src
+
+** Testing it out
+Start the server
+
+#+begin_src bash
+  rake dev
+#+end_src
+
+Then we can test this out:
+
+#+begin_src bash :results output code
+curl http://localhost:9292/posts
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+[]
+#+end_src
+
+Add a post
+
+#+begin_src bash :results output code
+  curl http://localhost:9292/posts -d "name=First Post&body=This is the body" | jq .
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+{
+  "id": 1,
+  "name": "First Post",
+  "body": "This is the body",
+  "created_at": "2023-10-01T00:01:55.185Z",
+  "updated_at": "2023-10-01T00:01:55.185Z"
+}
+#+end_src
+
+Then we can see the results:
+
+#+begin_src bash :results output code
+curl http://localhost:9292/posts | jq .
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+[
+  {
+    "id": 1,
+    "name": "First Post",
+    "body": "This is the body",
+    "created_at": "2023-09-30T21:54:32.185Z",
+    "updated_at": "2023-09-30T21:54:32.185Z"
+  }
+]
+#+end_src
+
+We can also try to add a post that's missing a required field:
+
+#+begin_src bash :results output code
+  curl http://localhost:9292/posts -d "name=No body" | jq .
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+{
+  "body": [
+    "can't be blank"
+  ]
+}
+#+end_src
+
+* Adding a password
+
+Lets see how to add authentication.
+
+#+begin_src bash
+  bundle add bcrypt --version '~> 3.1.7'
+#+end_src
+
+Create the migration and run it:
+
+#+begin_src bash
+  rake db:create_migration account
+#+end_src
+
+#+RESULTS:
+: db/migrate/20230930221648_account.rb
+
+#+begin_src ruby :tangle db/migrate/20230930221648_account.rb
+  class Account < ActiveRecord::Migration[7.0]
+    def change
+      create_table :accounts do |t|
+        t.string :name
+        t.string :password_digest
+      end
+    end
+  end
+#+end_src
+
+#+begin_src bash :results output code
+rake db:migrate
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+== 20230930221648 Account: migrating ==========================================
+== 20230930221648 Account: migrated (0.0000s) =================================
+
+#+end_src
+
+** Add the model and the route
+
+#+begin_src ruby :tangle models/account.rb
+  # models/account.rb
+  class Account < ActiveRecord::Base
+    validates :name, uniqueness: true, presence: true
+
+    has_secure_password
+  end
+#+end_src
+
+Then lets add some routes for it:
+
+#+begin_src ruby :tangle routes/account.rb
+  # routes/account.rb
+
+  require_relative '../models/account.rb'
+
+  post '/signup' do
+    account = Account.new(
+      name: params[:name],
+      password: params[:password],
+      password_confirmation: params[:password_confirmation] || '')
+
+    if account.save
+      account.to_json
+    else
+      account.errors.to_json
+    end
+  end
+
+  post '/login' do
+    account = Account.find_by( name: params[:name])&.authenticate(params[:password])
+
+    if account
+      session[:account_id] = account.id
+      puts "setting session #{session[:account_id]}"
+    end
+
+    { success: account }.to_json
+  end
+
+  get '/private' do
+    auth_check do
+      { message: "This is a secret" }.to_json
+    end
+  end
+
+  def auth_check
+    unless session[:account_id]
+      return { access: :denied }.to_json
+    else
+      return yield
+    end
+  end
+#+end_src
+
+** Test account creation
+
+Empty password confirmation
+
+#+begin_src bash :results output code
+  curl http://localhost:9292/signup -d "name=will&password=password" | jq .
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+{
+  "password_confirmation": [
+    "doesn't match Password"
+  ]
+}
+#+end_src
+
+Not matched password confirmation
+
+#+begin_src bash :results output code
+    curl http://localhost:9292/signup -d \
+         "name=will&password=password&password_confirmation=pass" | jq .
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+{
+  "password_confirmation": [
+    "doesn't match Password"
+  ]
+}
+#+end_src
+
+Happy path
+
+#+begin_src bash :results output code
+    curl http://localhost:9292/signup -d \
+         "name=will&password=password&password_confirmation=password" | jq .
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+{
+  "id": 1,
+  "name": "will",
+  "password_digest": "$2a$12$69I3OCj24aJ5QK.5CQfctO0ZmP4FYIi2BxzajvH2cKrYbMlEMYDRa"
+}
+#+end_src
+
+Trying a double signup
+
+#+begin_src bash :results output code
+    curl http://localhost:9292/signup -d \
+         "name=will&password=password&password_confirmation=password" | jq .
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+{
+  "name": [
+    "has already been taken"
+  ]
+}
+#+end_src
+
+** Testing login
+
+Unauthenticated access
+#+begin_src bash :results output code
+curl http://localhost:9292/private
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+{"access":"denied"}
+#+end_src
+
+Login and store the cookie in the jar!
+
+#+begin_src bash :results output code
+    curl http://localhost:9292/login \
+         -d 'name=will&password=password' \
+         -c cookies.txt | jq .
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+{
+  "success": {
+    "id": 1,
+    "name": "will",
+    "password_digest": "$2a$12$69I3OCj24aJ5QK.5CQfctO0ZmP4FYIi2BxzajvH2cKrYbMlEMYDRa"
+  }
+}
+#+end_src
+
+Pass in the session cookie
+
+#+begin_src bash :results output code
+curl -b cookies.txt http://localhost:9292/private | jq .
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+{
+  "message": "This is a secret"
+}
+#+end_src
+
+* Create a model
+Add a migration, for a table called /for example/ =poi=
+
+#+begin_src bash ;results output code
+  rake db:create_migration poi
+#+end_src
+
+Here is an example migration
+
+#+begin_src ruby
+  :tangle db/migrate/20230930161023_poi.rb
+  class Poi < ActiveRecord::Migration[7.0]
+    def change
+      create_table :pois do |t|
+        t.string :name
+        t.decimal :latitude, precision: 10, scale: 6
+        t.decimal :longitude, precision: 10, scale: 6
+      end
+    end
+  end
+#+end_src
+
+Then we can run it:
+
+#+begin_src bash :results output code
+rake db:migrate
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+== 20230930161023 Poi: migrating ==============================================
+-- create_table(:pois)
+   -> 0.0002s
+== 20230930161023 Poi: migrated (0.0002s) =====================================
+
+#+end_src
+
+Check out the table
+
+#+begin_src bash :results output code
+  echo .schema pois | \
+      sqlite3 db.sqlite3 | \
+      fold -w 80 -s
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+CREATE TABLE IF NOT EXISTS "pois" ("id" integer PRIMARY KEY AUTOINCREMENT NOT 
+NULL, "name" varchar, "latitude" decimal(10,6), "longitude" decimal(10,6));
+#+end_src
+
+
+
+
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
