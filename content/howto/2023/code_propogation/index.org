@@ -1,0 +1,202 @@
+#+title: Code Propogation
+#+subtitle: host your own stuff
+#+tags[]: git, build
+#+date: 2023-06-22
+#+draft: true
+
+deployments : [boostrapped servers list]
+bootstrapped server: server list
+server list: herzer key
+server create: kerzer key
+dns list: cloudflare key
+dns update: cloudflare key
+
+build: [build] in deployments
+registry: [registry] in deployments
+
+backup: [volumns.backup] in deployments
+shrinkwrap: deployment
+  - conf
+  - src
+  - volume
+  - dependant services
+
+deploy: deployments, dns update
+
+restart[deploy]: deployments
+backup[deploy]: volumes in deploy
+
+attach redis
+-- set envs
+-- set volume
+-- add to parent
+-- add envs to parent
+-- restart parent
+-- provides backup
+
+attach postgres
+-- set envs
+-- set volumne
+-- add to parent
+-- restart parent
+-- provices backups
+
+#+begin_src plantuml :file map.png
+@startmindmap
+!theme carbon-gray
+
++ Deployment
+-- Context
+-- Registry
+--- Container
+--- Build Server
+---- Code
+-- Server
+--- Name
+--- Environment
+--- Volumes
+-- Services
+--- Environment
+--- Secrets
+@endmindmap
+#+end_src
+
+#+RESULTS:
+[[file:map.png]]
+
+#+begin_src plantuml :file server.png
+  @startuml
+!theme carbon-gray
+hide footbox
+
+participant Laptop order 1
+participant Cloud order 2
+participant Server1 order 3
+participant Server2 order 4
+
+Laptop -> Cloud: get machines
+Cloud --> Laptop: server list
+
+  alt No Servers
+  Laptop -> Cloud: Create new server
+  activate Cloud
+  Cloud -> Cloud: Provision Machine
+  return Laptop
+  end
+
+  Laptop -> Server1: Inspect Setup
+  activate Server1
+
+  Server1 -> Server1: Hardening
+  Server1 -> Server1: Docker
+  Server1 -> Server1: caddy-docker-project
+  Server1 -> Server1: create DepServer
+  return ip
+  
+  
+Laptop -> Server1: get deployments
+Server1 --> Laptop: deployment list
+Laptop -> Server2: get deployments
+Server2 -> Laptop: deployment list
+@enduml
+
+#+end_src
+
+#+RESULTS:
+[[file:server.png]]
+
+#+begin_src plantuml :file new_deployment.png
+@startuml
+!theme carbon-gray
+hide footbox
+participant Laptop order 1
+participant DepServer order 3
+participant BuildServer order 4
+participant DNS order 5
+participant Containers order 6
+
+Laptop -> DepServer: Deployment List
+return services
+
+alt No registry
+Laptop -> DepServer: Deploy registry
+activate DepServer
+DepServer -> DNS: Provision Name
+DNS --> DepServer: ok
+DepServer -> Containers: Deploy Registry
+Containers --> DepServer: register registry
+return: services
+Laptop -> Laptop: Login to registry
+end
+
+alt No build service
+Laptop -> DepServer: Create Build Server
+DepServer -> Containers: Deploy Build Server
+activate Containers
+return: Register Build Server
+DepServer --> Laptop: services
+end
+
+Laptop -> DepServer: Create Deployment
+activate DepServer
+
+DepServer -> DNS: Lookup Zone
+DNS --> DepServer: zone info
+
+DepServer -> DNS: Set name to ip
+DNS --> DepServer: ok
+
+DepServer -> BuildServer: Create Git repo
+activate BuildServer
+BuildServer --> DepServer: Path
+deactivate BuildServer
+return services
+
+
+@enduml
+
+#+end_src
+
+#+RESULTS:
+[[file:new_deployment.png]]
+
+#+begin_src plantuml :file deploy_service.png
+@startuml
+!theme carbon-gray
+hide footbox
+
+participant Laptop order 1
+participant BuildServer order 2
+participant DepServer order 3
+participant Registry order 4
+
+Laptop -> BuildServer: Push Code
+activate BuildServer
+BuildServer -> BuildServer: docker build
+BuildServer -> Registry: docker push
+Registry --> BuildServer: id
+deactivate BuildServer
+BuildServer -> DepServer: id, config
+DepServer -> DepServer: push to correct DepServer
+activate DepServer
+DepServer -> Registry: docker pull
+Registry --> DepServer: image id
+DepServer -> DepServer: ensure dependant services
+DepServer -> DepServer: release env file
+DepServer -> DepServer: Stop Container
+DepServer -> DepServer: Start Container
+DepServer -> DepServer: Rollback if fail
+DepServer --> BuildServer: deployed
+deactivate DepServer
+BuildServer --> Laptop: deployed
+@enduml
+
+#+end_src
+
+#+RESULTS:
+[[file:deploy_service.png]]
+
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

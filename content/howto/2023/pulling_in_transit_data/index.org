@@ -1,0 +1,389 @@
+#+title: Pulling in transit data
+#+date: 2023-08-16T16:12:56
+#+draft: true
+
+
+
+1. [[https://api.mta.info/#/signup][Create an account]]
+2. [[https://api.mta.info/#/AccessKey][Create an access key]]
+3. Put in in =.env=
+
+* MTA Station Map
+
+#+begin_src bash
+curl -O http://web.mta.info/developers/data/mnr/google_transit.zip
+#+end_src
+
+Which gives us
+
+#+begin_src bash :results raw code
+unzip -l google_transit.zip
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+Archive:  google_transit.zip
+  Length      Date    Time    Name
+---------  ---------- -----   ----
+      156  08-17-2023 07:23   agency.txt
+    22320  08-17-2023 07:23   calendar_dates.txt
+  1270677  08-17-2023 07:23   trips.txt
+ 13383176  08-17-2023 07:23   stop_times.txt
+    12349  08-17-2023 07:23   stops.txt
+  1901253  08-17-2023 07:23   shapes.txt
+    17631  08-17-2023 07:23   calendar.txt
+      311  08-17-2023 07:23   routes.txt
+   630119  08-17-2023 07:23   transfers.txt
+      203  08-17-2023 07:23   notes.txt
+---------                     -------
+ 17238195                     10 files
+#+end_src
+
+These are bizarrely =csv= files with a =txt= extension.  The files that we
+are interested in are:
+
+| =stops.txt=  | All of the stations            |
+| =routes.txt= | The different lines            |
+| =shapes.txt= | The paths of each of the lines |
+
+=shapes.txt= has a =shape_id= in it, I wonder if that's the same thing at
+the =route.txt='s =route_id=?  Lets find out.
+
+
+* Making some JSONs
+
+#+begin_src bash
+  bundle init
+  bundle add rubyzip json
+#+end_src
+
+#+begin_src ruby :tangle parse.rb :results raw code
+  #!/usr/bin/env ruby
+
+  require 'zip'
+  require 'json'
+  require 'csv'
+
+  STATION_INFO_URL="http://web.mta.info/developers/data/mnr/google_transit.zip"
+
+  def ensure_google_transit
+    if !File.exist? "google_transit.zip"
+      system( "curl -O #{STATION_INFO_URL}" )
+    end
+  end
+
+  def write_table csv_data, outfile
+    table = CSV.parse csv_data, headers: true
+    p table.headers
+    ret = []
+    table.each do |r|
+      d = {}
+      table.headers.each do |h|
+        d[h] = r[h]
+        case h
+        when 'stop_lon', 'stop_lat', 'shape_pt_lat', 'shape_pt_lon', 'shape_pt_sequence'
+          d[h] = d[h].to_f
+        end
+      end
+
+      ret << d
+    end
+
+    puts "Writing #{outfile}"
+    File.open( outfile, "w" ) do |out|
+      out << JSON.pretty_generate( ret )
+    end
+  end
+
+  ensure_google_transit
+
+  Zip::File.open( 'google_transit.zip' ) do |zipfile|
+    write_table( zipfile.read( 'stops.txt' ), 'stops.json' )
+    write_table( zipfile.read( 'routes.txt' ), 'routes.json' )
+    write_table( zipfile.read( 'shapes.txt' ), 'shapes.json' )
+    write_table( zipfile.read( 'trips.txt' ), 'trips.json' )
+  end
+#+end_src
+
+Which now gives us:
+
+#+begin_src bash :results raw code
+  ls -lh *json
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+-rw-r--r--@ 1 wschenk  staff   1.5K Aug 22 13:12 routes.json
+-rw-r--r--@ 1 wschenk  staff    10M Aug 22 13:12 shapes.json
+-rw-r--r--@ 1 wschenk  staff    39K Aug 22 13:12 stops.json
+-rw-r--r--@ 1 wschenk  staff   5.2M Aug 22 13:12 trips.json
+#+end_src
+
+So quite a bit of shape data in there!
+
+* Installing mapbox
+
+We are going to use the CDN version of mapbox and do some simple javascript.  So lets go!
+[[https://www.mapbox.com/install/javascript/cdn-install/][Follow along here.]]
+
+#+begin_src html :tangle index.html
+  <html>
+    <head>
+      <title>Metronorth stations</title>
+      <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+      <meta charset="utf-8">
+
+      <script src='https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.js'></script>
+      <link href='https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.css' rel='stylesheet' />
+      <script src="app.js"></script>
+    </head>
+    <body style="margin:0">
+      <div id='map' style='width: 100%; height: 100%;'></div>
+    </body>
+  </html>
+#+end_src
+
+And then some javascript to load up the station stops:
+
+=app.js=:
+
+#+begin_src javascript :tangle app.js
+  let stops = [];
+  let map = undefined;
+
+  document.addEventListener("DOMContentLoaded", () => {
+      mapboxgl.accessToken =
+          'pk.eyJ1Ijoid3NjaGVuayIsImEiOiJjazl2Nzd4NjcwOWU3M21xbzRzdjkwNDV0In0.dp3uaAniKU9DODuTwH7CwQ';
+
+      map = new mapboxgl.Map({
+          container: 'map',
+          style: 'mapbox://styles/mapbox/outdoors-v12'
+      });
+      
+      map.addControl(new mapboxgl.NavigationControl());
+
+      loadStops();
+  });
+
+  function loadStops() {
+      console.log( "loading stops.json" );
+
+      return fetch( "stops.json" ).
+          then( (data) => data.json() ).
+          then( (json) => {
+              stops = json;
+              addPinsAndRecenter();
+          })
+  }
+
+  function boundingBox() {
+      let mnLL = [stops[0].stop_lon, stops[0].stop_lat];
+      let mxLL = [stops[0].stop_lon, stops[0].stop_lat];
+
+      for( let stop of stops ) {
+          if( stop.stop_lon < mnLL[0] ) {
+              mnLL[0] = stop.stop_lon;
+          }
+
+          if( stop.stop_lat < mnLL[1] ) {
+              mnLL[1] = stop.stop_lat;
+          }
+
+          if( stop.stop_lon > mxLL[0] ) {
+              mxLL[0] = stop.stop_lon;
+          }
+
+          if( stop.stop_lat > mxLL[1] ) {
+              mxLL[1] = stop.stop_lat;
+          }
+      }
+
+      return [mnLL, mxLL];
+  }
+          
+
+  function addPinsAndRecenter() {
+      console.log( "Recentering" );
+      map.fitBounds( boundingBox() );
+
+      console.log( "Adding pins" );
+      for( let stop of stops ) {
+          // Create a new marker.
+          const marker = new mapboxgl.Marker()
+                .setLngLat([stop.stop_lon, stop.stop_lat])
+                .addTo(map);
+      }
+  }
+#+end_src
+
+* Adding shapes
+
+=shapes.txt= lists out the the lines that the trips go on.  Lets load
+that and put them on the map:
+
+#+begin_src javascript :tangle app.js
+  let shapes = {}
+
+  document.addEventListener("DOMContentLoaded", () => {
+      loadShapes();
+  })
+
+  function loadShapes() {
+      return fetch( "shapes.json" ).
+          then( (data) => data.json() ).
+          then( (json) => {
+              // Add to hash
+              for( let shape of json ) {
+                  shapes[shape.shape_id] ||= []
+                  shapes[shape.shape_id].push(shape)
+              }
+
+              console.log( "shapes", shapes );
+
+              // Sort segments
+              for( let shape_id in shapes ) {
+                  let s = shapes[shape_id]
+                  s.sort( (a,b) => { a.shape_pt_sequence - b.shape_pt_sequence } )
+                  addMapLine( s )
+              }
+          })
+  }
+
+  function addMapLine( shape ) {
+      map.on('load', () => {
+          let coordinates = []
+          for( let point of shape ) {
+              coordinates.push( [point.shape_pt_lon, point.shape_pt_lat] );
+          }
+
+          console.log( "coord", coordinates )
+          let name = `shape_${shape[0].shape_id}`
+
+          map.addSource(name, {
+              'type': 'geojson',
+              'data': {
+                  'type': 'FeatureCollection',
+                  'features': [
+                      {
+                          'type': 'Feature',
+                          'properties': {
+                              'color': '#F7455D' // red
+                          },
+                          'geometry': {
+                              'type': 'LineString',
+                              'coordinates': coordinates
+                          }
+                      },
+                  ]
+              }
+          });
+          map.addLayer({
+              'id': name,
+              'type': 'line',
+              'source': name,
+              'paint': {
+                  'line-width': 3,
+                  'line-color': ['get', 'color']
+              }
+          });
+      } );
+      console.log("done" )
+  }
+#+end_src
+
+* Trips
+
+#+begin_src ruby :tangle routes.rb :results output code
+  #!/usr/bin/env ruby
+
+  require 'json'
+
+  routes = JSON.parse( File.read( 'routes.json' ))
+  shapes = JSON.parse( File.read( 'shapes.json' ))
+  trips = JSON.parse( File.read( 'trips.json' ))
+
+  routes.each do |route|
+    printf "%-5s %-15s\n", route["route_id"], route["route_long_name"]
+
+    t = trips.select { |t| t['route_id'] == route['route_id'] }
+    puts "#{t.length} trips"
+
+      
+  end
+#+end_src
+
+#+RESULTS:
+#+begin_src ruby
+3     New Haven      
+5449 trips
+4     New Canaan     
+1063 trips
+5     Danbury        
+606 trips
+6     Waterbury      
+528 trips
+1     Hudson         
+4116 trips
+2     Harlem         
+5010 trips
+#+end_src
+
+* Sinatra
+#+begin_src bash
+  bundle init
+  bundle add sinatra sinatra-cross_origin puma yaml dotenv
+  bundle add protobuf gtfs-realtime-bindings
+#+end_src
+
+Which should give you something like
+
+#+begin_src ruby 
+  source "https://rubygems.org"
+
+  gem "sinatra", "~> 3.1"
+  gem "sinatra-cross_origin", "~> 0.4.0"
+  gem "puma", "~> 6.3"
+  gem "yaml", "~> 0.2.1"
+  gem "dotenv", "~> 2.8"
+  gem "protobuf", "~> 3.10"
+  gem "gtfs-realtime-bindings", "~> 0.0.5"
+#+end_src
+
+
+* Real time tracking
+
+#+begin_src ruby :tangle realtime.rb
+  require 'dotenv/load'
+  require 'protobuf'
+  require 'google/transit/gtfs-realtime.pb'
+  require 'net/http'
+  require 'uri'
+
+  url='https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/mnr%2Fgtfs-mnr'
+
+  response = Net::HTTP.get_response(URI(url), { 'x-api-key' => ENV['API_KEY'] } )
+  data = response.body
+  feed = Transit_realtime::FeedMessage.decode(data)
+  puts JSON.pretty_generate(feed)
+  exit
+  for entity in feed.entity do
+    if entity.field?(:trip_update)
+      p entity.trip_update
+      exit
+    end
+  end
+#+end_src
+
+* References
+
+1. http://web.mta.info/developers/developer-data-terms.html#data
+1. https://gtfs.org/schedule/examples/routes-stops-trips/
+1. http://web.mta.info/status/serviceStatus.txt
+1. https://api.mta.info/GTFS.pdf
+1. https://medium.com/@johnteckert/what-the-gtfs-is-going-on-a03433b2a6bd
+
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
+ 

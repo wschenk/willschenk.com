@@ -1,0 +1,204 @@
+#+title: Building a git commander
+#+date: 2023-07-02
+#+draft: true
+
+
+* Create a =git-deploy= script
+
+If we try to run =git deploy= the =git= command looks for an exectuable
+named =git-deploy=:
+
+#+begin_src bash :results output code
+git deploy 2>&1
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+git: 'deploy' is not a git command. See 'git --help'.
+#+end_src
+
+And if we write
+
+#+begin_src bash :results code
+  echo echo Hello from git-deploy > git-deploy
+  chmod +x git-deploy
+  export PATH=$PATH:.
+  git deploy 2>&1
+
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+Hello from git-deploy
+#+end_src
+
+So we can use that to setup our local fun.
+
+
+* Create a user
+
+#+begin_src bash
+  adduser gitcmdr
+
+  mkdir ~gitcmdr/.ssh
+  echo command=\"/home/gitcmdr/gitcmdr admin\",no-port-forwarding,\
+  no-X11-forwarding,no-agent-forwarding,no-pty \
+  $(head -1 ~/.ssh/authorized_keys) > ~gitcmdr/.ssh/authorized_keys
+  chmod 700 ~gitcmdr/.ssh
+  chmod 600 ~gitcmdr/.ssh/authorized_keys
+  chown gitcmdr -R ~/.ssh
+
+#+end_src
+
+#+begin_src bash :results code
+ssh gitcmdr@apple.willschenk.com 2>&1
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+bash: line 1: /home/gitcmdr/gitcmdr: No such file or directory
+#+end_src
+
+* Explore the environment
+
+Lets create a basic script on the server called =/home/gitcmdr/gitcmdr=:
+
+#+begin_src bash
+  #!/bin/bash
+
+  date >> ~/log
+  echo Called with $@ >> ~/log
+  echo SSH_ORIGINAL_COMMAND=${SSH_ORIGINAL_COMMAND} >> ~/log
+  echo $@
+
+#+end_src
+
+And then =chmod +x /home/gitcmdr/gitcmdr=
+
+#+begin_src bash :results code
+ssh gitcmdr@apple.willschenk.com 2>&1
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+Pseudo-terminal will not be allocated because stdin is not a terminal.
+admin
+#+end_src
+
+Now lets try a push
+
+#+begin_src bash
+  cd $(mktemp -d)
+  git init
+  git branch -m main
+  echo Nothing here > README.md
+  git add .
+  git commit -m "Initial commit"
+  git remote add origin gitcmdr@apple.willschenk.com:repo
+  git push origin main
+
+#+end_src
+
+Which if we check out the =log= gives us:
+
+#+begin_src bash
+  Mon Jul  3 01:02:48 AM UTC 2023
+  Called with admin
+  SSH_ORIGINAL_COMMAND=git-receive-pack 'repo'
+#+end_src
+
+Lets update our =gitcmdr= script to make sense of this:
+
+#+begin_src bash
+  #!/bin/bash
+
+  date >> ~/log
+  echo Called with $@ >> ~/log
+
+  if [ -z "${SSH_ORIGINAL_COMMAND}" ]; then
+      echo Hello there\!
+      echo It looks like you are trying to ssh in directly
+
+      exit 0
+  fi
+
+  read -a strarr <<< $SSH_ORIGINAL_COMMAND
+  git_cmd=${strarr[0]}
+  repo=$(echo ${strarr[1]} | sed s/\'//g | sed s/\.git//)
+
+  echo git cmd = ${git_cmd} >> ~/log
+  echo repository = ${repo} >> ~/log
+  echo $@
+
+
+#+end_src
+
+Trying a =git push origin main= gives us:
+#+begin_src bash
+Mon Jul  3 01:16:25 AM UTC 2023
+Called with admin
+git cmd = git-receive-pack
+repository = repo
+
+#+end_src
+
+While a straight ssh gives us
+
+#+begin_src bash :results code
+ssh gitcmdr@apple.willschenk.com
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+Hello there!
+It looks like you are trying to ssh in directly
+#+end_src
+
+* Setup the repo if it isn't there
+
+#+begin_src bash
+  #!/bin/bash
+
+  date >> ~/log
+  echo Called with $@ >> ~/log
+
+  if [ -z "${SSH_ORIGINAL_COMMAND}" ]; then
+      echo Hello there\!
+      echo It looks like you are trying to ssh in directly
+
+      exit 0
+  fi
+
+  read -a strarr <<< $SSH_ORIGINAL_COMMAND
+  git_cmd=${strarr[0]}
+  repo=$(echo ${strarr[1]} | sed s/\'//g | sed s/\.git//)
+
+  echo git cmd = ${git_cmd} >> ~/log
+  echo repository = ${repo} >> ~/log
+
+  repodir=$HOME/repositories/${repo}.git
+
+  if [ ! -d ${repodir} ]; then
+      echo Creating ${repodir} >> ~/log
+      mkdir -p ${repodir} >> ~/log
+
+      cd ${repodir} >> ~/log
+
+      echo Creating bare repo >> ~/log
+      git init --bare >> ~/log
+  fi
+
+  echo cd $HOME/repositories/ >> ~/log
+  cd $HOME/repositories/ 
+
+  echo Running "${git_cmd} ${repodir}" >> ~/log
+
+  ${git_cmd} ${repodir} 2>> ~/log
+
+#+end_src
+
+
+* References
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

@@ -1,0 +1,367 @@
+#+title: Accessing chargepoint
+#+date: 2023-08-23T10:56:01
+#+draft: true
+
+
+* Base setup
+#+begin_src bash :results output code
+  bundle init
+  bundle add httparty
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+Writing new Gemfile to /Users/wschenk/willschenk.com/content/labnotes/2023/accessing_chargepoint/Gemfile
+Fetching gem metadata from https://rubygems.org/...........
+Resolving dependencies...
+Fetching gem metadata from https://rubygems.org/...........
+Resolving dependencies...
+Using bundler 2.4.14
+Using multi_xml 0.6.0
+Fetching mini_mime 1.1.5
+Installing mini_mime 1.1.5
+Using httparty 0.21.0
+#+end_src
+
+* List of chargers
+#+begin_src ruby :tnagle chargers.rb :results output code
+  #!/usr/bin/env ruby
+
+  require 'httparty'
+
+    uri='https://mc.chargepoint.com/map-prod/v2?{%22station_list%22:{'+
+      '%22screen_width%22:999.6328125,%22screen_height%22:191,'+
+      '%22ne_lat%22:41.74533662207332,%22ne_lon%22:-73.26784374788059,'+
+      '%22sw_lat%22:41.696391979756164,%22sw_lon%22:-73.61116650178684,'+
+      '%22page_size%22:10,%22page_offset%22:%22%22,%22sort_by%22:%22distance%22,'+
+      '%22user_lat%22:41.8388914,%22user_lon%22:-73.364696,%22'+
+      'reference_lat%22:41.72086896082984,%22reference_lon%22:-73.43950512483372,'+
+      '%22include_map_bound%22:true,%22filter%22:'+
+      '{%22price_free%22:false,%22status_available%22:false,%22dc_fast_charging%22'+
+      ':false,%22connector_my_EV%22:false,%22network_bchydro%22'+
+      ':false,%22network_blink%22:false,%22network_chargepoint%22:false,'+
+      '%22network_evconnect%22:false,%22network_evgo%22:false,%22network_flo'+
+      '%22:false,%22network_greenlots%22:false,%22network_semacharge'+
+      '%22:false,%22connector_l1%22:false,%22connector_l2%22:false,'+
+      '%22connector_l2_nema_1450%22:false,%22connector_l2_tesla%22:false'+
+      ',%22connector_chademo%22:false,%22connector_combo%22:false,'+
+      '%22connector_tesla%22:false},%22bound_output%22:true}}'
+
+  page = HTTParty.post uri
+  results = JSON.parse( page.body )
+  pp results
+#+end_src
+
+#+RESULTS:
+#+begin_src ruby
+{"station_list"=>
+  {"page_offset"=>"last_page",
+   "stations"=>
+    [{"lat"=>41.725015209011076,
+      "lon"=>-73.4758873378658,
+      "station_status"=>"available",
+      "device_id"=>13933481,
+      "payment_type"=>"paid",
+      "tou_status"=>"open",
+      "can_remote_start_charge"=>true,
+      "currency_iso_code"=>"USD",
+      "access_restriction"=>"NONE",
+      "max_power"=>{"unit"=>"kW", "max"=>6.6},
+      "network_logo_url"=>
+       "https://mc.chargepoint.com/images/network/2/ic_network_chargepoint.png",
+      "network_display_name"=>"ChargePoint Network",
+      "has_l2"=>true,
+      "display_level"=>"AC",
+      "name1"=>"KENT BARNS",
+      "name2"=>"KENT BARNS",
+      "address1"=>"17 Old Barn Rd",
+      "city"=>"Kent"},
+     {"lat"=>41.72257310010629,
+      "lon"=>-73.48559437056431,
+      "station_status"=>"available",
+      "device_id"=>13986951,
+      "payment_type"=>"paid",
+      "tou_status"=>"open",
+      "can_remote_start_charge"=>true,
+      "currency_iso_code"=>"USD",
+      "access_restriction"=>"NONE",
+      "max_power"=>{"unit"=>"kW", "max"=>6.6},
+      "network_logo_url"=>
+       "https://mc.chargepoint.com/images/network/2/ic_network_chargepoint.png",
+      "network_display_name"=>"ChargePoint Network",
+      "has_l2"=>true,
+      "display_level"=>"AC",
+      "name1"=>"KENTSCHOOLCORP",
+      "name2"=>"STATION 1",
+      "address1"=>"50 Schaghticoke Rd",
+      "city"=>"Kent"},
+     {"lat"=>41.71960137267712,
+      "lon"=>-73.48650883068846,
+      "station_status"=>"available",
+      "device_id"=>13986961,
+      "payment_type"=>"paid",
+      "tou_status"=>"open",
+      "can_remote_start_charge"=>true,
+      "currency_iso_code"=>"USD",
+      "access_restriction"=>"NONE",
+      "max_power"=>{"unit"=>"kW", "max"=>6.6},
+      "network_logo_url"=>
+       "https://mc.chargepoint.com/images/network/2/ic_network_chargepoint.png",
+      "network_display_name"=>"ChargePoint Network",
+      "has_l2"=>true,
+      "display_level"=>"AC",
+      "name1"=>"KENTSCHOOLCORP",
+      "name2"=>"STATION 2",
+      "address1"=>"50 Schaghticoke Road",
+      "city"=>"Kent"}]}}
+#+end_src
+
+* Parsing the url
+
+If we poke around the inspector we get a crazy url for pulling down
+charge point locations.  They URI encode a JSON string into the post
+query url.  Is this because they want to make it hard to pull the data
+or they are just crazy?
+
+#+begin_src ruby :tnagle uri.rb :results output code
+  #!/usr/bin/env ruby
+
+  require 'httparty'
+
+  uri='https://mc.chargepoint.com/map-prod/v2?{%22station_list%22:{'+
+      '%22screen_width%22:999.6328125,%22screen_height%22:191,'+
+      '%22ne_lat%22:41.74533662207332,%22ne_lon%22:-73.26784374788059,'+
+      '%22sw_lat%22:41.696391979756164,%22sw_lon%22:-73.61116650178684,'+
+      '%22page_size%22:10,%22page_offset%22:%22%22,%22sort_by%22:%22distance%22,'+
+      '%22user_lat%22:41.8388914,%22user_lon%22:-73.364696,%22'+
+      'reference_lat%22:41.72086896082984,%22reference_lon%22:-73.43950512483372,'+
+      '%22include_map_bound%22:true,%22filter%22:'+
+      '{%22price_free%22:false,%22status_available%22:false,%22dc_fast_charging%22'+
+      ':false,%22connector_my_EV%22:false,%22network_bchydro%22'+
+      ':false,%22network_blink%22:false,%22network_chargepoint%22:false,'+
+      '%22network_evconnect%22:false,%22network_evgo%22:false,%22network_flo'+
+      '%22:false,%22network_greenlots%22:false,%22network_semacharge'+
+      '%22:false,%22connector_l1%22:false,%22connector_l2%22:false,'+
+      '%22connector_l2_nema_1450%22:false,%22connector_l2_tesla%22:false'+
+      ',%22connector_chademo%22:false,%22connector_combo%22:false,'+
+      '%22connector_tesla%22:false},%22bound_output%22:true}}'
+  u = URI( uri )
+  json_s= URI.decode_uri_component(u.query)
+  query = JSON.parse(json_s)
+
+  pp query
+#+end_src
+
+#+RESULTS:
+#+begin_src ruby
+{"station_list"=>
+  {"screen_width"=>999.6328125,
+   "screen_height"=>191,
+   "ne_lat"=>41.74533662207332,
+   "ne_lon"=>-73.26784374788059,
+   "sw_lat"=>41.696391979756164,
+   "sw_lon"=>-73.61116650178684,
+   "page_size"=>10,
+   "page_offset"=>"",
+   "sort_by"=>"distance",
+   "user_lat"=>41.8388914,
+   "user_lon"=>-73.364696,
+   "reference_lat"=>41.72086896082984,
+   "reference_lon"=>-73.43950512483372,
+   "include_map_bound"=>true,
+   "filter"=>
+    {"price_free"=>false,
+     "status_available"=>false,
+     "dc_fast_charging"=>false,
+     "connector_my_EV"=>false,
+     "network_bchydro"=>false,
+     "network_blink"=>false,
+     "network_chargepoint"=>false,
+     "network_evconnect"=>false,
+     "network_evgo"=>false,
+     "network_flo"=>false,
+     "network_greenlots"=>false,
+     "network_semacharge"=>false,
+     "connector_l1"=>false,
+     "connector_l2"=>false,
+     "connector_l2_nema_1450"=>false,
+     "connector_l2_tesla"=>false,
+     "connector_chademo"=>false,
+     "connector_combo"=>false,
+     "connector_tesla"=>false},
+   "bound_output"=>true}}
+#+end_src
+
+* Charger into
+
+#+begin_src ruby :tnagle charger_info.rb :results output code
+  #!/usr/bin/env ruby
+
+  require 'httparty'
+
+  uri='https://mc.chargepoint.com/map-prod/v3/station/info?deviceId=13933481'
+
+  page = HTTParty.post uri
+  results = JSON.parse( page.body )
+  pp results
+#+end_src
+
+#+RESULTS:
+#+begin_src ruby
+{"name"=>["KENT BARNS", "KENT BARNS"],
+ "deviceId"=>13933481,
+ "address"=>
+  {"address1"=>"17 Old Barn Rd", "city"=>"Kent", "state"=>"Connecticut"},
+ "modelNumber"=>"CT4020-HD-GW",
+ "network"=>
+  {"name"=>"ChargePoint Network",
+   "displayName"=>"ChargePoint Network",
+   "logoUrl"=>
+    "https://mc.chargepoint.com/images/network/2/ic_network_chargepoint.png",
+   "inNetwork"=>true},
+ "portsInfo"=>
+  {"ports"=>
+    [{"outletNumber"=>1,
+      "distanceRange"=>{"unit"=>"Mile", "max"=>19.799999713897705},
+      "powerRange"=>{"unit"=>"kW", "max"=>"6.6"},
+      "status"=>"available",
+      "displayLevel"=>"AC",
+      "level"=>"L2",
+      "connectorList"=>
+       [{"status"=>"available",
+         "displayPlugType"=>"J1772",
+         "plugType"=>"J1772"}]},
+     {"outletNumber"=>2,
+      "distanceRange"=>{"unit"=>"Mile", "max"=>19.799999713897705},
+      "powerRange"=>{"unit"=>"kW", "max"=>"6.6"},
+      "status"=>"in_use",
+      "displayLevel"=>"AC",
+      "level"=>"L2",
+      "connectorList"=>
+       [{"status"=>"in_use",
+         "displayPlugType"=>"J1772",
+         "plugType"=>"J1772"}]}],
+   "portCount"=>2,
+   "dc"=>false},
+ "openCloseStatus"=>"open",
+ "sharedPower"=>false,
+ "reducedPower"=>false,
+ "remoteStartCharge"=>true,
+ "stationPrice"=>
+  {"currencyCode"=>"USD",
+   "energyFee"=>{"fixedFee"=>{"amount"=>2.0, "unit"=>"HOUR"}},
+   "parkingFee"=>
+    {"durationBasedFee"=>
+      {"initialFee"=>{"amount"=>0.0, "unit"=>"HOUR", "duration"=>14400},
+       "nextFee"=>{"amount"=>5.0, "unit"=>"HOUR"}}},
+   "maxFee"=>{"amount"=>100.0, "unit"=>"SESSION"},
+   "estimatedFeeOptions"=>
+    {"estimatedFeeForDurationList"=>
+      [{"duration"=>3600, "price"=>2.0},
+       {"duration"=>7200, "price"=>4.0},
+       {"duration"=>10800, "price"=>6.0},
+       {"duration"=>14400, "price"=>8.0},
+       {"duration"=>18000, "price"=>18.0},
+       {"duration"=>21600, "price"=>28.0},
+       {"duration"=>25200, "price"=>38.0},
+       {"duration"=>28800, "price"=>48.0},
+       {"duration"=>32400, "price"=>58.0},
+       {"duration"=>36000, "price"=>68.0}],
+     "defaultIndex"=>1}},
+ "hostName"=>"Kent Center LLC",
+ "stationStatus"=>"available",
+ "latitude"=>41.725015209011076,
+ "longitude"=>-73.4758873378658,
+ "baseEvatarImagesUrl"=>"https://mc.chargepoint.com/images/evatar",
+ "addTipOption"=>"THIS_STATION",
+ "addPhotoOption"=>"THIS_STATION",
+ "lastChargedVehicles"=>
+  [{"name"=>"Tesla Model Y", "chargedTime"=>1692810818300},
+   {"name"=>"BMW X3 xDrive30e", "chargedTime"=>1692556556138},
+   {"name"=>"Hyundai Ioniq 5", "chargedTime"=>1692538323933},
+   {"name"=>"Tesla Model Y", "chargedTime"=>1692532152078},
+   {"name"=>"Hyundai Ioniq 5", "chargedTime"=>1692450275696}],
+ "currentTime"=>1692974383101,
+ "timeZone"=>"GMT-4:00",
+ "notifymeBy"=>{"status"=>"UNAUTHORIZED_NOT_AVAILABLE"},
+ "stopChargeSupported"=>true,
+ "startChargeConfig"=>
+  [{"type"=>"CPV1"}, {"type"=>"TAPTOCHARGE"}, {"type"=>"ANONYMOUSCHARGE"}],
+ "showReportProblem"=>true,
+ "alertUserToPlugin"=>true,
+ "startChargeOptions"=>[],
+ "portDisplayType"=>"SIDE_BY_SIDE",
+ "displayLevel"=>"AC",
+ "accessRestriction"=>"NONE",
+ "randomizedDelayLimit"=>{"value"=>0, "unit"=>"s"},
+ "maxPower"=>{"max"=>"6.6", "unit"=>"kW"},
+ "instance"=>"NA-US"}
+#+end_src
+
+
+
+* Charge history
+
+#+begin_src ruby :tangle chargehistory.rb :results output code
+  #!/usr/bin/env ruby
+
+  require 'httparty'
+
+  uri = "https://mc.chargepoint.com/map-prod/v2"
+
+  headers = {
+    'Content-Type':  'application/json',
+    }
+
+  cookie_hash = HTTParty::CookieHash.new
+  cookie_hash.add_cookies({
+    "auth-session":  "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJ1cm46Y3A6dXNlcjpuYS11czo3YWNlNTIzNy03ZGN" +
+                     "lLTQ0MzAtOWU4Yy0wOTZhMGEzZjlkZjYiLCJpYXQiOjE2OTI4MDQ3MDcsIm5iZiI6MTY5Mjg" +
+                     "wNDcwNywiZXhwIjoxNjkyODExOTA3LCJpc3MiOiJjaGFyZ2Vwb2ludCIsInJvbGUiOiJkcml" +
+                     "2ZXIiLCJub3N1c2VyaWQiOjM5OTM5MywidXNlcmlkIjoidXJuOmNwOnVzZXI6bmEtdXM6N2F" +
+                     "jZTUyMzctN2RjZS00NDMwLTllOGMtMDk2YTBhM2Y5ZGY2IiwidXNlcm5hbWUiOiJ3c2NoZW5" +
+                     "rQGdtYWlsLmNvbSIsImVtYWlsIjoid3NjaGVua0BnbWFpbC5jb20iLCJyZWdpb24iOiJOQS1" +
+                     "VUyIsInRpbWV6b25lIjoiRURUIiwidGltZXpvbmVfb2Zmc2V0IjotMTQ0MDAsInpvbmVfaWQ" +
+                     "iOiJBbWVyaWNhL05ld19Zb3JrIiwicHJlZmVycmVkX2lkcF9pZCI6LTEsInRlbmFudF9pZCI" +
+                     "6Im5vcyIsImlkcF91c2VyX2lkIjoiIiwianRpIjoiTnpWbVlqRmtaREV0WldSa09DMDBaakZ" +
+                     "tTFdFM04yVXROV1l3WkRsbU1ETXlOakEyI1UxNzkwMWQ1I1JOQS1VUyIsImF1ZCI6IkNoYXJ" +
+                     "nZVBvaW50In0.2birvce7O_dsbJKBmPHsOov2rTy7Wv3gwxrNzOckgAeSzHFOsokXIufeuFL" +
+                     "_-zEm2P0fWCYZybIBSboA29lwMQ",
+    "ci_ui_session": "adc0100877dfc4b478ba4faa265158ad%23D61821",
+    "locale":        "en-US",
+    "country_code":  "US",
+    "prefLanguage":  "en",
+    "coulomb_sess":  "33bccd354a5c8de968f889d875d5b4e0%23D61821",
+    "country_id":    "233",
+    "map_latitude":  "38.5",
+    "map_longitude": "-95.71",
+    "length_unit":   "miles",
+    "volume_unit":   "gallons",
+    "datadome":      "1NPmBr74KBJuzTugUX8AN33_BIS_foyn~azonNIfQEXJDk_wMd2bOrYLnzGI~bCVzt-YFuyp" +
+                     "gLfeJ44W9oqWuYk~9ZrCVjQOgVHmd30H5X8y0K4y2g_kIZLYF5Ifhld_",
+    "AWSALB":        "khQvffcFy2tm5xNwqtMiDdBcKtgZLmsf2DJL1cbG2kgkvzvTT6+icysLBRwsDMETlPpAMjFl" +
+                     "5KumfPo/mNFK3/H48KLe28Cfj1YJ+DDTJw1vp/sAdvuzd+MJ3mSL",
+    "AWSALBCORS":    "khQvffcFy2tm5xNwqtMiDdBcKtgZLmsf2DJL1cbG2kgkvzvTT6+icysLBRwsDMETlPpAMjFl" +
+                     "5KumfPo/mNFK3/H48KLe28Cfj1YJ+DDTJw1vp/sAdvuzd+MJ3mSL"
+  })
+
+  headers['Cookie'] = cookie_hash.to_cookie_string
+
+  data =
+    {
+      charging_activity_monthly:
+        {
+          page_offset: "p_2023_8",
+          page_size: 500
+        }
+    }
+  page = HTTParty.post uri, body: data.to_json, headers: headers
+  pp JSON.parse(page.body)
+#+end_src
+
+
+
+* References
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

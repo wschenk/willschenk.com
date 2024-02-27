@@ -1,0 +1,856 @@
+#+title: Buildless websites
+#+subtitle:
+#+tags[]: static_sites, buildless
+#+date: 2023-07-08T14:11:19
+#+draft: true
+
+Modern web development is so complicated.  Does it need to be?  Let's
+see how to make a site simply.
+
+* =live-server=
+
+First we can start up a live server with
+
+#+begin_src bash
+  mkdir site
+  npx live-server site
+#+end_src
+
+* unocss
+** Basic page with unocss runtime
+
+=site/basic.html=
+#+begin_src html :tangle site/basic.html
+  <html>
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+      <title>Base Template</title>
+
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@unocss/reset/tailwind.min.css">
+      <script src="https://cdn.jsdelivr.net/npm/@unocss/runtime/attributify.global.js"></script>
+    </head>
+
+    <body p-2 md:p-0 h-full>
+      <header max-w-screen-lg mx-auto md:flex justify-between py-4>
+        <h1 font-bold text-4xl md:inline-block>
+          Basic template
+        </h1>
+
+        <ul pt-2>
+          <li md:inline-block ml-4><a href="/basic.html">basic</a></li>
+          <li md:inline-block ml-4><a href="/inline.html">inline</a></li>
+        </ul>
+      </header>
+
+      <h2 max-w-screen-lg mx-auto font-bold text-2xl py-4>This is a page</h2>
+
+      <p max-w-screen-lg mx-auto>I really really like it</p>
+
+    </body>
+  </html>
+  
+#+end_src
+** Generating css using watch
+
+=uno.config.ts=:
+
+#+begin_src javascript :tangle uno.config.ts
+  // uno.config.ts
+  import { defineConfig, presetAttributify, presetUno, presetTypography } from 'unocss'
+  import presetWebFonts from '@unocss/preset-web-fonts';
+
+  const fonts = presetWebFonts({
+    provider: 'google', // default provider
+    fonts: {
+      header: "Averia Serif Libre",
+    }
+  })
+
+  export default defineConfig({
+    presets: [
+      presetAttributify({ /* preset options */}),
+      presetUno(),
+      fonts,
+      presetTypography()
+      // ...custom presets
+    ],
+  })
+#+end_src
+
+Then create =package.json= as
+
+#+begin_src javascript :tangle package.json
+  {
+    "scripts": {
+      "dev": "unocss \"site/**/*.html\" -o site/main.css --watch & live-server site",
+      "build": "unocss \"site/**/*.html\" -o site/main.css"
+    },
+    "devDependencies": {
+      "live-server": "^1.2.2",
+      "unocss": "^0.53.4"
+    }
+  }
+
+#+end_src
+
+And set it up and run
+#+begin_src bash
+  curl -o site/reset.css https://cdn.jsdelivr.net/npm/@unocss/reset/tailwind.min.css
+  npm i
+  npm run dev
+#+end_src
+
+Now we can replace
+
+#+begin_src html
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@unocss/reset/tailwind.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/@unocss/runtime/attributify.global.js"></script>
+#+end_src
+
+with:
+
+#+begin_src html
+  <link rel="stylesheet" href="reset.css" />
+  <link rel="stylesheet" href="main.css" />
+#+end_src
+
+** Without =node_module=
+
+We don't need =node-modules= once we've copied out the files that we
+need, so we can delete it and use =npx= to run the build commands.
+
+=dev.sh=:
+
+#+begin_src bash :tangle dev.sh
+  #!/bin/bash
+
+  npx unocss "site/**/*.html" -o site/main.css --watch &
+  npx live-server site
+#+end_src
+
+Then a quick
+
+#+begin_src bash
+  chmod +x dev.sh
+
+  ./dev.sh
+#+end_src
+
+* Remote Data
+** HTML Templating
+
+=site/header.html=:
+
+#+begin_src html :tangle site/header.html
+  <header max-w-screen-lg mx-auto md:flex justify-between py-4>
+    <h1 font-bold text-4xl md:inline-block font-header>
+      Buildless
+    </h1>
+
+    <ul pt-2 font-header>
+      <li md:inline-block ml-4><a href="/basic.html">basic</a></li>
+      <li md:inline-block ml-4><a href="/inline.html">inline</a></li>
+      <li md:inline-block ml-4><a href="/dynamic.html">dynamic</a></li>
+      <li md:inline-block ml-4><a href="/template.html">template</a></li>
+      <li md:inline-block ml-4><a href="/alpine.html">alpine</a></li>
+    </ul>
+  </header>
+#+end_src
+
+=site/footer.html=:
+
+#+begin_src html :tangle site/footer.html
+  <footer max-w-screen-lg mx-auto md:flex justify-between py-4>
+    <p text-gray-500 md:inline-block>
+      Some sort of copyright
+    </p>
+  
+    <ul pt-2>
+      <li md:inline-block ml-4><a href="#">Link 3</a></li>
+    </ul>
+  </footer>
+
+#+end_src
+
+=site/remote.js=:
+#+begin_src javascript :tangle site/remote.js
+  document.addEventListener("DOMContentLoaded", () => {
+      for (let item of document.querySelectorAll( "[remote-html]" )) {
+          fetch( item.attributes['remote-html'].value )
+              .then( (response) => {return response.text()} )
+              .then( (html) => {
+                  item.innerHTML = html
+                  document
+                      .querySelectorAll( `a[href='${window.location.pathname}']`)
+                      .forEach((el) => {
+                          el.classList.add('font-bold');
+                      });
+              } )
+
+      }
+  });
+
+#+end_src
+
+=site/inline.html=:
+#+begin_src html :tangle site/inline.html
+  <html>
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+      <title>Inline Example</title>
+
+      <link rel="stylesheet" href="reset.css" />
+      <link rel="stylesheet" href="main.css" />
+
+      <script src="remote.js"></script>
+    </head>
+
+    <body p-2 md:p-0 h-full>
+      <inline remote-html="/header.html"></inline>
+
+      <h2 max-w-screen-lg mx-auto font-bold text-2xl py-4 font-header>This is a page</h2>
+
+      <p max-w-screen-lg mx-auto>I really really like it</p>
+
+      <inline remote-html="/footer.html"></inline>
+
+    </body>
+  </html>
+
+#+end_src
+
+** JSON Debug
+
+=site/remote.js=:
+#+begin_src javascript :tangle site/remote.js
+    document.addEventListener("DOMContentLoaded", () => {
+        for (let item of document.querySelectorAll( "[remote-json]" )) {
+            fetch( item.attributes['remote-json'].value )
+                .then( (response) => {return response.json()} )
+                .then( (json) => {
+                    item.innerHTML = JSON.stringify(json, null, 2)
+                } )
+
+        }
+    });
+
+#+end_src
+
+=site/dynamic.html=:
+#+begin_src html :tangle site/dynamic.html
+  <html>
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+      <title>Dynamic Example</title>
+
+      <link rel="stylesheet" href="reset.css" />
+      <link rel="stylesheet" href="main.css" />
+
+      <script src="remote.js"></script>
+    </head>
+
+    <body p-2 md:p-0 h-full>
+      <inline remote-html="/header.html"></inline>
+
+      <h2 max-w-screen-lg mx-auto font-bold text-2xl py-4 font-header>Dynamic Page</h2>
+
+      <p max-w-screen-lg mx-auto>This is certainly a thing!</p>
+
+      <pre remote-json="https://jsonplaceholder.typicode.com/posts/1"></pre>
+
+      <inline remote-html="/footer.html"></inline>
+
+    </body>
+  </html>
+
+#+end_src
+
+** Templating json results with =template= tag
+
+=site/remote.js=:
+
+#+begin_src javascript :tangle site/remote.js
+
+    document.addEventListener("DOMContentLoaded", () => {
+      for (let item of document.querySelectorAll( "[remote-template]" )) {
+          const template = item.getElementsByTagName("template")[0].getInnerHTML()
+
+          const handler = new Function( 'i', 'const tagged = (i) => `' + template + '`; return tagged(i)')
+
+          fetch( item.attributes['remote-template'].value )
+              .then( (response) => {return response.json()} )
+              .then( (json) => {
+                  for( let i of json ) {
+                      item.innerHTML += handler(i);
+                  }})
+      }
+  });
+
+#+end_src
+
+=site/template.html=:
+#+begin_src html :tangle site/template.html
+  <html>
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+      <title>Templating Example</title>
+
+      <link rel="stylesheet" href="reset.css" />
+      <link rel="stylesheet" href="main.css" />
+
+      <script src="remote.js"></script>
+    </head>
+
+    <body p-2 md:p-0 h-full>
+      <inline remote-html="/header.html"></inline>
+
+      <h2 max-w-screen-lg mx-auto font-bold text-2xl py-4 font-header>Templating Example</h2>
+
+      <p max-w-screen-lg mx-auto>This is certainly a thing!</p>
+
+      <table table max-w-screen-lg mx-auto>
+        <caption font-bold>Posts</caption>
+
+        <tbody remote-template="https://jsonplaceholder.typicode.com/posts">
+          <tr>
+            <th>id</th>
+            <th>User</th>
+            <th>Title</th>
+            <th>Body</th>
+          </tr>
+
+          <template>
+            <tr>
+              <td>${i.id}</td>
+              <td>${i.userId}</td>
+              <td>${i.title}</td>
+              <td>${i.body.substring(0, 50) + "..."}</td>
+            </tr>
+          </template>
+      </table>
+
+      <inline remote-html="/footer.html"></inline>
+
+    </body>
+  </html>
+
+#+end_src
+
+* Prerender Inline
+
+Maybe we want our headers and components and whatever to be served in
+one request.
+
+=inliner.rb=:
+
+#+begin_src ruby :tangle inliner.rb
+  def inline(file)
+    data = File.read(file)
+
+    data.gsub!( /<inline remote-html=\"(.*)\">.*?<\/inline>/ ) do |m|
+      file_name = $1
+      file = file_name.gsub( /^\//, "" )
+      if File.exist? file
+        #"<inline remote-html=\"#{file_name}\">#{File.read(file)}<\/inline>"
+        File.read file
+      else
+        m
+      end
+    end
+
+    puts data
+  end
+
+  inline('dynamic.html')
+#+end_src
+
+* Alpine
+
+#+begin_src bash
+  npm i alpinejs
+  cp node_modules/alpinejs/dist/module.esm.js site/alpine.js
+#+end_src
+
+** Basic Alpine page
+
+=site/alpine_header.html=
+#+begin_src html :tangle site/alpine_header.html
+  <header max-w-screen-lg mx-auto md:flex justify-between py-4>
+    <h1 font-bold text-4xl md:inline-block font-header x-text="title">
+      Buildless
+    </h1>
+
+    <ul pt-2 font-header>
+      <li md:inline-block ml-4 x-data="{open: false}" @click.outside="open = false">
+        <span @click="open = !open" hover:bg-slate-100>JS Only</span>
+        <ul x-transition x-show="open"
+            absolute bg-slate-100 py-2 px-4
+            border border-slate-200 rounded-md>
+          <li><a href="/basic.html">basic</a></li>
+          <li><a href="/inline.html">inline</a></li>
+          <li><a href="/dynamic.html">dynamic</a></li>
+          <li><a href="/template.html">template</a></li>
+        </ul>
+      </li>
+
+      <li md:inline-block ml-4 x-data="{open: false}" @click.outside="open = false">
+        <span @click="open = !open" hover:bg-slate-100>AlpineJS</span>
+        <ul x-transition x-show="open"
+            absolute bg-slate-100 py-2 px-4
+            border border-slate-200 rounded-md>
+          <li><a href="/alpine.html">basic</a></li>
+          <li><a href="/alpine_loader.html">loader</a></li>
+          <li><a href="/alpine_flash.html">flash</a></li>
+          <li><a href="/alpine_login.html">login</a></li>
+          <li><a href="/alpine_profile.html">profile</a></li>
+        </ul>
+      </li>
+    </ul>
+  </header>
+#+end_src
+
+=site/alpine.html=
+#+begin_src html :tangle site/alpine.html
+  <html>
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+      <title>Alpine Example</title>
+
+      <link rel="stylesheet" href="reset.css" />
+      <link rel="stylesheet" href="main.css" />
+
+      <script src="remote.js"></script>
+      <script type="module">
+        import Alpine from '/alpine.js'
+
+        window.Alpine = Alpine
+
+        Alpine.start()
+      </script>
+    </head>
+
+    <body p-2 md:p-0 h-full>
+      <inline remote-html="/alpine_header.html" x-data='{title: "Alpine Page"}'></inline>
+
+      <h2 max-w-screen-lg mx-auto font-bold text-2xl py-4 font-header>This is a page</h2>
+
+      <div max-w-screen-lg mx-auto x-data='{open: false}'>
+        <p>This is a paragraph.  My favorite.
+          <button @click="open = !open"
+                  bg-green text-white rounded-md px-4 py-2>Click Me</button>
+        </p>
+
+        <p x-show="open">This is a nifty little paragraph</p>
+      </div>
+
+      <inline remote-html="/footer.html"></inline>
+
+    </body>
+  </html>
+
+#+end_src
+
+** Load data from an end point
+
+=site/loader.js=:
+
+#+begin_src javascript :tangle site/loader.js
+  import Alpine from './alpine.js'
+
+  Alpine.data('loader', (url) => ({
+      url: url,
+      error: null,
+      data: null,
+      init() {
+          fetch( url )
+              .then( (response) => {
+                  if( !response.ok ) {
+                      return Promise.reject(response.statusText);
+                  } else {
+                      return response.json()
+                  }
+              })
+              .then( (json) => {
+                  if( Array.isArray( json ) ) {
+                      this.data = json
+                  } else {
+                      this.data = new Array(json)
+                  }
+              } )
+              .catch( (error) => {
+                  this.error = error;
+              })
+      }
+  }) );
+#+end_src
+
+=site/app.js=
+
+#+begin_src javascript :tangle site/app.js
+  import Alpine from './alpine.js'
+  import './loader.js'
+  import './flash.js'
+
+  window.Alpine = Alpine
+
+  Alpine.start()
+
+#+end_src
+
+=site/alpine_loader.html=
+#+begin_src html :tangle site/alpine_loader.html
+  <html>
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+      <title>Alpine Loader</title>
+
+      <link rel="stylesheet" href="reset.css" />
+      <link rel="stylesheet" href="main.css" />
+
+      <script src="remote.js"></script>
+      <script src="app.js" type="module"></script>
+    </head>
+
+    <body p-2 md:p-0 h-full>
+      <inline remote-html="/alpine_header.html" x-data='{title: "Alpine Loader"}'></inline>
+
+      <h2 max-w-screen-lg mx-auto font-bold text-2xl py-4 font-header>This is a page</h2>
+
+      <div max-w-screen-lg mx-auto>
+        <div x-data="loader('./profile.json')">
+          <template x-if="error">
+            <p text-red-800 font-header text-4xl x-text="error" font-red></p>
+          </template>
+
+          <template x-if="!data && !error">
+            <p font-header>Loading <span x-text="url"></span>...</p>
+          </template>
+
+          <template x-for="i in data">
+            <div> <!-- x-for template must contain one element -->
+              <h2 text-xl py-4 font-header x-text="i.name"></h2>
+              <p text-lg x-text="i.message"></p>
+
+              <ul pt-4 ml-8>
+                <template x-for="item in i.list">
+                  <li list-disc x-text="item"></li>
+                </template>
+              </ul>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <inline remote-html="/footer.html"></inline>
+
+    </body>
+  </html>
+
+#+end_src
+
+=site/profile.json=
+
+#+begin_src bash :results code
+  jo name="Last, First" \
+     message="This is my message, it's really really nice and I love it" \
+     list=$(jo -a first second third forth) \
+      | jq . | tee site/profile.json
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+{
+  "name": "Last, First",
+  "message": "This is my message, it's really really nice and I love it",
+  "list": [
+    "first",
+    "second",
+    "third",
+    "forth"
+  ]
+}
+#+end_src
+
+** Flash
+
+#+begin_src javascript :tangle site/flash.js
+  import Alpine from './alpine.js'
+
+  export function setFlash( message ) {
+    window.localStorage.setItem( "flash", message )
+  }
+
+  export function getFlash(  ) {
+      const msg = window.localStorage.getItem( "flash" )
+      window.localStorage.removeItem("flash")
+      return msg;
+  }
+
+  Alpine.data('flash', (url) => ({
+      message: null,
+
+      init() {
+          this.message = getFlash();
+          },
+
+      setMessage(message) {
+          setFlash( message )
+      }
+  }))
+
+
+#+end_src
+
+=site/alpine_flash.html=:
+#+begin_src html :tangle site/alpine_flash.html
+  <html>
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+      <title>Alpine Flash</title>
+
+      <link rel="stylesheet" href="reset.css" />
+      <link rel="stylesheet" href="main.css" />
+
+      <script src="remote.js"></script>
+      <script src="app.js" type="module"></script>
+    </head>
+
+    <body p-2 md:p-0 h-full>
+      <inline remote-html="/alpine_header.html" x-data='{title: "Alpine Flash"}'></inline>
+
+      <div max-w-screen-lg mx-auto x-data="flash">
+        <button
+          @click="setMessage('this is my message')"
+          bg-green hover:bg-slate-100
+          px-4 py-2
+          border border-green-400 rounded-md>Press Me</button>
+        <p x-text="message"></p>
+
+        <p>Press the button and reload the page</p>
+
+      <inline remote-html="/footer.html"></inline>
+
+    </body>
+  </html>
+
+#+end_src
+
+* Session APIs
+
+The scenario now is to log into a site and store the bearer token
+inside of =localStorage=.
+
+#+begin_src javascript :tangle site/bearer.js
+  export function setToken(token) {
+      window.localStorage.setItem("token", token);
+  }
+
+  export function getToken() {
+      return window.localStorage.getItem("token");
+  }
+
+  export function clearSession() {
+      window.locationStorage.clear()
+  }
+
+  async function authedGet(url, data) {
+      const final_url = `${WEB_API_URL}${url}`;
+      console.log("authGet", final_url, getToken());
+      const response = await fetch(final_url, {
+          headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${getToken()}`,
+          },
+      });
+
+      if (!response.ok) {
+          window.localStorage.clear();
+          flash_and_redirect(response.statusText, "/");
+
+          console.log("error", response.statusText);
+          return { error: true, errMessage: response.statusText };
+      }
+
+      const reply = await response.json();
+
+      console.log("Got reply", reply);
+
+      return reply;
+    }
+
+  async function authedPost(url, data) {
+      const final_url = `${WEB_API_URL}${url}`;
+      console.log("authedPost", final_url, getToken());
+      const response = await fetch(final_url, {
+          method: "POST",
+          headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${getToken()}`,
+          },
+      });
+
+      if (!response.ok) {
+          window.localStorage.clear();
+          flash_and_redirect(response.statusText, "/");
+
+          console.log("error", response.statusText);
+          return { error: true, errMessage: response.statusText };
+      }
+
+      const reply = await response.json();
+
+      console.log("Got reply", reply);
+
+      return reply;
+    }
+
+#+end_src
+
+=site/tezlab.js=
+#+begin_src javascript :tangle site/tezlab.js
+  const WEB_API_URL = "http://localhost:3000";
+  const CLIENT_SECRET = "fFnIlj3nSWZrdvRoaaxXu7R87JBczq4zVohGBgLcnOg";
+  const CLIENT_ID = "EgaE_fxzvo26TXROOh368bzuoISA332_U7B7aVz0Sew";
+
+  export async function login(user, password) {
+      const data = {
+          username: user,
+          password: password,
+          client_id: CLIENT_ID,
+          client_secret: CLIENT_SECRET,
+          scope: "mobile",
+          grant_type: "password",
+      };
+    
+      const response = await fetch(`${WEB_API_URL}/oauth/token`, {
+          method: "POST",
+          body: JSON.stringify(data),
+          headers: { "Content-Type": "application/json" },
+      });
+    
+      if (!response.ok) {
+          flash_and_redirect(response.statusText, "/");
+      }
+    
+      const json = await response.json();
+      console.log("/oauth/token response", json);
+      setToken(json.access_token);
+    
+      return getToken();
+  }
+
+  export function logout() {
+      flash_and_redirect("You've been logged out", "/");
+  }
+  
+
+#+end_src
+
+=site/alpine_login.html=
+#+begin_src html :tangle site/alpine_login.html
+  <html>
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+      <title>Alpine Login</title>
+
+      <link rel="stylesheet" href="reset.css" />
+      <link rel="stylesheet" href="main.css" />
+
+      <script src="remote.js"></script>
+      <script src="app.js" type="module"></script>
+    </head>
+
+    <body p-2 md:p-0 h-full>
+      <inline remote-html="/alpine_header.html" x-data='{title: "Alpine Login"}'></inline>
+
+      <div class="h-5/6"
+           max-w-screen-lg mx-auto
+           flex justify-center items-center flex-col>
+        <h1 text-2xl pb-4 font-header>Login</h1>
+        <form x-data='{email:"",password:""}'>
+          <div flex items-center justify-between py-2>
+            <label block w-64 text-right for="email">Email:</label>
+            <input
+              x-model="email"
+              type="email" id="email" name="email"
+              mx-2 py-1.5
+              block w-full
+              shadow-sm
+              rounded-md
+              ring-1 ring-inset ring-gray-300
+              placeholder:text-gray-400
+              focus:ring-2
+              focus:ring-inset
+              focus:ring-indigo-600
+              >
+          </div>
+          <div flex items-center justify-between py-2>
+            <label block w-64 text-right for="password">Password:</label>
+            <input
+              x-model="password"
+              type="password" id="password" name="password"
+              mx-2 py-1.5
+              block w-full
+              shadow-sm
+              rounded-md
+              ring-1 ring-inset ring-gray-300
+              placeholder:text-gray-400
+              focus:ring-2
+              focus:ring-inset
+              focus:ring-indigo-600
+              >
+          </div>
+          <div flex items-center justify-between py-2>
+            <input
+              type="submit" value="Login"
+              w-full justify-center flex
+              bg-indigo-600
+              px-3
+              py-1.5
+              text-sm
+              font-semibold
+              leading-6
+              text-white
+              shadow-sm
+              hover:bg-indigo-500
+              focus-visible:outline
+              focus-visible:outline-2
+              focus-visible:outline-offset-2
+              focus-visible:outline-indigo-600
+              >
+          </div>
+        </form>
+
+      </div>
+
+      <inline remote-html="/footer.html"></inline>
+
+    </body>
+  </html>
+
+#+end_src
+
+
+* References
+
+1. https://www.raymondcamden.com/2022/05/02/building-table-sorting-and-pagination-in-alpinejs
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

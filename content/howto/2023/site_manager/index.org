@@ -1,0 +1,443 @@
+#+title: Site Manager
+#+subtitle: host your own stuff
+#+tags[]: hetzner, cloudflare, cli, lastpass
+#+date: 2023-06-21
+#+draft: true
+
+#+begin_src plantuml :file flow.png
+@startuml
+hide footbox
+
+Laptop -> Cloud: List Servers
+return Server List
+
+alt Server list is empty
+Laptop -> Cloud: Create New Server
+activate Cloud
+Cloud -> Cloud: Provision Machine
+return Laptop
+
+Laptop -> Server: Inspect Setup
+activate Server
+
+Server -> Server: Hardening
+Server -> Server: Docker
+Server -> Server: Caddy-Docker-Proxy
+return Deployment list
+
+@enduml
+#+end_src
+
+#+RESULTS:
+[[file:flow.png]]
+
+#+begin_src plantuml :file entities.png
+[Laptop]
+
+cloud {
+ [Machines]
+}
+
+cloud {
+ [DNS]
+}
+
+[Laptop] --> [Machines]
+[Machines] -> [DNS]
+
+
+
+#+end_src
+
+#+RESULTS:
+[[file:entities.png]]
+
+#+begin_src plantuml :file map.png
+@startmindmap
++ Deployment
+-- Context
+-- Registry
+--- Container
+--- Build Server
+---- Code
+-- Server
+--- Name
+--- Environment
+--- Volumes
+-- Services
+--- Environment
+--- Secrets
+@endmindmap
+#+end_src
+
+#+RESULTS:
+[[file:map.png]]
+
+#+begin_src plantuml :file server.png
+  @startuml
+
+  start
+
+  if( serverlist empty? ) then (yes)
+    :create server;
+  else (no)
+    :select server;
+  endif;
+
+  :harden server;
+
+  if( docker installed? ) then (no)
+    :install docker;
+  endif;
+
+  :start deployment server;
+
+  stop;
+  
+  @enduml
+
+#+end_src
+
+#+RESULTS:
+[[file:server.png]]
+
+* Setting up gems
+
+#+begin_src ruby :tangle site_manager
+  #!/usr/env ruby
+
+  require 'bundler/inline'
+
+  gemfile do
+    source 'https://rubygems.org'
+
+    gem 'httparty', '~> 0.17.3'
+    gem 'json', '~> 2.6', '>= 2.6.3'
+    gem 'thor', '1.2.2'
+  end
+
+  LPASS_USER=ENV['LPASS_USER'] || 'wschenk@gmail.com'
+  ZONE_NAME=ENV['ZONE_NAME'] || 'willschenk.com'
+#+end_src
+
+* Install things that we need
+
+#+begin_src ruby :tangle site_manager
+  [ 'hcloud', 'lpass'].each do |package|
+    if !system("which #{package} > /dev/null")
+      puts "Installing #{package}"
+      system( "brew install #{package}" )
+    end
+  end
+
+#+end_src
+
+* Authentiation
+
+#+begin_src ruby :tangle site_manager
+  class Authsystem
+    @@logged_in = false
+
+    def initialize
+      return if @@logged_in
+      if !system("lpass status")
+        if system "LPASS_DISABLE_PINENTRY=1 lpass login ${LPASS_USER}"
+          @@logged_in = true
+        end
+      else
+        @@logged_in = true
+      end
+    end
+
+    def get_note note
+      token = `lpass show "#{note}" | awk '/Notes/ {print $2}'`.chomp
+    end
+  end
+
+  #+end_src
+
+* Hertzer Servers
+
+#+begin_src ruby :tangle site_manager
+  class Hertzer
+    def list
+      @list ||= JSON.parse( `hcloud server list -o json` )
+    end
+
+    def clean_list
+      list.collect do |server|
+        {
+          id: server['id'],
+          name: server['name'],
+          state: server['status'],
+          ip: server['public_net']['ipv4']['ip']
+        }
+      end
+    end
+
+    def key_list
+      @key_list ||= JSON.parse( `hcloud ssh-key list -o json` )
+    end
+
+    def create( name, type = "cx11", image = "debian-12" )
+      system( "hcloud server create --name #{name} --type #{type} --image #{image} --ssh-key #{key_list.first['id']}" )
+      @list = nil
+    end
+
+    def delete( name )
+      info = status name
+      if !info
+        puts "#{name} not found"
+      else
+        system( "hcloud server delete #{info[:id]}" )
+      end
+      @list = nil
+    end
+
+    def status name
+      return nil if clean_list.nil?
+
+      clean_list.select do |server|
+        if server[:name] == name
+          return server
+        end
+      end
+      return nil
+    end
+  end
+
+
+#+end_src
+
+* DNS
+#+begin_src ruby :tangle site_manager
+  class Cloudflare
+    def cf_token
+      @cf_token ||=
+        Authsystem.new.get_note 'cloudflare token'
+    end
+
+    def zone_id
+      if !@zone_id
+        response = HTTParty.get(
+          "https://api.cloudflare.com/client/v4/zones?name=#{ZONE_NAME}&status=active",
+          { headers:
+              {
+                'Content-Type' => 'application/json',
+                "Authorization" => "Bearer #{cf_token}"
+              } } )
+
+        data = JSON.parse(response.body)
+        @zone_id = data['result'][0]['id']
+        end
+
+      @zone_id
+    end
+
+    def record_id hostname
+      response = HTTParty.get(
+        "https://api.cloudflare.com/client/v4/zones/#{zone_id}/dns_records?name=#{hostname}",
+        { headers:
+            {
+            'Content-Type' => 'application/json',
+            "Authorization" => "Bearer #{cf_token}"
+            } } )
+
+      data = JSON.parse( response.body )
+      return nil unless data['result'][0]
+      return data['result'][0]['id']
+    end
+
+    def create_ip h_name, ip
+      puts "Creating DNS record #{h_name} -> #{ip}"
+
+      response = HTTParty.post(
+        "https://api.cloudflare.com/client/v4/zones/#{zone_id}/dns_records", {
+          body: {
+            type: "A",
+            name: h_name,
+            content: ip,
+            proxied: false,
+            ttl: 1,
+            comment: "site_manager"
+          }.to_json,
+          headers: {
+            'Content-Type' => 'application/json',
+            "Authorization" => "Bearer #{cf_token}"
+          } } )
+
+      JSON.parse( response.body )
+    end
+
+    def update_ip name, ip
+      h_name = hostname name
+      r_id = record_id h_name
+
+      if !r_id
+        create_ip h_name, ip
+      else
+        puts "Updating #{name} -> #{ip}"
+        response = HTTParty.put(
+          "https://api.cloudflare.com/client/v4/zones/#{zone_id}/dns_records/#{r_id}", {
+            body: {
+              type: "A",
+              name: h_name,
+              content: ip,
+              proxied: false,
+              ttl: 1,
+              comment: "site_manager"
+            }.to_json,
+            headers: {
+              'Content-Type' => 'application/json',
+              "Authorization" => "Bearer #{cf_token}"
+              } } )
+
+        JSON.parse( response.body )
+      end
+    end
+
+    def delete_name( name )
+      h_name = hostname name
+      r_id = record_id h_name
+      if !r_id
+        puts "Couldn't find #{name}"
+      else
+        puts "Deleting #{name}"
+        response = HTTParty.delete(
+          "https://api.cloudflare.com/client/v4/zones/#{zone_id}/dns_records/#{r_id}", {
+            body: {
+            }.to_json,
+            headers: {
+              'Content-Type' => 'application/json',
+              "Authorization" => "Bearer #{cf_token}"
+              } } )
+
+        JSON.parse( response.body )
+      end
+    end
+
+
+    def list
+      response = HTTParty.get(
+        "https://api.cloudflare.com/client/v4/zones/#{zone_id}/dns_records?comment=site_manager",
+        { headers:
+            {
+              'Content-Type' => 'application/json',
+              "Authorization" => "Bearer #{cf_token}"
+            } } )
+
+      data = JSON.parse( response.body )
+      return [] unless data['result'][0]
+
+      data['result'].collect do |r|
+        { id: r['id'],
+          name: r['name'],
+          content: r['content'],
+          proxied: r['proxied'],
+          ttl: r['ttl']
+        }
+      end
+    end
+
+    def list_for ip
+      list.select { |x| x[:content] == ip }
+    end
+
+    def hostname name
+      "#{name}.#{ZONE_NAME}"
+    end
+  end
+
+  #+end_src
+
+* Putting it together
+
+#+begin_src ruby :tangle site_manager
+  class App < Thor
+    desc "servers", "List Servers"
+    def servers
+      pp Hertzer.new.clean_list
+    end
+
+    desc "add_server NAME", "Add a server"
+    def add_server( name )
+      server_record = Hertzer.new.status(name)
+
+      if !server_record.nil?
+        p server_record
+        puts "Already exists"
+        exit 1
+      end
+
+      Hertzer.new.create( name )
+      server = Hertzer.new.status(name)
+      Cloudflare.new.update_ip name, server[:ip]
+      names name
+      bootstrap name
+    end
+
+
+    desc "destroy SERVER", "removes the server and associated names"
+    def destroy_server( server )
+      server = Hertzer.new.status(server)
+
+      if server.nil?
+        puts "#{name} not found"
+        exit 1
+      end
+
+      Cloudflare.new.list_for( server[:ip] ).each do |name|
+        puts "Removing #{name[:id]} (#{name[:name]})"
+        Cloudflare.new.delete_name( name[:name] )
+
+      end
+
+      Hertzer.new.delete( server[:name] )
+      servers
+    end
+
+    desc "add_name SERVER NAME", "Give a server a name"
+    def add_name( server, name )
+      server_record = Hertzer.new.status(server)
+      Cloudflare.new.update_ip name, server_record[:ip]
+      names server
+    end
+
+    desc "delete_name NAME", "Remove a DNS name"
+    def delete_name( name )
+      Cloudflare.new.delete_name( name )
+      Cloudflare.new.list.each do |name|
+        printf "%50s -> %s\n", name[:name], name[:content]
+      end
+    end
+
+    desc "names SERVER", "List names for a given server"
+    def names( server )
+      ip = Hertzer.new.status(server)[:ip]
+      Cloudflare.new.list_for( ip ).each do |name|
+        printf "%50s -> %s\n", name[:name], name[:content]
+      end
+    end
+
+    desc "bootstrap SERVER", "does the initial setup of the server"
+    def bootstrap( server )
+      server = Hertzer.new.status(server)
+
+      if server.nil?
+        puts "No server found"
+      else
+        puts "Server is #{server}"
+      end
+    end
+  end
+
+  App.start(ARGV)
+#+end_src
+
+* References
+
+
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

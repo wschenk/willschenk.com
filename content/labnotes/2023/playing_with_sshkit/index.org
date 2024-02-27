@@ -1,0 +1,170 @@
+#+title: Playing with SSHKit
+#+subtitle: Deployment testing
+#+tags[]: sshkit, ruby
+#+date: 2023-06-07
+#+draft: true
+
+#+begin_src bash
+  bundle init
+  bundle add sshkit dotenv
+#+end_src
+
+Which should yield something like this:
+
+#+begin_src ruby :tangle Gemfile
+source "https://rubygems.org"
+
+gem "sshkit", "~> 1.21"
+gem "dotenv", "~> 2.8"
+#+end_src
+
+Set the =REMOTE_SERVER= in your .env file, in my case:
+
+#+begin_src bash :tangle .env
+REMOTE_SERVER=root@registry.willschenk.com
+#+end_src
+
+* Server connect test
+
+=connect_test.rb=:
+
+#+begin_src ruby :tangle connect_test.rb
+  require 'dotenv/load'
+  require 'sshkit'
+  require 'sshkit/dsl'
+  include SSHKit::DSL
+
+  host = ENV['REMOTE_SERVER']
+
+  on( host ) do
+    puts capture( 'hostname' )
+    puts capture( 'pwd' )
+  end
+
+#+end_src
+
+* Install docker
+
+#+begin_src ruby :tangle docker.rb
+  require 'dotenv/load'
+  require 'sshkit'
+  require 'sshkit/dsl'
+
+  SSHKit.config.output_verbosity = Logger::DEBUG
+
+  class Docker
+    include SSHKit::DSL
+
+    def affirm
+      on( ENV['REMOTE_SERVER'] ) do |host|
+        puts "Affirming docker is installed on #{host}"
+        unless test( "docker -v" )
+          execute( "curl -fsSL https://get.docker.com | sh" )
+        end
+      end
+    end
+  end
+
+  if __FILE__ == $0
+    docker_installed = Docker.new.affirm
+
+    puts "Docker Installed: #{docker_installed}"
+  end
+#+end_src
+
+* Packages
+
+#+begin_src ruby :tangle apt_packages.rb
+  require 'dotenv/load'
+  require 'sshkit'
+  require 'sshkit/dsl'
+
+  #SSHKit.config.output_verbosity = Logger::DEBUG
+
+  class AptPackages
+    include SSHKit::DSL
+
+    def affirm( *package_list )
+      on( ENV['REMOTE_SERVER'] ) do |host|
+        install_list = []
+        package_list.each do |p|
+          puts "Affirming #{p} is installed on #{host}"
+          unless test( "which #{p}" )
+            puts "#{p} not found"
+            install_list << p
+          end
+        end
+
+        if install_list.length > 0
+          execute( "apt-get update" )
+          execute( "apt-get install -y #{install_list.join( " " )}")
+        end
+      end
+    end
+  end
+
+  if __FILE__ == $0
+    AptPackages.new.affirm( "jq", "jo", "zsh", "git" )
+  end
+#+end_src
+
+* Creating a user
+
+#+begin_src ruby :tangle system_account.rb
+  require 'dotenv/load'
+  require 'sshkit'
+  require 'sshkit/dsl'
+
+  #SSHKit.config.output_verbosity = Logger::DEBUG
+
+  class SystemAccount
+    include SSHKit::DSL
+
+    def affirm( user, shell )
+      on( ENV['REMOTE_SERVER'] ) do |host|
+        puts capture( "which #{shell}" )
+      end
+    end
+  end
+
+  if __FILE__ == $0
+    SystemAccount.new.affirm( ENV['USER'], 'bash' )
+    SystemAccount.new.affirm( 'git', 'git-shell' )
+  end
+#+end_src
+
+* Copying files over
+
+#+begin_src ruby :tangle copy_files.rb
+  require 'dotenv/load'
+  require 'sshkit'
+  require 'sshkit/dsl'
+
+  #SSHKit.config.output_verbosity = Logger::DEBUG
+
+  class CopyFiles
+    include SSHKit::DSL
+
+    def affirm( *file_list )
+      on( ENV['REMOTE_SERVER'] ) do |host|
+        file_list.each do |f|
+          upload! f, f
+        end
+      end
+    end
+  end
+
+  if __FILE__ == $0
+    CopyFiles.new.affirm( "caddy-compose.yml", "whoami-compose.yml" )
+  end
+#+end_src
+
+#+begin_src bash
+  docker network create caddy
+  docker compose -f caddy-compose.yml up -d
+  docker compose -f whoami-compose.yml up -d
+#+end_src
+
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
