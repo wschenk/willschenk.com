@@ -4,7 +4,7 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Atkinson Hyperlegible', 'sans-serif'],
+        sans: ['Inter', 'sans-serif'],
         mono: ['Fira Code', 'monospace']
       },
     },
