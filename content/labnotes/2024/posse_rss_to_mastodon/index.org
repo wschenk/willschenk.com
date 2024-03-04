@@ -1,0 +1,398 @@
+#+title: POSSE rss to mastodon
+#+subtitle: keep it local and then share
+#+tags[]: mastodon, ruby, POSSE
+#+date: 2024-03-04T12:09:31
+
+I want to post more to the blog, and I want to share it out a bit
+more.  There's an indeiweb concept called [[https://indieweb.org/POSSE][POSSE]], which means Publish
+on your Own Site, Syndicate Elsewhere.  So lets write a script that
+pulls down my feed, looks as what I've posted so far on Mastodon, and
+prompts me to share something.
+
+* Setup
+
+Lets start our =publish.rb= script with some boilerplate fun, including
+some inline gems so we don't need to cart a =Gemfile= around all the
+time.
+
+#+begin_src ruby :tangle publish.rb
+  require 'bundler/inline'
+  require 'net/http'
+
+  # Required gems
+  gemfile do
+    source 'https://rubygems.org'
+    gem "yaml", "~> 0.3.0"
+    gem "feedjira", "~> 3.2"
+    gem "tty-prompt", "~> 0.23.1"
+    gem "thor"
+  end
+
+  def config
+    config_file = 'config.yml'
+
+    begin
+      return YAML.safe_load(File.read(config_file), symbolize_names: true)
+    rescue StandardError => e
+      puts "Error loading configuration: #{e.message}"
+      exit 1
+    end
+  end
+
+  def download(url)
+    uri = URI( url )
+
+    response = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true) do |http|
+      req = Net::HTTP::Get.new(uri)
+      
+      http.request(req)
+    end
+
+    response
+  end
+
+#+end_src
+
+* Getting a list of things my account has linked to
+
+Here we can pull down our public RSS feed of our mastodon account,
+which is an easy way to see what the latest posts are.  We won't worry
+too much about going back in time.
+
+#+begin_src ruby :tangle publish.rb
+  def mastodon_posts( account )
+    uri = URI("#{account}.rss")
+
+    response = download(uri)
+
+    feed = Feedjira.parse(response.body)
+  end
+
+  def print_feed( feed )
+    feed.entries.each do |entry|
+      # Print the entry title and URL
+      puts "Title: #{entry.title}"
+      puts "URL: #{entry.url}"
+      puts "Date: #{entry.published}"
+      p entry
+      exit
+      puts entry.summary
+      puts "-------------------------"
+    end
+  end
+#+end_src
+
+Test it.  (Down at the bottom I list out all the commands.)
+
+#+begin_src bash :results output
+  ruby publish.rb toots | head -10
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Title: 
+URL: https://floss.social/@wschenk/112000626406541728
+Date: 2024-02-27 00:32:13 UTC
+<p>&quot;Solar flares contain a colossal amount of energy—enough, in a ...
+-------------------------
+Title: 
+URL: https://floss.social/@wschenk/111654845759601896
+Date: 2023-12-27 22:55:39 UTC
+<p>Finally getting an official API after however many years <a href="ht...
+-------------------------
+#+end_example
+
+* Pulling out links
+
+We can use the =URI.extract= method to go through a string and find all of the
+URLs, like this:
+
+#+begin_src ruby :results output
+  require 'uri'
+
+  string = "https://willschenk.com/about is nifty\
+         , and so is <a href='https://google.com'>"
+
+  URI.extract(string) do |uri|
+    puts uri
+  end
+#+end_src
+
+#+RESULTS:
+: https://willschenk.com/about
+: https://google.com
+
+Lets add that to our =publish.rb= script:
+
+#+begin_src ruby :tangle publish.rb
+  def links_from_feed(feed)
+    links = []
+    feed.entries.each do |entry|
+      URI.extract( entry.summary ) do |uri|
+        links << uri
+      end
+    end
+
+    links.sort.uniq
+  end
+#+end_src
+
+And we can run it
+
+#+begin_src bash :results output
+  ruby publish.rb links_of_toots | cut -c -80
+#+end_src
+
+#+RESULTS:
+#+begin_example
+["https://",
+ "https://blog.tezlabapp.com/2023/12/27/teslas-api-from-old-to-new-with-improved
+ "https://floss.social/tags/StrangeLoop",
+ "https://floss.social/tags/ai",
+ "https://floss.social/tags/bash",
+ "https://floss.social/tags/cli",
+ "https://floss.social/tags/covid",
+ "https://floss.social/tags/gaza",
+ "https://floss.social/tags/genocide",
+ "https://floss.social/tags/rivian",
+ "https://floss.social/tags/ruby",
+ "https://floss.social/tags/strangeloop",
+ "https://floss.social/tags/tesla",
+ "https://floss.social/tags/tezlab",
+ "https://floss.social/tags/thor",
+ "https://floss.social/tags/turingpost",
+ "https://github.com/wschenk/thorsh",
+ "https://tezlab.app/9366b15fdf5cbd8068b251e679fde1fb-ea2f9f",
+ "https://toot.thoughtworks.com/@cford",
+ "https://willschenk.com/fragments/2023/should_robots_have_rites_or_rights/",
+ "https://willschenk.com/fragments/2024/why_are_ll_ms_so_small/",
+ "https://willschenk.com/labnotes/2023/erb_static_site_builder/",
+ "https://www.",
+ "https://www.newyorker.com/magazine/2024/03/04/what-a-major-solar-storm-could-d
+ "https://www.nplusonemag.com/online-only/online-only/gimlet-on-the-rocks/",
+ "https://www.turingpost.com/p/evonfire"]
+#+end_example
+
+* Getting a list of blog posts
+
+We've already seen how to pull down an RSS feed, lets do that for the
+blog itself.
+
+#+begin_src ruby :tangle publish.rb
+  def blog_feed( feed )
+    uri = URI(feed)
+    
+    response = download(uri)
+    
+    feed = Feedjira.parse(response.body)
+  end
+
+  def blog_posts( feed )
+    blog_entries(feed).entries
+  end
+
+#+end_src
+
+#+begin_src bash :results output
+  ruby publish.rb feed_urls | head -10
+#+end_src
+
+#+RESULTS:
+#+begin_example
+https://willschenk.com/fragments/2024/why_are_ll_ms_so_small/
+https://willschenk.com/fragments/2024/5_year_old_hacking_chatgpt/
+https://willschenk.com/labnotes/2024/ai_in_emacs/
+https://willschenk.com/fragments/2024/fifteen_or_twenty_thousand_years/
+https://willschenk.com/labnotes/2024/running_google_gemma_locally/
+https://willschenk.com/fragments/2023/political_implications/
+https://willschenk.com/labnotes/2023/sinatra_with_activerecord/
+https://willschenk.com/fragments/2023/a_good_death/
+https://willschenk.com/fragments/2023/locations_in_the_magicians/
+https://willschenk.com/fragments/2023/everything_is_equally_evolved/
+#+end_example
+
+* Identify web posts that haven't been shared
+Ruby has some fun set operations on arrays!  Let's use the =&= one!
+
+#+begin_src ruby :tangle publish.rb
+
+  def toot_links
+    feed = mastodon_posts( "#{config[:server]}/@#{config[:user]}" )
+    links_from_feed feed
+  end
+
+  def feed_links
+    feed = blog_feed( config[:feed] )
+    feed.entries.collect{ |entry| entry.url }
+  end
+
+  def show_diffs
+    puts "Getting toot_links"
+    tl = toot_links
+
+    puts "Getting feed_links"
+    fl = feed_links
+
+    puts "Shared links"
+    (tl & fl).each do |l|
+      puts l
+    end
+    puts
+
+  end
+
+#+end_src
+
+#+begin_src bash :results output
+  ruby publish.rb diffs
+#+end_src
+
+#+RESULTS:
+: Getting toot_links
+: Getting feed_links
+: Shared links
+: https://willschenk.com/fragments/2023/should_robots_have_rites_or_rights/
+: https://willschenk.com/fragments/2024/why_are_ll_ms_so_small/
+: https://willschenk.com/labnotes/2023/erb_static_site_builder/
+: 
+* Posting to mastodon
+
+My server is [[https://floss.social][floss.social]], so lets go on over to
+[[https://floss.social/settings/applications]] and make a new app.  I'm
+putting my website as the url, and giving myself =read= and =write=
+permissions.
+
+Then go into the application settings itself, and pull out the =access
+token=.  Create the =config.yml= file, which should look something like
+this:
+
+#+begin_src yaml
+  ---
+  server: https://floss.social
+  user: wschenk
+  feed: https://willschenk.com/feed.xml
+  token: R2z0KQFVzT6u7T18ksKUA5Bp....
+#+end_src
+
+#+begin_src ruby :tangle publish.rb
+  def post_to_mastodon(server, token, message)
+    uri = URI("#{server}/api/v1/statuses")
+    req = Net::HTTP::Post.new(uri)
+    req["Authorization"] = "Bearer #{token}"
+    req.set_form_data("status" => message)
+
+    response = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true) do |http|
+      http.request(req)
+    end
+
+    if response.is_a?(Net::HTTPSuccess)
+      puts "Successfully posted message to Mastodon."
+    else
+      puts "Error posting to Mastodon: #{response.message}"
+    end
+  end
+
+#+end_src
+
+Which we can test with
+
+#+begin_src bash :results output
+  ruby publish.rb toot "This is my message, hello there"
+#+end_src
+
+#+RESULTS:
+: Successfully posted message to Mastodon.
+
+* Putting it all together
+
+1. First we get a list of feed entries that haven't been shared
+2. Optionally randomize the list
+3. Then we ask if i want to post it
+4. Prompt the toot text
+5. Post it to mastodon
+
+Lets go!
+
+#+begin_src ruby :tangle publish.rb
+  def syndicate( random = false )
+    tl = toot_links
+    feed = blog_feed( config[:feed] )
+
+    feed.entries.shuffle! if random
+
+    prompt = TTY::Prompt.new
+
+    feed.entries.each do |entry|
+      link = entry.url
+      if tl.index link
+        puts "#{link} already posted"
+      else
+        puts "#{link} not posted"
+        fmt = "%10s %s\n"
+        printf fmt, "Title", entry.title
+        printf fmt, "Date", entry.published
+
+        if prompt.yes?( "Post?" )
+          summary = prompt.ask("Post text:")
+
+          if prompt.yes?( "Confirm post?" )
+            message = "#{summary} #{link}"
+            puts "Posting #{message}"
+            post_to_mastodon( config[:server], config[:token], message )
+          end
+        end
+      end
+    end
+  end
+                    
+#+end_src
+
+* CLI
+Here's the script harness to run all of this stuff.
+
+#+begin_src ruby :tangle publish.rb
+  class MyCLI < Thor
+    desc "took MESSAGE", "post a message"
+    def toot message
+      post_to_mastodon( config[:server], config[:token], message )
+    end
+
+    desc "toots", "show a users toots"
+    def toots
+      feed = mastodon_posts( "#{config[:server]}/@#{config[:user]}" )
+      print_feed feed
+    end
+
+    desc "links_of_toots", "show a list of things that the user linked to"
+    def links_of_toots
+      feed = mastodon_posts( "#{config[:server]}/@#{config[:user]}" )
+      require 'pp'
+      pp links_from_feed( feed )
+    end
+
+    desc "feed_urls", "show a list of posts"
+    def feed_urls
+      feed = blog_feed( config[:feed] )
+      feed.entries.each do |entry|
+        puts entry.url
+      end
+    end
+
+    desc "diffs", "show the difference in links"
+    def diffs
+      show_diffs
+    end
+
+    desc "sync", "put it together"
+    option :random, type: :boolean, default: false
+    def sync
+      syndicate( options[:random] )
+    end
+  end
+
+  MyCLI.start(ARGV)
+#+end_src
+
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
