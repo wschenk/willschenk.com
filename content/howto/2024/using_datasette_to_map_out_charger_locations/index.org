@@ -1,0 +1,257 @@
+#+title: Using Datasette to map out charger locations
+#+subtitle: makes it easy to share
+#+tags[]: datasette, sqlite, flyio
+#+date: 2024-03-05T11:33:38
+
+Datasette is a way to look through a sqlite3 database, and with
+sqlite-utils we can easily put a CSV into a database.  This makes it
+easier, or at least easier, to see what there.  Additionally, we can
+deploy the dataset on the web and make it accessable via JSON so we
+can quickly prototype or build something.
+
+I watched the tutorial video on [[https://datasette.io/][datasette homepage]] and got super
+excited.
+
+Lets go through a real world dataset to see how it works.
+
+* Get some data
+
+To go [[https://afdc.energy.gov/fuels/electricity_locations.html#/analyze][afdc.energy.gov]] and download the csv of alt fuel stations.  I'm
+saving it as =alt_fuel_stations.csv=.  We are going to explore what sort
+of public changers are out there for electric vehicles.
+
+* Install =datasette= and =sqlite-utils=
+
+The tools are both in homebrew, and man does it take a long long while
+to install!
+
+#+begin_src bash
+  brew install datasette sqlite-utils
+#+end_src
+
+Once that's up we can test it with
+
+#+begin_src bash :results output
+  datasette --version
+  sqlite-utils --version
+#+end_src
+
+#+RESULTS:
+: datasette, version 0.64.6
+: sqlite-utils, version 3.36
+
+Lets install the =datasette-cluster-map= plug in so we can see where
+these chargers actually are.
+
+#+begin_src bash :results output
+  datasette install datasette-cluster-map \
+            --app stations \
+            --install datasette-cluster-map
+#+end_src
+
+
+* Import the csv file
+
+With the file that we downloaded above, lets smash it into a sqlite
+database.
+
+#+begin_src bash :results output
+  sqlite-utils insert stations.db stations alt_fuel_stations.csv --csv
+#+end_src
+
+And check to see if it's been created.
+#+begin_src bash :results output
+  ls -l stations.db *csv
+#+end_src
+
+#+RESULTS:
+: -rw-r--r--@ 1 wschenk  staff  27355616 Mar  5 11:34 alt_fuel_stations.csv
+: -rw-r--r--  1 wschenk  staff  29429760 Mar  5 16:20 stations.db
+
+* Start =datasette=
+
+#+begin_src bash :results output
+  datasette serve stations.db
+#+end_src
+
+Click through to =stations= and start looking around.  If we look at =EV
+Connector Types= as a facet, we can see what sort of weird values are
+in there!
+
+
+{{< img img="screenshot.png" fit="500x500 smart">}}
+
+Looks like the connector types are in some weird format. Lets put it
+in to the CLI.
+
+#+begin_src bash :results output
+  sqlite-utils query stations.db \
+               "select distinct [EV Connector Types] from stations" \
+               --csv
+#+end_src
+
+#+RESULTS:
+#+begin_example
+EV Connector Types
+""
+J1772
+J1772 NEMA520
+J1772 NEMA515
+J1772 TESLA
+CHADEMO J1772 J1772COMBO
+CHADEMO J1772
+CHADEMO J1772 NEMA515
+J1772 J1772COMBO
+CHADEMO
+J1772 NEMA1450
+CHADEMO J1772COMBO
+NEMA520 TESLA
+TESLA
+J1772COMBO
+CHADEMO J1772 J1772COMBO TESLA
+J1772 NEMA1450 TESLA
+CHADEMO J1772 NEMA520
+J1772COMBO TESLA
+CHADEMO J1772COMBO TESLA
+CHADEMO J1772 J1772COMBO NEMA515
+#+end_example
+
+Lets figure
+out which columns we need to add.  This is SQL plus bash to get out
+the individual fields.  In the database itself 
+
+#+begin_src bash :results output
+  sqlite-utils query stations.db \
+               "select distinct [EV Connector Types] from stations" \
+               --csv --no-headers | \
+      sed 's/ /\n/g' | sed 's/[^0-9A-Za-z]//g' | \
+      sort | uniq | tee charger_columns
+  #+end_src
+
+#+RESULTS:
+: 
+: CHADEMO
+: J1772
+: J1772COMBO
+: NEMA1450
+: NEMA515
+: NEMA520
+: TESLA
+
+Lets extract those into their own columns
+
+#+begin_src bash :results output
+  for i in $(cat charger_columns);
+  do
+      echo Adding $i
+      sqlite-utils add-column stations.db stations  $i int
+  done
+#+end_src
+
+#+RESULTS:
+: Adding CHADEMO
+: Adding J1772
+: Adding J1772COMBO
+: Adding NEMA1450
+: Adding NEMA515
+: Adding NEMA520
+: Adding TESLA
+
+Now we can populate it
+
+#+begin_src ruby :results output :tangle convert.rb
+  require 'bundler/inline'
+
+  gemfile do
+    source 'https://rubygems.org'
+    gem 'sqlite3'
+  end
+
+  db = SQLite3::Database.open 'stations.db'
+
+  # Journal mode for database, WAL=write-ahead log
+  db.execute 'PRAGMA main.journal_mode=WAL;'
+  # Storage location for temporary tables, indices, views, triggers
+  db.execute 'PRAGMA main.temp_store = MEMORY;'
+  
+  i = 0
+  results = db.query( "select id, [EV Connector Types] from stations where [EV Connector Types] != ''" )
+  db.execute('BEGIN TRANSACTION')
+
+  results.each do |r|
+    r[1].split( " " ).each do |type|
+      db.execute( "update stations set #{type} = 1 where id = #{r[0]}" )
+    end
+
+    i = i + 1
+    if i % 1000 == 0
+      puts "#{i} rows processed"
+      db.execute('END TRANSACTION')
+      db.execute('BEGIN TRANSACTION')
+
+    end
+  end
+  db.execute('END TRANSACTION')
+#+end_src
+
+#+RESULTS:
+: 1000 rows processed
+: 2000 rows processed
+: 3000 rows processed
+: 4000 rows processed
+: 5000 rows processed
+: 6000 rows processed
+: 7000 rows processed
+
+This takes a bit of time...
+
+* Speeding things up
+
+We can pull out tables and add foriegn keys if you want to look at
+those directly
+
+#+begin_src bash :results output
+  sqlite-utils extract stations.db stations "Fuel Type Code" --table fuel_type_code
+  sqlite-utils extract stations.db stations "EV Network" --table ev_network
+#+end_src
+
+It's also possible to quickly add indexes
+
+#+begin_src bash :results output
+  sqlite-utils create-index stations.db stations State
+  sqlite-utils create-index stations.db stations  'Facility Type'
+#+end_src
+
+* Publish to =fly.io=
+
+This is fun to have locally, but it's interesting to share this with
+the team.  We can use the [[https://datasette.io/plugins/datasette-publish-fly][datasette-publish-fly]] plugin to make this
+easier.
+
+#+begin_src bash :results output
+  pip install datasette-publish-fly
+#+end_src
+
+I've already have flyctl on my computer and am authenticated, so this
+is the one liner to publish it:
+
+#+begin_src bash :results output
+  datasette publish fly stations.db \
+            --app="stations" \
+            --install=datasette-cluster-map 
+#+end_src
+
+It will create the app, build it, embed the sqlite file in the Docker
+container, and put it on the internet!
+
+* References
+
+1. https://docs.datasette.io/en/stable/installation.html
+1. https://datasette.io/plugins/datasette-cluster-map
+1. https://datasette.io/plugins/datasette-publish-fly
+1. https://afdc.energy.gov/fuels/electricity_locations.html#/analyze?fuel=ELEC
+1. https://simonwillison.net/2021/Feb/7/video/
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

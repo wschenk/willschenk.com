@@ -1,0 +1,193 @@
+#+title: Programming with ollama
+#+subtitle: can we upload private documents
+#+date: 2024-02-29T15:58:01
+#+draft: true
+
+
+* Test out the ollama install
+
+#+begin_src bash
+  ollama list
+#+end_src
+
+| NAME          | ID           | SIZE   | MODIFIED     |
+| gemma:7b      | 430ed3535049 | 5.2 GB | 42 hours ago |
+| llava:latest  | 8dd30f6b0cb1 | 4.7 GB | 15 hours ago |
+| mistral:7b    | 61e88e884507 | 4.1 GB | 37 hours ago |
+| zephyr:latest | bbe38b81adec | 4.1 GB | 37 hours ago |
+
+Start it up
+
+#+begin_src bash
+  ollama server
+#+end_src
+
+And then we can test with =curl= to make sure that it's running.
+
+#+begin_src bash :results output
+curl http://localhost:11434/api/generate -d '{
+  "model": "gemma:7b",
+  "prompt":"Why is the sky blue?"
+}'
+#+end_src
+
+* Write some test ruby code
+#+begin_src bash
+  bundle init
+  bundle add ollama-ai
+#+end_src
+
+#+begin_src ruby :tangle test.rb :results output
+  require 'ollama-ai'
+
+  client = Ollama.new(
+    credentials: { address: 'http://localhost:11434' },
+    options: { server_sent_events: true }
+  )
+
+  result = client.generate(
+    { model: 'gemma:7b',
+      prompt: 'Hi!' }
+  ) do |event, raw|
+    print event['response']
+    $stdout.flush
+  end
+  puts
+#+end_src
+
+#+RESULTS:
+: Hi! 👋
+: 
+: It's nice to hear from you. What would you like to talk about today?
+
+* Chat test
+
+#+begin_src ruby :tangle chat.rb :results output
+  require 'ollama-ai'
+
+  def get_response( message, context = nil )
+    client = Ollama.new(
+      credentials: { address: 'http://localhost:11434' },
+      options: { server_sent_events: true }
+    )
+    
+    result = client.generate(
+      { model: 'zephyr', #gemma:7b',
+        context: context,
+        prompt: message }
+    ) do |event, raw|
+      print event['response']
+      $stdout.flush
+      context = event['context']
+    end
+    puts
+
+    context
+  end
+
+  context = nil
+  message = ""
+  while message != "bye"
+    print ">>> "
+    $stdout.flush
+    message = gets.chomp
+
+    context = get_response( message, context )
+  end
+#+end_src
+
+* Describe an image
+
+#+begin_src ruby :tangle image.rb :results output
+  require 'ollama-ai'
+  require 'base64'
+
+  client = Ollama.new(
+    credentials: { address: 'http://localhost:11434' },
+    options: {
+      server_sent_events: true,
+      connection: { request: { timeout: 120, read_timeout: 120 } } }
+  )
+
+  client.generate(
+    { model: 'llava',
+      prompt: 'Please describe this image.',
+      images: [Base64.strict_encode64(File.read('newspapers.jpg'))] }
+  ) do |event, raw|
+    print event['response']
+  end
+
+  puts
+#+end_src
+
+#+RESULTS:
+: The image shows a counter with several newspapers spread
+: out on it. There are three stacks of newspapers, with the largest
+: stack in the middle, containing multiple copies of what appears to
+: be the same publication. Each newspaper is open, displaying its
+: contents. In the background, there's a coffee cup and what seems to
+: be a small table or shelf. The counter is likely located inside a
+: café or newsstand given the presence of the newspapers and coffee
+: setup. There's no visible text in the image that provides additional
+: context or information about the location or event.
+
+* Testing out the responses from multiple LLMs
+
+I just discovered [[https://arxiv.org/abs/2201.11903][Chain of Thought Prompting]], so lets see how it works
+on each of the models that we have installed.
+
+#+begin_src ruby :tangle summarize.rb :results output
+  require 'ollama-ai'
+
+  def get_response( model,  message )
+    client = Ollama.new(
+      credentials: { address: 'http://localhost:11434' },
+      options: { server_sent_events: true }
+    )
+
+    response = ""
+    
+    result = client.generate(
+      { model: model,
+        prompt: message }
+    ) do |event, raw|
+      response << event['response']
+      print event['response']
+      $stdout.flush
+      context = event['context']
+    end
+    puts
+
+    response
+  end
+
+  client = Ollama.new(
+    credentials: { address: 'http://localhost:11434' },
+    options: {
+      server_sent_events: true,
+      connection: { request: { timeout: 120, read_timeout: 120 } } }
+  )
+
+  models = client.tags.first['models'].collect { |x| x['name'] }
+
+  models.each do |model|
+    puts "Running #{model}"
+    get_response( model, "peter has 5 apples, and he gives 2 apples to susan.  \
+                          now susan has 2 apples and peter has 3.  If john had \
+                          7 apples and gives 3 to mary, how many apples does \
+                            john have left?" )
+    puts
+  end
+
+#+end_src
+
+There are a lot of responses, but yep it works.
+
+* Summarizing text
+
+
+
+* References
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
