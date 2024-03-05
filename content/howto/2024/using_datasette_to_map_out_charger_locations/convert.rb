@@ -7,26 +7,18 @@ end
 
 db = SQLite3::Database.open 'stations.db'
 
-# Journal mode for database, WAL=write-ahead log
-db.execute 'PRAGMA main.journal_mode=WAL;'
-# Storage location for temporary tables, indices, views, triggers
-db.execute 'PRAGMA main.temp_store = MEMORY;'
-
 i = 0
-results = db.query( "select id, [EV Connector Types] from stations where [EV Connector Types] != ''" )
-db.execute('BEGIN TRANSACTION')
+results = db.query( "select distinct [EV Connector Types]
+        from stations where [EV Connector Types] != ''" )
 
 results.each do |r|
-  r[1].split( " " ).each do |type|
-    db.execute( "update stations set #{type} = 1 where id = #{r[0]}" )
-  end
-
+  fields = r[0].split(' ' ).collect { |x| "#{x} = 1 "}.join(" and ")
+  cmd =  "update stations set #{fields} where [EV Connector Types] = '#{r[0]}'"
+  puts cmd
+  db.execute cmd
+  
   i = i + 1
   if i % 1000 == 0
     puts "#{i} rows processed"
-    db.execute('END TRANSACTION')
-    db.execute('BEGIN TRANSACTION')
-
   end
 end
-db.execute('END TRANSACTION')
