@@ -1,0 +1,370 @@
+#+title: Making a web component by scratch
+#+subtitle: progressive enhancement
+#+tags[]: javascript, static_sites, browser
+#+date: 2024-03-13T19:11:00
+
+* No tools, progressive enhancement
+
+Web Components are built into all browsers, and are a way to
+encapulate functionality without using a specialized web frame work.
+They also fail gracefully when javascript is disabled or otherwise not
+running.
+
+We can sprinkle on functionality as things get faster and work better.
+Here's what my test page looks like without any of the javascript
+loaded.
+
+{{< img img="nojs.png" fit="500x500 smart">}}
+
+Here are some simple examples of how to make that work.
+
+* Watching Media
+
+Here's an element that switches styles based upon the size of the
+screen, in this case =min-width: 768px=.
+
+The html for this looks like
+
+#+begin_src html
+  <media-watcher
+    match="background: pink"
+    unmatch="background: lightblue">
+    This is the matcher
+  </media-watcher>
+#+end_src
+
+This is what it looks like when the screen is big:
+
+{{< img img="media_big.png" fit="500x500 smart">}}
+
+And small:
+
+{{< img img="media_small.png" fit="500x500 smart">}}
+
+#+begin_src javascript :tangle media-watcher.js
+  class MediaWatcher extends HTMLElement {
+      constructor() {
+          super();
+
+          this.match = this.getAttribute( "match" );
+          this.unmatch = this.getAttribute( "unmatch" );
+      }
+      
+      connectedCallback() {
+          this.min_width = window.matchMedia("(min-width: 768px)");
+          this.min_width.addEventListener( "change",
+                                           () => this.setStyle( this.min_width ) );
+          this.setStyle( this.min_width );
+      }
+
+      setStyle(matcher) {
+          this.style.cssText = matcher.matches ? this.match : this.unmatch;
+      }
+  }
+
+  customElements.define( 'media-watcher', MediaWatcher )
+#+end_src
+
+* Adding a tooltip to an image
+
+This was inspired from [[https://blog.jim-nielsen.com/2023/html-web-components-an-example/][HTML Web Components an example]], which goes
+through the reasoning behind it.  What we have here is just a way to
+wrap the html tags that you know and love but be able to add
+functionality around it.  I also added styles, but that's not
+necessary.
+
+#+begin_src html
+  <avatar-image>
+    <img
+      style="width: 8rem;"
+      src="https://willschenk.com/about/avatar.jpg"
+      alt="this is an old photo">
+  </avatar-image>
+#+end_src
+
+Non-hover:
+{{< img img="avatar.png" fit="500x500 smart">}}
+
+With hover:
+
+{{< img img="avatar_tip.png" fit="500x500 smart">}}
+
+We are also adding additional HTML to the dom here using
+=insertAdjacentHTML=.
+
+#+begin_src javascript :tangle avatar-image.js
+  class AvatarImage extends HTMLElement {
+      connectedCallback() {
+          let image = this.querySelector('img')
+
+          image.style.cssText = `
+      width: 8rem;
+      height: 8rem;
+      box-shadow: 0 20px 25px -5px rgba(0,0,0,.1), 0 10px 10px -5px rgba(0,0,0,.04);
+      border-width: 2px;
+      border-radius: 9999px;
+      --border-opacity: 1;
+      border-color: #edf2f7;
+      border-color: rgba(237, 242, 247, var(--border-opacity));
+      max-width: 100%;
+      display: block;
+      vertical-align: middle;
+      border-style: solid;
+  `;
+
+          this.insertAdjacentHTML('beforeend', `
+  <div style="width: auto;
+    display: none;
+    max-width: 20%;
+    height: auto;
+    min-height: 25px;
+    line-height: 25px;
+    font-size: 1rem;
+    background-color: rgba(0, 0, 0, 0.7);
+    color: #ffffff;
+    border-radius: 5px;
+    margin-top: 10px;
+    padding: 10px 15px;">${image.getAttribute('alt')}</div>
+  `)
+
+          let div = this.querySelector("div")
+
+          image.addEventListener( "mouseenter", () => div.style.display = 'block' )
+          image.addEventListener( "mouseout", () => div.style.display = 'none' )
+
+      }
+  }
+
+  customElements.define( 'avatar-image', AvatarImage )
+#+end_src
+
+* Floating Header
+
+I wanted to try and recreate the header from [[https://minimalism.com/][minimalism.com]] using the
+simpliest HTML markup I could.  There's plenty of tweaks to be done
+with the styling but I thought would be an interesting example.
+
+Here's the markup:
+
+#+begin_src html
+  <floating-header>
+    <a href="/">Name</a>
+    <a href="/menu">Menu</a>
+    <a href="/search">Search</a>
+  </floating-header>
+#+end_src
+
+And it gives us:
+
+Wide screen:
+{{< img img="floating-header-big.png" fit="500x500 smart">}}
+
+Smaller screen:
+{{< img img="floating-header-small.png" fit="500x500 smart">}}
+
+#+begin_src javascript :tangle floating-header.js
+  class FloatingHeader extends HTMLElement {
+  	connectedCallback () {
+          // Create a MediaQueryList object
+          const min_width = window.matchMedia("(min-width: 768px)")
+          
+          // Call listener function at run time
+          this.setStyle(min_width);
+
+          min_width.addEventListener("change", () => this.setStyle(min_width) )
+      }
+
+      setStyle(matcher) {
+          let style = `
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  --un-bg-opacity: 1;
+  background-color: rgb(255 255 255 / var(--un-bg-opacity));
+  margin-left: auto;
+  margin-right: auto;
+  display: grid;
+  top: 0;
+  right: 0;
+  left: 0;
+  `
+          // @media (min-width: 768px) {
+          if( matcher.matches ) {
+              style += `
+  padding-left: 1rem;
+  padding-right: 1rem;
+  border-width: 1px;
+  max-width: 1024px;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  grid-auto-flow: column;
+  position: fixed;
+  border-style: solid;
+  border-radius: 0.75rem;
+  --un-border-opacity: 1;
+  border-color: rgb(226 232 240 / var(--un-border-opacity));
+  `
+          }
+
+          this.style.cssText = style;
+
+          // Set the alignment of the children
+          for (let i = 0; i < this.children.length; i++) {
+              let align = 'start';
+              if( matcher.matches ) {
+                  
+                  if( i == 0 ) {
+                      align = 'start';
+                  } else if ( i == this.children.length - 1 ) {
+                      align = 'end';
+                  } else {
+                      align = 'center';
+                  }
+              }
+              this.children[i].style['justify-self'] = align;
+          }
+  	}
+  }
+
+  customElements.define('floating-header', FloatingHeader );
+#+end_src
+
+* Making a map
+
+First we install =leaflet=:
+
+#+begin_src bash
+  npm i leaflet
+#+end_src
+
+#+begin_src html
+  <map-component id="my_map" lat="51.505" lon="-0.09"></map-component>
+#+end_src
+
+This is more of a proof of concept, but you can encapsulate some
+functionality in a way that's easy to contain.
+
+#+begin_src javascript :tangle map.js
+  import 'leaflet/dist/leaflet.css';
+  import L from 'leaflet';
+
+  class MapComponent extends HTMLElement {
+      connectedCallback() {
+
+          this.insertAdjacentHTML( "beforeend", "<div id='map'></div>" );
+
+          let mapdiv = this.querySelector( "#map" );
+          mapdiv.style.cssText = `
+  height: 400px;
+  width: 600%;
+  z-index:0;
+  max-width: 100%;
+  max-height: 100%;
+  `
+          
+          let lat = this.getAttribute( "lat" )
+          let lon = this.getAttribute( "lon" )
+
+          console.log( "lat", lat );
+          console.log( "lon", lon );
+
+          let map = L.map('map').setView([lat, lon], 13);
+
+          L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+              maxZoom: 19,
+              attribution: '&copy; OpenStreetMap'
+          }).addTo(map);
+      }
+  }
+
+  customElements.define( 'map-component', MapComponent )
+#+end_src
+
+* Boiler plate
+
+Here is some html that shows how to use it all, and the one liner to
+get this static site up and running.
+
+#+begin_src html :tangle index.html
+    <html>
+    <head>
+      <title>Hello</title>
+      <script src="media-watcher.js" type="module"></script>
+      <script src="floating-header.js" type="module"></script>
+      <script src="avatar-image.js" type="module"></script>
+      <script src="map.js" type="module"></script>
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <style>
+        floating-header a {
+          color: black;
+          text-transform: uppercase;
+          font-size: 0.75rem;
+          line-height: 1rem;
+          text-decoration: none;
+        }
+        .leaflet-container {
+    		height: 400px;
+    		width: 600px;
+    		max-width: 100%;
+    		max-height: 100%;
+    	  }
+        </style>
+    </head>
+    <body>
+      <media-watcher match="padding-top: 3rem;display: block;"></media-watcher>
+      <floating-header>
+        <a style="font-weight: bold" href="/">Name</a>
+        <a href="/menu">Menu</a>
+        <a href="/search">Search</a>
+      </floating-header>
+
+      <p>
+        <media-watcher
+          match="background: pink"
+          unmatch="background: lightblue">
+          This is the matcher
+        </media-watcher>
+      </p>
+
+      <h1>Main title</h1>
+      <p>Paragraph of text</p>
+
+      <div>
+        <avatar-image>
+          <img
+            style="width: 8rem;"
+            src="https://willschenk.com/about/avatar.jpg"
+            alt="this is an old photo">
+        </avatar-image>
+      </div>
+
+      <div style="height: 300px; width: 100%; z-index: 0">
+        <map-component lat="51.505" lon="-0.09"></map-component>
+      </div>
+    </body>
+  </html>
+#+end_src
+
+Now we can start it up, and see how the page loads.
+
+#+begin_src bash
+  npx vite
+#+end_src
+
+And, of course if you want to publish it all:
+
+#+begin_src bash
+  npx vite deploy
+#+end_src
+
+* References
+
+1. https://adactio.com/journal/20618
+1. https://meyerweb.com/eric/thoughts/2023/11/01/blinded-by-the-light-dom/
+1. https://blog.jim-nielsen.com/2023/html-web-components-an-example/
+1. https://www.w3schools.com/howto/howto_js_media_queries.asp
+1. https://stackoverflow.com/questions/3968593/how-can-i-set-multiple-css-styles-in-javascript
+1. https://webcomponents.guide/learn/components/
+      
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
