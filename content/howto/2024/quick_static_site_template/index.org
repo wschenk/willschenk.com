@@ -1,0 +1,141 @@
+#+title: Quick static site template
+#+subtitle: Rapid and disposable prototyping
+#+tags[]: transient, buildless, vite
+#+date: 2024-03-14T10:26:39
+
+I've been trying to figure out minimal ways to try out ideas.
+Basically an easy way to throw up some code on the browser to test out
+what is possible without going through a whole thing.  Right now I'm
+settling on [[https://vitejs.dev/][vite]] and [[https://unocss.dev/][unocss]], which just lets you start going with one
+HTML file and slowly be able to put stuff on it.
+
+This lets me add =npm= packages, see if I can get something working or
+not, and leave it at that.  I'll record my notes somewhere, but the
+code and the =node_modules= thankfully disappear into the aether
+afterwards.
+
+* Plan
+This is script I use to boilerplate things:
+
+1. Create a new temp directory
+2. Install vite and unocss
+3. Setup the =dev= and =build= actions
+4. Setup =unocss.config.js= so I can play with fonts
+5. Mock out a simple HTML file
+
+* Code
+
+#+begin_src bash :tangle new_site.sh
+  #!/bin/bash
+
+  cd $(mktemp -d)
+  echo We are now working in $(pwd)
+
+  echo Installing vite and unocss
+  npm i vite unocss
+
+  echo Setting up .gitignore
+  echo node_modules/ >> .gitignore
+
+  echo Adding scripts to package.json
+  mv package.json _package.json
+  cat > scripts.json <<SCRIPTEOF
+  {
+    "scripts": {
+      "dev": "unocss \"**/*.html\" -o main.css --watch & vite",
+      "build": "unocss \"**/*.html\" -o main.css && vite build"
+    }
+  }
+  SCRIPTEOF
+  jq '. + input' scripts.json _package.json > package.json
+  rm scripts.json _package.json
+
+  echo unocss.config
+  cat > unocss.config.js <<UNOEOF
+  // uno.config.ts
+  import {
+      defineConfig,
+      presetAttributify,
+      presetTypography,
+      presetUno
+  } from 'unocss'
+
+  import presetWebFonts from '@unocss/preset-web-fonts';
+
+  const fonts = presetWebFonts({
+      provider: 'google', // default provider
+      fonts: {
+          header: [ {
+              name: "Montserrat",
+              weights: ['400', '700']
+          } ],
+          sans: [ { name: 'Inter' } ]
+      }
+  })
+
+  export default defineConfig({
+    presets: [
+        presetAttributify(), // required when using attributify mode
+        presetUno(), // required
+        presetTypography(),
+        fonts,
+    ],
+  })
+  UNOEOF
+
+  echo main.js
+  cat > main.js <<MAINEOF
+  import '@unocss/reset/tailwind.css';
+  import './main.css';
+  MAINEOF
+
+  echo index.html
+  cat > index.html <<INDEXEOF
+  <html>
+    <head>
+      <title>Hello</title>
+      <script src="main.js" type="module"></script>
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+    </head>
+    <body >
+      <div max-w-prose mx-auto prose>
+        <h1 font-header text-4xl font-bold>Hello world</h1>
+
+        <p font-sans>This is my text, and I really like it</p>
+      </div>
+    </body>
+  </html>
+  INDEXEOF
+
+  pwd
+#+end_src
+
+* Example: Adding =shoelace=
+
+Run the script, and then in the generated directory:
+
+#+begin_src bash
+  npm install @shoelace-style/shoelace
+#+end_src
+
+Add in =main.js=:
+
+#+begin_src javascript
+  import '@shoelace-style/shoelace/dist/themes/light.css';
+  import '@shoelace-style/shoelace/dist/shoelace.js';
+#+end_src
+
+And then start using the web components inside of your =html= file.
+
+#+begin_src html
+  <sl-qr-code value="https://willschenk.com/" radius="0.5"></sl-qr-code>
+#+end_src
+
+* References
+
+1. https://vitejs.dev/
+1. https://unocss.dev/
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
