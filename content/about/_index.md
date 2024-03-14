@@ -12,7 +12,7 @@ love using the tractor.
 
 I cofounded [HappyFunCorp](https://happyfuncorp.com) in Sept 2009, but
 left when my late-wife Joy [died of a brain
-hemmorage](http://localhost:1313/fragments/2023/a_good_death/)  in
+hemmorage](/fragments/2023/a_good_death/)  in
 Janurary of 2022. We sold the company later that year in November.
 
 
