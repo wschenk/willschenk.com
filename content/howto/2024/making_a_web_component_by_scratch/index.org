@@ -279,6 +279,45 @@ functionality in a way that's easy to contain.
   customElements.define( 'map-component', MapComponent )
 #+end_src
 
+* Attribute changes
+
+#+begin_src html
+  <div>
+    <form><input type="text" id="formtastic" placeholder="enter words"></form>
+    <watch-attribute text="start text"></watch-attribute>
+  </div>
+#+end_src
+
+#+begin_src javascript :tangle watch-attribute.js
+  class WatchAttribute extends HTMLElement {
+      static get observedAttributes() {
+          return ["text"];
+      }
+
+      connectedCallback() {
+          this.insertAdjacentHTML('beforeend', `<p></p>` )
+          this.text = this.getAttribute( 'text' );
+          this.updateText();
+      }
+
+      updateText() {
+          let p = this.querySelector('p');
+          if( p ) {
+                  p.innerHTML = this.text;
+          }
+      }
+      
+      attributeChangedCallback(name, oldValue, newValue) {
+          if( name == 'text' ) {
+              this.text = newValue;
+              this.updateText();
+          }
+      }
+  }
+
+  customElements.define( 'watch-attribute', WatchAttribute );
+#+end_src
+
 * Boiler plate
 
 Here is some html that shows how to use it all, and the one liner to
@@ -292,6 +331,7 @@ get this static site up and running.
       <script src="floating-header.js" type="module"></script>
       <script src="avatar-image.js" type="module"></script>
       <script src="map.js" type="module"></script>
+      <script src="watch-attribute.js" type="module"></script>
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <style>
         floating-header a {
@@ -339,6 +379,20 @@ get this static site up and running.
 
       <div style="height: 300px; width: 100%; z-index: 0">
         <map-component lat="51.505" lon="-0.09"></map-component>
+      </div>
+
+      <div>
+        <form><input type="text" id="formtastic" placeholder="enter words"></form>
+        <watch-attribute text="start text"></watch-attribute>
+        <script>
+          const wa = document.querySelector( 'watch-attribute' );
+          const input = document.getElementById( 'formtastic' );
+          input.addEventListener( 'keyup', () => {
+          console.log( "value", input.value )
+          wa.setAttribute( "text", input.value );
+          })
+          </script>
+            
       </div>
     </body>
   </html>
