@@ -1,0 +1,151 @@
+#+title: Deploying OSMR
+#+subtitle: runs pretty fast locally
+#+tags[]: openstreetmap, routing, docker, osmr
+#+date: 2024-03-16T18:21:01
+
+I'm working on a routing service, and been playing around with
+different projects based off of the [[https://www.openstreetmap.org/about][OpenStreetMap]] project.
+
+Here's what I went through to deploy the [[https://project-osrm.org/][OpenSourceRoutingMachine]]
+project locally.
+
+#+begin_src bash
+  docker volume create map_data
+#+end_src
+
+We'll startup a container that has that volume mounted it in, and then
+download the data from the internet and process it as needed.
+
+* Prepare the data
+#+begin_src bash
+  docker run -it --rm -v map_data:/data ghcr.io/project-osrm/osrm-backend bash
+#+end_src
+
+[[https://download.geofabrik.de/]] has a lot of files available that we
+can use to import, lets find an =.osm.pbf= file, say something at
+[[https://download.geofabrik.de/north-america.html]]
+
+/Inside of the container:/
+
+#+begin_src bash
+  FILE=north-america
+  # FILE=connecticut
+  apt-get update && apt-get install -y wget 
+  cd /data
+  wget https://download.geofabrik.de/${FILE}-latest.osm.pbf
+#+end_src
+
+/That file is 14G fyi, and takes about 15m just to download on my
+connection!/
+
+Then extract:
+
+#+begin_src
+  osrm-extract -p /opt/car.lua /data/${FILE}-latest.osm.pbf || echo "osrm-extract failed"
+  osrm-partition /data/${FILE}-latest.osrm || echo "osrm-partition failed"
+  osrm-customize /data/${FILE}-latest.osrm || echo "osrm-customize failed"
+#+end_src
+
+And you can quit out of that container.
+
+* Run the server
+
+#+begin_src bash
+  docker run -it \
+         -p 5000:5000 \
+         -v map_data:/data \
+         ghcr.io/project-osrm/osrm-backend osrm-routed \
+         --algorithm mld \
+         /data/north-america-latest.osrm
+#+end_src
+
+Once that gets going, we can hit it locally and pass the results
+through =jq=:
+
+#+begin_src bash :results output
+  curl "http://127.0.0.1:5000/route/v1/driving/-73.364755,41.838942;-73.409656,41.752237?steps=true" \
+      | jq -r '.routes | .[] | .legs | .[] | .steps | .[] | .name'
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Popple Swamp Road
+River Road South
+Kent Road South
+Warren Hill Road
+Cornwall Road
+Kent Road
+Segar Mountain Road
+Kenico Road
+Gorham Road
+Old Homestead Lane
+Stonewall Lane
+
+
+#+end_example
+
+* CLI Testing
+
+There's also a library that makes better words out of the responses.
+
+#+begin_src bash
+  npm i osrm-text-instructions
+#+end_src
+
+Quick formatting demo:
+
+#+begin_src javascript :tangle route.js :results output
+  var version = 'v5';
+  var osrmTextInstructions = require('osrm-text-instructions')(version);
+
+  fetch(
+      "http://127.0.0.1:5000/route/v1/driving/-73.364755,41.838942;-73.409656,41.752237?steps=true" )
+      .then( (response) => response.json() )
+      .then( (response) => {
+          response.routes[0].legs.forEach(function(leg) {
+              leg.steps.forEach(function(step) {
+                  instruction = osrmTextInstructions.compile('en', step)
+                  console.log( instruction )
+              });
+          })
+      })
+#+end_src
+
+Which gives us:
+
+#+begin_src bash
+  Head southwest on Popple Swamp Road
+  Turn right onto River Road South
+  Go straight onto Kent Road South (US 7)
+  Make a slight left onto Warren Hill Road (CT 45)
+  Continue onto Cornwall Road (CT 45)
+  Turn right onto Kent Road (CT 341)
+  Continue onto Segar Mountain Road (CT 341)
+  Turn right onto Kenico Road
+  Continue slightly left onto Gorham Road
+  Turn right onto Old Homestead Lane
+  Continue left onto Stonewall Lane
+  Turn right
+  You have arrived at your destination, on the right
+#+end_src
+
+* Starting a front end
+
+It does come with a front end, but I think Leaflet is more promising
+as a start.
+
+#+begin_src bash
+  docker run -p 9966:9966 osrm/osrm-frontend
+  xdg-open 'http://127.0.0.1:9966'
+#+end_src
+
+* References
+
+1. https://github.com/Project-OSRM/osrm-backend
+1. https://github.com/Project-OSRM/osrm-text-instructions
+1. https://download.geofabrik.de/
+1. https://www.liedman.net/leaflet-routing-machine/
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
