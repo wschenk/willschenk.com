@@ -1,0 +1,69 @@
+#+title: Wait for the download to finish with puppeteer
+#+subtitle: Page.downloadProcess
+#+tags[]: javascript, puppeteer
+#+date: 2024-03-22T13:42:57
+
+Here's a function that will wait for a download to finish once its
+triggered in pupepeteer.
+
+#+begin_src javascript
+  import puppeteer from "puppeteer"
+
+  async function waitUntilDownload(page, fileName = '') {
+      return new Promise((resolve, reject) => {
+          page._client().on('Page.downloadProgress', e => { // or 'Browser.downloadProgress'
+              if (e.state === 'completed') {
+                  resolve(fileName);
+              } else if (e.state === 'canceled') {
+                  reject();
+              }
+          });
+      });
+  }
+#+end_src
+
+Here is is in an example
+
+#+begin_src javascript
+  (async () => {
+      const browser = await puppeteer.launch({
+          headless: true,
+          args: ['--no-sandbox', '--disable-setuid-sandbox']
+      })
+      
+      const page = await browser.newPage()
+
+      page.target().createCDPSession().then((client) => {
+        return client.send('Page.setDownloadBehavior', {
+            behavior: 'allow',
+            downloadPath: '/tmp'})
+      });
+
+      console.log( "Loading download page" );
+      await page.goto(
+          'https://afdc.energy.gov/fuels/electricity_locations.html#/analyze?fuel=ELEC',
+          { waitUntil: 'networkidle0' }
+      );
+
+      // Query for an element handle.
+      const element = await page.waitForSelector('a.afdc-btn');
+      
+      console.log( "Starting download" )
+      await element.click();
+      
+      console.log( "Waiting for download to complete" );
+      await waitUntilDownload( page );
+
+      console.log( "Download complete" )
+        
+      await browser.close();      
+  })()
+#+end_src
+
+* References
+
+1. https://stackoverflow.com/questions/53471235/how-to-wait-for-all-downloads-to-complete-with-puppeteer
+
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

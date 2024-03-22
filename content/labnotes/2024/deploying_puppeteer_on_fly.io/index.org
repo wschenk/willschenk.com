@@ -1,0 +1,132 @@
+#+title: Deploying puppeteer on fly.io
+#+substitle: annoying dockerfiles
+#+tags[]: puppeteer, flyio
+#+date: 2024-03-22T14:59:02
+
+* Test Script
+#+begin_src bash
+  npm i puppeteer
+#+end_src
+
+=screenshot.js=
+#+begin_src javascript :tangle screenshot.js
+  import puppeteer from 'puppeteer';
+
+  (async () => {
+      const browser = await puppeteer.launch({
+          headless: true,
+          args: ['--no-sandbox', '--disable-setuid-sandbox']
+      })
+      
+    const page = await browser.newPage();
+
+    // Set the viewport's width and height
+    await page.setViewport({ width: 1920, height: 1080 });
+
+    // Open ScrapingBee's home page
+    await page.goto('https://willschenk.com');
+
+    try {
+      // Capture screenshot and save it in the current folder:
+      await page.screenshot({ path: `./willschenk.jpg` });
+
+    } catch (err) {
+      console.log(`Error: ${err.message}`);
+    } finally {
+      await browser.close();
+      console.log(`Screenshot has been captured successfully`);
+    }
+  })();
+#+end_src
+
+* Simple server
+
+We aren't going to plug this into anything, just want to have
+something that fly can serve up.
+
+#+begin_src bash
+  npm i express
+#+end_src
+
+#+begin_src javascript :tangle app.js
+  import express from "express";
+
+  const app = express();
+  const port = 3000;
+
+  app.get('/', (req, res) => {
+    res.send('Welcome to my server!');
+  });
+
+  app.get('/status', (req, res) => {
+      
+  });
+
+  app.listen(port, () => {
+    console.log(`Server is running on port ${port}`);
+  });
+#+end_src
+
+* Dockerfile
+
+Now the fun.  First we install =node= and =npm=, then we install
+=google-chrome-stable= from google's repositories.  We will download
+chrome again when we do =npm i= but this will take care of all the
+dependancies which are extensive.
+
+#+begin_src dockerfile :tangle Dockerfile
+  FROM --platform=linux/amd64 debian:bookworm-slim
+
+  RUN apt-get update
+
+  # Install node
+  RUN apt-get install -y nodejs npm
+
+  # Install chrome and dependencies
+  RUN apt-get install -y wget gpg
+  RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/googlechrome-linux-keyring.gpg \
+      && sh -c 'echo "deb [arch=amd64 signed-by=/usr/share/keyrings/googlechrome-linux-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list' \
+      && apt-get update
+  RUN apt-get install -y google-chrome-stable fonts-freefont-ttf libxss1 \
+      --no-install-recommends
+
+  WORKDIR /app
+
+  COPY package* .
+  RUN npm i
+  COPY * ./
+  EXPOSE 3000
+  CMD node app.js
+#+end_src
+
+* Deploy
+
+#+begin_src bash
+  fly launch
+#+end_src
+
+Then
+
+#+begin_src bash
+  fly ssh console
+#+end_src
+
+And inside of there, you should be able to run
+
+#+begin_src bash
+  node screenshot.js 
+  Screenshot has been captured successfully
+#+end_src
+
+Very meta
+
+{{< img img="willschenk.jpg" fit="500x500 smart">}}
+
+
+* References
+
+1. https://macarthur.me/posts/puppeteer-with-docker/
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
