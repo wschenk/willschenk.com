@@ -1,0 +1,397 @@
+#+title: Making a JSON api from a CSV file using fly
+#+subtitle: download, process, serve, update
+#+date: 2024-03-17T08:32:45
+#+draft: true
+
+* Script to download our CSV
+
+#+begin_src bash
+  npm i puppeteer
+#+end_src
+
+#+begin_src javascript :tangle download.js
+  #!/usr/bin/env node
+  import puppeteer from "puppeteer"
+
+  async function waitUntilDownload(page, fileName = '') {
+      return new Promise((resolve, reject) => {
+          page._client().on('Page.downloadProgress', e => { // or 'Browser.downloadProgress'
+              if (e.state === 'completed') {
+                  resolve(fileName);
+              } else if (e.state === 'canceled') {
+                  reject();
+              }
+          });
+      });
+  }
+
+  (async () => {
+      console.log( "Starting browser");
+      const browser = await puppeteer.launch({
+          headless: true,
+          args: ['--no-sandbox', '--disable-setuid-sandbox']
+      })
+      
+      const page = await browser.newPage()
+
+      page.target().createCDPSession().then((client) => {
+        return client.send('Page.setDownloadBehavior', {
+            behavior: 'allow',
+            downloadPath: '/tmp'})
+      });
+
+      console.log( "Loading download page" );
+      await page.goto(
+          'https://afdc.energy.gov/fuels/electricity_locations.html#/analyze?fuel=ELEC',
+          { waitUntil: 'networkidle0' }
+      );
+
+      const element = await page.waitForSelector('a.afdc-btn');
+      
+      console.log( "Starting download" )
+
+      await element.click();
+      await waitUntilDownload( page );
+
+      console.log( "Download complete" )
+        
+      // Close browser.
+      await browser.close();
+      
+  })()
+#+end_src
+
+* Create the database
+
+#+begin_src bash :tangle db_create
+  #!/bin/bash
+
+  mv stations.db stations.bak.db
+
+  sqlite-utils insert stations.db stations \
+               /tmp/alt_fuel_stations*.csv \
+               --csv --detect-types
+  sqlite-utils transform stations.db stations \
+               --rename 'Date Last Confirmed' date_last_confirmed \
+               --rename 'EV Connector Types' ev_connector_types \
+               --rename 'Fuel Type Code' fuel_type_code \
+               --rename ID id
+
+  sqlite-utils query stations.db \
+               "select distinct ev_connector_types from stations" \
+               --csv --no-headers | \
+      sed 's/ /\n/g' | sed 's/[^0-9A-Za-z]//g' | \
+      sort | uniq | tee charger_columns
+
+  for i in $(cat charger_columns);
+  do
+      echo Adding $i
+      sqlite-utils add-column stations.db stations  $i integer
+  done
+
+  sqlite-utils create-index stations.db stations Latitude
+  sqlite-utils create-index stations.db stations Longitude
+  sqlite-utils create-index stations.db stations id
+  sqlite-utils create-index stations.db stations date_last_confirmed
+  sqlite-utils create-index stations.db stations fuel_type_code
+  sqlite-utils create-index stations.db stations State
+
+  ./massage_data
+#+end_src
+
+#+begin_src bash
+  bundle init
+  bundle add sqlite3
+#+end_src
+
+#+begin_src ruby :tangle massage_data
+  #!/usr/bin/env ruby
+  require 'sqlite3'
+
+  db = SQLite3::Database.open 'stations.db'
+
+  # Update the connector types
+  results = db.query( "select distinct ev_connector_types
+                    from stations where ev_connector_types != ''" )
+
+  results.each do |r|
+    fields = r[0].split(' ' ).collect { |x| "#{x} = 1 "}.join(", ")
+    cmd =  "update stations set #{fields} where ev_connector_types = '#{r[0]}'"
+    puts cmd
+    db.execute cmd
+  end
+
+  # Calculate distances
+
+  ret = db.execute "CREATE TABLE IF NOT EXISTS distances "+
+                   "(station_a_id integer, station_b_id integer, euclidian float);"
+
+  #insert into distances (station_a_id, station_b_id, euclidean) values
+  #(select a.id as station_a_id, b.id as station_b_id, SQRT(
+  #    POW (a.longitude - b.longitude, 2) + POWER(a.latitude - b.latitude, 2)
+  #  ) * 69.09 AS euclidean from stations a, stations b);
+
+  #Puts ret
+#+end_src
+
+* Build the server
+
+#+begin_src bash
+  bundle add sinatra sinatra-activerecord puma rerun rackup
+#+end_src
+
+#+begin_src ruby :tangle app.rb
+  require 'sinatra/base'
+  require 'sqlite3'
+  require "sinatra/activerecord"
+
+  class Stations < ActiveRecord::Base
+    def self.around( lat, lon )
+      where( "Latitude > ? and Latitude < ? and Longitude > ? and Longitude < ?", lat - 1, lat + 1, lon - 1, lon + 1 )
+    end
+
+    def to_serialize
+      { id: id,
+        latitude: attributes['Latitude'],
+        longitude: attributes['Longitude'],
+        name: attributes['Station Name'],
+        city: attributes['City'],
+        state: attributes['State'],
+        zip: attributes['ZIP'],
+        country: attributes['country'],
+        level1: attributes['EV Level1 EVSE Num'],
+        level2: attributes['EV Level2 EVSE Num'],
+        dcfast: attributes['EV DC Fast Count'],
+        network: attributes['EV Network'],
+        date_last_confirmed: date_last_confirmed,
+        workplace: attributes['EV Workplace Charging'],
+        chademo: attributes['CHADEMO'],
+        j1772: attributes['J1772'],
+        j1772combo: attributes['J1772COMBO'],
+        nema1450: attributes['NEMA1450'],
+        nema515: attributes['NEMA515'],
+        tesla: attributes['TESLA']
+      }
+    end
+  end
+
+  class App < Sinatra::Base
+    register Sinatra::ActiveRecordExtension
+    
+    set :database, {adapter: "sqlite3", database: "stations.db"}
+    
+    get '/' do
+      if params[:id]
+        content_type :json
+        return Stations.find(id).to_serialize.to_json
+      end
+      redirect '/status'
+    end
+
+    get '/facility_types' do
+      content_type :json
+      Stations.group( "Facility Type" ).count.to_json
+    end
+    
+    get '/networks' do
+      content_type :json
+      Stations.group( "EV Network" ).count.to_json
+    end
+
+    get '/around' do
+      content_type :json
+      if params[:lat].blank? || params[:lon].blank?
+        return {error: "lat and lon must be set"}.to_json
+      end
+
+      Stations.around( params[:lat].to_f, params[:lon].to_f ).collect do |s|
+        s.to_serialize
+      end.to_json
+    end
+
+    get '/status' do
+      content_type :json
+      {
+        count: Stations.count,
+        date_last_confirmed: Stations.maximum( :date_last_confirmed ),
+        tesla: Stations.where( TESLA: 1 ).count,
+        j1772: Stations.where( J1772: 1 ).count,
+        j1772combo: Stations.where( J1772COMBO: 1 ).count,
+        nema1450: Stations.where( NEMA1450: 1 ).count,
+        nema515: Stations.where( NEMA515: 1 ).count,
+        nema520: Stations.where( NEMA520: 1 ).count
+      }.to_json
+    end
+  end
+#+end_src
+
+#+begin_src ruby :tangle config.ru
+  require File.expand_path('app', File.dirname(__FILE__))
+
+  run App
+#+end_src
+
+And then you can run with
+
+#+begin_src bash
+  rerun bundle exec rackup
+#+end_src
+
+* Building the docker image
+
+#+begin_src dockerfile :tangle Dockerfile
+  FROM --platform=linux/amd64 node:20.3.0-slim as base
+
+  # Install latest chrome dev package and fonts to support major charsets (Chinese, Japanese, Arabic, Hebrew, Thai and a few others)
+  # Note: this installs the necessary libs to make the bundled version of Chrome that Puppeteer
+  # installs, work.
+  RUN apt-get update \
+      && apt-get install -y wget gnupg ruby ruby-dev python3-click-default-group sqlite-utils build-essential \
+      && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/googlechrome-linux-keyring.gpg \
+      && sh -c 'echo "deb [arch=amd64 signed-by=/usr/share/keyrings/googlechrome-linux-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list' \
+      && apt-get update \
+      && apt-get install -y google-chrome-stable fonts-freefont-ttf libxss1 \
+        --no-install-recommends \
+      && rm -rf /var/lib/apt/lists/*
+
+  RUN gem install -N bundler:2.3.26
+
+  RUN chown -R node /var/lib/gems && chown -R node /usr/local/bin
+  
+  USER node
+  WORKDIR /app
+  COPY package.* ./
+  RUN npm i
+  COPY Gemfile* ./
+  RUN bundle install
+
+  USER node
+
+  COPY * ./
+
+  EXPOSE 8080
+  CMD ["bundle", "exec", "rackup", "--host", "0.0.0.0", "--port", "8080"]
+
+#+end_src
+
+
+* Creating a fly app
+
+Run =fly launch= to create the app.
+
+We need to add a volume to the =fly.toml= file, this here at the end.
+
+#+begin_src toml
+[mounts]
+  source="myapp_data"
+  destination="/data"
+#+end_src
+
+Now lets deploy!
+
+#+begin_src bash
+  fly deploy
+#+end_src
+
+This will take a while, but once it's done we can ssh into the machine using
+
+#+begin_src bash
+  fly ssh console
+#+end_src
+
+Lets first test our =download.js= script
+
+#+begin_src bash
+  node download.js
+#+end_src
+
+* Old docker files
+
+
+#+begin_src dockerfile :tangle Dockerfile.old
+  FROM --platform=linux/amd64 timbru31/ruby-node:3.3-20 as base
+
+    # Install packages needed to build gems
+  RUN apt-get update -qq && \
+      apt-get install --no-install-recommends -y build-essential \
+      sqlite-utils gconf-service libasound2 libatk1.0-0 \
+      libc6 libcairo2 libcups2 libdbus-1-3 libexpat1 libfontconfig1 dbus-x11 \
+      libgcc1 libgconf-2-4 libgdk-pixbuf2.0-0 libglib2.0-0 \
+      libgtk-3-0 libnspr4 libpango-1.0-0 libpangocairo-1.0-0 \
+      libstdc++6 libx11-6 libx11-xcb1 libxcb1 libxcomposite1 \
+      libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 \
+      libxrandr2 libxrender1 libxss1 libxtst6 \
+      ca-certificates fonts-liberation libnss3 \
+      lsb-release xdg-utils wget ca-certificates \
+      libdrm2 libgbm1
+
+  RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/googlechrome-linux-keyring.gpg \
+    && sh -c 'echo "deb [arch=amd64 signed-by=/usr/share/keyrings/googlechrome-linux-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list' \
+    && apt-get update \
+    && apt-get install -y google-chrome-stable fonts-ipafont-gothic fonts-wqy-zenhei fonts-thai-tlwg fonts-khmeros fonts-kacst fonts-freefont-ttf libxss1 \
+      --no-install-recommends
+
+  # Update gems and bundler
+  RUN gem update --system --no-document && \
+      gem install -N bundler
+
+  # Rack app lives here
+  WORKDIR /app
+
+  ENV PUPPETEER_SKIP_DOWNLOAD true
+  ENV DBUS_SESSION_BUS_ADDRESS autolaunch:
+
+  COPY package* ./
+  RUN npm i
+
+  COPY Gemfile* ./
+  RUN bundle install
+
+  COPY * .
+
+  CMD bash
+#+end_src
+
+#+begin_src dockerfile :tangle Dockerfile.test
+  FROM ghcr.io/puppeteer/puppeteer:latest
+
+  COPY package* ./
+      #RUN npm i
+
+  CMD bash
+#+end_src
+
+* Express server
+
+#+begin_src bash
+  npm i express
+
+#+end_src
+
+#+begin_src javascript :tangle app.js
+  import express from "express";
+
+  const app = express();
+  const port = 3000;
+
+  app.get('/', (req, res) => {
+    res.send('Welcome to my server!');
+  });
+
+  app.get('/status', (req, res) => {
+      
+  });
+
+  app.listen(port, () => {
+    console.log(`Server is running on port ${port}`);
+  });
+#+end_src
+* References
+
+1. https://stackoverflow.com/questions/53471235/how-to-wait-for-all-downloads-to-complete-with-puppeteer
+1. https://stackoverflow.com/questions/71040681/qemu-x86-64-could-not-open-lib64-ld-linux-x86-64-so-2-no-such-file-or-direc
+1. https://stackoverflow.com/questions/58134793/error-while-loading-shared-libraries-libnss3-so-while-running-gtlab-ci-job-to
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

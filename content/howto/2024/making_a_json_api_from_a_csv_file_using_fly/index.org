@@ -1,0 +1,365 @@
+#+title: Making a JSON api from a CSV file using fly
+#+subtitle: download, process, serve, update
+#+tags[]: csv, flyio, ruby, sinatra
+#+date: 2024-03-22T16:46:40
+
+I wanted to be able to serve up and process a CSV file on fly, but
+have the actual processing of that data happen on the server without
+any sort of fancy database setup.  Here's a way to do it using the
+persistent volumns.
+
+* Bookkeeping
+
+Bookworm has ruby 3.1, so lets use that
+
+#+begin_src bash
+  asdf local ruby 3.1.4
+#+end_src
+
+And lets create a quick sintara app:
+
+#+begin_src bash
+    bundle init
+    bundle add sqlite3 sinatra puma rerun rackup sinatra-activerecord
+#+end_src
+
+=config.ru=
+#+begin_src ruby :tangle config.ru
+  require File.expand_path('app', File.dirname(__FILE__))
+
+  run App
+#+end_src
+
+=app.rb=:
+#+begin_src ruby
+  require 'sinatra/base'
+  require 'sqlite3'
+  require "sinatra/activerecord"
+
+  class App < Sinatra::Base
+    register Sinatra::ActiveRecordExtension
+    
+    set :database, {adapter: "sqlite3", database: "stations.db"}
+    
+    get '/' do
+      "Hello world"
+    end
+  end
+#+end_src
+
+And then you can run with
+
+#+begin_src bash
+  rerun bundle exec rackup
+#+end_src
+
+And test
+
+#+begin_src bash :results output
+ curl http://localhost:9292
+#+end_src
+
+#+RESULTS:
+: Hello world
+
+* Package the app
+
+Deploy the app
+
+#+begin_src dockerfile :tangle Dockerfile
+  FROM debian:bookworm-slim
+
+  RUN apt-get update
+  RUN apt-get install -y ruby ruby-dev \
+      build-essential curl sqlite-utils \
+      python3-click-default-group
+
+  WORKDIR /app
+
+  RUN gem install bundler:2.3.26
+
+  COPY Gemfile* ./
+  RUN bundle install
+
+  COPY * ./
+
+  EXPOSE 8080
+  CMD ["bundle", "exec", "rackup", "--host", "0.0.0.0", "--port", "8080"]
+#+end_src
+
+Test
+
+#+begin_src bash
+  docker build . -t test && docker run -it --rm -p 8080:8080 test
+#+end_src
+
+#+begin_src bash :results output
+ curl http://localhost:8080
+#+end_src
+
+#+RESULTS:
+: Hello world
+
+Looks good!
+
+* Deploy the app
+
+#+begin_src bash
+  fly launch --no-deploy --name=chargermap
+#+end_src
+
+Inside of the created =fly.toml=, lets add a section for a persistent volume:
+
+#+begin_src toml
+[mounts]
+  source="myapp_data"
+  destination="/data"
+#+end_src
+
+Then we can deploy with
+
+#+begin_src bash
+  fly deploy
+#+end_src
+
+And then test:
+
+#+begin_src bash :results output
+curl https://chargermap.fly.dev
+#+end_src
+
+#+RESULTS:
+: Hello world
+
+* Write the logic
+
+Ok, so now that we have something served up, lets actually write the
+code.
+
+=loader.rb=:
+#+begin_src ruby :tangle loader.rb
+  require 'csv'
+  require 'sqlite3'
+
+  class Loader
+    def initialize
+      @dir = ENV['DB_DIR'] || '.'
+    end
+
+    def db; "#{@dir}/db"; end
+    def csv; "#{@dir}/csv"; end
+    
+    def db_exists?; File.exists? db; end
+    def csv_exists?; File.exists? csv; end
+
+    def ensure!
+      if !db_exists?
+        if !csv_exists?
+          puts "Downloading csv"
+          download_csv
+        end
+      end
+
+      if !db_exists?
+        create_db
+      end
+    end
+    
+    def download_csv
+      puts "Downloading csv"
+      system( "curl https://willschenk.com/alt_fuel_stations.csv -o #{csv}" )
+    end
+
+    def create_db
+      puts "Creating database"
+
+      system( "sqlite-utils insert #{db} data #{csv} --csv --detect-types" )
+    end
+  end
+
+  if __FILE__ == $0
+    puts "Hello there"
+
+    l = Loader.new
+    puts "DB Exists? #{l.db_exists?}"
+    puts "CSV Exists? #{l.csv_exists?}"
+
+    l.ensure!
+
+    puts "DB Exists? #{l.db_exists?}"
+    puts "CSV Exists? #{l.csv_exists?}"
+  end
+    
+#+end_src
+
+#+RESULTS:
+
+#+begin_src bash :results output
+ruby loader.rb
+#+end_src
+
+#+RESULTS:
+: Hello there
+: DB Exists? false
+: CSV Exists? false
+: DB Exists? false
+: CSV Exists? true
+
+=app.rb=:
+#+begin_src ruby :tangle app.rb
+  require 'sinatra/base'
+  require 'sqlite3'
+  require "sinatra/activerecord"
+  require_relative './loader'
+
+  class Data < ActiveRecord::Base
+  end
+
+  class App < Sinatra::Base
+    register Sinatra::ActiveRecordExtension
+    l = Loader.new
+    
+    set :database, {adapter: "sqlite3", database: l.db}
+    
+    get '/' do
+      l = Loader.new
+      content_type :json
+
+      { db: l.db, csv: l.csv, csv_exists: l.csv_exists?, db_exists: l.db_exists? }.to_json
+    end
+
+    get '/stats' do
+      content_type :json
+      {
+        count: Data.count,
+        ct: Data.where( "State = ?", "CT" ).count,
+        ny: Data.where( "State = ?", "NY" ).count
+      }.to_json
+    end
+
+    post '/' do
+      l = Loader.new
+
+      l.ensure!
+
+      redirect '/'
+    end
+  end
+#+end_src
+
+#+begin_src bash :results output
+  curl http://localhost:9292 | jq .
+#+end_src
+
+#+RESULTS:
+: {
+:   "db": "./db",
+:   "csv": "./csv",
+:   "csv_exists": true,
+:   "db_exists": true
+: }
+
+
+#+begin_src bash :results output
+  curl -X POST http://localhost:9292 | jq .
+
+#+end_src
+
+#+begin_src bash :results output
+  curl http://localhost:9292 | jq .
+#+end_src
+
+#+RESULTS:
+: {
+:   "csv_exists": true,
+:   "db_exists": true
+: }
+
+#+begin_src bash :results output
+  curl http://localhost:9292/stats | jq .
+#+end_src
+
+#+RESULTS:
+: {
+:   "count": 73454,
+:   "ct": 822,
+:   "ny": 3793
+: }
+
+* Deploy new code
+
+Inside of the =fly.toml= lets set the =DB_DIR= to point to our directory,
+and then deploy this sucker!
+
+#+begin_src toml
+[env]
+  DB_DIR="/data"
+#+end_src
+
+Then
+
+#+begin_src bash
+  fly deploy
+#+end_src
+
+#+begin_src bash :results output
+curl https://chargermap.fly.dev | jq .
+#+end_src
+
+#+RESULTS:
+: {
+:   "db": "/data/db",
+:   "csv": "/data/csv",
+:   "csv_exists": false,
+:   "db_exists": false
+: }
+
+Now do a post to set things up
+
+#+begin_src bash
+  curl -X POST https://chargermap.fly.dev
+#+end_src
+
+And then
+
+#+begin_src bash :results output
+  curl https://chargermap.fly.dev/stats | jq .
+#+end_src
+
+#+RESULTS:
+: {
+:   "count": 73454,
+:   "ct": 822,
+:   "ny": 3793
+: }
+
+We can go to the console and stop the machine, and then it will
+automatically start itself up again when you hit it!
+
+#+begin_src bash :results output
+  curl https://chargermap.fly.dev/stats | jq .
+#+end_src
+
+#+RESULTS:
+: {
+:   "count": 73454,
+:   "ct": 822,
+:   "ny": 3793
+: }
+
+* Next steps
+
+When do you want to reload the file?  Is it every couple of days?
+What further transformations do you want to have on the data?
+
+All things to keep playing with.
+
+* References
+
+1. https://willschenk.com/labnotes/2024/wait_for_the_download_to_finish_with_puppeteer/
+2. https://willschenk.com/labnotes/2024/installing_sqlite_utils_on_bookworm/
+3. https://willschenk.com/labnotes/2024/deploying_puppeteer_on_fly.io/
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
