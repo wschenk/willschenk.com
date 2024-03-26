@@ -13,6 +13,8 @@ RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --d
 RUN apt-get install -y google-chrome-stable fonts-freefont-ttf libxss1 \
     --no-install-recommends
 
+# ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD true
+
 WORKDIR /app
 
 COPY package* .
