@@ -1,0 +1,49 @@
+#+title: Deploying static vite site on fly
+#+subtitle: silly silly
+#+tags[]: flyio, static
+#+date: 2024-03-26T17:40:27
+
+This is sort of silly, but since I'm deploying something else on
+=fly.io= I might as well keep everything together.
+
+We are going to use =pierrezemb/gostatic= to hold the files, but build
+our javascript front end into the =dist= directory first.  It will get
+the enviroment variables from =.env.production=:
+
+#+begin_src dockerfile
+FROM node:20 as build
+
+WORKDIR /app
+
+COPY package* ./
+RUN npm i
+
+COPY . .
+RUN npm run build
+
+FROM pierrezemb/gostatic
+COPY --from=build /app/dist/ /srv/http/
+#+end_src
+
+Now we have a nice and tiny little image.  Lets create the fly app:
+
+#+begin_src bash
+  fly launch --no-deploy
+#+end_src
+
+Edit the =fly.toml= file to switch the internal port to =8043=
+
+#+begin_src toml
+[[services]]
+  http_checks = []
+  internal_port = 8043
+  processes = ["app"]
+  protocol = "tcp"
+  script_checks = []
+#+end_src
+
+And then =fly deploy=
+
+* References
+
+- https://fly.io/docs/languages-and-frameworks/static/#main-content-start
