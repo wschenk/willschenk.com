@@ -1,0 +1,146 @@
+#+title: Using pushState and replaceState
+#+subtitle: better linking
+#+tags[]: javascript
+#+date: 2024-03-29T05:07:31
+
+=window.history.pushState= and =window.history.replaceState= make the back
+button work right, and lets you share links to what you are looking at
+if your page has form controls that set the state of things.  Lets
+look at how to use that.
+
+* Javascript
+First we'll create a function that creates a state object based upon
+the url.  This will return an object with all the key values that were
+passed in the url.
+
+#+begin_src javascript :tangle state.js
+  function getState() {
+      const queryString = window.location.search;
+      const urlParams = new URLSearchParams(queryString);
+      const entries = urlParams.entries();
+
+      const state = {}
+      for(const entry of entries) {
+          console.log(`${entry[0]}: ${entry[1]}`);
+          state[entry[0]] = entry[1];
+      }
+
+      return state;
+  }
+  
+#+end_src
+
+We can then write the reverse, which will change the location bar to
+set values that are in the state object.  If we pass in =push = true=
+then in addition to changing the location bar it will also make the
+back button keep another state.
+
+#+begin_src javascript :tangle state.js  
+  function updateState( state, push = false ) {
+      const url = new URL( window.location.href )
+
+      for( const entry of Object.entries(state) ) {
+          url.searchParams.set( entry[0], entry[1] );
+      }
+
+      if( push ) {
+          window.history.pushState( {}, "", url )
+      } else {
+          window.history.replaceState( {}, "", url );
+      }
+  }
+  
+#+end_src
+
+Now lets handle initial load as well as the =popstate= events for when a
+user presses the back button.  In this model of the page, each of the
+url parameters that are passes coorespond to a DOM element.
+
+#+begin_src javascript :tangle state.js
+  function updateDom( state ) {
+      // Look for all elements with the specified ID and if found, set the value
+      for( const entry of Object.entries(state) ) {
+          const i = document.querySelector( `#${entry[0]}` )
+          if( i ) {
+              i.value = entry[1]
+          }
+      }
+  }
+
+  window.addEventListener("popstate", (event) => {
+      state = getState();
+      updateDom( state );
+  } )
+
+  // Initial state loading
+  let state = getState()
+  updateDom( state );
+
+  #+end_src
+
+  Finally, lets add some events to our elements.  For text inputs we
+  are updating the value of the state and replacing the current URL,
+  so linking works, and for the submit button we are pushing the state
+  which will add an new history entry.  This makes the back button
+  work.
+  
+  #+begin_src javascript :tangle state.js
+  // Update value of the state on keyup events
+  document.querySelectorAll( "input[type='text']" ).forEach((input) => {
+      input.addEventListener( "keyup", (e) => {
+          state[e.target.id] = e.target.value
+          updateState(state);
+      } )
+  });
+
+  // Make the submit change the history
+  document.querySelectorAll( "input[type='submit']" ).forEach((input) => {
+      input.addEventListener( "click", (e) => {
+          e.preventDefault();
+          updateState(state,true);
+      } )
+  });
+
+#+end_src
+
+* Boiler plate
+
+#+begin_src html :tangle index.html
+  <html>
+    <head>
+      <title>Test Page</title>
+      <script src="state.js" type="module"></script>
+    </head>
+    <body>
+      <p>Open the console</p>
+      <form>
+        <label for="fname">First name: </label>
+        <input type="text" id="fname" name="fname"><br><br>
+        <label for="lname">Last name: </label>
+        <input type="text" id="lname" name="lname"><br><br>
+        <input type="submit" value="Submit">
+      </form>
+
+      <form>
+        
+      </form>
+        
+    </body>
+  </html>
+#+end_src
+
+To explore:
+
+#+begin_src bash
+  npx live-server
+#+end_src
+
+* References
+
+1. https://www.sitepoint.com/get-url-parameters-with-javascript/
+1. https://developer.mozilla.org/en-US/docs/Web/API/History_API/Working_with_the_History_API   
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
+
