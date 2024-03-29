@@ -1,0 +1,262 @@
+#+title: Deploying ollama on fly.io
+#+subtitle: scale to zero
+#+tags[]: ollama, flyio
+#+date: 2024-03-29T15:41:40
+
+Ollama works great on my machine, but now that fly has [[https://fly.io/gpu][gpu machines
+that scale to zero]] this seemed like a fun thing to test out.
+
+First we'll just deploy a straight ollama instance and interact with
+it using our laptop, then we'll put a public facing instance of
+[[https://openwebui.com/][openwebui]] on the machine and have both running.
+
+* Deploy ollama
+
+Lets start with a =fly.toml= file.  You should update the app name here:
+
+#+begin_src toml
+  app = 'llama-ollama'
+  primary_region = 'ord'
+
+  [http_service]
+    internal_port = 11434
+    auto_stop_machines = true
+    auto_start_machines = true
+    min_machines_running = 0
+    processes = ['app']
+
+  [[vm]]
+    size = 'a100-40gb'
+
+  [build]
+    image = "ollama/ollama"
+
+  [mounts]
+    source = "models"
+    destination = "/root/.ollama"
+    initial_size = "100gb"
+#+end_src
+
+We are creating a mounted volumn at =/root/.ollama= which will persist
+accross loading and suspending.
+
+* Test
+
+Update the url for all of these for the name of your app.  You can
+also =fly ssh console= in to poke around, or =fly logs= to see what's
+happening.
+
+** Listing Installed models
+#+begin_src bash :results output
+  curl https://llama-ollama.fly.dev/api/tags | jq .
+#+end_src
+
+#+RESULTS:
+: {
+:   "models": []
+: }
+
+** Pull a model
+#+begin_src bash
+  curl -X POST https://llama-ollama.fly.dev/api/pull -d '{ "model": "gemma:7b" }'
+#+end_src
+
+** Generate off of a prompt
+#+begin_src bash
+  curl http://llama-ollama.fly.dev/api/generate -d '{
+    "model": "gemma:7b",
+    "prompt":"Why is the sky blue?",
+    "stream": false
+  }' | jq -r .response | fold -s
+#+end_src
+
+#+RESULTS:
+: null
+
+* Install webui locally
+
+Lets run =open-webui= in a transient container to interact with our
+remote ollama instance.  Again be sure to update the =OLLAMA_BASE_URL=
+to be what you need.
+
+#+begin_src bash
+  docker run -it --rm -p 3000:8080 \
+         -e OLLAMA_BASE_URL=https://llama-ollama.fly.dev \
+         -v open-webui:/app/backend/data \
+         ghcr.io/open-webui/open-webui:main
+#+end_src
+
+Then open up [[localhost:3000]] and connect to the server.  You'll need to
+signup for an account, and then you can start pulling models.
+
+** Test an image
+
+Go to =Modelfiles= on the left, and create a new model with the
+following prompt.
+
+(This is [[https://openwebui.com/m/dwrou/foto-forge:latest][foto-forge]])
+
+#+begin_src
+FROM llava:13b-v1.5-q8_0
+
+SYSTEM """
+
+You are an expert image analysis assistant with industry experience
+across all facets, often used as a forensic expert to analyze
+evidence and advise commercial and government clients on how to
+use equipment to take photographs and the processing and
+post-production that could be applied to them.
+When I present you with an image, do the following:
+
+Create a working title of the Photo.
+
+Write a brief overview of the photo, capturing its essence
+and setting the scene.
+
+Describe the photo's main subject(s) in detail, including any
+interesting features or characteristics.
+
+Write an analysis of the photo's composition, such as framing,
+perspective, and use of light. Highlight any unique elements
+that draw the viewer's attention.
+
+Describe the emotional impact or mood conveyed by the photo.
+Consider the feelings it evokes and any storytelling elements
+present.
+
+If not described in the prompt, invent some fictional
+information about where the photo was taken, including
+geographic location or any relevant contextual details that
+enhance its significance.
+
+Include technical information such as making an assumption
+or best guess of the camera settings, lens used, and any
+post-processing techniques employed. 
+
+Additional Notes: Invent additional information or
+anecdotes that add to the story behind the photo or its
+creation process.
+
+""""
+
+#+end_src
+
+Save it and then upload a file with that model and see
+how it works!
+
+** Testing on the CLI
+
+Check you model list:
+
+#+begin_src bash :results output
+  curl https://llama-ollama.fly.dev/api/tags | jq .models[].name
+#+end_src
+
+#+RESULTS:
+: "hub/dwrou/foto-forge:latest"
+: "llava:13b-v1.5-q8_0"
+
+Then send it a =base64= encoded image with a prompt:
+
+#+begin_src bash :results output
+  curl http://llama-ollama.fly.dev/api/generate -d "{
+    \"model\": \"hub/dwrou/foto-forge:latest\",
+    \"prompt\": \"What is in this picture?\",
+    \"stream\": false,
+    \"images\": [\"$(base64 -i photo.jpg)\"]
+  }" | jq -r .response | fold -s
+#+end_src
+
+{{< img img="photo.jpg" fit="500x500 smart">}}
+
+
+#+RESULTS:
+#+begin_example
+The image depicts a young boy standing on a chair at a counter in a coffee 
+shop, preparing to make coffee by placing his cup under the espresso machine. 
+He is surrounded by various cups and bottles, possibly indicating that this is 
+a busy location or he's ordering more drinks for himself or others. 
+
+The boy appears focused on his task, while the numerous cups scattered around 
+the counter suggest the shop serves a variety of beverages. In addition to the 
+espresso machine, there are several books visible in the background, which 
+could be part of the decor or related to the coffee shop's ambiance. The 
+overall atmosphere seems lively and bustling, with the young boy taking an 
+active role in his coffee-making experience.
+#+end_example
+
+* Deploy both on one machine
+
+
+=Dockerfile=:
+#+begin_src dockerfile :tangle Dockerfile
+  # Stage 1: Build ollama service
+  FROM ollama/ollama:latest AS ollama
+
+  # Stage 2: Build ollama-webui service and copy everything from ollama
+  FROM ghcr.io/open-webui/open-webui:latest
+
+  COPY --from=ollama / /
+
+  WORKDIR /app/backend
+  ENV OLLAMA_BASE_URL 'http://localhost:11434'
+  RUN ln -s /app/backend/data /root/.ollama
+  COPY both_start.sh ./
+  RUN chmod +x both_start.sh
+
+  CMD ["./both_start.sh"]
+#+end_src
+
+Create =both_start.sh=:
+
+#+begin_src bash :tangle both_start.sh
+  #!/bin/bash
+
+  ollama serve &
+  ./start.sh
+#+end_src
+
+Update the =fly.toml= file to use the openweb-ui port and remove the
+=build= section:
+
+#+begin_src toml :tangle fly.toml
+  app = 'llama-ollama'
+  primary_region = 'ord'
+
+  [http_service]
+    internal_port = 8080
+    auto_stop_machines = true
+    auto_start_machines = true
+    min_machines_running = 0
+    processes = ['app']
+
+  [[vm]]
+    size = 'a100-40gb'
+
+  [mounts]
+    source = "models"
+    destination = "/root/.ollama"
+    initial_size = "100gb"
+#+end_src
+ 
+Then:
+
+#+begin_src 
+  fly deploy
+#+end_src
+
+This will take a while, but it will build the image, push it over,
+create a volume and spin up the machine.
+
+You can look at what it's doing with =fly logs=.
+
+
+
+* References
+
+1. https://fly.io/blog/scaling-llm-ollama/
+1. https://github.com/fly-apps/ollama-open-webui.git
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
