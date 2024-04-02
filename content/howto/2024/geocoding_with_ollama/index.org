@@ -1,0 +1,311 @@
+#+title: Geocoding with ollama
+#+subtitle: using json schema
+#+tags[]: javascript, ollama, geocoding
+#+date: 2024-04-02T18:43:02
+
+[[https://github.com/ollama/ollama-js][ollama has a javascript]] library, which will work in both the browser
+as well as on the server.  Lets look at how we could build a geocoder
+with it, where we can pass in a city name and find out it's location,
+a description about it, and then put it on the map.
+
+{{< img img="screenshot.png" >}}
+
+* Get a message with a response
+
+First, what can we get out?  Lets write something that can get a name
+and then spit out something useful to see what's in the dataset.
+
+#+begin_src javascript :tangle message.js
+  import ollama from 'ollama';
+  import { argv } from 'node:process';
+
+  const city = argv[2] ? argv[2] : 'bennington, vt'
+
+  const msgs = [
+      { "role": "user", content:
+        `where is the city ${city} in north america,
+  what is the city like, and where
+  is it located in latitude and longitude
+  in decimal` }
+  ]
+
+  const output = await ollama.chat({ model: "Mistral:7b", messages: msgs })
+
+  console.log(output.message.content)
+#+end_src
+
+#+begin_src bash :results output
+ node message.js | fold -s
+#+end_src
+
+#+RESULTS:
+#+begin_example
+ Bennington is a city located in the southwestern part of the state of Vermont, 
+in the New England region of North America. It is situated about 35 miles (56 
+kilometers) southwest of Rutland, Vermont, and approximately 120 miles (193 
+kilometers) southwest of Burlington, Vermont, which is the largest city in the 
+state.
+
+Bennington is known for its rich history, particularly for its role during the 
+American Revolution, when it was the site of the Battle of Bennington in 1777. 
+Today, the city is home to a number of historical sites and museums that 
+commemorate this history, including the Bennington Museum and the Old First 
+Church.
+
+Bennington is also known for its natural beauty, with the Green Mountains 
+running along the western edge of the city and the Deerfield River flowing 
+through it. The area offers numerous opportunities for outdoor recreation, 
+including hiking, skiing, fishing, and kayaking.
+
+In terms of size, Bennington is the largest city in Bennington County and has a 
+population of approximately 15,000 people.
+
+As for its location in latitude and longitude, Bennington can be found at 
+approximately 42.83° N, 73.29° W.
+#+end_example
+
+* Use JSON Schema output
+
+That seems useful, but we need to massage the output into something we can use as an api.  We can do this using first
+
+1. defining the schema we want to return
+2. putting =output in json with the schema= that we just defined
+3. adding =format: "json"= to the chat options.
+
+=schema_message.js=:
+#+begin_src javascript :tangle schema_message.js
+  const schema = {
+      city: {
+          type: "string",
+          description: "name of city",
+      },
+      state: {
+          type: "string",
+          description: "state of provence of the city"
+      },
+      country: {
+          type: "string",
+          description: "country of the city"
+      },
+      population: {
+          type: "string",
+          description: "population of the city",
+          },
+      description: {
+          type: "string",
+          description: "description of the city"
+      },
+      lat: {
+          type: "float",
+          description: "decimal latitude of the city"
+      },
+      lon: {
+          type: "float",
+          description: "decimal longitude of the city"
+      }
+  }
+          
+
+  export default function schema_message( city ) {
+      return {
+          model: "Mistral:7b",
+          messages: [
+      { "role": "user", content:
+        `where is the city ${city} in north america,
+  describe the city as description, and where
+  is it located in latitude and longitude
+  in decimal.  output in json using the schema
+  defined here ${JSON.stringify( schema )}` }
+          ],
+          format: "json"
+      }
+  }
+#+end_src
+
+=schema.js=:
+#+begin_src javascript :tangle schema.js
+  import ollama from 'ollama';
+  import schema_message from './schema_message.js'
+  import { argv } from 'node:process';
+
+  const city = argv[2] ? argv[2] : 'bennington, vt'
+
+  const output = await ollama.chat(
+      schema_message( city ) )
+
+  console.log(output.message.content)
+
+#+end_src
+
+#+begin_src bash :results output
+node schema.js "montreal" | jq . | fold -s
+#+end_src
+
+#+RESULTS:
+#+begin_example
+{
+  "city": "Montreal",
+  "state": "Quebec",
+  "country": "Canada",
+  "population": "1.7 million (2021)",
+  "description": "Montreal is the largest city in the Canadian province of 
+Quebec. It is located on an Island at the heart of North America, surrounded by 
+the Saint Lawrence River. Montreal is known for its rich history and vibrant 
+culture. The city is a melting pot of various ethnicities, making it a diverse 
+and welcoming destination. Montreal is famous for its European-style 
+architecture, museums, historic sites, and delicious food scene. It is also 
+home to some renowned institutions in art, music, and sports.",
+  "lat": 45.5074,
+  "lon": -73.5677
+}
+#+end_example
+
+* Building a webpage
+
+Let's wrap all this up with a webpage to see if we can actually hit it
+with the browser:
+
+#+begin_src bash
+  npm i unocss vite @shoelace-style/shoelace leaflet
+#+end_src
+
+I'm also reusing the =map-view.js= component from a previous post.
+
+=ollama-geocode.js=:
+#+begin_src javascript :tangle ollama-geocode.js
+  import ollama from 'ollama/browser'
+  import schema_message from './schema_message.js'
+  import MapView from './map-view.js';
+
+  class OllamaGeocode extends HTMLElement {
+      // This is the main method, which uses the same schema_message
+      // as above
+      async doLookup() {
+          const output = await ollama.chat( schema_message( this.state.city ) )
+          const response = output //JSON.parse( output )
+          this.state = {
+              loading: false,
+              response: response,
+              content: JSON.parse( response.message.content )
+          }
+
+          this.render();
+      }
+
+      static get observedAttributes() { return ["city"] };
+      
+      attributeChangedCallback( name ) {
+          console.log( "Callback", name );
+          this.lookup( this.getAttribute( "city" ) );
+      }
+
+      lookup( city ) {
+          console.log( "Doing lookup for", city );
+          this.state.loading = true;
+          this.state.message = `Performing lookup for ${city}`
+          this.state.city = city;
+
+          this.doLookup()
+
+          this.render();
+      }
+
+             
+      connectedCallback() {
+          this.state = {
+              message: "Waiting for input"
+          }
+          this.render()
+      }
+
+      // Here I'm manually building the HTML from
+      // the state object, but it's smart enough to use
+      // WebComponents so it's not that bad.
+      render() {
+          let h = ""
+          
+          if( this.state.message ) {
+              h += `<sl-alert open>${this.state.message}</sl-alert>`
+          }
+
+          if( this.state.loading ) {
+              h += `<sl-progress-bar indeterminate py-2></sl-progress-bar>`
+          }
+
+          if( this.state.response ) {
+              let r = this.state.response;
+              h += `<sl-alert open>
+    ${r.model} gave this answer in
+    <sl-format-number value=${r.total_duration/ 1_000_000_000} maximumSignificantDigits="3"></sl-format-number>
+    seconds</sl-alert>`
+          }
+
+          if( this.state.content ) {
+              let c = this.state.content;
+              h += `<sl-breadcrumb>
+    <sl-breadcrumb-item>${c.country}</sl-breadcrumb-item>
+    <sl-breadcrumb-item>${c.state}</sl-breadcrumb-item>
+    <sl-breadcrumb-item>${c.city}</sl-breadcrumb-item>
+  </sl-breadcrumb>
+
+  <p>Population: ${c.population}</p>
+  <p>${c.description}</p>
+
+  <map-view latlon="${c.lat},${c.lon}" style="height: 200px"></map-view>`
+          }
+          this.innerHTML = h;
+      }
+  }
+
+  customElements.define( 'ollama-geocode', OllamaGeocode )
+
+#+end_src
+
+=index.html=:
+#+begin_src html :tangle index.html
+  <html>
+    <head>
+      <title>Ollama geocode</title>
+      <script src="client.js" type="module"></script>
+      <script src="ollama-geocode.js" type="module"></script>
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+    </head>
+    <body>
+      <div max-w-prose mx-auto prose>
+        <h1 font-header text-4xl font-bold>Ollama Geocoder</h1>
+
+        <sl-input id="city" label="What city are you lookingup?" py-2></sl-input>
+
+        <ollama-geocode id="geocoder"></ollama-geocode>
+      </div>
+    </body>
+  </html>
+#+end_src
+
+=client.js=:
+#+begin_src javascript :tangle client.js
+  import '@unocss/reset/tailwind.css';
+  import '@shoelace-style/shoelace/dist/themes/light.css';
+  import '@shoelace-style/shoelace';
+  import './main.css';
+
+  city.addEventListener( 'sl-change', (e) => {
+      geocoder.setAttribute( "city", city.value );
+  } )
+#+end_src
+
+* Hallucinations are still bullshit
+
+I would put the accuracy of this at 90%, enough to sort of work but
+for smaller cities this model gets the data wrong.
+
+* References
+
+1. https://github.com/ollama/ollama-js
+1. https://github.com/technovangelist/videoprojects/tree/main
+1. https://www.youtube.com/watch?v=kaK3ye8rczA
+1. https://www.youtube.com/watch?v=RXDWkiuXtG0
+      
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
