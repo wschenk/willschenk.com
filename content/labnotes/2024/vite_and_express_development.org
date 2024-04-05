@@ -1,0 +1,101 @@
+#+title: Vite and express development
+#+subtitle: javascript all the way down
+#+tags[]: vite, express, docker, flyio
+#+date: 2024-04-04T09:17:38
+
+I've been playing with lowkey ways of deploying javascript apps using
+=vite=, webcomponents, and simple express servers.  This gets you a huge
+part of the way with a simplicity that makes things without a whole
+lot of ceremony.  Figuring out vue, svelte or react always seems like
+a whole lot of overkill for small side projects.
+
+Here's how I put together a simple javascript app with a backend that
+can be deployed on something like [[https://fly.io/]].  If you use their
+persisent volumes then its super easy to get a sqlite3 database up and
+running.
+
+
+#+begin_src bash
+  npm i express vite cors
+#+end_src
+
+Something like this:
+
+=package.json=
+#+begin_src javascript
+  {
+      "type": "module",
+      "scripts": {
+          "dev": "node app.js & vite",
+          "build": "vite build"
+      },
+      "optionalDependencies": {
+          "@rollup/rollup-linux-x64-gnu": "4.6.1"
+      },
+      "dependencies": {
+          "cors": "^2.8.5",
+          "express": "^4.19.2",
+          "vite": "^5.2.7"
+      }
+  }
+#+end_src
+
+=app.js=
+#+begin_src javascript
+  import express from 'express';
+  import { createServer } from 'node:http';
+  import cors from 'cors';
+
+  const app = express();
+  if( import.meta.env.MODE == 'development' ) {
+      app.use(cors())
+  }
+  app.use(express.static('dist'))
+
+  // Other server code
+
+  server.listen(3000, () => {
+    console.log('server running on port 3000');
+  });
+
+#+end_src
+
+
+=index.html=
+#+begin_src html
+<!doctype html>
+<html>
+  <head>
+    <title>Client</title>
+    <script src="client.js" type="module"></script>
+  </head>
+  <body style="margin: 0">
+    <div style="height: 100vh" id="terminal"></div>
+  </body>
+</html>
+#+end_src
+
+And put your client code into =client.js=
+
+#+begin_src javascript
+  const host = import.meta.env.MODE == 'development' ? "http://localhost:3000/" : undefined
+  console.log( "Our base url is ", host );
+#+end_src
+
+
+=Dockerfile=
+#+begin_src dockerfile
+FROM node:20.12.0-bookworm
+
+WORKDIR /usr/app
+
+COPY package* ./
+RUN npm install
+
+COPY . ./
+RUN npx vite build
+
+EXPOSE 3000
+
+CMD node app.js
+#+end_src

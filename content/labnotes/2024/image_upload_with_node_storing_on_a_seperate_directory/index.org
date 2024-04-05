@@ -1,0 +1,324 @@
+#+title: Image upload with node storing on a seperate directory
+#+subtitle: why do anything so fancy as S3
+#+tags[]: flyio, vite, javascript
+#+date: 2024-04-04T20:00:53
+
+#+begin_src bash
+  npm i express express-fileupload vite cors 
+#+end_src
+
+This will give us something like
+
+=package.json=:
+#+begin_src javascript
+  {
+      "type": "module",
+      "scripts": {
+          "dev": "node app.js & vite",
+          "build": "vite build"
+      },
+      "optionalDependencies": {
+          "@rollup/rollup-linux-x64-gnu": "4.6.1"
+      },
+      "dependencies": {
+          "cors": "^2.8.5",
+          "express": "^4.19.2",
+          "express-fileupload": "^1.5.0",
+          "vite": "^5.2.8"
+      }
+  }
+#+end_src
+
+* Server App
+
+Our first bit of code is going to deal with moving the files around.
+=express-fileupload= will get the file and put it in a temp directory,
+and this will handle moving the code into our data directory.  If
+=DATA_DIR= is in the enviroment it will put it there, otherwise it will
+stick it in a local =uploads/= folder.
+
+=file_storage.js=:
+#+begin_src javascript :tangle file_storage.js
+  import * as fs from 'fs';
+  import path from 'node:path';
+  import process from 'node:process';
+
+  export const dir = process.env.DATA_DIR ? process.env.DATA_DIR :
+      path.normalize( path.join( process.cwd(), 'upload' ));
+
+  try {
+      if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir);
+      }
+  } catch (err) {
+      console.error(err);
+  }
+
+  export function entries() {
+      const all_files = fs.readdirSync(dir, {withFileTypes: true})
+      const files = all_files.filter((dirent) => dirent.isFile()).map((f) => f.name);
+      
+      return files;
+  }
+
+  export function storeImage(image) {
+      const count = entries().length
+      const ext = path.extname(image.name);
+      const name = `${dir}/${count}${ext}`
+      
+      console.log( "Storing file in ", name );
+      
+      image.mv( name )
+  }
+
+  export function realPath(name) {
+      const basename = path.basename(name);
+      return path.normalize(`${dir}/${basename}`)
+  }
+
+  console.log( entries() )
+#+end_src
+
+Now to the app itself.  We'll serve our javascript application out of
+=dist/= which is where vite will eventually build it, create an =/images=
+GET route to return a list of images that we have in our folder, an
+=/images/:name= route which will return the image, and an =/upload= POST
+route to accept the uploaded file and store it in the directory.
+
+=app.js=:
+#+begin_src javascript :tangle app.js
+  import express from 'express'
+  import fileUpload from 'express-fileupload'
+  import { storeImage, realPath, entries } from './file_storage.js'
+  import cors from 'cors';
+
+  const app = express();
+  //if( import.meta.env.MODE == 'development' ) {
+      app.use(cors())
+  //}
+
+  app.use(fileUpload());
+
+  const port = 3000;
+
+  app.use(express.static('dist/'));
+
+  app.get('/', (req, res) => {
+      res.send('Hello World!');
+  });
+
+  app.get( '/images', (req, res) => {
+      const list = entries().map( (elem) => `/images/${elem}` ) 
+      const ret = {
+          entries: list
+      }
+
+      res.json( ret )
+  })
+
+  app.get( '/images/:path', (req, res) => {
+      res.sendFile( realPath(req.params.path) );
+  } )
+
+
+  app.post('/upload', (req, res) => {
+      // Get the file that was set to our field named "image"
+      const { image } = req.files;
+
+      // If no image submitted, exit
+      if (!image) return res.sendStatus(400);
+
+      storeImage( image );
+      // Move the uploaded image to our upload folder
+      //image.mv( './upload/' + image.name);
+
+      res.sendStatus(200);
+  });
+
+  app.listen(port, () => {
+      console.log(`Example app listening on port ${port}`);
+  });
+#+end_src
+
+* Client App
+Here we are splitting up the code into two different components,
+=capture-photo= and =photo-list=.  Clearly some work could be done on
+design.
+
+=index.html=:
+#+begin_src html :tangle index.html
+  <html>
+    <head>
+      <title>Image Uploader Test</title>
+      <script src="photo-list.js" type="module"></script>
+      <script src="capture-photo.js" type="module"></script>
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+    
+    </head>
+    <body >
+      <p>Select a file to upload</p>
+      <capture-photo></capture-photo>
+      <photo-list></photo-list>
+    </body>
+  </html>
+#+end_src
+
+This makes an =input type=file= which will prompt the user for photo
+(or, on mobile, go to the camera itself) and then post the file back
+to the server.  Either the express app running on port 3000 locally or
+whatever the base url of the deployed site is in production.
+
+After it's done it dispatches a =refresh= event on the window with the
+other component can watch for.
+
+=capture-photo.js=:
+#+begin_src javascript :tangle capture-photo.js
+  class CapturePhoto extends HTMLElement {
+      connectedCallback() {
+          this.innerHTML= `<input type="file" name="selectedPicture" id="selectedPicture" 
+       accept="image/*" capture
+        />`;
+          const input = this.querySelector( "input" );
+          input.addEventListener( "change", (e) => {
+              this.uploadPhoto();
+              console.log( input );
+              console.log( e );
+          });
+      }
+
+      async uploadPhoto() {
+          const formData = new FormData();
+          const input = this.querySelector( "input" );
+
+          formData.append( "image", input.files[0] );
+          input.value = ''
+          const host = import.meta.env.MODE == 'development' ? "http://localhost:3000" : ""
+
+          const response = await fetch(`${host}/upload`, {
+              method: "POST",
+              body: formData,
+          });
+
+          const event = new CustomEvent("refresh" )
+          window.dispatchEvent( event );
+
+          const result = await response.json();
+          console.log( result );
+      }
+  }
+
+  customElements.define( 'capture-photo', CapturePhoto );
+#+end_src
+
+Hit the endpoint, and make the list of images!
+
+=photo-list.js=:
+#+begin_src javascript :tangle photo-list.js
+  const host = import.meta.env.MODE == 'development' ? "http://localhost:3000" : ""
+
+  class PhotoList extends HTMLElement {
+      connectedCallback() {
+          this.list = [];
+          this.queryList();
+          this.render();
+
+          window.addEventListener( "refresh", () => this.queryList() );
+      }
+
+      async queryList()
+      {
+          const response = await fetch( `${host}/images` )
+          const json = await response.json()
+          this.list = json.entries
+          this.render()
+      }
+
+      render() {
+          let h = "<ul>"
+
+          for( let i = this.list.length-1; i >= 0; i-- ) {
+              let img = this.list[i];
+
+              h += `<li><img src="${host}${img}" style="max-width: 300px"></li>`
+          }
+
+          h += `</ul>`
+
+          this.innerHTML = h;
+      }
+  }
+
+  customElements.define( 'photo-list', PhotoList );
+#+end_src
+
+* Deploy
+
+Lets make sure that this junk doesn't end up in the docker image.
+
+=.dockerignore=:
+#+begin_src bash :tangle .dockerignore
+  node_modules/
+  upload/
+#+end_src
+
+Build the vite app, then run the express app.
+
+=Dockerfile=:
+#+begin_src dockerfile :tangle Dockerfile
+FROM node:20.12.0-bookworm
+
+WORKDIR /usr/app
+
+COPY package* ./
+RUN npm install
+
+COPY . ./
+RUN npx vite build
+
+EXPOSE 3000
+
+CMD node app.js
+#+end_src
+
+The key parts of this file are the =[mounts]= section which defines the
+persistent storage and the =[env]= section which tells our code where it
+is.
+
+=fly.toml=:
+#+begin_src toml :tangle fly.toml
+app = 'wschenk-test'
+primary_region = 'ewr'
+
+[build]
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+[[vm]]
+  memory = '512mb'
+  cpu_kind = 'shared'
+  cpus = 1
+
+[mounts]
+  source="myapp_data"
+  destination="/data"
+
+[env]
+  DATA_DIR="/data"
+#+end_src
+
+
+* References
+
+1. https://pqina.nl/blog/upload-image-with-nodejs/
+1. https://www.red-gate.com/simple-talk/development/javascript/taking-pictures-html/
+1. https://rapidapi.com/guides/send-files-to-server-fetch
+1. https://www.digitalocean.com/community/tutorials/workflow-resizing-images-with-imagemagick
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
