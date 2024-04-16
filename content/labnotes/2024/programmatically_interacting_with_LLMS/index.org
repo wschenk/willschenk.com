@@ -1,0 +1,1274 @@
+#+title: Programmatically Interacting with LLMS
+#+subtitle: different techniques for local, remote, rag and function calling
+#+tags[]: ollama, langchain, openai, chat, rag, tools, ai, llms
+#+date: 2024-04-16T18:44:19
+#+draft: true
+
+I decided to sit down over a few days (I'm at a trampoline park right
+now, being a money dispensor for the kids to buy slurpees while they
+tire themselves out) and figure out how to code with LLMs.  We're
+going to look at how to do a single show prompt, multi message chat,
+RAG /Retrieval-Augmented Generation/, and tool usage, each with the
+ollama-js, openai-js, and then langchain with both ollana and openai.
+
+I didn't quite implement every combination, but you get the idea.
+
+#+ATTR_HTML: :class table
+|           | Ollama JS | OpenAI JS | LangChain - Ollama | LangChain - OpenAI |
+| Prompting | Yes       | Yes       | Yes                | Yes                |
+| Chat      | Yes       |           | Yes                | Yes                |
+| RAG       | Yes       | Yes       | Yes                |                    |
+| Tools     | Yes       | Yes       | Yes                | Yes                |
+
+The straightforward code of using the interfaces is shorter, but not
+necessarily clearer especially with tool calling.  It is super cool to
+be able to retarget the LangChain code onto a different provider and
+it smooths over the differences of implementations.  I learned a lot
+about what you could do by looking through it's documentation.  But in
+practice, there's a lot of overhead and classes and things you need to
+learn which aren't clearly necessary.  Seems like a slightly too
+premature abstraction, but it is overall nice.  Worth learning even if
+you don't end up using.
+
+LangChain is a library that lets you build things on top of LLMs,
+where it's relatively easy to paper over the difference between each
+of the implementations and APIs.  It also has a bunch of high level
+concepts in there.  I like the [[https://js.langchain.com/docs/modules/data_connection/document_transformers/recursive_text_splitter][RecursiveCharacterTextSplitter]] for
+example, when I started I just split it into sentences and this was a
+more interesting solution.
+
+Buckle up.
+
+* Prompting
+
+Here are examples of a single shot call into the model and returning
+the response.  We cover basically system prompting and getting the
+responses back from the models.
+
+** =ollama-js=
+
+#+begin_src bash
+  npm install ollama
+#+end_src
+
+=ollama-prompt.js=:
+#+begin_src javascript :tangle ollama-prompt.js
+  import ollama from 'ollama';
+
+  const msgs = [
+      {
+          "role": "system",
+          "content": `You are a creative director at a
+    marketing agency helping clients brain storm interesting ideas.`
+      },
+      {
+          "role": "user",
+          content: "Five cute names for a pet penguin"
+      }
+  ]
+
+  const output = await ollama.chat({ model: "mistral", messages: msgs })
+
+  console.log(output.message.content)
+#+end_src
+
+#+begin_src bash :results raw
+  node ollama-prompt.js
+#+end_src
+
+#+RESULTS:
+1. Waddles the Wonder: This name suggests that your pet penguin is a
+   unique and special creature, adding an element of wonder and
+   delight to its personality.
+2. Peppy the Penguin: Peppy conveys energy, cheerfulness, and
+   friendliness, making it a great name for a playful and charming pet
+   penguin.
+3. Snowball the Adventurer: This name adds a sense of adventure and
+   excitement to your pet penguin's identity, implying that it's
+   always up for new experiences and adventures.
+4. Tuxedo Teddy: Naming your pet penguin after its distinctive
+   black-and-white appearance adds a cute and endearing touch, making
+   it feel like a beloved teddy bear.
+5. Iggy the Ice Explorer: This name suggests that your pet penguin is
+   an intrepid explorer of icy landscapes, adding a sense of adventure
+   and bravery to its personality. It's also a fun play on words, as
+   "iggy" could refer to both "igloo," which penguins live in, and the
+   common name for penguins, which begins with the letter I.
+
+** =open-ai=
+
+We'll need to get an =OPENAI_API_KEY= to use this, and I'm going to
+stick it in an =.env= file so here we go.
+
+#+begin_src bash
+  npm install openai dotenv
+#+end_src
+
+=open-ai-prompt.js=
+#+begin_src javascript :tangle open-ai-prompt.js
+  import 'dotenv/config'
+  import process from 'node:process'
+  import OpenAI from "openai";
+
+  const openai = new OpenAI()
+
+  async function main() {
+    const completion = await openai.chat.completions.create({
+      messages: [
+          {
+              role: "system",
+              content:
+              `You are a creative director at a marketing agency
+  helping clients brain storm interesting ideas.`
+          },
+          {
+              role: "user",
+              content: "Five cute names for a pet penguin"
+          }],
+        model: "gpt-3.5-turbo",
+    });
+
+    console.log(completion.choices[0].message.content);
+  }
+
+  main();
+#+end_src
+
+#+begin_src bash :results raw
+  node open-ai-prompt.js
+#+end_src
+
+#+RESULTS:
+1. Pebbles
+2. Frosty
+3. Waddles
+4. Pippin
+5. Chilly
+
+** LangChain
+
+Now we get into the abstractions that LangChain provides.  We were
+doing a bunch of this nonsense by hand, but now we get some fancy
+classes for it.
+
+We can put all of our /business logic/ in a seperate file and pass our
+=chatModel= into it, so later we can wire up different compute
+environments.
+
+Here we are taking the =ChatPromptTemplate=, piping that to our
+=chatModel=, and having the result go through the =StringOutputParser=.
+
+This code is all the same regardless of what backend we end up using.
+
+=langchain-prompt.js=:
+#+begin_src javascript :tangle langchain-prompt.js
+  import { ChatPromptTemplate } from "@langchain/core/prompts";
+  import { StringOutputParser } from "@langchain/core/output_parsers";
+
+  export default async function runPrompt( chatModel, input ) {
+      const prompt = ChatPromptTemplate.fromMessages([
+          [
+              "system",
+              `You are a creative director at a marketing
+  agency helping clients brain storm interesting ideas.`],
+          [
+              "user",
+              "{input}"
+          ],
+      ]);
+      
+      const outputParser = new StringOutputParser();
+      const llmChain = prompt.pipe(chatModel).pipe(outputParser);
+      const answer = await llmChain.invoke({
+          input
+      });
+
+      return answer
+  }
+
+#+end_src
+
+** LangChain Ollama
+#+begin_src bash
+  npm install @langchain/community
+#+end_src
+
+Pass in the =ChatOllama= model configured to the =mistral= instance
+available locally.  (If you don't have it, =ollama pull mistral=)
+
+=langchain-ollama-prompt.js=:
+#+begin_src javascript :tangle langchain-ollama-prompt.js
+  import { ChatOllama } from "@langchain/community/chat_models/ollama";
+  import runPrompt from "./langchain-prompt.js"
+
+  const chatModel = new ChatOllama({
+      baseUrl: "http://localhost:11434", // Default value
+      model: "mistral",
+  });
+
+  const answer = await runPrompt( chatModel, "Five cute names for a pet penguin" );
+
+  console.log( answer )
+#+end_src
+
+#+begin_src bash :results raw
+  node langchain-ollama-prompt.js
+#+end_src
+
+#+RESULTS:
+ 1. Waddles the Wonder: Named after the tiny waddle steps penguins
+    make, this adorable pet penguin is full of surprises and charms
+    with its unique personality.
+
+2. Tuxedo Tot: A playful name for your pet penguin that highlights its
+   distinctive black and white tuxedo-like appearance.
+
+3. Iggy the Icebird: This creative moniker pays homage to penguins'
+   avian roots as they are often referred to as "icebirds." It adds an
+   element of intrigue, making your pet penguin even more captivating!
+
+4. Pippin the Polly: A cute and catchy name for your pet penguin that
+   combines playful alliteration with a nod to their polar habitat.
+
+5. Bingo the Brave: This name conveys strength, courage, and
+   adventure - perfect for a curious and adventurous pet penguin!
+ 
+** LangChain open-ai
+
+#+begin_src bash
+  npm install @langchain/openai
+#+end_src
+
+Just use the default =ChatOpenAI= model, we could choose /anything/ but we
+chose /nothing/!
+
+=langchain-open-ai-prompt.js=:
+#+begin_src javascript :tangle langchain-open-ai-prompt.js
+  import 'dotenv/config'
+  import { ChatOpenAI } from "@langchain/openai";
+  import runPrompt from "./langchain-prompt.js"
+
+  const chatModel = new ChatOpenAI();
+  const answer = await runPrompt( chatModel, "Five cute names for a pet penguin" );
+
+  console.log( answer )
+#+end_src
+
+#+begin_src bash :results raw
+  node langchain-open-ai-prompt.js
+#+end_src
+
+#+RESULTS:
+1. Fluffy
+2. Snowball
+3. Waddles
+4. Pebbles
+5. Chilly
+
+* Chatting
+Chatting is very similar to prompting, but we're passing the context
+back to the LLM so that it has a sense of memory.  And, context in
+this sense, is just the entire conversation.
+
+** Node prompt function
+#+begin_src bash
+  npm i readline
+#+end_src
+
+=prompt.js=:
+#+begin_src javascript :tangle prompt.js
+  import readline from 'readline'
+
+  export default async function promptUser( prompt = "Enter message: " ) {
+      const rl = readline.createInterface({
+          input: process.stdin,
+          output: process.stdout
+      });
+      
+      return new Promise((resolve, reject) => {
+          rl.question(prompt, (response) => {
+              rl.close();
+              resolve(response);
+          });
+          
+          rl.on('SIGINT', () => {
+              rl.close();
+              reject(new Error('User cancelled the prompt.'));
+          });
+      });
+  }
+
+#+end_src
+
+** =ollama.js=
+
+#+begin_src javascript :tangle ollama-chat.js
+  import promptUser from './prompt.js';
+  import ollama from 'ollama';
+
+  const model = 'mistral'
+
+  const messages = [
+      {
+          role: "system",
+          content: "You are a helpful AI agent"
+      }
+  ]
+
+  while( true ) {
+      const content = await promptUser( "> " );
+
+      if( content == "" ) {
+          console.log( "Bye" );
+          process.exit(0);
+      }
+      
+      messages.push( { role: "user", content } )
+      
+      const response = await ollama.chat( {
+          model,
+          messages,
+          stream: true } )
+      
+      let cc = 0
+
+      let text = ""
+      for await (const part of response) {
+          cc = cc + part.message.content.length
+          if( cc > 80 ) {
+              process.stdout.write( "\n" );
+              cc = part.message.content.length
+          }
+          process.stdout.write( part.message.content )
+          text = text + part.message.content
+      }
+      process.stdout.write( "\n" );
+
+      messages.push( { role: "assistant", content: text } )
+  }
+#+end_src
+
+** LangChain ollama
+
+[[https://js.langchain.com/docs/modules/model_io/concepts#chatprompttemplate][ChatPromptTemplate]], [[https://js.langchain.com/docs/modules/memory/chat_messages/][ChatMessageHistory]],
+[[https://js.langchain.com/docs/modules/model_io/concepts#messagesplaceholder][MessagesPlaceholder]]... =HumanMessage=, =AIMessage=, the list goes on.
+These all encapsulate logic that you'll need making these completions.
+There are all sorts of backend implementations of this if you want to
+have it be something more than a memory store for a single shot run,
+like I'm doing here.
+
+The gist of it is that you need to keep track of what it being said
+back and forth, make sure that it's all passed into the LLM to get
+"the next thing", and there's a bunch of bookkeeping that needs to get
+done.  Once you have these concepts in place, then in theory its
+easier to built on top of it.
+
+=langchain-ollama-chat.js=:
+#+begin_src javascript :tangle langchain-ollama-chat.js
+  import { ChatOllama } from "@langchain/community/chat_models/ollama";
+  import { HumanMessage, AIMessage } from "@langchain/core/messages";
+  import { ChatMessageHistory } from "langchain/stores/message/in_memory";
+  import {
+    ChatPromptTemplate,
+    MessagesPlaceholder,
+  } from "@langchain/core/prompts";
+  import promptUser from './prompt.js'
+
+  const chat = new ChatOllama( { modal: 'gemma' } )
+
+  const prompt = ChatPromptTemplate.fromMessages([
+    [
+      "system",
+      "You are a helpful assistant. Answer all questions to the best of your ability.",
+    ],
+    new MessagesPlaceholder("messages"),
+  ]);
+
+  const chain = prompt.pipe(chat);
+
+  const messages = new ChatMessageHistory();
+
+
+  while( true ) {
+      const message = await promptUser( "> " );
+
+      if( message == "" ) {
+          console.log( "Bye" )
+          process.exit(0)
+      }
+      
+      await messages.addMessage(
+          new HumanMessage( message )
+      )
+      
+      const responseMessage = await chain.invoke({
+          messages: await messages.getMessages(),
+      });
+
+      await messages.addMessage( responseMessage )
+
+      console.log( responseMessage.content )
+  }
+
+#+end_src
+
+** LangChain open-ai
+
+This is exactly the same as above, except we use
+
+#+begin_src javascript
+  import { ChatOpenAI } from "@langchain/openai";
+#+end_src
+
+Nifty!
+
+#+begin_src javascript :tangle langchain-openai-chat.js :exports none
+  import 'dotenv/config'
+  import { ChatOpenAI } from "@langchain/openai";
+  import { HumanMessage, AIMessage } from "@langchain/core/messages";
+
+  import { ChatMessageHistory } from "langchain/stores/message/in_memory";
+  import {
+    ChatPromptTemplate,
+    MessagesPlaceholder,
+  } from "@langchain/core/prompts";
+  import promptUser from './prompt.js'
+
+  const chat = new ChatOpenAI()
+
+  const prompt = ChatPromptTemplate.fromMessages([
+    [
+      "system",
+      "You are a helpful assistant. Answer all questions to the best of your ability.",
+    ],
+    new MessagesPlaceholder("messages"),
+  ]);
+
+  const chain = prompt.pipe(chat);
+
+  const messages = new ChatMessageHistory();
+
+
+  while( true ) {
+      const message = await promptUser( "> " );
+
+      if( message == "" ) {
+          console.log( "Bye" )
+          process.exit(0)
+      }
+      
+      await messages.addMessage(
+          new HumanMessage( message )
+      )
+      
+      const responseMessage = await chain.invoke({
+          messages: await messages.getMessages(),
+      });
+
+      await messages.addMessage( responseMessage )
+
+      console.log( responseMessage.content )
+  }
+
+#+end_src
+
+* RAG
+
+/Retrieval-Augmented Generation/ is both less and way more interesting
+than I thought it was.  The idea here is that you preprocess a bunch
+of documents, stick them in and index -- or split them up into a bunch
+of different parts and index those -- and when the user asks a
+question you first pull in the relevent documents and then dump the
+whole thing into a model and see what it says.
+
+It's less than you think because it's really just grabbing a bunch of
+snippets of the documents and jamming them into the chat, in a way
+that seems sort of goofy frankly.  "Answer with this context" but also
+"sloppily copy and paste with wild abandon into a chat window" and
+hope for the best.  Weirdly, it seems to deliver.
+
+It's more than you think because the embeddings are wild -- somehow,
+the concepts in the question that you ask are encoded in the same
+conceptual space, the same semantic space, or whatever the hell these
+vectors represent -- and it pulls in similar ideas.  This idea of
+"close to", with like a /cosine/ function, seems so unlikely to actually
+work when you think about it and seems to work almost magically in
+practice.
+
+One other thing is that the details are that it's hard to get data.
+Here's where I thought that LangChain had some good tooling, around
+data retraival, scraping web sites and parsing PDFs and in general the
+transform later of the normal EDL.
+
+My solution: We'll be using the [[https://www.gutenberg.org/files/1342/1342-0.txt][text of Pride and Prejudice]] for sample
+data.
+
+#+begin_src bash
+  wget https://www.gutenberg.org/files/1342/1342-0.txt
+#+end_src
+
+Step 1) get the data.  Step 2) index the data using an =embedding
+model=.  Step 3) when the user queries, pass it through the first
+=embedding model=.  Step 4) take the query, and the resulting documents,
+and feed them into whatever model you want.
+
+** VectorStore: =chromadb=
+
+We need a =VectorStore= to store our index and then be able to query it.
+Everyone uses =chromadb= in these demos so we will too.
+
+#+begin_src bash
+  npm i chromadb @stdlib/nlp-sentencize
+#+end_src
+
+I'm starting up a temporary instance using ephermal storage which goes
+away everytime you close the window.  There are other ways to do this,
+but this is mine.
+
+#+begin_src bash
+  docker run --rm -it -p 8000:8000 chromadb/chroma
+#+end_src
+
+=chroma-test.js=:
+#+begin_src javascript :tangle chroma-test.js
+  import { ChromaClient } from "chromadb";
+
+  const client = new ChromaClient({
+      path: "http://localhost:8000"
+  });
+
+  let collections = await client.listCollections();
+
+  console.log( "collections", collections );
+
+  const collection = await client.getOrCreateCollection({
+      name: "my_collection",
+      metadata: {
+          description: "My first collection"
+      }
+  });
+
+  collections = await client.listCollections();
+
+  console.log( "collections", collections );
+#+end_src
+
+** =ollama.js=
+*** import the data into the vector store
+#+begin_src bash
+  ollama pull nomic-embed-text
+#+end_src
+
+First we import the text into our chromadb:
+
+=ollama-rag-import.js=:
+#+begin_src javascript :tangle ollama-rag-import.js
+  import ollama from "ollama";
+  import fs from 'node:fs';
+  import sentencize from '@stdlib/nlp-sentencize';
+  import { ChromaClient } from "chromadb";
+
+  const fileName = "1342-0.txt";
+  const collectionName = "butterysmooth";
+  const embeddingModel = 'nomic-embed-text';
+
+  // Load the source file
+  const file = fs.readFileSync( fileName, 'utf8' )
+  const sentences = sentencize(file)
+
+  console.log( "Loaded", sentences.length, "sentences" )
+
+  // Setup Chroma
+
+  const chroma = new ChromaClient({ path: "http://localhost:8000" });
+  await chroma.deleteCollection({
+      name: collectionName
+  });
+
+  console.log( "Creating collection", collectionName );
+
+  const collection = await chroma.getOrCreateCollection({
+      name: collectionName,
+      metadata: { "hnsw:space": "cosine" }
+  });
+
+  // Generate the embeddings
+  for( let i = 0; i < sentences.length; i++ ) {
+      const s = sentences[i];
+
+      const embedding = (await ollama.embeddings( {
+          model: embeddingModel
+          prompt: sentences[i]
+      })).embedding
+
+      await collection.add( {
+          ids: [s + i],
+          embeddings: [embedding],
+          metadatas: {
+              source: fileName
+          },
+          documents: [s]
+      })
+
+      if( i % 100 == 0 ) {
+          process.stdout.write(".")
+      }
+  }
+
+  console.log("");
+#+end_src
+
+*** query using the rag
+
+=ollama-rag-query.js=:
+#+begin_src javascript :tangle ollama-rag-query.js
+  import ollama from "ollama";
+  import { ChromaClient } from "chromadb";
+
+  const collectionName = "butterysmooth"
+  const embeddingModel = 'nomic-embed-text';
+
+  const chroma = new ChromaClient({ path: "http://localhost:8000" });
+  const collection = await chroma.getOrCreateCollection({
+      name: collectionName,
+      metadata: { "hnsw:space": "cosine" } });
+
+  //const query = "who condescends?"
+  const query = "which character is more prideful and why?"
+
+  // Generate embedding based upon the query
+  const queryembed = (await ollama.embeddings({
+      model: embeddingModel,
+      prompt: query })).embedding;
+
+  const relevantDocs = (await collection.query({
+      queryEmbeddings: [queryembed], nResults: 10 })).documents[0].join("\n\n")
+  const modelQuery = `${query} - Answer that question using the following text as a resource: ${relevantDocs}`
+  //console.log( "querying with text", modelQuery )
+
+  const stream = await ollama.generate({ model: "mistral", prompt: modelQuery, stream: true });
+
+  for await (const chunk of stream) {
+    process.stdout.write(chunk.response)
+  }
+  console.log( "")
+#+end_src
+
+#+begin_src bash :results raw
+  node ollama-rag-query.js
+
+#+end_src
+
+#+begin_quote
+Based on the given text, Wickham appears to be the more prideful
+character among those mentioned. This is evident when it is stated
+that "almost all his actions may be traced to pride," and that "pride
+has often been his best friend." Furthermore, he acknowledges this
+himself when he says, "It was all pride and insolence."
+
+The text also suggests that Vanity and Pride are different things,
+with Pride being more related to one's opinion of oneself, whereas
+Vanity is concerned with what others think. In Wickham's case, it
+seems that both his self-opinion and what he would have others think
+of him are inflated due to pride.
+
+Miss Lucas, on the other hand, acknowledges that Mr. Darcy's pride
+does not offend her as much as it usually would because there is an
+excuse for it. This implies that she recognizes a distinction between
+proper and improper pride, suggesting that Mr. Darcy's pride may be
+more regulated or justified in some way compared to Wickham's.
+#+end_quote
+
+** LangChain =ollama=
+
+Lets do the same but using all =LangChain= stuff.
+
+#+begin_src bash
+  npm i langchain
+#+end_src
+
+This is slightly different: we are using chunks of texts instead of
+sentences, and it uses a bulk importing process.  Here is an area
+where I think LangChain shines a bit, since all of these document
+loaders and manipulars are sort of local knowledge in the machine
+learning world -- which I don't have -- so it's a nice leg up on the
+base "lets just split it into sentences dur I guess" that I did above.
+
+=langchain-ollama-importer.js=:
+#+begin_src javascript :tangle langchain-ollama-importer.js
+  import { OllamaEmbeddings } from "@langchain/community/embeddings/ollama"
+  import { Chroma } from "@langchain/community/vectorstores/chroma";
+  import { TextLoader } from "langchain/document_loaders/fs/text";
+  import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
+
+  const fileName = '1342-0.txt';
+  const collectionName = 'sofreshandclean';
+  const embeddingModel = 'nomic-embed-text';
+
+  // load the source file
+  const loader = new TextLoader( fileName );
+  const docs = await loader.load();
+
+  //Create a text splitter
+  const splitter = new RecursiveCharacterTextSplitter({
+      chunkSize:1000,
+      separators: ['\n\n','\n',' ',''],
+      chunkOverlap: 200
+  });
+
+  const output = await splitter.splitDocuments(docs);
+
+  //Get an instance of ollama embeddings
+  const ollamaEmbeddings = new OllamaEmbeddings({
+      model: embeddingModel
+  });
+
+  // Chroma
+  const vectorStore = await Chroma.fromDocuments(
+      output,
+      ollamaEmbeddings, {
+          collectionName
+      });
+#+end_src
+
+And then the query part:
+
+=langchain-ollama-rag.js=
+#+begin_src javascript :tangle langchain-ollama-rag.js
+  import { OllamaEmbeddings } from "@langchain/community/embeddings/ollama"
+  import { Ollama } from "@langchain/community/llms/ollama";
+  import { Chroma } from "@langchain/community/vectorstores/chroma";
+  import { PromptTemplate } from "@langchain/core/prompts";
+  import { StringOutputParser } from "@langchain/core/output_parsers"
+
+  const collectionName = 'sofreshandclean';
+  const embeddingModel = 'nomic-embed-text';
+  const llmModel = 'mistral';
+
+  const ollamaLlm = new Ollama({
+      model: llmModel
+  });
+
+  const ollamaEmbeddings = new OllamaEmbeddings({
+      model: embeddingModel
+  });
+
+  const vectorStore = await Chroma.fromExistingCollection(
+      ollamaEmbeddings, { collectionName }
+    );
+
+  const chromaRetriever = vectorStore.asRetriever();
+
+  const userQuestion = "Which character is more prideful and why?"
+
+  const simpleQuestionPrompt = PromptTemplate.fromTemplate(`
+  For following user question convert it into a standalone question
+  {userQuestion}`);
+
+  const simpleQuestionChain = simpleQuestionPrompt
+        .pipe(ollamaLlm)
+        .pipe(new StringOutputParser())
+        .pipe(chromaRetriever);
+
+  const documents = await simpleQuestionChain.invoke({
+      userQuestion: userQuestion
+  });
+
+  //Utility function to combine documents
+  function combineDocuments(docs) {
+      return docs.map((doc) => doc.pageContent).join('\n\n');
+  }
+
+  //Combine the results into a string
+  const combinedDocs = combineDocuments(documents);
+
+  const questionTemplate = PromptTemplate.fromTemplate(`
+  You are a ethics professor who is good at answering questions
+  raised by curious students. Answer the below question using the context.
+      Strictly use the context and answer in crisp and point to point.
+      <context>
+      {context}
+      </context>
+
+      question: {userQuestion}
+  `)
+
+  const answerChain = questionTemplate.pipe(ollamaLlm);
+
+  const llmResponse = await answerChain.invoke({
+      context: combinedDocs,
+      userQuestion: userQuestion
+  });
+
+  console.log(llmResponse);
+#+end_src
+
+#+begin_quote
+Based on the context provided, Mr. Darcy and Wickham are both proud
+characters, but their expressions of pride differ. Mr. Darcy's pride
+relates more to his opinion of himself, while Wickham's pride is
+intertwined with vanity - what others think of him.
+
+Wickham admits that his pride has often led him to be generous and
+give freely, but it also influenced his actions towards deceit and
+dishonesty towards others. He mentions stronger impulses than pride as
+well.
+
+Mr. Darcy's pride is noted for making him dismissive of others,
+specifically Elizabeth Bennet, and it has caused him to act in ways
+that have mortified those around him. However, his pride also stems
+from his family lineage, filial pride, which motivates him to maintain
+the influence and respectability of Pemberley House.
+
+It is essential to remember that both characters are complex, and
+their pride has influenced their actions positively and negatively
+throughout the narrative.
+#+end_quote
+
+
+* Tools
+=functions= and =tools= are a way to get an LLM to reach out to the world
+to get some more information.  This is done by defining a system
+prompt in a specific way that tells the LLM what tools are available,
+and then it will return a response in JSON form that we can recognize.
+Instead of showing it to the user then, we can call our own function,
+get the data, and spit it back to the LLM which will then hopefully
+run with it.
+
+Its not the LLM reaching out to the world, its the LLM asking us for
+information in a structured way, which we will then return back it to
+it as a chat message, and it'll keep going.
+
+Previously, I played around with [[https://willschenk.com/howto/2024/geocoding_with_ollama/][getting json structured responses
+from Ollama]] when we did the geocoding example.  That's only half of
+the picture.
+
+** Tools
+
+I'm putting the definition of these tools/functions out into seperate
+files since we'll be reusing them a number of times.
+
+=clarifyTool.js=
+#+begin_src javascript :tangle clarifyTool.js
+  export const clarifyTool = {
+      name: "clarify",
+      descriptions: "Asks the user for clarifying information to feed into a tool",
+      parameters: {
+          type: "object",
+          properties: {
+              information: {
+                  type: "string",
+                  description: "A descriptions of what further information required"
+              }
+          }
+      }
+  }
+#+end_src
+
+=weatherTool.js=
+#+begin_src javascript :tangle weatherTool.js
+  export const weatherTool = {
+      name: "get_weather",
+      description: "Gets the weather based on a given location and date",
+      parameters: {
+          type: "object",
+          properties: {
+              location: {
+                  type: "string",
+                  description: "Location or place name"
+              },
+              date: {
+                  type: "string",
+                  description: "Date of the forecast on 'YYYY-MM-DD' format"
+              }
+          },
+          required: [
+              "location",
+              "date"
+          ]
+      }
+  }
+#+end_src
+
+=distanceTool.js=
+#+begin_src javascript :tangle distanceTool.js
+  export const distanceTool = {
+      name: "get_distance",
+      description: "Gets the driving distance between two locations",
+      parameters: {
+          type: "object",
+          properties: {
+              start: {
+                  type: "string",
+                  description: "Location or place name where you are starting"
+              },
+              destination: {
+                  type: "string",
+                  description: "Location or place name of destination"
+              }
+          },
+          required: [
+              "start",
+              "destination"
+          ]
+      }
+  }
+#+end_src
+
+** =ollama.js=
+
+The idea here is that we are going to make a custom prompt that will
+tell the LLM that the tools are available, that they do certain
+things, and that we want it to return a JSON formatted response that
+we would, in pricipal, parse, act on, and then return text back to the
+model.
+
+This prompt needs work, but works fine for single shot queries.
+
+=ollama-tool-prompt.js=:
+#+begin_src javascript :tangle ollama-tool-prompt.js
+  export default function makePrompt(tools) {
+      const toolInfo = JSON.stringify( tools, null, "  " );
+      return `
+
+  You have access to the following tools:
+  {${toolInfo}}
+
+  You must follow these instructions:
+  You must return valid JSON.
+  Always select one or more of the above tools based on the user query
+  If a tool is found, you must respond in the JSON format matching the following schema:
+  {{
+     "tools": {{
+          "tool": "<name of the selected tool>",
+          "tool_input": <parameters for the selected tool, matching the tool's JSON schema
+     }}
+  }}
+  If there are multiple tools required, make sure a list of tools are returned in a JSON array.
+  If there is no tool that match the user request, you will respond with empty json.
+  Do not add any additional Notes or Explanations
+
+  User Query:`
+  }
+
+#+end_src
+
+
+Now we mash this together with our prompt tool and see what happens:
+
+=ollama-tools.js=:
+
+#+begin_src javascript :tangle ollama-tools.js
+  import ollama from 'ollama';
+  import promptUser from './prompt.js';
+  import makePrompt from './ollama-tool-prompt.js'
+  import { weatherTool } from './weatherTool.js'
+  import { distanceTool } from './distanceTool.js'
+
+  const model = 'mistral'
+
+  const messages = [
+      {
+          "role": "system",
+          "content": makePrompt( [distanceTool, weatherTool] )
+      }
+  ]
+
+  while( true ) {
+      const content = await promptUser( "> " );
+
+      if( content == "" ) {
+          console.log( "Bye" )
+          process.exit(0);
+      }
+      messages.push( { role: "user", content } )
+
+      const prompt = makePrompt( [distanceTool, weatherTool] ) + content
+      
+      const output = await ollama.generate({ model, prompt })
+      console.log( output.response )
+
+      console.log( JSON.parse( output.response ) )
+  }
+#+end_src
+
+#+begin_quote
+> how far is it to drive from boston to brooklyn
+ {
+  "tools": [
+    {
+      "tool": "get_distance",
+      "tool_input": {
+        "start": "boston",
+        "destination": "brooklyn"
+      }
+    }
+  ]
+}
+#+end_quote
+
+I'm not happy with this at all, trying to make it handle conversations
+worked very poorly and I believe that has to do with the quality of
+the prompt, or that the model that I'm using =mistral= doesn't have the
+right sort of knack for calling functions. Or something like that.
+This needs more work on my part but this is already long enough and
+we've got plenty more to go!
+
+** =openai.js=
+
+Openai is deprecating this for agents instead, which are different
+than chat completetions.  The advantage that they talk about is being
+able to run multiple queries in parallel.  I did not explore that
+directly with the javascript api.
+
+But this old way works, and it handles conversations better.
+
+=open-ai-tools.js=
+#+begin_src javascript :tangle open-ai-tools.js
+  import 'dotenv/config'
+  import process from 'node:process'
+  import OpenAI from "openai";
+  import { weatherTool } from './weatherTool.js'
+  import { distanceTool } from './distanceTool.js'
+
+  const openai = new OpenAI()
+
+  async function main( content ) {
+      const completion = await openai.chat.completions.create({
+          messages: [
+              {
+                  role: "system",
+                  content:
+                  `You are a help assistant.`
+              },
+              {
+                  role: "user",
+                  content
+              }],
+          model: "gpt-3.5-turbo",
+          tools: [
+              { type: "function", function: weatherTool},
+              { type: "function", function: distanceTool}
+          ]
+      });
+
+      console.log( content )
+      console.log( JSON.stringify( completion.choices[0].message, null, "  " ) );
+  }
+
+  main( "how far is the drive from boston to brooklyn" )
+  main( "whats the weather on the north pole" )
+#+end_src
+
+#+begin_quote
+how far is the drive from boston to brooklyn
+{
+  "role": "assistant",
+  "content": null,
+  "tool_calls": [
+    {
+      "id": "call_SwVitBBZupYaWShMzxRopNGq",
+      "type": "function",
+      "function": {
+        "name": "get_distance",
+        "arguments": "{\"start\":\"Boston\",\"destination\":\"Brooklyn\"}"
+      }
+    }
+  ]
+}
+whats the weather on the north pole
+{
+  "role": "assistant",
+  "content": null,
+  "tool_calls": [
+    {
+      "id": "call_L4dwKLbaa13ptUqioqMblmrc",
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "arguments": "{\"location\":\"North Pole\",\"date\":\"2023-12-25\"}"
+      }
+    }
+  ]
+}
+
+#+end_quote
+
+** LangChain =OllamaFunctions=
+
+Here's an example of where LangChains abstractions are helpful.  I
+tries a whole bunch of different things when I was coding this with
+the JS endpoints directly, and kept on getting all sorts of malformed
+JSON responses.  (It kept on adding commentary at the end.)  Whatever
+this is doing behind the hood made a lot of the problems go away.
+
+=langchain-ollama-functions.js=:
+#+begin_src javascript :tangle langchain-ollama-functions.js
+  import { OllamaFunctions } from "langchain/experimental/chat_models/ollama_functions";
+  import { HumanMessage } from "@langchain/core/messages";
+  import { weatherTool } from "./weatherTool.js";
+  import { distanceTool } from "./distanceTool.js";
+
+  const model = new OllamaFunctions({
+      temperature: 0.1,
+      model: "mistral",
+  } )
+        .bind( {
+            functions: [
+                weatherTool,
+                distanceTool
+            ] } )
+
+  let response = await model.invoke([
+      new HumanMessage({
+          content: "What's the weather in Boston?",
+      }),
+  ]);
+
+  console.log(response.additional_kwargs);
+
+  response = await model.invoke([
+      new HumanMessage({
+          content: "How far is it to drive from portland maine to the same city in oregon?",
+      }),
+  ]);
+
+  console.log(response.additional_kwargs);
+
+#+end_src
+
+#+begin_quote
+{
+  function_call: {
+    name: 'get_weather',
+    arguments: '{"location":"Boston","date":"<current date or desired date>"}'
+  }
+}
+
+{
+  function_call: {
+    name: 'get_distance',
+    arguments: '{"start":"portland maine","destination":"portland oregon"}'
+  }
+}
+
+#+end_quote
+
+** LangChain OpenAI =Tools=
+
+For the previous example, we didn't actually run anything -- we got it
+to the point only where it was returning the ask for us to run
+something.  Left as an excersize to the reader, the next step would be
+to get the result, put it back on the list of previous messages, and
+keep going.  From the point of the LLM, it's sort of like another type
+of conversational participant that isn't the assisant nor the /user/.
+
+But LangChain tools is actually a subset of their [[https://js.langchain.com/docs/modules/agents/][agent framework]],
+which not only lets you assemble a whole bunch of tools togeher but
+also has a bunch of built in ones!  Let's use their built in wikipedia
+tool to see how it works:
+
+=langchain-openai-tools.js=:
+#+begin_src javascript :tangle langchain-openai-tools.js
+  import 'dotenv/config'
+  import { ChatOpenAI } from "@langchain/openai";
+  import { createToolCallingAgent } from "langchain/agents";
+  import { ChatPromptTemplate } from "@langchain/core/prompts";
+  import { AgentExecutor } from "langchain/agents";
+  import { WikipediaQueryRun } from "@langchain/community/tools/wikipedia_query_run";
+
+  const llm = new ChatOpenAI({
+    model: "gpt-3.5-turbo-0125",
+    temperature: 0
+  });
+
+  // Prompt template must have "input" and "agent_scratchpad input variables"
+  const prompt = ChatPromptTemplate.fromMessages([
+    ["system", "You are a helpful assistant"],
+    ["placeholder", "{chat_history}"],
+    ["human", "{input}"],
+    ["placeholder", "{agent_scratchpad}"],
+  ]);
+
+  const wikiTool = new WikipediaQueryRun({
+    topKResults: 3,
+    maxDocContentLength: 4000,
+  });
+
+  const tools = [wikiTool];
+
+  const agent = await createToolCallingAgent({
+    llm,
+    tools,
+    prompt,
+  });
+
+  const agentExecutor = new AgentExecutor({
+    agent,
+    tools,
+  });
+
+  const result = await agentExecutor.invoke({
+    input: "what is is carl jung most known for?",
+  });
+
+  console.log(result);
+#+end_src
+
+#+begin_quote
+{
+  input: 'what is is carl jung most known for?',
+
+  output: "Carl Jung is most known for being a Swiss psychiatrist and
+    psychoanalyst who founded analytical psychology. He was a prolific
+    author, illustrator, and correspondent, and his work has been
+    influential in the fields of psychiatry, anthropology, archaeology,
+    literature, philosophy, psychology, and religious studies. Jung is
+    widely regarded as one of the most influential psychologists in
+    history. Some of the central concepts of analytical psychology that
+    he created include individuation, synchronicity, archetypal
+    phenomena, the collective unconscious, the psychological complex,
+    and extraversion and introversion. Jung's work and personal vision
+    led to the establishment of Jung's analytical psychology as a
+    comprehensive system separate from psychoanalysis."
+ }
+#+end_quote
+
+At this point you can really see the advantages of these higher level
+components.
+
+* Final thoughts
+
+I think I've got a basic handle on the moving pieces.  We have a
+number of techniques at our disposal here: prompt engineering, putting
+per user data into the prompt itself, and having the LLM call out to
+various tools during the query itself.  RAG is actually bolted onto
+the side, with the magic happening by splitting the user query into
+multiple queries, one that looks up relavant data for the query which
+then injects it into the prompt.
+
+Tools themselves also make a good way to get data into the system.
+Here the LLM isn't reasoning about information as such, but calling
+out to e.g. a relational database to get accurate queries, or to
+generate an image or run code or what have you.  What's nifty about
+this is it provides a "llm as the programmer" type interface,
+translating the user queries into a more suitiable technical phrase
+that exposes the functionality.
+
+Analgous to the user interface jump from text prompts to using a
+graphical interface, this is the language interface to technology.
+
+* References
+
+1. https://js.langchain.com/docs/get_started/quickstart
+1. https://js.langchain.com/docs/modules/data_connection
+1. https://platform.openai.com/docs/quickstart?context=node
+1. https://docs.trychroma.com/deployment
+1. https://js.langchain.com/docs/modules/data_connection/vectorstores/#which-one-to-pick
+1. https://github.com/hacktronaut/ollama-rag-demo
+1. https://www.deskriders.dev/posts/1702742595-function-calling-ollama-models/
+1. https://stephencowchau.medium.com/ollama-context-at-generate-api-output-what-are-those-numbers-b8cbff140d95
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
