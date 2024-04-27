@@ -1,0 +1,408 @@
+#+title: Basic LLM Chat UI
+#+subtitle: the base of a few experiments
+#+subtitle: vite, unocss, langchain
+#+date: 2024-04-26T21:15:15
+
+Here is a very simple webcomponent that can have a conversation with a
+local [[https://ollama.com/][ollama]] instance, or which can be easily configured to use any of
+the other models that [[https://js.langchain.com/docs/get_started/introduction][langchain]] supports.  (If you want to use
+something that has an API key you'll end up exposing the API key to
+the world, so maybe it's not a great idea to have the browser talk
+directly.)
+
+* Chat Component
+
+Here's the base component.  It assumes that there's one conversation
+perpage, and it keeps the query and response as attributes.  When a
+new one is created, it takes passes the previous completions to the
+backing model to give it some memory.
+
+=generate-response.js=:
+#+begin_src javascript :tangle generate-response.js
+  import { Ollama } from "@langchain/community/llms/ollama";
+  import { ChatOpenAI } from "@langchain/openai";
+
+  import {
+      ChatPromptTemplate,
+  } from "@langchain/core/prompts";
+  import { StringOutputParser } from "@langchain/core/output_parsers"
+  import { marked } from 'marked';
+
+  class GenerateResponse extends HTMLElement {
+      connectedCallback() {
+          this.state = {
+              llm: this.getAttribute( 'llm' ) || 'ollama',
+              api_key: this.getAttribute( 'api_key' ),
+              status: "",
+              model: this.getAttribute( "model" ) || "mistral",
+              response: "",
+              query: this.getAttribute( "query" )
+          }
+
+          this.doQuery();
+          this.render();
+      }
+
+      async doQuery() {
+          const model = this.state.model;
+          this.state.status = `generating response from ${model}`
+          this.render();
+
+          let chatModel = new Ollama( { model } );
+          if( this.state.llm == 'openAI' ) {
+              chatModel = new ChatOpenAI( {apiKey: this.state.api_key} );
+          }
+
+          const messages = [
+              [
+                  "system",
+                  "You are a helpful AI assistant"
+              ]
+          ];
+
+          // Get the history
+          const exchange = document.querySelectorAll( "generate-response" )
+          for( let m of exchange ) {
+              if( m.state.query ) {
+                  messages.push( [ "user", m.state.query ] )
+              }
+
+              if( m.state.response != "" ) {
+                  messages.push( [ "ai", m.state.response ] )
+              }
+          }
+
+          const prompt = ChatPromptTemplate.fromMessages(messages);
+          const outputParser = new StringOutputParser();
+          const llmChain = prompt.pipe(chatModel).pipe(outputParser);
+          const answer = await llmChain.stream({
+              input: this.state.query
+          });
+
+          for await (const chunk of answer) {
+              this.state.response = this.state.response + chunk;
+              this.render()
+          }
+
+          this.state.status = "";
+          this.render();
+      }
+      
+      render() {
+          let h = ""
+
+          h += `<h2 font-header text-2xl>${this.state.query}</h2>`
+          
+          if( this.state.response == "" ) {
+              h += `<sl-progress-bar indeterminate py-2></sl-progress-bar>`
+          }
+
+          if( this.state.status != "" ) {
+              h += `<p>${this.state.status}</p>`
+          }
+
+          if( this.state.response != "" ) {
+              h += `<div>`
+              h += marked.parse( this.state.response )
+              h += `</div>`
+          }
+
+          this.innerHTML = h;
+      }
+  }
+
+  customElements.define("generate-response", GenerateResponse );
+#+end_src
+
+* LLM Selector
+
+Right we can chose between 2 different LLM providers, but it's easy to
+add more.  I'm playing with ollama and OpenAI's version.  This simply
+makes a tab group for both.
+
+=llm-selector.js=:
+
+#+begin_src javascript :tangle llm-selector.js
+  class LLMSelector extends HTMLElement {
+      get llm() {
+          return this.state.llm;
+      }
+
+      get model() {
+          const model = this.querySelector( `#${this.state.llm}` );
+          return model.model;
+      }
+
+      get api_key() {
+          const model = this.querySelector( `#${this.state.llm}` );
+          return model.api_key;
+      }
+      
+      connectedCallback() {
+          this.state = {llm: 'ollama'}
+          
+          this.innerHTML = `
+  <sl-tab-group>
+    <sl-tab slot="nav" panel="ollama">Ollama</sl-tab>
+    <sl-tab slot="nav" panel="openAI">OpenAI</sl-tab>
+
+    <sl-tab-panel name="ollama"><ollama-models id="ollama"></ollama-models></sl-tab-panel>
+    <sl-tab-panel name="openAI"><openai-models id="openAI"></openai-models></sl-tab-panel>
+  </sl-tab-group>`
+
+          this.querySelector( "sl-tab-group" ).addEventListener( "sl-tab-show", (e) => {
+              this.state.llm = e.detail.name;
+          })
+      }
+
+  }
+
+  customElements.define("llm-selector", LLMSelector );
+
+#+end_src
+
+* Ollama Model Selection
+
+For ollama, we pull down a list of installed LLMs and let the user
+decide.  =mistral= is default.
+
+=ollama-models.js=:
+#+begin_src javascript :tangle ollama-models.js
+  class OllamaModels extends HTMLElement {
+      connectedCallback() {
+          this.state = {
+              status: "",
+              loading: true,
+              tags: [],
+              model: "mistral",
+              api_key: "",
+          }
+
+          this.listTags();
+          this.render();
+      }
+
+      get model() {
+          return this.state.model;
+      }
+
+      get api_key() {
+          return this.state.api_key;
+      }
+
+      async listTags() {
+          const response = await fetch( "http://localhost:11434/api/tags" );
+          const tags = await response.json();
+          console.log( tags );
+          this.state.tags = tags;
+          this.state.loading = false;
+          this.render();
+      }
+
+      render() {
+          if( !this.state.loading ) {
+              let h = `<sl-select hoist id="model" label="Model" help-text="Please select which model to run against.">`
+              for( let model of this.state.tags.models ) {
+                  h += `<sl-option value="${model.name}">${model.name}</sl-option>`
+                  }
+              h += `</sl-select>`
+
+              this.innerHTML = h;
+
+              this.querySelector( "sl-select" ).addEventListener( 'sl-change', (e) => {
+                  this.state.model = e.target.value;
+              } );
+          }
+      }
+  }
+
+  customElements.define("ollama-models", OllamaModels );
+#+end_src
+
+* OpenAI Component
+
+Mainly we need to get the api key, which we will store in local
+storage for future ease of use.  Once you enter it, it stays in your
+browser.
+
+=openai-models.js=:
+#+begin_src javascript :tangle openai-models.js
+  class OpenaiModels extends HTMLElement {
+
+      connectedCallback() {
+          this.state = {
+              api: localStorage.getItem( "openai_api_key" ),
+              models: ['gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo', 'gpt-3.5'],
+              model: 'gpt-4-turbo'
+          }
+
+          this.render();
+      }
+
+      get model() {
+          return this.state.model;
+      }
+      
+      get api_key() {
+          return this.state.api;
+      }
+      
+      render() {
+          let h = `<sl-input id='api' label="API KEY" value="${this.state.api}"></sl-input>`;
+
+          h = h + `<sl-select hoist id="model" label="Model" help-text="Please select which model to run against.">`
+          for( let model of this.state.models ) {
+              h += `<sl-option value="${model}">${model}</sl-option>`
+          }
+          h += `</sl-select>`
+
+          this.innerHTML = h;
+
+          this.querySelector( 'sl-input' ).addEventListener( "sl-input", (e) => {
+              this.state.api = e.target.value;
+              localStorage.setItem( "openai_api_key", this.state.api );
+              console.log( this.state.api );
+          } );
+
+          this.querySelector( "sl-select" ).addEventListener( 'sl-change', (e) => {
+              this.state.model = e.target.value;
+          } );
+
+      }
+  }
+
+  customElements.define( "openai-models", OpenaiModels );
+
+#+end_src
+
+
+* HTML & JavaScript
+
+And the framework that all this hangs off of:
+
+=main.js=:
+#+begin_src javascript :tangle main.js
+  import '@unocss/reset/tailwind.css';
+  import '@shoelace-style/shoelace/dist/themes/light.css';
+  import '@shoelace-style/shoelace';
+  import './generate-response.js';
+  import './llm-selector.js';
+  import './ollama-models.js';
+  import './openai-models.js';
+  import './main.css';
+
+  // For icons
+  import { setBasePath } from '@shoelace-style/shoelace/dist/utilities/base-path.js';
+  setBasePath('./node_modules/@shoelace-style/shoelace/dist');
+
+
+  // Wiring up stuff
+  promptinput.addEventListener( "keypress", (e) => {
+      if( e.keyCode == 13 ) {
+          const response = document.createElement( "generate-response" );
+          response.setAttribute( 'llm', selector.llm );
+          response.setAttribute( 'api_key', selector.api_key );
+          response.setAttribute( 'query', promptinput.value );
+          response.setAttribute( 'model', selector.model );
+          chat.appendChild( response );
+
+          console.log(chat)
+          
+          promptinput.value = "";
+      }
+  })
+#+end_src
+
+And then wire it all together:
+
+=index.html=:
+#+begin_src html :tangle index.html
+    <html>
+    <head>
+      <title>Chat bot</title>
+      <script src="main.js" type="module"></script>
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+    </head>
+    <body font-sans>
+      <div max-w-prose mx-auto prose>
+        <h1 text-4xl font-bold>Chat Bot</h1>
+
+        <llm-selector id="selector"></llm-selector>
+
+        <div id="chat">
+        </div>
+
+        <sl-input label="How can I help?" id="promptinput">
+          <sl-icon name="chat" slot="suffix"></sl-icon>
+        </sl-input>
+      </div>
+    </body>
+  </html>
+#+end_src
+
+* Boilerplate
+
+#+begin_src bash
+  npm i vite unocss @shoelace-style/shoelace vite-plugin-static-copy langchain marked
+#+end_src
+
+=package.json=:
+#+begin_src javascript :tangle package.json
+  {
+      "scripts": {
+          "dev": "unocss \"**/*.html\" -o main.css --watch & vite",
+          "build": "unocss \"**/*.html\" -o main.css && vite build"
+      },
+      "type": "module",
+      "dependencies": {
+          "@shoelace-style/shoelace": "^2.15.0",
+          "langchain": "^0.1.35",
+          "unocss": "^0.59.4",
+          "marked": "^12.0.2",
+          "vite": "^5.2.10",
+          "vite-plugin-static-copy": "^1.0.3"
+      }
+  }
+#+end_src
+
+
+#+begin_src javascript :tangle unocss.config.js
+  // uno.config.ts
+  import {
+      defineConfig,
+      presetAttributify,
+      presetTypography,
+      presetUno
+  } from 'unocss'
+
+  import presetWebFonts from '@unocss/preset-web-fonts';
+
+  const fonts = presetWebFonts({
+      provider: 'google', // default provider
+      fonts: {
+          sans: [ { name: 'Quicksand', weights: [ '300', '700'] } ] // Quicksand
+      }
+  })
+
+  export default defineConfig({
+    presets: [
+        presetAttributify(), // required when using attributify mode
+        presetUno(), // required
+        presetTypography(),
+        fonts,
+    ],
+  })
+
+#+end_src
+
+Run with
+
+#+begin_src bash
+  npm run dev
+#+end_src
+
+
+* References
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
