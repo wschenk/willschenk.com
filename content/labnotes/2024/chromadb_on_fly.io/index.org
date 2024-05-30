@@ -1,0 +1,180 @@
+#+title: Chromadb on fly.io
+#+subtitle: adding some auth
+#+tags[]: flyio, chromadb
+#+date: 2024-05-30T15:51:31
+
+I've been using the model of having all of these fly.io apps as
+"services", which scale to zero, and have persistent storage.
+Everything goes to sleep when you don't use it, and takes only a
+second or to to come up.  Pay for what you need.  Pretty nifty.
+
+Lets setup a chromadb instance.
+
+* Setup the app
+#+begin_src bash
+fly launch --no-deploy
+#+end_src
+
+Lets add a =mounts= section to have the database stored somewhere, and
+so we'll end up with something like this:
+
+#+begin_src toml :tangle fly.toml
+  app = 'chromadb-on-fly-io'
+  primary_region = 'ewr'
+
+  [http_service]
+    internal_port = 8000
+    force_https = true
+    auto_stop_machines = true
+    auto_start_machines = true
+    min_machines_running = 0
+    processes = ['app']
+
+  [[vm]]
+    memory = '2gb'
+    cpu_kind = 'shared'
+
+  [mounts]
+    source = "chromadb"
+    destination = "/chroma/chroma"
+    initial_size = "100gb"
+#+end_src
+
+Then we can create a simple =Dockerfile=.
+
+#+begin_src dockerfile :tangle Dockerfile
+FROM chromadb/chroma
+#+end_src
+
+And testing
+
+#+begin_src bash :results raw
+curl https://chromadb-on-fly-io.fly.dev/
+#+end_src
+
+#+RESULTS:
+{"detail":"Not Found"}
+
+* Writing test code to connect
+
+#+begin_src bash
+  npm i chromadb
+#+end_src
+
+#+begin_src javascript :tangle no-auth-test.js
+  // no-auth-test.js
+
+  import { ChromaClient } from "chromadb";
+
+  const client = new ChromaClient({
+      path: "https://chromadb-on-fly-io.fly.dev"
+  });
+
+  const collection = await client.getOrCreateCollection({
+      name: "my_collection",
+      metadata: {
+          description: "My first collection"
+      }
+  });
+
+  const collections = await client.listCollections();
+
+  console.log( "collections", collections );
+#+end_src
+
+#+begin_src bash :results output
+  node no-auth-test.js
+#+end_src
+
+#+RESULTS:
+: collections [
+:   {
+:     name: 'my_collection',
+:     id: '95d68c89-5ee6-42f2-9421-8cb57b8f9aeb',
+:     metadata: { description: 'My first collection' },
+:     tenant: 'default_tenant',
+:     database: 'default_database'
+:   }
+: ]
+
+* Adding in auth
+
+This is fully open, so lets add some [[https://docs.trychroma.com/deployment/auth][access control]].  We'll go with
+access token method, which is super simple.  Add this to the =fly.toml=
+file.
+
+#+begin_src toml :tangle fly.toml
+  [env]
+      CHROMA_SERVER_AUTHN_CREDENTIALS="test-token"
+      CHROMA_SERVER_AUTHN_PROVIDER="chromadb.auth.token_authn.TokenAuthenticationServerProvider"
+#+end_src
+
+And
+
+#+begin_src bash
+  fly deploy
+#+end_src
+
+Try it again:
+
+#+begin_src bash :results output
+  node no-auth-test.js
+#+end_src
+
+#+RESULTS:
+
+#+begin_src javascript :tangle with-auth-test.js
+  // with-auth-test.js
+
+  import { ChromaClient } from "chromadb";
+
+  const client = new ChromaClient({
+      path: "https://chromadb-on-fly-io.fly.dev",
+      auth: {provider: "token", credentials: "test-token"}
+  });
+
+  const collection = await client.getOrCreateCollection({
+      name: "my_authed_collection",
+      metadata: {
+          description: "My second collection"
+      }
+  });
+
+  const collections = await client.listCollections();
+
+  console.log( "collections", collections );
+#+end_src
+
+#+begin_src bash :results output
+  node with-auth-test.js
+#+end_src
+
+#+RESULTS:
+#+begin_example
+collections [
+  {
+    name: 'my_collection',
+    id: '95d68c89-5ee6-42f2-9421-8cb57b8f9aeb',
+    metadata: { description: 'My first collection' },
+    tenant: 'default_tenant',
+    database: 'default_database'
+  },
+  {
+    name: 'my_authed_collection',
+    id: '98930e2d-5f72-4a6f-a185-bbe4d606f040',
+    metadata: { description: 'My second collection' },
+    tenant: 'default_tenant',
+    database: 'default_database'
+  }
+]
+#+end_example
+
+* References
+
+1. https://docs.trychroma.com/deployment/auth
+1. https://docs.trychroma.com/deployment/aws
+1. https://fly.io/ruby-dispatch/health-checks/
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
