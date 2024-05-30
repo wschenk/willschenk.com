@@ -1,0 +1,125 @@
+#+title: Converting a webpage to something usable
+#+subtitle: not sure if it can be done
+#+subtitle: javascript, markdown
+#+date: 2024-05-30T05:47:00
+
+I want to get the text from a website and turn it into markdown.  The
+final answer is that this doesn't work all that great, but we get
+something. Here are the libraries that we explore:
+
+- [[https://github.com/mixmark-io/turndown][turndown]]
+- [[https://github.com/mozilla/readability][@mozilla/readability]]
+- [[https://trafilatura.readthedocs.io/en/latest/][trafilatura]]
+- [[https://pypi.org/project/boilerpy3/][boilerpy3]]
+
+I was looking for basically what [[https://www.instapaper.com/][instapaper]] does, but I think that
+uses a whole different method than looking at the text.
+
+* Turndown/Javascript
+
+#+begin_src bash
+  npm i jsdom turndown
+#+end_src
+
+#+begin_src javascript :tangle turndown.js
+  // turndown.js
+  import TurndownService from 'turndown';
+  import { JSDOM } from 'jsdom';
+
+  export default async function extractMarkdown(url) {
+      const response = await fetch( url );
+      const doc = await response.text();
+
+      const turndownService = TurndownService();
+
+      const markdown = turndownService.turndown(doc);
+      return markdown;
+  }
+
+  const markdown = await extractMarkdown( "https://willschenk.com/fragments/2024/i_need_a_trigger_warning/" )
+  console.log( markdown )
+#+end_src
+
+This ends up looking really good, but it does include all of the
+navigation and other junk in the window.
+
+* Readability/Javascript
+
+#+begin_src bash
+  npm i jsdom @mozilla/readability
+#+end_src
+
+#+begin_src javascript :tangle readability.js
+  // readability.js
+  import TurndownService from 'turndown';
+  import { Readability } from '@mozilla/readability';
+  import { JSDOM } from 'jsdom';
+
+
+  export default async function extractText(url) {
+      const doc = await JSDOM.fromURL(url);
+      const reader = new Readability(doc.window.document, {keepClasses:false, classesToPreserve: ['BLOCKQUOTE']});
+      const article = reader.parse();
+
+      console.log( article.content );
+      
+      const turndownService = TurndownService();
+      const markdown = turndownService.turndown(article.content);
+
+      return markdown;
+  }
+
+  const text = await extractText( "https://willschenk.com/fragments/2024/i_need_a_trigger_warning/" )
+
+  console.log( text )
+#+end_src
+
+Doesn't get the block quote right (just has it inline) and fails to
+return the attribution.
+
+* Trafilatura/Python
+
+Installation:
+#+begin_src bash
+  pip install trafilatura
+#+end_src
+
+Usage:
+#+begin_src bash
+  trafilatura -u https://willschenk.com/fragments/2024/i_need_a_trigger_warning/
+#+end_src
+
+Similar to readability, doesn't get the block quote right (just has it
+inline) and fails to return the attribution, and also returns all the
+natigation junk
+
+* Boilerpy3/Pyhton
+
+#+begin_src bash
+  pip install boilerpy3
+#+end_src
+
+#+begin_src python :tangle boiler.py
+  from boilerpy3 import extractors
+
+  extractor = extractors.ArticleExtractor()
+
+  # From a URL
+  content = extractor.get_content_from_url('https://willschenk.com/fragments/2024/i_need_a_trigger_warning/')
+
+  print( content )
+#+end_src
+
+* Conclusion
+
+Based on this limitd testing I'd go with straight turndown.
+
+* References
+- [[https://github.com/mixmark-io/turndown][turndown]]
+- [[https://github.com/mozilla/readability][@mozilla/readability]]
+- [[https://trafilatura.readthedocs.io/en/latest/][trafilatura]]
+- [[https://pypi.org/project/boilerpy3/][boilerpy3]]
+
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
