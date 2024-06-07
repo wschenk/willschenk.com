@@ -2,7 +2,8 @@
 import '@unocss/reset/tailwind.css';
 import './main.css';
 import '@shoelace-style/shoelace/dist/themes/light.css';
-import '@shoelace-style/shoelace/dist/shoelace.js';
+import '@shoelace-style/shoelace/dist/components/copy-button/copy-button.js';
+import '@shoelace-style/shoelace/dist/components/textarea/textarea.js';
 
 window.addEventListener("load", (event) => {
     const box = document.getElementById( "note-area" )
