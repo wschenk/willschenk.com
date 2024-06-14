@@ -1,0 +1,141 @@
+#+title: How to use pako with vite
+#+subtitle: javascript string encoding is simply insane
+#+tags[]: javascript, pako
+#+date: 2024-06-14T06:57:59
+
+[[https://github.com/nodeca/pako][pako]] is a javascript implementation of the zlib library.  I was trying
+to make it work when I was [[https://willschenk.com/howto/2024/recreating_notepadtab/][recreating the notepadtab]] but I was unable
+to make it work.  Turns out that it's because I have no idea how
+JavaScript strings work. /Not sure that it's actually clearer now, but
+this code works/.
+
+To use =pako=, pass in the source data to =pako.deflate=.  This will give
+you a =Uint8Array=, which you need to convert back to a string for
+=window.btoa= to work -- otherwise it will encode the string
+representation of the array.  Use =String.fromCharCode= to make that
+work.
+
+To get things back, you need to do =atob= to convert the base64 back to
+an array of bytes.  We then convert that to a string, and then that
+into a Uint8 array, and inflate that using pako and then turn that again
+into a string!
+
+#+begin_src javascript :tangle main.js
+  import pako from 'pako';
+
+  window.addEventListener("load", (event) => {
+      const source = document.getElementById( "source" );
+      const encoding = document.getElementById( "encoding" );
+      const dest = document.getElementById( "dest" );
+      
+      source.addEventListener( "keyup", (e) => {
+          // Compress and encode
+          const inputData = source.value;
+          console.log( "inputData", inputData );
+
+          const compressed = pako.deflate( inputData );
+          console.log( "compressed", compressed );
+
+          const base64 = window.btoa( String.fromCharCode.apply(null, compressed ));
+          encoding.innerHTML = base64;
+          console.log( "base64", base64 );
+
+          // Stats
+          rawsize.innerHTML = inputData.length;
+          hashsize.innerHTML = base64.length;
+
+          // Decompress and inflate back to the original string
+          const reverseBase64 = atob(base64);
+
+          // Converts the string back to an Uint8Array
+          const reverseBase64Array = new Uint8Array(reverseBase64.split("").map(function(c) {
+              return c.charCodeAt(0); }));
+          console.log( "reverse", reverseBase64Array );
+
+          const inflatedRaw = pako.inflate( reverseBase64Array );
+          console.log( "inflatedRaw", inflatedRaw );
+
+
+          // Convert back to string
+          const decompressed = String.fromCharCode.apply( null, inflatedRaw );
+          console.log( "decompressed", decompressed );
+          dest.innerHTML = decompressed;
+      } )
+  } )
+#+end_src
+
+* Boiler plate
+
+Then create a =package.json= like this:
+
+#+begin_src javascript :tangle package.json
+  {
+      "type": "module",
+      "scripts": {
+          "dev": "vite"
+      },
+      "dependencies": {
+          "pako": "^2.1.0",
+          "vite": "^5.3.0"
+      }
+  }
+
+#+end_src
+
+
+#+begin_src html :tangle index.html
+  <html>
+    <head>
+      <title>Pako Test</title>
+      <script src="main.js" type="module"></script>
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <style> 
+        textarea {
+          width: 100%;
+          height: 150px;
+          padding: 1em;
+        }
+
+        div, pre {
+          padding-bottom: 1em;
+        }
+      </style>
+    </head>
+    <body >
+
+      <h1>Enter text</h1>
+      <div>
+        <textarea id="source">This is the source text, edit it</textarea>
+      </div>
+
+      <h2>Encoded</h2>
+      <pre id="encoding"></pre>
+
+      <div>
+        <h2>Size</h2>
+
+        <p>Raw: <span id="rawsize"></span></p>
+        <p>Compressed base 64'd: <span id="hashsize"></span></p>
+      </div>
+
+      <h2>Back to source</h2>
+      <pre id="dest"></pre>
+    </body>
+  </html>
+#+end_src
+
+* Test
+
+#+begin_src bash
+  npm i && npm run dev
+#+end_src
+
+And open the console.
+
+* References
+
+1. https://stackoverflow.com/questions/12710001/how-to-convert-uint8-array-to-base64-encoded-string
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
