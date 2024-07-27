@@ -1,0 +1,273 @@
+#+title: Using 1password from a script
+#+subtitle: better than keeping keys around
+#+tags[]: 1password, cli
+#+date: 2024-07-27T17:24:43
+
+First, install if you haven't:
+
+#+begin_src bash
+  brew install 1password-cli
+#+end_src
+
+Check if it works:
+
+#+begin_src bash :results raw
+  which op
+#+end_src
+
+Then open your 1password app, go to =Settings > Developer= and =Integrate
+with 1Password CLI=.
+
+* List the vaults
+
+See which vaults you have access to:
+
+#+begin_src bash :results output
+  op vaults list
+#+end_src
+
+#+RESULTS:
+: ID                            NAME
+: 26qksmfapwaq2s.....           Personal
+
+It should ask you to open the vault each time.
+
+* Getting the full document
+
+And example would be
+
+#+begin_src bash :results output
+  op item get 'Resend API'
+#+end_src
+
+#+RESULTS:
+#+begin_example
+ID:          go6jxv7zgslinwotun2uj4q4qe
+Title:       Resend API
+Vault:       Personal (26qksmfapwaq2siqwsfcxrh6d4)
+Created:     10 minutes ago
+Updated:     10 minutes ago by Will Schenk
+Favorite:    false
+Version:     1
+Category:    SECURE_NOTE
+Fields:
+  notesPlain:    re_XYEvJ5TV_8a....
+#+end_example
+
+And if you want to get the raw value pipe it through JQ:
+
+#+begin_src bash :results output
+  op item get 'Resend API' --format json | jq -r '.fields[0].value'
+#+end_src
+
+#+RESULTS:
+: re_XYEvJ5TV_8a...
+
+* Reading it directly
+
+#+begin_src bash :results output
+  op read 'op://Personal/Resend API/notesPlain'
+#+end_src
+
+#+RESULTS:
+: re_XYEvJ5TV_8a...
+
+* Using it in a script
+
+There are a couple of ways to do this but here is how you'd do it from
+the [[https://developer.1password.com/docs/cli/secrets-scripts][secret scripts]] section of the docs.
+
+First we create an environment file like =env=:
+
+#+begin_src bash :tangle environment
+  # environment
+  RESEND_API=op://Personal/Resend API/notesPlain
+#+end_src
+
+Then we can make a simple node script that sends a message using the
+API:
+
+#+begin_src javascript :tangle send.js
+  // send.js
+  import { Resend } from 'resend';
+
+  if( process.env.RESEND_API === undefined ) {
+      console.log( "Please set RESEND_API" );
+      process.exit(1);
+
+  }
+
+  const resend = new Resend(process.env.RESEND_API);
+
+  resend.emails.send({
+    from: 'onboarding@resend.dev',
+    to: 'wschenk@gmail.com',
+    subject: 'Hello World',
+    html: '<p>Congrats on sending your <strong>first email</strong>!</p>'
+  });
+
+  console.log( "email sent!" );
+#+end_src
+
+With the =package.json=:
+
+#+begin_src javascript :tangle package.json
+  {
+      "type": "module",
+      "dependencies": {
+          "resend": "^3.5.0"
+      }
+  }
+#+end_src
+
+Then we can try it out without 1password:
+
+#+begin_src bash :results output
+  node send.js
+#+end_src
+
+#+RESULTS:
+: Please set RESEND_API
+
+And then with 1password:
+
+#+begin_src bash :results output
+  op run --env-file environment -- node send.js
+#+end_src
+
+#+RESULTS:
+: email sent!
+
+* Injecting into a config file
+
+Maybe you don't want it to prompt you everytime, and you want to cache
+the results.  For that you inject, which takes the template and
+outputs a file that can, hopefully, be secretly shared around
+
+#+begin_src bash
+  op inject -i environment -o .env
+#+end_src
+
+#+RESULTS:
+: /Users/wschenk/willschenk.com/content/labnotes/2024/using_1password_from_a_script/.env
+
+Then you can use the normal =dotenv= way of loading in things.  It
+really depends on how and when you are running the scripts, and if its
+only triggered by you doing it or if it runs somewhere else.
+
+* Server install
+
+What happens if you don't want to ship the cleartext files around?
+Install 1password on the server!
+
+Here's the debian instructions.
+
+Add the key for the 1Password apt repository:
+
+#+begin_src bash
+  curl -sS https://downloads.1password.com/linux/keys/1password.asc | \
+  sudo gpg --dearmor --output /usr/share/keyrings/1password-archive-keyring.gpg
+#+end_src
+
+Add the 1Password apt repository:
+
+#+begin_src bash
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/1password-archive-keyring.gpg] https://downloads.1password.com/linux/debian/$(dpkg --print-architecture) stable main" |
+  sudo tee /etc/apt/sources.list.d/1password.list
+#+end_src
+
+Add the debsig-verify policy:
+
+#+begin_src bash
+sudo mkdir -p /etc/debsig/policies/AC2D62742012EA22/
+curl -sS https://downloads.1password.com/linux/debian/debsig/1password.pol | \
+sudo tee /etc/debsig/policies/AC2D62742012EA22/1password.pol
+sudo mkdir -p /usr/share/debsig/keyrings/AC2D62742012EA22
+curl -sS https://downloads.1password.com/linux/keys/1password.asc | \
+sudo gpg --dearmor --output /usr/share/debsig/keyrings/AC2D62742012EA22/debsig.gpg
+#+end_src
+
+Install 1Password CLI:
+
+#+begin_src bash
+  sudo apt update && sudo apt install 1password-cli
+#+end_src
+
+* Service Accounts
+
+Service accounts don't work with personal vaults, so back on your home
+machine lets create a new one:
+
+#+begin_src bash :results output
+  op vault create Production
+#+end_src
+
+#+RESULTS:
+: ID:                   ursbnjfomqcdmz2fym3l3kgjhe
+: Name:                 Production
+: Type:                 USER_CREATED
+: Attribute version:    1
+: Content version:      1
+: Items:                0
+: Created:              now
+: Updated:              now
+
+Copy the item over:
+
+#+begin_src bash
+  op item get 'Resend API' --format json  | \
+      op item create --vault Production
+#+end_src
+
+#+RESULTS:
+| ID:         | uxoawzbzw2bprash6fhlo3q3yq           |                              |
+| Title:      | Resend                               | API                          |
+| Vault:      | Production                           | (ursbnjfomqcdmz2fym3l3kgjhe) |
+| Created:    | now                                  |                              |
+| Updated:    | now                                  |                              |
+| Favorite:   | false                                |                              |
+| Version:    | 1                                    |                              |
+| Category:   | SECURE_NOTE                          |                              |
+| Fields:     |                                      |                              |
+| notesPlain: | re_XYEvJ5TV_8a....                   |                              |
+
+Now we can create a service account
+
+#+begin_src bash :results output
+  op service-account create "server" \
+     --expires-in 30d --vault Production:read_items
+#+end_src
+
+#+RESULTS:
+: Service account created successfully!
+: Service account UUID: AME6P4DMKFHMFC5HPQGMQZUVAQ
+: Service account token: 
+: ops_eyJzaWduSW5BZGRyZXNzIjoiaHR0cHM6...
+: 
+: To start using this service account, run the following command:
+: 
+: export OP_SERVICE_ACCOUNT_TOKEN=ops_eyJzaWduSW5BZGRyZXNzIjoiaHR0cHM6...
+
+Keep this somewhere because it'll go away
+
+* Back to the server
+
+#+begin_src bash
+  export OP_SERVICE_ACCOUNT=ops_eyJ....
+
+  op read 'op://Production/Resend API/notesPlain'
+#+end_src
+
+And then you have access to the secrets!
+
+
+* References
+
+1. https://developer.1password.com/docs/cli/get-started/
+1. https://developer.1password.com/docs/cli/secrets-scripts
+1. https://developer.1password.com/docs/cli/secrets-config-files/
+
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
