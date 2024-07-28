@@ -1,0 +1,239 @@
+#+title: Sending email with react-email
+#+subtitle: its nicer to use their interative builder but why not just the simple thing
+#+tags[]: react, email, htmlq
+#+date: 2024-07-27T19:10:53
+
+Install stuff we'll need:
+
+#+begin_src bash
+  npm install react-email @react-email/components
+  npm install -D tsup typescript
+  npm install resend
+#+end_src
+
+Which installs so much stuff...
+
+#+begin_src bash :results output
+  ls -l node_modules | wc -l
+  du -sh node_modules
+#+end_src
+
+#+RESULTS:
+:      336
+: 446M	node_modules
+
+And gives us something like:
+
+#+begin_src javascript :tangle package.json
+  {
+      "type": "module",
+      "main": "./dist/index.js",
+      "module": "./dist/index.mjs",
+      "types": "./dist/index.d.ts",
+      "files": [
+          "dist/**"
+      ],
+      "scripts": {
+          "emaildev": "email dev",
+          "build": "tsup --dts --external react",
+          "dev": "tsup --dts --external react --watch",
+          "clean": "rm -rf dist"
+      },
+      "dependencies": {
+          "@react-email/components": "^0.0.22",
+          "react-email": "^2.1.6",
+          "resend": "^3.5.0"
+      },
+      "devDependencies": {
+          "tsup": "^8.2.3",
+          "typescript": "^5.5.4"
+      }
+  }
+
+#+end_src
+
+A quite little tsup.config.ts:
+
+#+begin_src javascript :tangle tsup.config.ts
+  import { defineConfig } from 'tsup'
+
+  export default defineConfig({
+      entry: ['render.tsx', 'resend.tsx'],
+      target: 'es2024'
+  })
+#+end_src
+
+Then we need to configure typescript, like so:
+
+// tsconfig.json
+#+begin_src javascript :tangle tsconfig.json
+  {
+  "compilerOptions": {
+    "composite": false,
+    "declaration": true,
+    "declarationMap": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "inlineSources": false,
+    "isolatedModules": true,
+    "moduleResolution": "node",
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "preserveWatchOutput": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "strictNullChecks": true,
+    "jsx": "react-jsx",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "target": "es6",
+  },
+  "include": ["."],
+  "exclude": ["dist", "build", "node_modules"]
+}
+
+
+#+end_src
+
+* Make the template
+
+The =npm run emaildev= command looks for things in the =emails= folder,
+and it's really handle to have the preview while you edit.
+
+#+begin_src bash
+  mkdir -p emails
+#+end_src
+
+I just played around with some different options of things to do, it
+works pretty well.
+
+#+begin_src javascript :tangle emails/template.tsx
+  // emails/template.jsx
+  import { Html,
+           Heading,
+           Container,
+           Button } from "@react-email/components";
+  import { CodeBlock, dracula } from "@react-email/code-block";
+
+  const code = `export default async (req, res) => {
+    try {
+      const html = await renderAsync(
+        EmailTemplate({ firstName: 'John' })
+      );
+      return NextResponse.json({ html });
+    } catch (error) {
+      return NextResponse.json({ error });
+    }
+  }`;
+
+  export default function Email() {
+    return (
+      <Html>
+          <Container>
+              <Heading as="h1">This is an email</Heading>
+            <Button href="https://willschenk.com"
+                    style={{ background: "#000", color: "#fff", padding: "12px 20px" }}>
+                Click me
+            </Button>
+
+             <CodeBlock
+                 code={code}
+                 lineNumbers
+                 theme={dracula}
+                 language="javascript"
+             />
+
+         </Container>
+      </Html>
+    );
+  };
+#+end_src
+
+* Test the templates
+
+#+begin_src bash
+  npm run emaildev
+#+end_src
+
+This will open up a server on port =3000= that will let you live preview
+the changes that you make!
+
+
+* Render the template
+
+#+begin_src javascript :tangle render.tsx
+
+  import Email from './emails/template';
+  import { render } from '@react-email/components';
+
+  console.log( render( <Email />, {
+      pretty: true,
+  } ) );
+
+#+end_src
+
+#+begin_src bash :results output
+  node dist/render.cjs | htmlq --pretty
+#+end_src
+
+There's not really a big reason to do this other than to see how it
+works.  We are going to use resend below to actually trigger the
+sending of the message.
+
+* Send with resend
+
+[[https://resend.com/][Resend]] is a new service that makes it easier to send emails, and they
+were the ones that wrote [[https://react.email/][react.email]] so of course the fit together
+nicely!
+
+#+begin_src javascript :tangle resend.tsx
+  import { Resend } from 'resend';
+  import Email from './emails/template';
+
+  if( process.env.RESEND_API === undefined ) {
+      console.log( "Please set RESEND_API" );
+      process.exit(1);
+  }
+
+  const resend = new Resend(process.env.RESEND_API);
+
+  (async function() {
+      const results = await resend.emails.send({
+          from: 'onboarding@resend.dev',
+          to:   'wschenk@gmail.com',
+          subject: 'Test email',
+          react: <Email />,
+      });
+
+      console.log( "Email sent" )
+      console.log( results );
+  })();
+
+#+end_src
+
+* Testing
+
+I'm pulling the API key out of 1password:
+
+#+begin_src bash :tangle environment
+  # environment
+  RESEND_API=op://Personal/Resend API/notesPlain
+#+end_src
+
+And then:
+
+#+begin_src bash  :results output
+  op run --env-file environment -- node dist/resend.cjs 
+#+end_src
+
+#+RESULTS:
+: Email sent
+: { data: { id: '6185f47f-f825-46f1-8557-a432ad2ccfc1' }, error: null }
+
+* References
+
+1. https://react.email/docs/getting-started/manual-setup
+1. https://github.com/resend/react-email/tree/main/examples/nodemailer   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
