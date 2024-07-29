@@ -1,0 +1,123 @@
+#+title: Adding react-email to a nextjs app
+#+tags[]: nextjs, react-email, resend, vercel
+#+date: 2024-07-29T18:25:58
+
+First add your dependencies
+
+#+begin_src bash
+  npm i react-email @react-email/components resend -E
+#+end_src
+
+Create a new folder to store the emails.  /This lives next to my =app=
+directory./
+
+#+begin_src bash
+  mkdir -p src/emails
+#+end_src
+
+Add a script in =package.json= to help with testing:
+
+#+begin_src javascript
+  {
+      "scripts": {
+          "email": "email dev --dir ./src/emails"
+      }
+  }
+#+end_src
+
+* Create the email
+
+I'm going to copy an example over from
+[[https://www.reactemailtemplate.com/components/articles]] since this is
+just demonstration.
+
+Lets put something in =src/emails/welcome.tsx=
+
+Start up the email dev server to see if you like it, and edit it
+however you'd like.
+
+#+begin_src bash
+  npm run email
+#+end_src
+
+* Create a send email action
+
+This is here to organize the code, and will be invoked by the server.
+
+#+begin_src typescript
+  // src/app/actions.tsx
+
+  import { Resend } from 'resend';
+  import WelcomeEmail from '../emails/welcome';
+
+  export async function sendWelcomeEmail(email: string) {
+    if (process.env.RESEND_API === undefined) {
+      console.log('Please set RESEND_API');
+      process.exit(1);
+    }
+
+    const resend = new Resend(process.env.RESEND_API);
+
+    const result = await resend.emails.send({
+      from: 'onboarding@resend.dev',
+      to: email,
+      subject: 'Test email',
+      react: <WelcomeEmail />,
+    });
+
+    console.log('Email sent', result);
+  }
+#+end_src
+
+* Write a test page
+
+This using server compoent actions.  The =sendEmail= method will be
+invoked on the server, which has access to the api key.
+
+#+begin_src typescript
+  // src/app/email/page.tsx
+  import { sendWelcomeEmail } from '../actions';
+
+  export default function Page() {
+    const sendEmail = async (formData: FormData) => {
+      'use server';
+
+      const email = formData.get('email');
+      if (email) {
+        console.log('sending email to', email);
+        await sendWelcomeEmail(email as string);
+      } else {
+        console.log('Email not set');
+      }
+    };
+    return (
+      <main className='flex min-h-screen flex-col items-center justify-between p-24'>
+        <div className='overflow-hidden px-4 py-2 rounded-lg bg-white shadow'>
+          <form action={sendEmail} method='POST'>
+            <label htmlFor='email'>Email</label>
+            <input type='email' id='email' name='email' />
+            <button type='submit'>Submit</button>
+          </form>
+        </div>
+      </main>
+    );
+  }
+#+end_src
+
+* Deploying to vercel
+
+Add =RESEND_API= to the environment, and then just push and test it out.
+
+This is my first time using server components, and it's confusing but
+pretty nifty.
+
+
+* References
+
+1. https://react.email/docs/getting-started/manual-setup
+1. https://blog.logrocket.com/diving-into-server-actions-next-js-14/
+1. https://mydevpa.ge/blog/how-to-send-emails-using-next-14-resend-and-react-email
+      
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
