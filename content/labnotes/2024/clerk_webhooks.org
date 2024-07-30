@@ -1,0 +1,112 @@
+#+title: Clerk webhooks
+#+subtitle: begining the events
+#+tags[]: clerk, webhooks, nextjs
+#+date: 2024-07-29T21:40:44
+
+We're going to follow along with the [[https://clerk.com/docs/integrations/webhooks/sync-data][sync data instructions]] from clerk.
+
+After setting up =ngrok= and opening the tunnel to our side, lets add in an api call.
+
+* Add the webhook
+
+1. Go to [[https://dashboard.clerk.com/last-active?path=webhooks][clerk dashboard]] and add a webhook.
+2. Add an endpoint to your domain, for example [[https://moved-werewolf-especially.ngrok-free.app/api/webhooks/clerk]]
+3. Check the =user= endpoint.
+4. Get the signing secret from the created endpoint and put it in =.env.local=
+
+#+begin_src bash
+WEBHOOK_SECRET=whsec_et3R.....
+#+end_src
+
+* Install =svix=
+
+#+begin_src bash
+npm install svix
+#+end_src
+
+And now make the endpoint.  Here we are looking for the =user.created=
+event and sending out the =sendWelcomeEmail=.
+
+#+begin_src typescript
+// src/app/api/webhooks/clerk/route.ts
+
+import { Webhook } from 'svix';
+import { headers } from 'next/headers';
+import { WebhookEvent } from '@clerk/nextjs/server';
+import { sendWelcomeEmail } from '@/app/actions';
+
+export async function POST(req: Request) {
+  // You can find this in the Clerk Dashboard -> Webhooks -> choose the endpoint
+  const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
+
+  if (!WEBHOOK_SECRET) {
+    throw new Error(
+      'Please add WEBHOOK_SECRET from Clerk Dashboard to .env or .env.local',
+    );
+  }
+
+  // Get the headers
+  const headerPayload = headers();
+  const svix_id = headerPayload.get('svix-id');
+  const svix_timestamp = headerPayload.get('svix-timestamp');
+  const svix_signature = headerPayload.get('svix-signature');
+
+  // If there are no headers, error out
+  if (!svix_id || !svix_timestamp || !svix_signature) {
+    return new Response('Error occured -- no svix headers', {
+      status: 400,
+    });
+  }
+
+  // Get the body
+  const payload = await req.json();
+  const body = JSON.stringify(payload);
+  // Create a new Svix instance with your secret.
+  const wh = new Webhook(WEBHOOK_SECRET);
+
+  let evt: WebhookEvent;
+
+  // Verify the payload with the headers
+  try {
+    evt = wh.verify(body, {
+      'svix-id': svix_id,
+      'svix-timestamp': svix_timestamp,
+      'svix-signature': svix_signature,
+    }) as WebhookEvent;
+  } catch (err) {
+    console.error('Error verifying webhook:', err);
+    return new Response('Error occured', {
+      status: 400,
+    });
+  }
+
+  // Do something with the payload
+  // For this guide, you simply log the payload to the console
+  const { id } = evt.data;
+  const eventType = evt.type;
+  console.log(`Webhook with and ID of ${id} and type of ${eventType}`);
+  console.log('Webhook body:', evt);
+
+  if (eventType == 'user.created') {
+    console.log('User created event');
+    await sendWelcomeEmail(evt.data.email_addresses[0].email_address);
+  }
+
+  return new Response('', { status: 200 });
+}
+
+#+end_src
+
+* Deploy to production
+
+For this to work right, you'll need to setup a domain and configure
+all of the your oauth providers.  I haven't done this yet so this will
+only work in development mode.
+
+* References
+
+1. https://clerk.com/docs/integrations/webhooks/sync-data
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
