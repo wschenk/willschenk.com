@@ -1,0 +1,142 @@
+#+title: Using clerk with vite and static site
+#+subtitle: Maybe we don't really want all of that nextjs
+#+tags[]: clerk, vite, vanilla, javascript, devdojo, tails
+#+date: 2024-08-05T00:16:33
+
+I want to see if we can use the [[https://devdojo.com/tails][devdojo tails]] app to design the site,
+then drop it into vite to customize some tailwindcss stuff, and add
+[[https://clerk.com/][clerk]] for user authentication.
+
+Lets go!
+
+* Create a new vite project
+
+Lets use typescript without anything else.
+
+#+begin_src bash
+  npm create vite@latest my-project -- --template vanilla-ts
+  cd my-project
+#+end_src
+
+* Add tailwindcss
+
+#+begin_src bash
+  npm install -D tailwindcss postcss autoprefixer
+  npx tailwindcss init -p
+#+end_src
+
+Update =tailwind.config.js=, and for fun we can use one of the [[https://github.com/BorisAnthony/mfs-tailwind][Modern
+Font Stack]] in the theme.
+
+#+begin_src javascript
+  /** @type {import('tailwindcss').Config} */
+  export default {
+    content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: [
+            "Avenir",
+            "Montserrat",
+            "Corbel",
+            "URW Gothic",
+            "source-sans-pro",
+            "sans-serif",
+          ],
+        },
+      },
+    },
+    plugins: [],
+  };
+
+#+end_src
+
+Update =style.css=
+
+#+begin_src css
+  @tailwind base;
+  @tailwind components;
+  @tailwind utilities;
+#+end_src
+
+* Copy our design over into =index.html=
+
+Copy the raw html file over from tails.
+
+Delete the insane =style= tag that has the entire tailwindcss in there.
+
+At the bottom, put in
+
+#+begin_src html
+  <script type="module" src="/src/main.ts"></script>
+#+end_src
+
+So vite knows how to build everything.
+
+Get rid of the login buttons, and give that =div= and id, such as =profile=:
+
+#+begin_src html
+    <div class="flex items-center space-x-8" id="sign-in-container">
+      <button
+        id="sign-in"
+        class="px-4 py-2 font-bold text-white bg-gray-900 rounded-md"
+        data-rounded="rounded-md"
+        data-primary="gray-900"
+      >
+        Sign in
+      </button>
+    </div>
+  </div>
+#+end_src
+
+* Add clerk
+
+Install [[https://clerk.com/docs/quickstarts/javascript][clerk/javascript]].
+
+#+begin_src bash
+  npm install @clerk/clerk-js
+#+end_src
+
+Create a new app in clerk and copy over the =VITE_CLERK_PUBLISHABLE_KEY=
+into your =.env.local=.
+
+* Add login to =main.ts=:
+
+#+begin_src typescript
+  import "./style.css";
+
+  import { Clerk } from "@clerk/clerk-js";
+
+  const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+
+  const clerk = new Clerk(clerkPubKey);
+  
+  window.addEventListener("load", async () => {
+    await clerk.load();
+
+    const signinbutton = document.getElementById("sign-in");
+
+    if (clerk.user) {
+      const userButtonDiv = document.getElementById("sign-in-container");
+      signinbutton?.remove();
+
+      if (userButtonDiv) {
+        clerk.mountUserButton(userButtonDiv as HTMLDivElement);
+      }
+    } else {
+      const signinbutton = document.getElementById("sign-in");
+      signinbutton?.addEventListener("click", () => {
+        clerk.openSignIn();
+      });
+    }
+  });
+#+end_src
+
+* Test the build
+
+Build it and run =live-server= to see how it works.
+
+#+begin_src bash
+  npm run build
+  npx live-server dist/
+#+end_src
