@@ -1,0 +1,142 @@
+#+title: Accessing clerk from ruby
+#+subtitle: backends dont matter
+#+tags[]: ruby, clerk, sinatra
+#+date: 2024-08-05T18:40:45
+
+Lets see how we can interact with clerk from the backend, and what
+we'll need to do to both do batch jobs off of it, as well as how we
+could deploy a sinatra-based API that using JWT claims to process
+requests from statically build and deployed client side sites.
+
+* Talking to the clerk back end from ruby
+
+#+begin_src bash
+  bundle init
+  bundle add clerk-sdk-ruby dotenv
+#+end_src
+
+Put your =CLERK_SECRET_KEY= into =.env=.
+
+
+#+begin_src ruby :tangle users.rb
+  # users.rb
+  require 'dotenv/load'
+  require 'clerk'
+
+  clerk = Clerk::SDK.new
+
+  # List all users
+  clerk.users.all
+
+  # Get your first user
+  user = clerk.users.all(limit: 1).first
+
+  # Print it if you want
+  # require 'pp'
+  # pp user
+
+
+  # Look up a user given their id
+
+  puts "Looking up user #{user['id']}"
+  user = clerk.users.find( user['id'] )
+
+  puts user['email_addresses'].first['email_address']
+
+#+end_src
+
+* Adding clerk jwt support to sinatra
+
+Start with [[https://github.com/wschenk/sinatra-ar-template]] so we are on
+the same page.
+
+Add
+
+#+begin_src bash
+  bundle add jwt dotenv clerk-sdk-ruby
+#+end_src
+
+Put your =CLERK_SECRET_KEY= into =.env= if you haven't already.
+
+In =app.rb= add cors support and the environment variables.
+
+#+begin_src ruby
+  require 'dotenv/load'
+
+  # ...
+
+  before do
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 
+      'GET, POST, PUT, DELETE, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] =
+      'Authorization, Content-Type, Accept, X-User-Email, X-Auth-Token'
+  end
+
+  options '*' do
+    response.headers['Allow'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    200
+  end
+#+end_src
+
+Replace the =auth_check= in =accounts.rb= to:
+
+#+begin_src ruby
+    def auth_check
+    clerk = Clerk::SDK.new(api_key: ENV.fetch('CLERK_SECRET_KEY', nil))
+
+    token = extract_token_from_header
+
+    if token
+      begin
+        decoded_token = Clerk::SDK.new.verify_token(token)
+        puts decoded_token
+        user_id = decoded_token['sub']
+        puts "Valid JWT token found for user_id: #{user_id}"
+        return yield
+      rescue JWT::DecodeError
+        puts 'Invalid JWT token'
+      end
+    end
+
+    return yield if session[:account_id]
+
+    halt 403, { access: :denied }.to_json
+  end
+
+  def extract_token_from_header
+    auth_header = request.env['HTTP_AUTHORIZATION']
+    auth_header&.start_with?('Bearer ') ? auth_header.split(' ').last : nil
+  end
+#+end_src
+
+* Calling the sinatra app from vanilla javascript
+
+#+begin_src javascript
+  const token = await clerk.session?.getToken();
+
+  if (!token) {
+    setResponse("Error: Unable to get authentication token");
+    return;
+  }
+
+  const response = await fetch("http://localhost:9292/private", {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const data = await response.json();
+  console.log(data);
+#+end_src
+
+
+* References
+
+1. https://github.com/clerk/clerk-sdk-ruby
+1. https://github.com/wschenk/sinatra-ar-template
+1. https://clerk.com/docs/backend-requests/handling/ruby-rails
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
