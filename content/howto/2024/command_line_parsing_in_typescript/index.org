@@ -1,0 +1,188 @@
+#+title: Command line parsing in typescript
+#+subtitle: its no thor but its ok
+#+tags[]: typescript, cli, cmd-ts
+#+date: 2024-08-14T14:59:01
+
+#+begin_src
+  npm init -y
+  npm install cmd-ts
+  npm install -D @types/node tsx typescript @types/dotenv
+  npx tsc --init
+#+end_src
+
+Test
+
+#+begin_src typescript :tangle test.ts
+console.log( "Hello from typescript" );
+#+end_src
+
+#+begin_src bash :results output
+ts-node test.ts
+#+end_src
+
+#+RESULTS:
+: Hello from typescript
+
+* Commands
+
+#+begin_src typescript :tangle commands.ts
+  
+  // commands.ts
+  import {
+    command,
+    run,
+    string,
+    positional,
+    restPositionals,
+    boolean,
+    flag,
+  } from "cmd-ts";
+
+  const app = command({
+    name: "app",
+    args: {
+      debug: flag({
+        long: "debug",
+        short: "d",
+        type: boolean,
+        description: "Enable debug mode",
+        defaultValue: () => false,
+      }),
+      first: positional({ type: string, displayName: "first arg" }),
+      rest: restPositionals({ type: string, displayName: "rest" }),
+    },
+    handler: ({ debug, first, rest }) => {
+      console.log({ debug });
+      console.log({ first });
+      console.log({ rest });
+    },
+  });
+
+  run(app, process.argv.slice(2));
+#+end_src
+
+#+begin_src bash :results output
+ts-node commands.ts 2>&1
+#+end_src
+
+#+RESULTS:
+: error: found 1 error
+: 
+:   1. No value provided for first arg
+: 
+: hint: for more information, try 'app --help'
+
+
+#+begin_src bash :results output
+  ts-node commands "first argument"
+#+end_src
+
+#+RESULTS:
+: { debug: false }
+: { first: 'first argument' }
+: { rest: [] }
+
+
+#+begin_src bash :results output
+  ts-node commands "first argument" -d everything else that i put in here
+#+end_src
+
+#+RESULTS:
+: { debug: true }
+: { first: 'first argument' }
+: { rest: [ 'everything', 'else', 'that', 'i', 'put', 'in', 'here' ] }
+
+* Subcommands
+
+You can combind commands into subcommands, and build out a nice little
+cli app.
+
+#+begin_src typescript :tangle cli.ts
+  import {
+    command,
+    run,
+    string,
+    restPositionals,
+    option,
+    subcommands,
+  } from "cmd-ts";
+
+  const models_list = command({
+    name: "list",
+    description: "List all models",
+    args: {},
+    handler: () => {
+      console.log("list");
+    },
+  });
+
+  const models_subcommand = subcommands({
+    name: "models",
+    description: "Manage models",
+    cmds: {
+      list: models_list,
+    },
+  });
+
+  const run_prompt = command({
+    name: "run",
+    description: "Run a prompt",
+    args: {
+      model: option({
+        long: "model",
+        short: "m",
+        description: "The model to use",
+        defaultValue: () => "gpt-4o",
+      }),
+      prompt: restPositionals({ type: string, displayName: "prompt" }),
+    },
+    handler: ({ model, prompt }) => {
+      console.log("model", model);
+      console.log("prompt", prompt.join(" "));
+    },
+  });
+
+  const app = subcommands({
+    name: "app",
+    cmds: { run: run_prompt, models: models_subcommand },
+  });
+
+  run(app, process.argv.slice(2)).catch(console.error);
+#+end_src
+
+
+#+begin_src bash :results output
+  ts-node cli.ts
+#+end_src
+
+#+RESULTS:
+: app <subcommand>
+: 
+: where <subcommand> can be one of:
+: 
+: - run - Run a prompt
+: - models - Manage models
+: 
+: For more help, try running `app <subcommand> --help`
+
+#+begin_src bash :results output
+  ts-node cli.ts models list
+#+end_src
+
+#+RESULTS:
+: list
+
+#+begin_src bash :results output
+ts-node cli.ts run -m llama "This is my arg are I really like it"
+#+end_src
+
+#+RESULTS:
+: model llama
+: prompt This is my arg are I really like it
+
+* References
+
+1. https://cmd-ts.vercel.app/getting_started.html
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
