@@ -1,0 +1,406 @@
+#+title: Playing with Vercel AI SDK
+#+subtitle: is this easier than langchain?
+#+tags[]: ai, javascript, vercel
+#+date: 2024-08-14T18:24:26
+
+Lets setup a basic typescript repo.
+
+#+begin_src
+  npm init -y
+  npm install -D @types/node tsx typescript npm @types/dotenv
+  npm install ai @ai-sdk/openai zod dotenv
+  npx tsc --init
+#+end_src
+
+First, following along from the [[https://sdk.vercel.ai/docs/getting-started/nodejs][nodejs getting started docs]]:
+
+#+begin_src bash
+  npm install ai zod dotenv
+  npm install -D @types/node tsx typescript
+#+end_src
+
+* Generic Penguins
+
+#+begin_src typescript :tangle streamResponse.ts
+  // streamResponse.ts
+  import { CoreMessage, LanguageModel, streamText } from "ai";
+
+  export async function streamResponse(model: LanguageModel) {
+    const messages: CoreMessage[] = [];
+
+    messages.push({ role: "user", content: "Five penguin names" });
+    const result = await streamText({
+      model: model,
+      system: `You are a helpful, respectful and honest assistant.`,
+      messages,
+    });
+
+    let fullResponse = "";
+    process.stdout.write("\nAssistant: ");
+    for await (const delta of result.textStream) {
+      fullResponse += delta;
+      process.stdout.write(delta);
+    }
+    process.stdout.write("\n\n");
+  }
+
+#+end_src
+
+* Hello Ollama
+
+#+begin_src bash
+  npm install ollama-ai-provider
+#+end_src
+
+#+begin_src typescript :tangle ollama.ts
+  // ollama.ts
+
+  import { streamResponse } from "./streamResponse";
+  import { ollama } from "ollama-ai-provider";
+
+  const model = ollama("llama3:latest");
+
+  streamResponse(model).catch((error) =>
+    console.error("An error occurred:", error)
+  );
+
+#+end_src
+
+(Install =npm i -g ts-node= if you haven't already.)
+
+#+begin_src bash :results output
+  ts-node ollama.ts
+#+end_src
+
+#+RESULTS:
+: 
+: Assistant: Here are five penguin name ideas:
+: 
+: 1. Percy
+: 2. Penny
+: 3. Piper
+: 4. Paxton
+: 5. Pearl
+: 
+
+
+* Hello OpenAI
+
+Then create your =.env= to set =OPENAI_API_KEY= and add to your =.gitignore=
+
+#+begin_src bash
+  npm install @ai-sdk/openai
+#+end_src
+
+#+begin_src typescript :tangle openai.ts
+  // openai.ts
+
+  import { streamResponse } from "./streamResponse";
+  import { openai } from "@ai-sdk/openai";
+  import dotenv from "dotenv";
+
+  dotenv.config();
+
+  const model = openai("gpt-4o");
+
+  streamResponse(model).catch((error) =>
+    console.error("An error occurred:", error)
+  );
+
+#+end_src
+
+(Install =npm i -g ts-node= if you haven't already.)
+
+#+begin_src bash :results output
+  ts-node openai.ts
+#+end_src
+
+#+RESULTS:
+: 
+: Assistant: Here are five fun penguin names you might like:
+: 
+: 1. Waddles
+: 2. Flipper
+: 3. Snowball
+: 4. Puddles
+: 5. Chilly
+: 
+
+* Image detection
+
+Here's openai using an image url:
+
+#+begin_src typescript :tangle openai-image.ts
+// openai-image.ts
+import { openai } from "@ai-sdk/openai";
+import { generateText } from "ai";
+import dotenv from "dotenv";
+
+dotenv.config();
+
+const model = openai("gpt-4o");
+
+async function describeImage() {
+  const result = await generateText({
+    model: model,
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "Describe the image in detail." },
+          {
+            type: "image",
+            image:
+              "https://github.com/vercel/ai/blob/main/examples/ai-core/data/comic-cat.png?raw=true",
+          },
+        ],
+      },
+    ],
+  });
+
+  console.log(result);
+}
+
+const results = describeImage().catch((error) =>
+  console.error("An error occurred:", error)
+);
+
+#+end_src
+
+And here's ollama using base64 (but you could use either)
+
+#+begin_src typescript :tangle ollama-image.ts
+// ollama-image.ts
+import { generateText } from "ai";
+import { ollama } from "ollama-ai-provider";
+import fs from "fs";
+
+const model = ollama("llava:latest");
+
+async function describeImage() {
+  const result = await generateText({
+    model: model,
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "Describe the image in detail." },
+          {
+            type: "image",
+            image: fs.readFileSync("./comic-cat.png").toString("base64"),
+          },
+        ],
+      },
+    ],
+  });
+
+  console.log(result);
+}
+
+const results = describeImage().catch((error) =>
+  console.error("An error occurred:", error)
+);
+
+#+end_src
+
+* Chat
+
+Here we are adding =CoreMessage[]=, each time you enter something in it
+gets added to the array and then the whole thing is shipped to
+whatever model we want.  The response gets added to the chat, and then
+that is continued on.
+
+#+begin_src typescript :tangle chat.ts
+  import { openai } from "@ai-sdk/openai";
+  import { CoreMessage, streamText } from "ai";
+  import dotenv from "dotenv";
+  import * as readline from "node:readline/promises";
+  import { ollama } from "ollama-ai-provider";
+
+  // const model = ollama("llama3:latest");
+  const model = openai("gpt-4o");
+  dotenv.config();
+
+  const terminal = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  const messages: CoreMessage[] = [];
+
+  async function main() {
+    while (true) {
+      const userInput = await terminal.question("You: ");
+
+      messages.push({ role: "user", content: userInput });
+
+      const result = await streamText({
+        model, //: openai("gpt-4-turbo"),
+        system: `You are a helpful, respectful and honest assistant.`,
+        messages,
+      });
+
+      let fullResponse = "";
+      process.stdout.write("\nAssistant: ");
+      for await (const delta of result.textStream) {
+        fullResponse += delta;
+        process.stdout.write(delta);
+      }
+      process.stdout.write("\n\n");
+
+      messages.push({ role: "assistant", content: fullResponse });
+    }
+  }
+
+  main().catch(console.error);
+#+end_src
+
+#+begin_src basj
+  ts-node chat.ts
+#+end_src
+
+* CLI tool
+
+#+begin_src typescript :tangle models.ts
+//models.ts
+import { openai } from "@ai-sdk/openai";
+import { ollama } from "ollama-ai-provider";
+
+export function getModel(model: string) {
+  if (model === "gemma") {
+    console.log("Using ollama", model);
+    return ollama("gemma");
+  }
+
+  console.log("Using openai", model);
+  return openai(model);
+}
+#+end_src
+
+#+begin_src typescript :tangle complete.ts
+  //complete.ts
+  import fs from "node:fs";
+  import { CoreMessage, streamText } from "ai";
+  import { getModel } from "./models.ts";
+  import process from "node:process";
+
+  interface Context {
+    model: string;
+    messages: CoreMessage[];
+  }
+
+  export async function writeContext(context: Context) {
+    let contextJson = JSON.stringify(context, null, 2);
+
+    await fs.writeFile("context.json", contextJson, (err) => {
+      if (err) {
+        console.log("Error writing file:", err);
+      } else {
+        console.log("Successfully wrote file");
+      }
+    });
+  }
+
+  export async function readContext(): Promise<Context> {
+    return new Promise<Context>((resolve, reject) => {
+      fs.readFile("context.json", (err, data) => {
+        if (err) {
+          reject(err);
+        } else {
+          try {
+            const parsedContext = JSON.parse(data.toString());
+            resolve(parsedContext);
+          } catch (parseError) {
+            reject(parseError);
+          }
+        }
+      });
+    });
+  }
+
+  export async function streamResponse(
+    modelName: string,
+    prompt: string,
+    context: boolean
+  ) {
+    let workingContext: Context = {
+      model: modelName,
+      messages: [],
+    };
+
+    if (context) {
+      workingContext = await readContext();
+    }
+
+    workingContext.messages.push({ role: "user", content: prompt });
+
+    const model = getModel(workingContext.model);
+    const result = await streamText({
+      model,
+      system: `You are a helpful, respectful and honest assistant.`,
+      messages: workingContext.messages,
+    });
+
+    let fullResponse = "";
+    process.stdout.write("\nAssistant: ");
+    for await (const delta of result.textStream) {
+      fullResponse += delta;
+      process.stdout.write(delta);
+    }
+    process.stdout.write("\n\n");
+
+    workingContext.messages.push({ role: "assistant", content: fullResponse });
+
+    writeContext(workingContext);
+  }
+
+#+end_src
+
+#+begin_src typescript :tangle cli.ts
+  import { command, flag, option, restPositionals, run } from "cmd-ts";
+  import { streamResponse } from "./complete.ts";
+  import dotenv from "dotenv";
+  import process from "node:process";
+  dotenv.config();
+
+  const app = command({
+    name: "complete",
+    args: {
+      model: option({
+        long: "model",
+        short: "m",
+        description: "The model to use",
+        defaultValue: () => "gemma",
+      }),
+      context: flag({
+        long: "context",
+        short: "c",
+        description: "The context to use",
+      }),
+      prompt: restPositionals({
+        description: "The prompt to use",
+
+        displayName: "prompt",
+      }),
+    },
+    handler: async ({ model, prompt, context }) => {
+      if (prompt.length === 0) {
+        console.error("No prompt provided");
+        process.exit(1);
+      }
+
+      await streamResponse(model, prompt.join(" "), context);
+    },
+  });
+
+  run(app, process.argv.slice(2)).catch(console.error);
+
+
+#+end_src
+* References
+
+1. https://sdk.vercel.ai/docs/getting-started/nodejs
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
