@@ -1,0 +1,445 @@
+#+title: LLM Tool calls
+#+subtitle: getting it to talk back
+#+tags[]: ollama, ai, vercel
+#+date: 2024-08-19T09:21:35
+
+Continuing on the exploration of vercels ai package, lets look at how
+to add tool calling.  I'm mainly going to be testing this against
+ollama, but it's easy enough to point it to a different model provider
+without changing any of the code.  (This is a big reason why I'm using
+vercel's npm package rather than hitting the APIs directly.)
+
+Make sure that you get an [[https://ollama.com/search?c=tools][ollama model that supports tools]], such as
+=llama3.1=:
+
+#+begin_src bash
+  ollama pull llama3.1
+#+end_src
+
+* Install
+
+#+begin_src bash
+  pnpm i ai @ai-sdk/openai ollama-ai-provider zod
+  pnpm i -D @types/node tsx typescript
+  npx tsc --init
+#+end_src
+
+* Model Management
+
+First we build something that abstracts over the model selection, so
+we can do things like =ollama/llama3.1= or =openai/gpt-4o=.
+
+#+begin_src typescript :tangle models.ts
+  //models.ts
+
+  import { createOpenAI, openai } from "@ai-sdk/openai";
+  import { LanguageModel } from "ai";
+  import { ollama } from "ollama-ai-provider";
+
+  export function modelFromString(modelString: string): LanguageModel {
+    const [provider, model] = modelString.split("/");
+    if (provider === "ollama") {
+      return ollama(model);
+    } else if (provider === "openai") {
+      return openai(model);
+    } else if (provider === "groq") {
+      const groq = createOpenAI({
+        baseURL: "https://api.groq.com/openai/v1",
+        // apiKey: process.env.GROQ_API_KEY,
+      });
+
+      return groq(model);
+    }
+    throw new Error(`Unknown model provider: ${provider}`);
+  }
+#+end_src
+
+* Agent and tools
+
+I'm going to wrap everything into a =Context= object, which contains the
+model name, the system prompt, and running list of messages that have
+been exchanged with the LLM.  We'll also put tools on here, so that we
+can have a clean way to add things together.
+
+The =makeGenerator= function returns them all put together which will be
+passed to either =generatorResponse= (sync) or =streamResponse= (async).
+=maxToolRoundtrips= is honored by =generateText= but we will need to
+implement this manually for =streamText=.
+
+#+begin_src typescript :tangle agent.ts
+  // agent.ts
+  import { CoreMessage, CoreTool } from "ai";
+  import { modelFromString } from "./models";
+
+  export interface Context {
+    model: string;
+    messages: CoreMessage[];
+    systemPrompt: string;
+    tools?: Record<string, CoreTool<any, any>>;
+  }
+
+  export function startContext(
+    model: string,
+    systemPrompt: string,
+    prompt: string
+  ): Context {
+    const ctx: Context = {
+      model,
+      systemPrompt,
+      messages: [],
+    };
+    addMessage(ctx, prompt);
+    return ctx;
+  }
+
+  export function addMessage(ctx: Context, message: string) {
+    ctx.messages.push({
+      role: "user",
+      content: message,
+    });
+  }
+
+  export function addTool(ctx: Context, name: string, tool: CoreTool<any, any>) {
+    if (!ctx.tools) {
+      ctx.tools = {};
+    }
+    ctx.tools[name] = tool;
+  }
+
+  export function makeGenerator(ctx: Context) {
+    return {
+      model: modelFromString(ctx.model),
+      tools: ctx.tools,
+      system: ctx.systemPrompt,
+      messages: ctx.messages,
+      maxToolRoundtrips: 5, // allow up to 5 tool roundtrips
+    };
+  }
+#+end_src
+
+
+* Generate response
+
+Fairly straight forward.
+
+#+begin_src typescript :tangle generateResponse.ts
+  // generateResponse.ts
+
+  import { generateText, LanguageModel } from "ai";
+  import { Context, makeGenerator } from "./agent";
+
+  export async function generateResponse(ctx: Context) {
+    const generator = makeGenerator(ctx);
+    const result = await generateText(generator);
+    for await (const message of result.responseMessages) {
+      ctx.messages.push(message);
+    }
+    // console.log("result", JSON.stringify(result, null, 2));
+    // console.log(ctx.messages[ctx.messages.length - 1].content);
+    return result;
+  }
+
+#+end_src
+
+* Stream response
+
+Here we get more complicated.  When you call =streamText=, it will
+return chunks which we print out from the =onChunk= handler.  We will
+also get a few different chunks -- =tool-call= which is when the LLM
+requests to call our tool, and =tool-result= which is the result.
+
+This is fine, but at the end it calls =onFinish= with the results.  This
+isn't really what we want, we want it to take the results and do
+something with it.  So we check to see if the finish reason is
+=tool-results= and if so we call =streamResponse= again and hope for an
+actual text output.
+
+#+begin_src typescript :tangle streamResponse.ts
+  // streamResponse.ts
+  import { streamText } from "ai";
+  import { Context, makeGenerator } from "./agent";
+
+  export async function streamResponse(ctx: Context) {
+    // This prints out the results to the screen
+    let length = 0;
+    function onChunk({ chunk }: { chunk: any }) {
+      if (chunk.type === "text-delta") {
+        if (length + chunk.textDelta.length > 80) {
+          process.stdout.write("\n");
+          length = 0;
+        } else {
+          length += chunk.textDelta.length;
+        }
+        process.stdout.write(chunk.textDelta);
+      } else if (chunk.type === "tool-call") {
+        console.log("Calling tool", chunk.toolName, chunk.args);
+      } else if (chunk.type === "tool-result") {
+        console.log("Tool result", chunk.toolName, chunk.result);
+      } else {
+        console.log("unknown", chunk.type, JSON.stringify(chunk, null, 2));
+      }
+    }
+
+    // Sets up the model to run again if there are tool calls
+    async function onFinish({
+      //@ts-ignore
+      text,
+      //@ts-ignore
+      toolCalls,
+      //@ts-ignore
+      toolResults,
+      //@ts-ignore
+      finishReason,
+      //@ts-ignore
+      usage,
+    }) {
+      // console.log("-----");
+      // console.log("finishReason", finishReason);
+      // console.log("toolCalls", toolCalls);
+      // console.log("toolResults", toolResults);
+      // console.log("usage", usage);
+      // console.log("-----");
+      // console.log("text", text);
+      process.stdout.write("\n");
+
+      if (finishReason === "tool-calls") {
+        ctx.messages.push({
+          role: "assistant",
+          content: toolCalls,
+        });
+
+        ctx.messages.push({
+          role: "tool",
+          content: toolResults,
+        });
+
+        return await streamResponse(ctx);
+      } else {
+        ctx.messages.push({
+          role: "assistant",
+          content: text,
+        });
+        return "done";
+      }
+    }
+
+    const generator = makeGenerator(ctx);
+
+    //   @ts-ignore
+    generator.onChunk = onChunk;
+
+    // @ts-ignore
+    generator.onFinish = onFinish;
+
+    const result = await streamText(generator);
+
+    // consume stream:
+    for await (const textPart of result.textStream) {
+      // Process each text part here
+    }
+  }
+
+#+end_src
+
+* Weather Tool
+
+Lets try it out!  We'll define a simple weatherTool like so, which
+just returns something random.
+
+#+begin_src typescript :tangle weatherTool.ts
+  // weatherTool.ts
+  import { tool } from "ai";
+  import { z } from "zod";
+  import { addTool, Context } from "./agent";
+
+  export function addWeatherTool(ctx: Context) {
+    addTool(
+      ctx,
+      "weather",
+      tool({
+        description: "Get the weather in a location",
+        parameters: z.object({
+          location: z.string().describe("The location to get the weather for"),
+        }),
+        execute: async ({ location }) => {
+          console.log("tool call for", location);
+          return {
+            location,
+            temperature: 72 + Math.floor(Math.random() * 21) - 10,
+          };
+        },
+      })
+    );
+  }
+
+#+end_src
+
+And then put it together:
+
+#+begin_src typescript :tangle weatherToolTest.ts
+  // weatherToolTest.ts
+  import { startContext } from "./agent";
+  import { streamResponse } from "./streamResponse";
+  import { addWeatherTool } from "./weatherTool";
+
+  const ctx = startContext(
+    "ollama/llama3.1",
+    "You are a helpful, respectful and honest assistant.",
+    "Whats the weather in Tokyo?"
+  );
+
+  addWeatherTool(ctx);
+
+  streamResponse(ctx).catch(console.error);
+#+end_src
+
+#+begin_src bash :results output
+  ts-node weatherToolTest.ts
+#+end_src
+
+#+RESULTS:
+: Calling tool weather { location: 'Tokyo' }
+: tool call for Tokyo
+: Tool result weather { location: 'Tokyo', temperature: 77 }
+: 
+: The current temperature in Tokyo is 77 degrees Fahrenheit.
+
+* Meta Tool
+
+How about a tool that the llm can call when it wishes it had a tool?
+We could then use that to add that tool and rerun the chat so maybe
+it'll be smarter in the future!
+
+When the meta tool is invoked, it creates a typescript file that
+defines the tool that it wants to use.  You can then implement that
+tool.
+
+#+begin_src typescript :tangle metaTool.ts
+  // metaTool.ts
+  import { tool } from "ai";
+  import { addTool, Context } from "./agent";
+  import { z } from "zod";
+  import * as fs from "fs";
+
+  export function addMetaTool(ctx: Context) {
+    addTool(
+      ctx,
+      "meta_tool",
+      tool({
+        description: `Whenever the query from the user exceeds your capabilities, you can
+  call this tool to request the development of another tool. Our team
+  will review these logs and maybe develop the tool you requested so
+  your capabilities will improve`,
+        parameters: z.object({
+          tool_name: z
+            .string()
+            .describe("name of the tool that you'd like to use"),
+          tool_description: z.string().describe(
+            `A description of the tool you would have like to have to correctly
+  answer to the user and how their query was exceeding your current
+  capabilities`
+          ),
+        }),
+        execute: async ({ tool_name, tool_description }) => {
+          makeToolRequest(tool_name, tool_description);
+          console.log("tool call for", tool_name);
+          console.log("tool call for", tool_description);
+          return {
+            tool_name,
+            tool_description,
+          };
+        },
+      })
+    );
+  }
+
+  function makeToolRequest(tool_name: string, tool_description: string) {
+    console.log("templating a tool called", tool_name);
+    console.log("with the following description", tool_description);
+
+    const file = `${tool_name}.ts`;
+    if (fs.existsSync(file)) {
+      console.log("file already exists", file);
+    } else {
+      console.log("writing file", file);
+      fs.writeFileSync(
+        file,
+        `// ${tool_name}.ts
+  import { tool } from "ai";
+  import { addTool, Context } from "./agent";
+  import { z } from "zod";
+
+  export function add${tool_name}(ctx: Context) {
+    addTool(
+      ctx,
+      "${tool_name}",
+      tool({
+        description:
+          "${tool_description}",
+        parameters: z.object({
+          argument: z
+            .string()
+            .describe("something something")
+        }),
+        execute: async ({ argument }) => {
+          console.log("executing", "${tool_name}");
+          return {
+            argument,
+          };
+        },
+      })
+    );
+  }`
+      );
+    }
+  }
+#+end_src
+
+* Chat
+
+Here's a chat interface for going dynamic with it.
+
+#+begin_src typescript :tangle chat.ts
+  // chat.ts
+  import { addMessage, startContext } from "./agent";
+  import * as readline from "node:readline/promises";
+  import { streamResponse } from "./streamResponse";
+  import { addMetaTool } from "./metaTool";
+
+  async function chat() {
+    const terminal = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+
+    const userInput = await terminal.question("You: ");
+
+    const ctx = startContext(
+      "ollama/llama3.1",
+      "You are a helpful, respectful and honest assistant.",
+      userInput
+    );
+
+    addMetaTool(ctx);
+
+    await streamResponse(ctx);
+
+    while (true) {
+      const userInput = await terminal.question("You: ");
+      addMessage(ctx, userInput);
+      await streamResponse(ctx);
+      console.log("\n");
+    }
+  }
+
+  chat().catch(console.error);
+
+#+end_src
+
+* References
+
+1. [[https://medium.com/@paztek/having-fun-with-llm-tool-calls-and-meta-reasoning-957971bebc5c][Having fun with LLM tool calls and meta-reasoning]]
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
