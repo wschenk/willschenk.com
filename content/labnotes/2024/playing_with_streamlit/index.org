@@ -1,0 +1,182 @@
+#+title: Playing with streamlit
+#+subtitle: visualizing your data
+#+tags[]: streamlit
+#+date: 2024-08-21T13:52:27
+
+* Installation
+#+begin_src bash
+  python -m venv .venv
+  source .venv/bin/activate
+
+
+#+end_src
+#+begin_src bash
+  pip install watchdog
+  pip install streamlit
+#+end_src
+
+#+begin_src bash
+  streamlit hello
+#+end_src
+
+* Our first script
+
+#+begin_src python :tangle hello.py
+  import streamlit as st
+  import numpy as np
+  import pandas as pd
+
+  if "counter" not in st.session_state:
+      st.session_state.counter = 0
+
+  st.session_state.counter += 1
+
+  st.header(f"This page has run {st.session_state.counter} times.")
+  st.button("Run it again")
+#+end_src
+
+Then run
+
+#+begin_src bash
+  streamlit hello.py
+#+end_src
+
+* App Workthrough
+
+#+begin_src python :tangle uber_pickups.py
+  import streamlit as st
+  import pandas as pd
+  import numpy as np
+
+  st.title('Uber pickups in NYC')
+
+  DATE_COLUMN = 'date/time'
+  DATA_URL = ('https://s3-us-west-2.amazonaws.com/'
+              'streamlit-demo-data/uber-raw-data-sep14.csv.gz')
+
+  @st.cache_data
+  def load_data(nrows):
+      data = pd.read_csv(DATA_URL, nrows=nrows)
+      lowercase = lambda x: str(x).lower()
+      data.rename(lowercase, axis='columns', inplace=True)
+      data[DATE_COLUMN] = pd.to_datetime(data[DATE_COLUMN])
+      return data
+
+  data_load_state = st.text('Loading data...')
+  data = load_data(10000)
+  data_load_state.text("Done! (using st.cache_data)")
+
+  if st.checkbox('Show raw data'):
+      st.subheader('Raw data')
+      st.write(data)
+
+  st.subheader('Number of pickups by hour')
+  hist_values = np.histogram(data[DATE_COLUMN].dt.hour, bins=24, range=(0,24))[0]
+  st.bar_chart(hist_values)
+
+  # Some number in the range 0-23
+  hour_to_filter = st.slider('hour', 0, 23, 17)
+  filtered_data = data[data[DATE_COLUMN].dt.hour == hour_to_filter]
+
+  st.subheader('Map of all pickups at %s:00' % hour_to_filter)
+  st.map(filtered_data)
+
+
+#+end_src
+
+* Chat
+
+#+begin_src python :tangle chat.py
+  import streamlit as st
+
+  st.title("Echo Bot")
+
+  # Initialize chat history
+  if "messages" not in st.session_state:
+      st.session_state.messages = []
+
+  # Display chat messages from history on app rerun
+  for message in st.session_state.messages:
+      with st.chat_message(message["role"]):
+          st.markdown(message["content"])
+
+  # React to user input
+  if prompt := st.chat_input("What is up?"):
+      # Display user message in chat message container
+      with st.chat_message("user"):
+          st.markdown(prompt)
+      # Add user message to chat history
+      st.session_state.messages.append({"role": "user", "content": prompt})
+
+  response = f"Echo: {prompt}"
+  # Display assistant response in chat message container
+  with st.chat_message("assistant"):
+      st.markdown(response)
+  # Add assistant response to chat history
+  st.session_state.messages.append({"role": "assistant", "content": response})    
+#+end_src
+
+* Chatbot
+
+#+begin_src basg
+pip install langchain-openai
+#+end_src
+
+#+begin_src python :tangle openai.py
+  import streamlit as st
+  from langchain_openai.chat_models import ChatOpenAI
+
+  st.title("🦜🔗 Quickstart App")
+
+  openai_api_key = st.sidebar.text_input("OpenAI API Key", type="password")
+
+
+  def generate_response(input_text):
+      model = ChatOpenAI(temperature=0.7, api_key=openai_api_key)
+      st.info(model.invoke(input_text))
+
+
+  with st.form("my_form"):
+      text = st.text_area(
+          "Enter text:",
+          "What are the three key pieces of advice for learning how to code?",
+      )
+      submitted = st.form_submit_button("Submit")
+      if not openai_api_key.startswith("sk-"):
+          st.warning("Please enter your OpenAI API key!", icon="⚠")
+      if submitted and openai_api_key.startswith("sk-"):
+          generate_response(text)
+#+end_src
+* Deploy
+
+#+begin_src dockerfile :tangle Dockerfile
+  FROM python:3.9-slim
+
+  WORKDIR /app
+
+  RUN apt-get update && apt-get install -y \
+      build-essential \
+      curl \
+      software-properties-common \
+      git \
+      && rm -rf /var/lib/apt/lists/*
+
+  COPY requirements.txt .
+
+  RUN pip3 install -r requirements.txt
+
+  COPY . .
+
+  EXPOSE 8501
+
+  HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health
+
+  ENTRYPOINT ["streamlit", "run", "hello.py", "--server.port=8501", "--server.address=0.0.0.0"]
+#+end_src
+
+* References
+
+1. https://docs.streamlit.io/develop/tutorials/llms/llm-quickstart
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
