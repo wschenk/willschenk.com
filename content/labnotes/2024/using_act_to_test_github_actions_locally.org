@@ -1,0 +1,185 @@
+#+title: Using act to test github actions locally
+#+subtitle; code on microsofts dime
+#+tags[]: act, github
+#+date: 2024-08-26T04:41:52
+
+#+begin_src bash
+  brew install act
+#+end_src
+
+
+* Test it out
+
+#+begin_src bash
+  cd $(mktemp -d)
+  git clone https://github.com/cplee/github-actions-demo
+  cd github-actions-demo
+#+end_src
+
+Then run
+
+=act=
+
+I chose the medium instance.  It seemed to pass.
+
+
+* Listing out the repos
+
+My first test is to print out all of my repos in the run.  This isn't
+that exiting but it's a good way to test it out.
+
+
+#+begin_src yaml
+  name: My workflow
+  on: [push, pull_request]
+  jobs:
+    test:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v4
+        - run: gh repo list
+          env:
+            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#+end_src
+
+Run it like
+
+#+begin_src bash
+  act --container-architecture linux/amd64
+#+end_src
+
+This gives a =gh= not found error, which is not great, so lets switch to the full
+image instead of the medium one.
+
+Pull it manually since there's no progress report otherwise
+
+#+begin_src bash
+  docker pull catthehacker/ubuntu:full-latest --platform=linux/amd64 
+#+end_src
+
+Then fire it up:
+
+#+begin_src bash
+  act -s GITHUB_TOKEN="$(gh auth token)" \
+      -P ubuntu-latest=catthehacker/ubuntu:full-latest \
+      --container-architecture linux/amd64
+#+end_src
+
+This also required me to increase the disk image size for the vm that
+I'm running all this stuff under.
+
+Ultimately, the fact that =act= doesn't run exactly the same as the
+github runners is frustrating.
+
+ 
+* Creating a quick generator
+
+We'll load in a =TEMPLATE.md= file, and then replace the comments =repo
+activity= and =feed: url= with a list of things that we get from github
+or from an external rss feed.
+
+#+begin_src bash
+  bundle init
+  bundle add feedjira httparty
+#+end_src
+
+Then =generate.rb=:
+
+#+begin_src ruby
+  #!/bin/env ruby
+
+  require 'bundler'
+  require 'feedjira'
+  require 'httparty'
+  require 'date'
+
+  template = File.read("TEMPLATE.md")
+
+  if( template =~ /<!-- repo activity -->/  )
+    puts "Replacing repo activity"
+    activity_json = `gh repo list --json nameWithOwner,description,updatedAt --source --visibility public`
+    activity = JSON.parse(activity_json)[0..10].collect do |repo|
+      date = DateTime.parse(repo["updatedAt"]).strftime("%Y-%m-%d")
+      " - #{date}: [#{repo["nameWithOwner"]}](https://github.com/#{repo["nameWithOwner"]}) - #{repo["description"]}"
+    end.join("\n")
+
+    template.gsub!("<!-- repo activity -->", activity)
+  end
+
+  template.gsub!(/<!-- feed: (.*) -->/ ) do |match|
+    puts "Looking for feed #{$1}"
+    xml = HTTParty.get($1).body
+    feed = Feedjira.parse(xml)
+    posts = feed.entries[0..10].collect do |entry|
+      date = entry.published.strftime("%Y-%m-%d")
+      " - #{date}: [#{entry.title}](#{entry.url})"
+    end.join("\n")
+
+    posts
+  end
+
+  puts "Writing to README.md"
+  File.write("README.md", template)
+
+  # system("cat README.md")
+#+end_src
+
+Test it locally to make sure that it runs every so nicely. 
+
+* The build script
+
+A couple of points
+
+- Adding =workflow_dispatch= lets you trigger this in the admin tool on
+  github proper
+- The default =GITHUB_TOKEN= doesn't show visibility to other repos.  go
+  to settings, and copy your personal token in as a secret (called
+  =WILL_TOKEN= below) to be able to have the =gh= command see your other repos
+
+  
+#+begin_src yaml
+  name: Build Readme
+  on:
+    push:
+    workflow_dispatch: # This lets you trigger the workflow manually
+    schedule:
+      - cron: "0 * * * *"
+  jobs:
+    build:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v4
+        - uses: ruby/setup-ruby@v1
+          with:
+            ruby-version: "3.3" # Not needed with a `.ruby-version` or `.tool-versions`
+            bundler-cache: true # runs 'bundle install' and caches installed gems automatically
+        - run: bundle exec ruby generate.rb
+          env:
+            GH_TOKEN: ${{ secrets.WILL_TOKEN }} # This is from gh-auth-token and set in the repo secrets
+        - name: Commit and push if README changed
+          run: |-
+            git pull origin main
+            git diff
+            git config --global user.email "readme-bot@example.com"
+            git config --global user.name "README-bot"
+            git add README.md
+            git commit -m "Updated content" || exit 0
+            git push
+          env:
+            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#+end_src
+
+And now you can see my [[https://github.com/wschenk][updated github profile]]!
+
+
+* Thoughts
+
+cron jobs on github are fun.  A cool idea would be to have it generate
+a status page for all your sites and give you a notification if
+something went down.
+
+* References
+
+1. https://nektosact.com/
+2. [[https://github.com/simonw/simonw/blob/master/.github/workflows/build.yml][simonw build.yml]]
+3. [[https://github.com/harperreed/harperreed/blob/main/.github/workflows/build.yml][harperreed build.yml]]
