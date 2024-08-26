@@ -1,0 +1,264 @@
+#+title: JS Terminal into your server
+#+subtitle: Not secure
+#+tags[]: xtermjs, docker, socketio, flyio
+#+date: 2024-03-31T17:49:49
+#+draft: true
+
+#+begin_src bash :results output
+node -v 
+#+end_src
+
+#+RESULTS:
+: v20.12.0
+
+#+begin_src bash
+  npm install vite express cors @xterm/xterm \
+      @xterm/addon-fit socket.io socket.io-client node-pty
+#+end_src
+
+#+ATTR_HTML: :class table
+| vite             | client build                    |
+| @xterm/xterm     | terminal in html                |
+| xterm-addon-fit  | xterm addon                     |
+| socket.io-client | for vite                        |
+| express          | server software                 |
+| cors             | express cors middlewhere        |
+| socket.io        | sockers on the server           |
+| node-pty         | pseudo terminal on the app side |
+
+* Client
+
+#+begin_src html :tangle index.html
+  <!doctype html>
+  <html>
+    <head>
+      <title>Client</title>
+      <script src="client.js" type="module"></script>
+    </head>
+    <body style="margin: 0">
+      <div style="height: 100vh" id="terminal"></div>
+    </body>
+  </html>
+
+#+end_src
+
+#+begin_src javascript :tangle client.js
+  import "@xterm/xterm/css/xterm.css"
+  import {Terminal} from "@xterm/xterm"
+  import { FitAddon } from '@xterm/addon-fit';
+  import { io } from "socket.io-client"
+
+  window.addEventListener( "load", () => {
+      const terminal = document.getElementById( 'terminal' );
+
+      const term = new Terminal();
+      const fitAddon = new FitAddon();
+      term.loadAddon(fitAddon);
+      term.open(terminal);
+
+      fitAddon.fit();
+
+      window.term= term;
+
+      const host = import.meta.env.MODE == 'development' ? "http://localhost:3000/" : undefined
+      term.write( `Connecting to ${host}...\n\r` )
+      const socket = io(host);
+
+      socket.on( 'connect', (msg) => {
+          term.write( `Connected.\n\r` );
+          socket.emit( 'resize', term.cols, term.rows );
+      } )
+
+      socket.on( 'response', (msg) => {
+          term.write( msg )
+      } );
+
+      term.onKey(e => {
+          //console.log(e);
+          e.domEvent.stopPropagation()
+          e.domEvent.preventDefault()
+          socket.emit( 'keyup', e.key );
+      })
+
+      /*
+        term.onData( (d) => {
+          console.log( "paste", d )
+          socket.emit( 'keyup', d );
+          })
+          ,*/
+
+      window.addEventListener( 'resize', () => fitAddon.fit() );
+      term.onResize( (sz) => {
+          console.log( "resizing to", sz.cols, sz.rows );
+          socket.emit( 'resize', sz.cols, sz.rows );
+      })
+  } )
+#+end_src
+
+#+begin_src bash
+  npx vite
+#+end_src
+
+* PTY
+
+Just for testing purposes:
+
+#+begin_src javascript :tangle pty.js
+  import pty from 'node-pty'
+
+  const shell = '/bin/bash';
+
+  const ptyProcess = pty.spawn(shell, [], {
+      name: 'xterm-color',
+      cols: 80,
+      rows: 30,
+      cwd: process.env.HOME,
+      env: process.env
+  });
+
+  ptyProcess.onData((data) => {
+      process.stdout.write(data);
+  });
+
+  ptyProcess.write('ls\r');
+  ptyProcess.resize(100, 40);
+  ptyProcess.write('ls\r');
+
+#+end_src
+
+* App
+
+#+begin_src javascript :tangle app.js
+  import express from 'express';
+  import { createServer } from 'node:http';
+  import { Server } from 'socket.io';
+  import cors from 'cors';
+  import pty from 'node-pty'
+
+  const app = express();
+  app.use(cors())
+  app.use(express.static('dist'))
+
+  const server = createServer(app);
+  const io = new Server(server, { cors: { origin: '*', } })
+
+  io.on('connection', (socket) => {
+      console.log('a user connected');
+
+      const proc = pty.spawn( "/bin/bash",[], {
+          name: 'xterm-color',
+          cols: 80,
+          rows: 80,
+          cwd: process.env.HOME,
+          env: process.env
+      });
+
+      proc.onData( (data) => io.emit( 'response', data ) )
+      proc.onExit( (data) => {
+          console.log( "exit data", data )
+          io.emit( 'response', 'Process ended' );
+          //socket.close();
+      } )
+      
+      
+      socket.on('disconnect', () => {
+          console.log( "user disconnected, killing process" )
+          proc.kill();
+      });
+
+      socket.on( 'resize', (cols, rows ) => {
+          console.log( "-Resizing to ", cols, rows );
+          proc.resize(cols, rows);
+      } );
+
+      socket.on('keyup', (msg) => {
+          console.log('message: ' + msg);
+          proc.write( msg );
+      });
+  });
+
+  server.listen(3000, () => {
+    console.log('server running on port 3000');
+  });
+#+end_src
+
+* Server
+
+Our =package.json=:
+#+begin_src javascript
+  {
+      "type": "module",
+      "scripts": {
+          "dev": "node app.js & vite",
+          "build": "vite build"
+      },
+      "optionalDependencies": {
+          "@rollup/rollup-linux-x64-gnu": "4.6.1"
+      },
+      "dependencies": {
+          "@xterm/addon-fit": "^0.9.0",
+          "@xterm/xterm": "^5.4.0",
+          "cors": "^2.8.5",
+          "express": "^4.19.2",
+          "node-pty": "^1.0.0",
+          "socket.io": "^4.7.5",
+          "socket.io-client": "^4.7.5",
+          "vite": "^5.2.7"
+      }
+  }
+#+end_src
+
+Then the =Dockerfile=:
+#+begin_src dockerfile :tangle Dockerfile
+  FROM node:20.12.0-bookworm
+
+  WORKDIR /usr/app
+
+  RUN apt-get update && apt-get install -y neofetch
+
+  COPY package* ./
+  RUN npm install
+
+  COPY . ./
+  RUN npx vite build
+
+  EXPOSE 3000
+
+  CMD node app.js
+#+end_src
+
+* Deploy
+
+#+begin_src toml :tangle fly.toml
+  app = 'jsterm'
+  primary_region = 'ewr'
+
+  [build]
+
+  [http_service]
+    internal_port = 3000
+    force_https = true
+    auto_stop_machines = true
+    auto_start_machines = true
+    min_machines_running = 0
+    processes = ['app']
+
+  [[vm]]
+    memory = '1gb'
+    cpu_kind = 'shared'
+    cpus = 1
+
+
+#+end_src
+
+#+begin_src bash
+  fly deploy
+#+end_src
+* References
+
+1. 
+1. https://xtermjs.org/
+1. https://github.com/Microsoft/node-pty
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

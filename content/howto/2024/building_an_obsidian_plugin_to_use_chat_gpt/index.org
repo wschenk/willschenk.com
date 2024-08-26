@@ -1,0 +1,157 @@
+#+title: Building an obsidian plugin to use ChatGPT
+#+subtitle: whisper and refine
+#+tags[]: openai, llm, obsidian
+#+date: 2024-08-03T06:17:32
+#+draft: true
+
+* Setup the vault
+Open obsidian and create a new vault.
+
+In core, turn on slash commands.
+
+In community settings, turn on community plugins
+
+Close obsidian
+
+* Install the plugins
+
+#+begin_src bash
+  cd path/to/vault
+  mkdir -p .obsidian/plugins
+  cd .obsidian/plugins
+#+end_src
+
+Install the hot reload plugin
+
+#+begin_src bash
+  git clone https://github.com/pjeby/hot-reload
+#+end_src
+
+Install the sample plugin
+
+#+begin_src bash
+  git clone https://github.com/obsidianmd/obsidian-sample-plugin.git
+#+end_src
+
+Build it
+
+#+begin_src bash
+  cd obsidian-sample-plugin
+  npm i && npm run dev
+#+end_src
+
+* Restart obsidian
+
+Go into settings, and enable the two plugins that you've installed.
+
+* Test
+
+Edit the =main.ts= file, and change the line
+
+#+begin_src typescript
+  statusBarItemEl.setText('Status Bar Text');
+#+end_src
+
+To a different text.  If you save, this should be reflected in the
+obsidian app.  If not, make sure that the build server is still
+running (=npm run dev=) and that the hotreload plugin is working.
+
+* Create the main model
+
+#+begin_src typescript
+  // main.ts
+
+  import { Plugin } from "obsidian";
+  import { AISettings, AISettingTab, DEFAULT_SETTINGS } from "settings";
+
+  export default class AI extends Plugin {
+  	settings: AISettings;
+  	settingTab: AISettingTab;
+
+  	async onload() {
+  		this.settingTab = new AISettingTab(this.app, this);
+  		await this.settingTab.loadSettings();
+  		this.upstateStatusBar();
+  		this.addSettingTab(this.settingTab);
+  	}
+
+  	upstateStatusBar() {
+  		const statusBarItemEl = this.addStatusBarItem();
+  		if (this.settings.openaiApiKey == DEFAULT_SETTINGS.openaiApiKey) {
+  			statusBarItemEl.setText("Set your openai key");
+  		} else {
+  			statusBarItemEl.setText("OpenAI key set");
+  		}
+  	}
+
+  	onunload() {}
+  }
+
+* Managing settings
+
+#+begin_src typescript
+  // Settings
+
+  import AI from "main";
+  import { App, PluginSettingTab, Setting } from "obsidian";
+
+  export interface AISettings {
+  	openaiApiKey: string;
+  }
+
+  export const DEFAULT_SETTINGS: AISettings = {
+  	openaiApiKey: "",
+  };
+
+  export class AISettingTab extends PluginSettingTab {
+  	plugin: AI;
+
+  	constructor(app: App, plugin: AI) {
+  		super(app, plugin);
+  		this.plugin = plugin;
+  	}
+
+  	display(): void {
+  		const { containerEl } = this;
+
+  		containerEl.empty();
+
+  		new Setting(containerEl)
+  			.setName("OpenAI API Key")
+  			.setDesc("You need this to access the whisper and llm model")
+  			.addText((text) =>
+  				text
+  					.setPlaceholder("Enter your key")
+  					.setValue(this.plugin.settings.openaiApiKey)
+  					.onChange(async (value) => {
+  						this.plugin.settings.openaiApiKey = value;
+  						await this.saveSettings();
+  					})
+  			);
+  	}
+
+  	async loadSettings() {
+  		this.plugin.settings = Object.assign(
+  			{},
+  			DEFAULT_SETTINGS,
+  			await this.plugin.loadData()
+  		);
+  	}
+
+  	async saveSettings() {
+  		this.plugin.upstateStatusBar();
+  		await this.plugin.saveData(this.plugin.settings);
+  	}
+  }
+  #+end_src
+
+* Add first command
+
+
+* References
+
+1. https://docs.obsidian.md/Plugins/Getting+started/Build+a+plugin
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

@@ -1,0 +1,98 @@
+#+title: Deploying a site with a seperate backend
+#+date: 2024-08-10T07:55:31
+#+draft: true
+
+* Backend to fly
+
+I'm going to use fly for this
+
+Get the dockerfile working first
+
+#+begin_src bash
+fly launch
+#+end_src
+
+Edit the configs, deploy
+
+Copy over the secrets as needed, such as
+
+#+begin_src bash
+  cat .env| fly secrets import
+#+end_src
+
+** Production Environment
+
+Make sure that you set =APP_ENV= to production in your =Dockerfile= so
+the app knows where it's running.
+
+Create the volume in your fly.toml
+
+#+begin_src toml
+  [mounts]
+    source = "sqlite_data"
+    destination = "/data"
+    initial_size = "1gb" # optional - the size of the volume created on first deploy
+#+end_src
+
+
+Change the =db/config.yml= to point to =/data/production.sqlite3= 
+
+Then set it to run migrations on startup:
+
+#+begin_src ruby
+  # inside of app.rb
+  if ENV['APP_ENV'] == 'production' && ENV['RUNNING_MIGRATIONS'] != 'true'
+    ENV['RUNNING_MIGRATIONS'] = 'true'
+    puts 'Running migrate'
+    system('bundle exec rake db:migrate')
+  end
+#+end_src
+
+If the deploy fails, delete the machines that you were using and
+restart.
+
+** SSH
+
+You can connect to the machine using
+
+#+begin_src bash
+  fly ssh console
+#+end_src
+
+And if you have trouble connecting you can
+
+#+begin_src bash
+  fly doctor
+#+end_src
+
+Which seems to clean things up.
+
+* Update the production urls on the build
+
+Create a =.env.local= which points to the local api server
+#+begin_src bash
+  VITE_BACKEND_URL=http://localhost:9292
+#+end_src
+
+And =.env.production= which points to a remote api server
+#+begin_src bash
+VITE_BACKEND_URL=https://unbiased-api.fly.dev
+#+end_src
+
+Build the app:
+
+#+begin_src bash
+  npm run build
+#+end_src
+
+Then deploy
+
+#+begin_src bash
+  cd dist
+  surge
+#+end_src
+
+* References
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

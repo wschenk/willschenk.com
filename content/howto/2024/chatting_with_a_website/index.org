@@ -1,0 +1,382 @@
+#+title: Chatting with a website
+#+date: 2024-04-17T16:00:06
+#+draft: true
+
+#+begin_src bash
+  ollama pull nomic-embed-text
+#+end_src
+#+begin_src bash
+  npm i chromadb ollama langchain
+#+end_src
+
+* Extractor
+#+begin_src bash
+  npm i html-to-text jsdom
+#+end_src
+
+=extractor.js=:
+#+begin_src javascript :tangle extractor.js
+  import { JSDOM } from 'jsdom';
+  import { compile } from 'html-to-text';
+
+  const compiledConvert = compile();
+
+  export async function extractUrlContent(url) {
+      try {
+          const dom = await JSDOM.fromURL(url);
+          
+          const links = [...dom.window.document.querySelectorAll('a')]
+                        .map(link => link.href)
+                        .filter(href => href.startsWith('http') || href.startsWith('www'));
+
+          // Use Readability to parse the page
+          //const reader = new Readability(dom.window.document);
+          //const article = reader.parse();
+
+          const article = compiledConvert( dom.window.document.body.innerHTML);
+
+          // Return the results
+          return {
+              url: url,
+              links: links,
+              textContent: article 
+          };
+      } catch (error) {
+          console.error('Error extracting content:', error);
+          return {
+              url: url,
+              links: [],
+              textContent: ''
+          };
+      }
+  }
+#+end_src
+
+* Download the site take 1
+
+=importer-take-1.js=:
+#+begin_src javascript :tangle importer-take-1.js :results raw
+  import { compile } from "html-to-text";
+  import { RecursiveUrlLoader } from "langchain/document_loaders/web/recursive_url";
+
+  const url = "https://support.tezlabapp.com/"
+
+  const compiledConvert = compile({ wordwrap: 130 }); // returns (text: string) => string;
+
+  const loader = new RecursiveUrlLoader(url, {
+      extractor: compiledConvert,
+      maxDepth: 5,
+      excludeDirs: ["https://js.langchain.com/docs/api/"],
+  });
+
+  const docs = await loader.load();
+
+  console.log( docs.length, "docs" )
+
+  for( let doc of docs ) {
+      console.log( doc.metadata.source )
+  }
+#+end_src
+
+#+begin_src bash
+  13 docs
+  https://support.tezlabapp.com/
+  https://support.tezlabapp.com/category/20-about-tezlab
+  https://support.tezlabapp.com/category/90-in-car-dashboard
+  https://support.tezlabapp.com/category/24-subscriptions
+  https://support.tezlabapp.com/category/28-security-privacy
+  https://support.tezlabapp.com/category/54-settings-preferences
+  https://support.tezlabapp.com/category/21-vehicles
+  https://support.tezlabapp.com/category/25-cost-tracking
+  https://support.tezlabapp.com/category/26-co-trees
+  https://support.tezlabapp.com/category/23-understanding-data
+  https://support.tezlabapp.com/category/64-ios-widget
+  https://support.tezlabapp.com/category/27-troubleshooting
+  https://support.tezlabapp.com/category/29-other
+#+end_src
+
+Well, that doesn't work at all.  Looks like the problem is that it's
+not seeing that the links are there, since (examining the code) they
+don't end with a slash.  Rather than going through all the trouble of
+debugging it, lets try and alternative approach.
+
+* Download the site take 2
+
+#+begin_src bash
+  npm i cheerio
+#+end_src
+
+=importer-take-2.js=:
+#+begin_src javascript :tangle importer-take-2.js :results raw
+  import { compile } from "html-to-text";
+  import { CheerioWebBaseLoader } from "langchain/document_loaders/web/cheerio";
+
+  const url = "https://support.tezlabapp.com/"
+
+  const loader = new CheerioWebBaseLoader(
+      url
+  );
+  const compiledConvert = compile({ wordwrap: 130 }); // returns (text: string) => string;
+
+  const docs = await loader.load();
+
+  console.log(docs)
+  console.log( docs.length, "docs" )
+
+  for( let doc of docs ) {
+      console.log( doc.metadata.source )
+  }
+#+end_src
+
+#+begin_src bash
+  13 docs
+  https://support.tezlabapp.com/
+  https://support.tezlabapp.com/category/20-about-tezlab
+  https://support.tezlabapp.com/category/90-in-car-dashboard
+  https://support.tezlabapp.com/category/24-subscriptions
+  https://support.tezlabapp.com/category/28-security-privacy
+  https://support.tezlabapp.com/category/54-settings-preferences
+  https://support.tezlabapp.com/category/21-vehicles
+  https://support.tezlabapp.com/category/25-cost-tracking
+  https://support.tezlabapp.com/category/26-co-trees
+  https://support.tezlabapp.com/category/23-understanding-data
+  https://support.tezlabapp.com/category/64-ios-widget
+  https://support.tezlabapp.com/category/27-troubleshooting
+  https://support.tezlabapp.com/category/29-other
+#+end_src
+
+Well, that doesn't work at all.  Looks like the problem is that it's
+not seeing that the links are there, since (examining the code) they
+don't end with a slash.  Rather than going through all the trouble of
+debugging it, lets try and alternative approach.
+
+* Download the site take 3
+
+#+begin_src bash
+  npm i jsdom @mozilla/readability
+#+end_src
+
+
+=importer-take-3.js=
+#+begin_src javascript :tangle importer-take-3.js
+    import {extractUrlContent} from './extractor.js';
+
+    const urls = new Set()
+    const docs = new Map()
+
+    async function crawler( url, baseUrl =  null, level = 0 ) {
+        if( baseUrl == null ) {
+            baseUrl = url;
+        }
+        
+        console.log( url, baseUrl, level )
+
+        urls.add( url )
+        const data = await extractUrlContent( url )
+
+        docs.set( data.url, data )
+
+        if( level <= 2 ) {
+            for( const child of data.links ) {
+                console.log( "does it", child, child.startsWith( baseUrl ) )
+                if( child.startsWith( baseUrl ) ) {
+                    if( !urls.has( child ) ) {
+                        await crawler( child, baseUrl, level + 1 )
+                    }
+                }
+            }
+        }
+
+        console.log( url, data.links )
+
+        console.log( "urls", urls )
+        return docs
+    }
+
+    const data = await crawler ( "https://support.tezlabapp.com/" )
+
+  //  console.log( data )
+        
+#+end_src
+#+begin_src javascript :tangle test.js
+  import {extractUrlContent} from './extractor.js'
+
+    console.log( await extractUrlContent( "https://support.tezlabapp.com/" ) )
+  //console.log( await extractUrlContent( "https://willschenk.com/fragments/2024/discovering_idagio/" ) )
+#+end_src
+
+* Download the site take 4
+
+#+begin_src javascript :tangle importer-take-4.js
+  import {extractUrlContent} from './extractor.js';
+
+  export async function crawl(link) {
+      const seen = new Set();
+      const tocrawl = new Set();
+      const data = new Map();
+
+      const baseUrl = link;
+      while( link != undefined ) {
+          tocrawl.delete(link)
+          console.log( "dnling", link )
+          seen.add( link );
+
+          const content = await extractUrlContent(link);
+
+          data.set( link, content ) 
+          for( link of content.links ) {
+              if( link.startsWith( baseUrl ) ) {
+                  if( !seen.has( link ) ) {
+                      console.log( "adding", link )
+                      tocrawl.add(link)
+                  }
+              }
+          }
+          link = tocrawl.values().next().value
+      }
+
+      return data
+  }
+
+  //await crawl( 'https://support.tezlabapp.com/' )
+  //console.log( data )
+  //console.log( JSON.stringify( data, null, "" ) )
+#+end_src
+
+* Install chromadb
+
+Docker one-liner:
+
+#+begin_src bash
+  docker run --rm -it -e CHROMA_SERVER_CORS_ALLOW_ORIGINS=\[\"\*\"\] -p 8000:8000 chromadb/chroma
+#+end_src
+
+Or install it more:
+#+begin_src bash
+  pip install chromadb
+#+end_src
+
+then
+
+#+begin_src bash
+  CHROMA_SERVER_CORS_ALLOW_ORIGINS=\[\"http://localhost:5173\"\] chroma run --path db_path
+#+end_src
+
+* Put it into a chromadb
+
+#+begin_src javascript :tangle import.js
+  import { OllamaEmbeddings } from "@langchain/community/embeddings/ollama"
+  import { Chroma } from "@langchain/community/vectorstores/chroma";
+  import { TextLoader } from "langchain/document_loaders/fs/text";
+  import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
+  import { Document } from "langchain/document";
+  import { crawl } from "./importer-take-4.js";
+
+  const doc = new Document({ pageContent: "foo", metadata: { source: "1" } });
+
+  const collectionName = 'sofreshandclean';
+  const embeddingModel = 'nomic-embed-text';
+
+  // load the website
+  const siteData = await crawl( "https://support.tezlabapp.com/" )
+  const urls = Array.from(siteData.keys());
+
+  const docs = urls.map( (url) => {
+      return new Document( {
+          pageContent: siteData.get(url).textContent,
+          metadata: { source: url }
+      })
+  }).filter( (doc) => doc.pageContent )
+
+
+  console.log( "Making embeddings" );
+  //Get an instance of ollama embeddings
+  const ollamaEmbeddings = new OllamaEmbeddings({
+      model: embeddingModel
+  });
+
+  // Chroma
+  const vectorStore = await Chroma.fromDocuments(
+      docs,
+      ollamaEmbeddings, {
+          collectionName
+      });
+
+  console.log( "stored" )
+#+end_src
+
+* Query
+
+#+begin_src javascript :tangle query.js
+  import { OllamaEmbeddings } from "@langchain/community/embeddings/ollama"
+  import { Ollama } from "@langchain/community/llms/ollama";
+  import { Chroma } from "@langchain/community/vectorstores/chroma";
+  import { PromptTemplate } from "@langchain/core/prompts";
+  import { StringOutputParser } from "@langchain/core/output_parsers"
+
+  const collectionName = 'sofreshandclean';
+  const embeddingModel = 'nomic-embed-text';
+  const llmModel = 'llama3';
+
+  const ollamaLlm = new Ollama({
+      model: llmModel
+  });
+
+  const ollamaEmbeddings = new OllamaEmbeddings({
+      model: embeddingModel
+  });
+
+  const vectorStore = await Chroma.fromExistingCollection(
+      ollamaEmbeddings, { collectionName }
+    );
+
+  const chromaRetriever = vectorStore.asRetriever();
+
+  const userQuestion = "Do you have a watch app and how do I use it?"
+
+  const simpleQuestionPrompt = PromptTemplate.fromTemplate(`
+  For following user question convert it into a standalone question
+  {userQuestion}`);
+
+  const simpleQuestionChain = simpleQuestionPrompt
+        .pipe(ollamaLlm)
+        .pipe(new StringOutputParser())
+        .pipe(chromaRetriever);
+
+  const documents = await simpleQuestionChain.invoke({
+      userQuestion: userQuestion
+  });
+
+  console.log( documents )
+
+  //Utility function to combine documents
+  function combineDocuments(docs) {
+      return docs.map((doc) => doc.pageContent).join('\n\n');
+  }
+
+  //Combine the results into a string
+  const combinedDocs = combineDocuments(documents);
+
+  const questionTemplate = PromptTemplate.fromTemplate(`
+  You are an expert in electric vehicles and transportation. Answer the below question using the context.
+      Strictly use the context and answer in crisp and point to point.
+      <context>
+      {context}
+      </context>
+
+      question: {userQuestion}
+  `)
+
+  const answerChain = questionTemplate.pipe(ollamaLlm);
+
+  const llmResponse = await answerChain.invoke({
+      context: combinedDocs,
+      userQuestion: userQuestion
+  });
+
+  console.log(llmResponse);
+#+end_src
+* References
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

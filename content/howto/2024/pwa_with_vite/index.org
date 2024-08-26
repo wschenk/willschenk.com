@@ -1,0 +1,180 @@
+#+title: PWA with Vite
+#+subtitle: offline and online
+#+tags[]: vite, pwa
+#+date: 2024-04-03T11:31:42
+#+draft: true
+
+Lets continue with the [[https://willschenk.com/labnotes/2024/image_upload_with_node_storing_on_a_seperate_directory/][previous example]] and see how to make it work as
+a progressive web app.
+
+* Move the app over
+
+=Dockerfile=, =.dockerignore=, =fly.toml=, =app.js=, =file_storage.js=,
+=capture-photo.js=, =photo-list.js= all move over directly.
+
+* PWA
+** =vite=
+
+Lets add what's needed to make the javascript app a progressive web
+app:
+
+#+begin_src bash
+  npm i vite unocss vite-plugin-pwa @vite-pwa/assets-generator
+#+end_src
+
+** Make a =favicon=
+
+I went over to ChatGPT to /make an icon for a site for electric vehicle
+road trip planning as a single of light charcoal/.  I fiddled with it a
+bit then put it into =public/logo.png=
+
+** =vite.config.js=
+
+[[https://vite-pwa-org.netlify.app/guide/pwa-minimal-requirements.html#web-app-manifest][For the PWA minimal requirements]] we need to set up some information:
+
+=vite.config.js=
+
+#+begin_src javascript :tangle vite.config.js
+  import { defineConfig } from 'vite'
+  import { VitePWA } from 'vite-plugin-pwa'
+
+  const pwa =  VitePWA({
+      devOptions: { enabled: true },
+      includeAssets: ['*/*png', 'favicon.ico'],
+      pwaAssets: {
+          image: 'public/logo.png'
+      },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg}']
+      },
+      registerType: 'autoupdate',
+      manifest: {
+          name: 'Electric APP',
+          short_name: 'EAPP',
+          description: 'This is really really fun',
+          theme_color: '#ffffff',
+          icons: [
+            {
+              src: 'pwa-192x192.png',
+              sizes: '192x192',
+              type: 'image/png'
+            },
+            {
+              src: 'pwa-512x512.png',
+              sizes: '512x512',
+              type: 'image/png'
+            }
+          ]
+      }
+  })
+
+  export default defineConfig({
+      plugins: [
+          pwa
+      ]
+  })
+#+end_src
+
+
+* The App
+
+** HTML
+
+Now we can rebuild the =index.html= file and include the various
+components:
+
+#+begin_src html :tangle index.html
+    <html>
+    <head>
+      <title>PWA Test</title>
+      <script src="main.js" type="module"></script>
+      <script src="network-status.js" type="module"></script>
+      <script src="capture-photo.js" type="module"></script>
+      <script src="photo-list.js" type="module"></script>
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+    </head>
+    <body >
+      <div max-w-prose mx-auto prose>
+        <h1 font-header text-4xl font-bold>PWA Test</h1>
+        <div>
+          <img src="logo.png" width="400px" height="400px"/>
+        </div>
+
+        <p font-sans>This is my text, and I really like it</p>
+
+        <network-status></network-status>
+        <capture-photo></capture-photo>
+        <photo-list></photo-list>
+      </div>
+    </body>
+  </html>
+#+end_src
+
+** Main js function
+
+This is really for including the CSS and showing some logging on the
+console.
+
+=main.js=:
+
+#+begin_src javascript :tangle main.js
+  import '@unocss/reset/tailwind.css';
+  import './main.css';
+  import { pwaInfo } from 'virtual:pwa-info'
+  import { registerSW } from 'virtual:pwa-register'
+
+  console.log(pwaInfo)
+  registerSW({ immediate: true })
+
+#+end_src
+
+** Network Status Component
+
+=network-status.js=
+
+#+begin_src javascript :tangle network-status.js
+  customElements.define( 'network-status', class NetworkStatus extends HTMLElement {
+      connectedCallback() {
+          this.online = navigator.onLine;
+          this.render();
+
+          window.addEventListener( "online", () => {
+              this.online = true;
+              this.render();
+          })
+
+          window.addEventListener( "offline", () => {
+              this.online = false;
+              this.render();
+          })
+      }
+
+      render() {
+          let h = `<p>${this.online ? "Online" : "Offine"}</p>`
+
+          if( navigator.connection ) {
+              let c = navigator.connection;
+
+              h += `<p>effectiveType: ${c.effectiveType}</p>`
+              h += `<p>downlink: ${navigator.connection.downlink}mbs</p>`
+              h += `<p>rtt: ${navigator.connection.rtt}ms</p>`
+          }
+          
+          this.innerHTML = h;
+      }
+  })
+#+end_src
+
+
+
+* References
+
+1. https://vite-pwa-org.netlify.app/guide/
+1. https://github.com/vite-pwa/assets-generator
+1. https://docs.elk.zone/pwa
+1. https://github.com/jeffposnick/yt-playlist-notifier/tree/main
+1. https://vite-pwa-org.netlify.app/workbox/inject-manifest
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

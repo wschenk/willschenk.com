@@ -1,0 +1,173 @@
+#+title: Building a static vite site to github pages using the cli
+#+date: 2024-08-26T08:01:12
+#+draft: true
+
+#+begin_src bash
+  cd $(mktemp -d)
+  pnpm create vite --template lit-ts
+#+end_src
+
+#+begin_src bash
+  cd status-page
+  pnpm install
+  pnpm run dev
+#+end_src
+
+#+begin_src bash
+  git init
+  gh repo create wschenk/status-page --public
+  git remote add origin https://github.com/wschenk/status-page
+#+end_src
+
+
+Create =.github/workflows/deploy.yml=, adapted from
+[[https://vitejs.dev/guide/static-deploy]]
+
+- We'll use the =actions/configure-pages= to set the base url
+- Inside of 
+
+#+begin_src yaml
+  # Simple workflow for deploying static content to GitHub Pages
+  name: Deploy static content to Pages
+
+  on:
+    # Runs on pushes targeting the default branch
+    push:
+      branches: ["main"]
+
+    # Allows you to run this workflow manually from the Actions tab
+    workflow_dispatch:
+
+  # Sets the GITHUB_TOKEN permissions to allow deployment to GitHub Pages
+  permissions:
+    contents: read
+    pages: write
+    id-token: write
+
+  # Allow one concurrent deployment
+  concurrency:
+    group: "pages"
+    cancel-in-progress: true
+
+  jobs:
+    # Single deploy job since we're just deploying
+    deploy:
+      environment:
+        name: github-pages
+        url: ${{ steps.deployment.outputs.page_url }}
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout
+          uses: actions/checkout@v4
+        - name: Setup Pages
+          id: pages
+          uses: actions/configure-pages@v4
+        - name: Set up Node
+          uses: actions/setup-node@v4
+          with:
+            node-version: 20
+        - name: Setup pnpm
+          uses: pnpm/action-setup@v4
+          with:
+            version: 9
+        - name: Install dependencies
+          run: pnpm install
+        - name: Build
+          run: pnpm run build
+          env:
+            BASE_DIR: ${{ steps.pages.outputs.base_path }}
+        - name: Upload artifact
+          uses: actions/upload-pages-artifact@v3
+          with:
+            # Upload dist folder
+            path: "./dist"
+        - name: Deploy to GitHub Pages
+          id: deployment
+          uses: actions/deploy-pages@v4
+#+end_src
+
+#+begin_src javascript
+  // vite.config.js
+  import { defineConfig } from "vite";
+
+  const base = process.env.BASE_DIR || "/";
+
+  // https://vitejs.dev/config/
+  export default defineConfig({
+    base,
+  });
+#+end_src
+
+#+begin_src bash
+  git add .
+  git push origin master
+#+end_src
+
+#+begin_src bash
+  gh workflow ls
+#+end_src
+
+#+begin_src bash
+  gh run list
+  gh run view 10559444918 --log-failed
+#+end_src
+
+Looks like we don't have github pages installed.
+
+#+begin_src bash
+gh browse
+#+end_src
+
+then go to settings, pages, and change build and deployment to github actions
+
+
+* Adding telegram and secrets
+
+For getting messages in private chat with bot
+
+1. Create a bot using [[https://telegram.me/BotFather][@BotFather]], get it's and store it in =TELEGRAM_TOKEN=
+2. Start conversation with bot
+3. Run following curl command
+
+
+Get the =TELEGRAM_CHAT_ID= via:
+
+#+begin_src bash
+  export TELEGRAM_CHAT_ID=$(
+      curl https://api.telegram.org/bot${TELEGRAM_TOKEN}/getUpdates |
+          jq '.result[0].message.chat.id'
+         )
+#+end_src
+
+Then set the secrets
+
+#+begin_src bash
+  echo $TELEGRAM_TOKEN | gh secret set TELEGRAM_TOKEN
+  echo $TELEGRAM_CHAT_ID| gh secret set TELEGRAM_CHAT_ID
+#+end_src
+
+And finally add the action to =deploy.yml=:
+
+#+begin_src yaml
+  - name: Send Inline Telegram Message
+    uses: cbrgm/telegram-github-action@v1
+    with:
+      token: ${{ secrets.TELEGRAM_TOKEN }}
+      to: ${{ secrets.TELEGRAM_CHAT_ID }}
+      message: |
+        New commit by ${{ github.actor }}!
+        Commit: ${{ github.event.head_commit.message }}
+        Repository: ${{ github.repository }}
+        View changes: https://github.com/${{ github.repository }}/commit/${{ github.sha }}
+#+end_src
+
+
+
+
+* References
+
+1. https://github.com/ErickKS/vite-deploy
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
