@@ -1,0 +1,183 @@
+#+title: Building a blog using github issues
+#+subtitle: what else can we do with github actions
+#+tags[]: github, staticsites
+#+date: 2024-08-28T08:25:56
+
+I wanted to see if I could write blog posts using github issues, and
+have them be published on the web.  You can!
+
+* Create a jekyll site
+
+#+begin_src
+  cd $(mktemp -d)
+  bundle init
+  bundle add jekyll
+  bundle exec jekyll new issue-blog
+  cursor issue-blog
+#+end_src
+
+Then inside
+
+#+begin_src bash
+  bundle add jekyll-compose
+  bundle
+  jekyll s
+#+end_src
+
+
+* Create the repo
+
+#+begin_src bash
+  git init
+  git add .
+  git commit -m "initial commit"
+  gh repo create wschenk/issue-blog --public
+  gh repo edit -d "Playground to make posts and comments from github issues"
+  git remote add origin https://github.com/wschenk/issue-blog
+  git push origin main
+#+end_src
+
+
+* Add the secret
+
+#+begin_src bash
+  gh auth token | gh secret set AUTH_TOKEN 
+#+end_src
+
+* Issue to Post workflow
+
+When you open or edit and issue, we check out the repo, and then
+create a file in the =_posts= directory can fill in the information
+
+Once that's done, we trigger a =deploy= action using
+=peter-evans/repository-dispatch= to trigger the second build action.
+
+#+begin_src yaml
+  name: Issue to Post
+
+  on:
+    workflow_dispatch:
+    issues:
+      types:
+        - opened
+        - edited
+
+  permissions: write-all
+
+  jobs:
+    create_post:
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout repository
+          uses: actions/checkout@v2
+        - name: Create post file
+          run: |
+            POST_FILENAME="_posts/$(date +%Y-%m-%d)-$(echo -n ${{github.event.issue.title}} | tr '[A-Z]' '[a-z]' | tr -c 'a-z' '-' ).md"
+            echo "POST_FILENAME: ${POST_FILENAME}"
+            echo --- > ${POST_FILENAME}
+            echo title: "${{github.event.issue.title}}" >> ${POST_FILENAME}
+            echo layout: post >> ${POST_FILENAME}
+            echo date: $(date +"%Y-%m-%d %H:%M %z") >> ${POST_FILENAME}
+            echo --- >> ${POST_FILENAME}
+            echo >> ${POST_FILENAME}
+            echo "${{github.event.issue.body}}" >> ${POST_FILENAME}
+        - name: Commit and push changes
+          run: |
+            git config --global user.email "readme-bot@example.com"
+            git config --global user.name "README-bot"
+            git add .
+            git commit -m "Create post for issue #${{ github.event.issue.number }}"
+            git push
+          env:
+            GITHUB_TOKEN: ${{ secrets.AUTH_TOKEN }}
+        - name: Trigger deploy action
+          uses: peter-evans/repository-dispatch@v3
+          with:
+            event-type: deploy
+#+end_src
+
+
+* Deploy to pages
+
+Here we check out the code and deploy it to github pages.  We replace
+the =baseurl= with the =base_path= that we get from =configure-pages=, so
+its smart enough to know if you have it on a custom domain or as a
+subdirectory.
+
+#+begin_src yaml
+  name: "Build and Deploy"
+  on:
+    repository_dispatch:
+      types: [deploy]
+    push:
+      branches:
+        - main
+        - master
+      paths-ignore:
+        - .gitignore
+        - README.md
+        - LICENSE
+        - .github/
+
+    # Allows you to run this workflow manually from the Actions tab
+    workflow_dispatch:
+
+  permissions:
+    contents: read
+    pages: write
+    id-token: write
+
+  # Allow one concurrent deployment
+  concurrency:
+    group: "pages"
+    cancel-in-progress: true
+
+  jobs:
+    build:
+      runs-on: ubuntu-latest
+
+      steps:
+        - name: Checkout
+          uses: actions/checkout@v4
+
+          - name: Setup Pages
+          id: pages
+          uses: actions/configure-pages@v4
+
+        - name: Setup Ruby
+          uses: ruby/setup-ruby@v1
+          with:
+            ruby-version: 3.3
+            bundler-cache: true
+        - name: Replace baseurl
+          run: |
+            sed -i 's|baseurl: ""|baseurl: "${{ steps.pages.outputs.base_path }}"|' _config.yml
+        - name: Build site
+          run: bundle exec jekyll b -d "_site${{ steps.pages.outputs.base_path }}"
+          env:
+            JEKYLL_ENV: "production"
+
+        - name: Upload site artifact
+          uses: actions/upload-pages-artifact@v3
+          with:
+            path: "_site${{ steps.pages.outputs.base_path }}"
+
+    deploy:
+      environment:
+        name: github-pages
+        url: ${{ steps.deployment.outputs.page_url }}
+      runs-on: ubuntu-latest
+      needs: build
+      steps:
+        - name: Deploy to GitHub Pages
+          id: deployment
+          uses: actions/deploy-pages@v4
+#+end_src
+
+
+* Check it out
+
+You can see it in action:
+
+- [[https://wschenk.github.io/issue-blog/][Website]]
+- [[https://github.com/wschenk/issue-blog][Github Repo]]
