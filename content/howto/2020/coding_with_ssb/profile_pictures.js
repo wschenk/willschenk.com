@@ -36,12 +36,12 @@ const onProfile = (sbot) => (err, data) => {
     // eg values.join('') == 'hello, world'
     //    })
     //)
-
+  
     data
         .filter( about => about.value.content.image )
         .map( about => {
             const i = about.value.content.image;
-
+              
             console.log( about.value.content.image );
             console.log( `Getting ${i.link}` );
             pull(

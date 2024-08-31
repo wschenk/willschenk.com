@@ -27,7 +27,7 @@ function range(source) {
               }))
     })
 }
-
+      
 (async () => {
     values = await range( pull.values([1,2,3,4]) )
     console.log( values );

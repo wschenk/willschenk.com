@@ -11,21 +11,21 @@ export async function login(user, password) {
         scope: "mobile",
         grant_type: "password",
     };
-
+  
     const response = await fetch(`${WEB_API_URL}/oauth/token`, {
         method: "POST",
         body: JSON.stringify(data),
         headers: { "Content-Type": "application/json" },
     });
-
+  
     if (!response.ok) {
         flash_and_redirect(response.statusText, "/");
     }
-
+  
     const json = await response.json();
     console.log("/oauth/token response", json);
     setToken(json.access_token);
-
+  
     return getToken();
 }
 

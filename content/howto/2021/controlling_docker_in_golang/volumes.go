@@ -50,7 +50,7 @@ func (c *Controller) RemoveVolume(name string) (removed bool, err error) {
   if err != nil {
     return false, err
   }
-
+  
   if vol == nil {
     return false, nil
   }
