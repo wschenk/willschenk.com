@@ -8,11 +8,7 @@ const pwa =  VitePWA({
         image: 'public/logo.png'
     },
     workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-        runtimeCaching: [ {
-            urlPattern: /\/images.*/,
-            handler: 'NetworkFirst'
-        }]
+      globPatterns: ['**/*.{js,css,html,ico,png,svg}']
     },
     registerType: 'autoupdate',
     manifest: {
