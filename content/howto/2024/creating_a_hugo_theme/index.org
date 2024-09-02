@@ -1,0 +1,224 @@
+#+title: Creating a hugo theme
+#+subtitle: time to update
+#+tags[]: static_sites tools hugo
+#+date: 2024-08-30T20:42:18
+#+draft: true
+
+Lets update our hugo build guide since we've moved way past the world
+of bootstrap!  The last version of this side was done using tailwind,
+but here we're going to use straight CSS since the world is awesome
+now and we don't need to do all of that crazy tooling.
+
+* The Plan
+
+1. Setup the new site and theme
+2. The header
+3. The single page
+4. The list page
+5. The home page
+6. The footer
+7. Additional content types
+
+Lets go!
+
+
+* Comes with a lot more stuff included!
+
+#+begin_src bash
+  $ hugo new site mysite
+  $ cd mysite
+  $ hugo new theme mytheme
+#+end_src
+
+Edit the generated =config.toml= to have it point to this new theme, and
+then add in some menus that we'll want.
+
+#+begin_src toml
+  theme = "mytheme"
+  relativeURLs = true
+
+  [[menus.main]]
+  name = 'About'
+  pageRef = '/about'
+  weight = 10
+
+  [[menus.main]]
+  name = 'Articles'
+  pageRef = '/articles'
+  weight = 20
+
+  [[menus.main]]
+  name = 'Howto'
+  pageRef = '/howto'
+  weight = 30
+
+  [[menus.main]]
+  name = 'Labnotes'
+  pageRef = '/Labnotes'
+  weight = 50
+
+  [[menus.main]]
+  name = 'Fragments'
+  pageRef = '/fragments'
+  weight = 60
+
+  [[menus.main]]
+  name = 'Tags'
+  pageRef = '/tags'
+  weight = 70
+#+end_src
+
+
+I like to setup all the content sites so the urls are relative so I
+can host in subdirectories and the like.
+
+* Debug footer
+
+As you are learning hugo, it's super useful to put in some debugging
+into the footer template so you can see what's available to you and
+what hugo is thinking when your template is rendering.  Check it.
+
+Inside =themes/utopia/layouts/partials/footer.html=:
+
+#+begin_src html
+  {{ if not hugo.IsProduction }}
+  <style>
+    dl.info-grid {
+    display: grid;
+    grid-gap: 4px 16px;
+    grid-template-columns: max-content;
+
+    dt {
+        font-weight: bold;
+    }
+    dd {
+        margin: 0;
+        grid-column-start: 2;
+    }
+  }
+  </style>
+  <dl class="info-grid">
+    <dt>Name</dt>
+    <dd>{{.Name}}</dd>
+
+    <dt>Type</dt>
+    <dd>{{ .Type }}</dd>
+
+    <dt>Kind</dt>
+    <dd>{{ .Kind }}</dd>
+
+    <dt>Layout</dt>
+    <dd>{{ .Layout }}</dd>
+
+    <dt>Section</dt>
+    <dd>{{ .Section }}</dd>
+
+    <dt>CurrentSection</dt>
+    <dd>{{ .CurrentSection }}</dd>
+
+    <dt>IsHome</dt>
+    <dd>{{ .IsHome }}</dd>
+
+    <dt>IsPage</dt>
+    <dd>{{ .IsPage }}</dd>
+
+    <dt>IsSection</dt>
+    <dd>{{ .IsSection }}</dd>
+  </dl>
+  {{ end }}
+#+end_src
+
+* Add kind to =body=
+
+=themes/utopia/layouts/_default/baseof.html=:
+
+#+begin_src bash
+  <body class="{{ .Type }}">
+  <header class="main">
+
+#+end_src
+
+* Tweak =header.html=
+
+Get rid of the H1 and make it a link.
+#+begin_src html
+<a href="{{ "/" | relURL }}">{{ site.Title }}</a>
+{{ partial "menu.html" (dict "menuID" "main" "page" .) }}
+#+end_src
+
+
+* CSS
+
+I want to split out the css files so I don't have anything huge laying
+around.
+
+=themes/utopia/layouts/partials/head/css.html=:
+#+begin_src html
+  {{- range resources.Match "css/**.css" }}
+    {{- if eq hugo.Environment "development" }}
+      <link rel="stylesheet" href="{{ .RelPermalink }}">
+    {{- else }}
+      {{- with . | minify | fingerprint }}
+        <link rel="stylesheet" href="{{ .RelPermalink }}" integrity="{{ .Data.Integrity }}" crossorigin="anonymous">
+      {{- end }}
+    {{- end }}
+  {{- end }}
+#+end_src
+
+** 0_vars.css
+
+** 1_theme.css
+
+** 2_layout.css
+
+* =layouts/_default/single.html=
+
+#+begin_src html
+  {{ define "main" }}
+  <article>
+    <header>
+      <div class="meta">
+        <h3>{{ .Type }}</h3>
+        {{ $dateMachine := .Date | time.Format "2006-01-02T15:04:05-07:00" }}
+        {{ $dateHuman := .Date | time.Format ":date_long" }}
+        <time datetime="{{ $dateMachine }}">{{ $dateHuman }}</time>
+      </div>
+
+      <div class="front-matter">
+        <h1>{{ .Title }}</h1>
+        {{ if .Params.Subtitle }}
+        <h2>{{ .Params.Subtitle | markdownify }}</h2>
+        {{ end }}
+
+        <ul class="tags">
+          {{ range .Params.tags }}
+          <li>
+            <a href="{{ "/tags/" | relURL }}{{ . | urlize }}">{{ . }}</a>
+          </li>
+          {{ end }}
+        </ul>
+      </div>
+
+      <div class="toc">
+        <h3>Contents</h3>
+        {{ .TableOfContents }}
+      </div>
+    </header>
+
+    <section>
+      {{ .Content }}
+    </section>
+  </article>
+  {{ end }}
+
+
+#+end_src
+
+* layouts/_default/list.html
+
+
+
+* References
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

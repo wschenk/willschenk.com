@@ -7,9 +7,12 @@ tags:
   - static_sites
   - tools
   - hugo
+obsolete: true
 aliases:
   - "/articles/2018/building-a-hugo-site/"
 ---
+
+[Check out the 2024 version](/howto/2024/creating_a_hugo_theme/) 
 
 Now that's its 2018 its time to retool the blog using hugo. Why not? Hugo is built in golang and is blazing fast and everything is cleaner than it was in the middleman years.
 
