@@ -1,0 +1,693 @@
+#+title: No build static site that used supabase
+#+subtitle: who needs tooling
+#+tags[]: supabase nobuild static_site
+#+date: 2024-09-02T21:34:42
+#+remote:   https://github.com/wschenk/supabase-auth-test
+
+* Setup supabase
+
+If you don't have the supabase cli, install it now.
+
+#+begin_src bash
+  brew install supabase/tap/supabase
+#+end_src
+
+Then in a new directory, initialize the project and start it up locally.
+
+#+begin_src bash
+  supabase init
+  supabase start
+#+end_src
+
+* Website
+
+Lets put together a simple html page.  We'll include [[https://shoelace.style/getting-started/installation][shoelace]] for a
+nice design system and some components.
+
+We'll also put in =profile-panel=, =post-list=, and =post-form=, which we
+will implement below.
+
+#+begin_src html :tangle index.html
+  <!DOCTYPE html>
+  <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>My awesome project</title>
+      <link
+        rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.16.0/cdn/themes/light.css"
+      />
+      <script
+        type="module"
+        src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.16.0/cdn/shoelace-autoloader.js"
+      ></script>
+      <link rel="stylesheet" href="styles.css" />
+    </head>
+    <body>
+      <header>
+        <h1>Awesome project</h1>
+        <profile-panel></profile-panel>
+      </header>
+      <main>
+        <section id="post">
+          <post-list></post-list>
+        </section>
+        <section id="post-form">
+          <post-form></post-form>
+        </section>
+      </main>
+      <footer>
+        <h2>Its amazing</h2>
+      </footer>
+
+      <script src="scripts.js" type="module"></script>
+    </body>
+  </html>
+#+end_src
+
+* Styles
+
+#+begin_src css :tangle styles.css
+  body {
+      font-family: var(--sl-font-sans);
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 0 var(--sl-spacing-medium);
+  }
+
+  h1 {
+      font-size: var(--sl-font-size-3x-large);
+  }
+
+  h2 {
+      font-size: var(--sl-font-size-2x-large);
+  }
+
+  h3 {
+      font-size: var(--sl-font-size-x-large);
+  }
+
+  h4 {
+      font-size: var(--sl-font-size-large);
+  }
+
+  p,
+  ul,
+  ol {
+      font-size: var(--sl-font-size-large);
+  }
+
+  header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+  }
+
+  section#post-form {
+      max-width: 65ch;
+      margin: 0 auto;
+  }
+
+  .sl-toast-stack {
+      left: 0;
+      right: auto;
+  }
+
+#+end_src
+
+* Start it up
+
+#+begin_src bash
+  pnpx live-server
+#+end_src
+
+Which looks like:
+
+{{< img img="screenshot_1.png" >}}
+
+* Setup supabase
+
+For our local build, we can see what the settings are by:
+
+#+begin_src bash :results output
+supabase status -o env | cut -c1-80
+#+end_src
+
+#+RESULTS:
+#+begin_example
+ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwic
+API_URL="http://127.0.0.1:54321"
+DB_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+GRAPHQL_URL="http://127.0.0.1:54321/graphql/v1"
+INBUCKET_URL="http://127.0.0.1:54324"
+JWT_SECRET="super-secret-jwt-token-with-at-least-32-characters-long"
+S3_PROTOCOL_ACCESS_KEY_ID="625729a08b95bf1b7ff351a663f3a23c"
+S3_PROTOCOL_ACCESS_KEY_SECRET="850181e4652dd023b7a98c58ae0d2d34bd487ee0cc3254aed
+S3_PROTOCOL_REGION="local"
+SERVICE_ROLE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZ
+STORAGE_S3_URL="http://127.0.0.1:54321/storage/v1/s3"
+STUDIO_URL="http://127.0.0.1:54323"
+#+end_example
+
+We'll need the =API_URL= and the =ANON_KEY=
+
+Lets set up =db.js=
+
+#+begin_src javascript 
+  // db.js
+  import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+
+  let api_url="http://127.0.0.1:54321";
+  let anon_key="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0"
+
+  export const supabase = createClient(api_url, anon_key);
+#+end_src
+
+And then add a notify function so we can pop stuff up on the screen
+and annoy people:
+
+#+begin_src javascript :tangle notify.js
+  // notify.js
+  // Always escape HTML for text arguments!
+  export function escapeHtml(html) {
+      const div = document.createElement("div");
+      div.textContent = html;
+      return div.innerHTML;
+  }
+
+  // Custom function to emit toast notifications
+  export async function notify(
+      message,
+      variant = "primary",
+      icon = "info-circle",
+      duration = 3000
+  ) {
+      const alert = Object.assign(document.createElement("sl-alert"), {
+          variant,
+          closable: true,
+          duration: duration,
+          innerHTML: `
+          <sl-icon name="${icon}" slot="icon"></sl-icon>
+          ${escapeHtml(message)}
+        `,
+      });
+      document.body.append(alert);
+      setTimeout(() => {
+          alert.toast();
+      }, 250);
+  }
+#+end_src
+
+* =profile-panel.js=
+
+This component handles all of the login state.
+
+#+begin_src javascript :tangle profile-panel.js
+  import { supabase } from "./db.js";
+  import { notify } from "./notify.js";
+
+  class ProfilePanel extends HTMLElement {
+    constructor() {
+      super();
+      this.state = "anonymous";
+    }
+
+    connectedCallback() {
+      const { localdata } = supabase.auth.onAuthStateChange((event, session) => {
+        notify(event);
+        if (event == "SIGNED_IN") {
+          this.state = "authenticated";
+          this.session = session;
+          console.log("session", session);
+        } else if (event == "SIGNED_OUT") {
+          this.state = "anonymous";
+          this.session = null;
+        }
+        this.render();
+      });
+
+      this.data = localdata;
+
+      this.render();
+    }
+
+    disconnectedCallback() {
+      this.data.subscription.unsubscribe();
+    }
+
+      render() {
+          if( this.state != 'authenticated' ) {
+              this.innerHTML = '<anonymous-profile>Anonymous</anonymous-profile>';
+          } else {
+              this.innerHTML = `<authed-profile email="${this.session.user.email}">Logged in</authed-profile>`
+          }
+      }
+  }
+
+  customElements.define("profile-panel", ProfilePanel);
+
+#+end_src
+
+And install it in =scripts.js=:
+
+#+begin_src javascript :tangle scripts.js
+  import './profile-panel.js';
+#+end_src
+
+{{< img img="screenshot_2.png" >}}
+
+* =anonymous-profile=
+
+#+begin_src javascript :tangle anonymous-profile.js
+  import {supabase} from './db.js';
+  import {notify} from './notify.js'
+
+  class AnonymousProfile extends HTMLElement {
+      constructor() {
+          super();
+          this.error = ""
+      }
+
+      connectedCallback() {
+          this.render();
+      }
+
+      render() {
+          const errorMessage = this.error != "" ? `<p>${this.error}</p>` : '';
+
+          this.innerHTML = `<sl-button variant="primary" id="sign-in">Sign In</sl-button>
+  <sl-dialog label="Signin" class="dialog-overview">
+  ${errorMessage}
+      <form>
+        <sl-input id="email" name="email" label="Email" required></sl-input>
+        <sl-input id="password" name="password" label="Password" type="password" required></sl-input>
+        <sl-button variant="primary" id="signin">Signin</sl-button>
+        <sl-button  variant="primary" id="login">Login</sl-button>
+      </form>
+
+  </sl-dialog>
+  `;
+
+      this.querySelector("#sign-in").addEventListener("click", () => {
+        this.querySelector("sl-dialog").show();
+        this.querySelector("#signin").addEventListener("click", (event) => {
+          this.handleSignin(event);
+        });
+        this.querySelector("#login").addEventListener("click", (event) => {
+          this.handleLogin(event);
+        });
+      });
+    }
+
+    async handleSignin(event) {
+        this.error = "";
+        event.preventDefault();
+        const formData = new FormData(this.querySelector("form"));
+        
+        const email = formData.get("email");
+        const password = formData.get("password");
+        const { data, error } = await supabase.auth.signUp({
+            email,
+            password,
+        });
+        
+        if (error) {
+            this.error = error.message;
+            notify(error.message, "danger");
+            this.render();
+            this.querySelector("sl-dialog").show();
+
+        }
+    }
+      
+      async handleLogin(event) {
+          this.error = "";
+          event.preventDefault();
+          const formData = new FormData(this.querySelector("form"));
+          const email = formData.get("email");
+          const password = formData.get("password");
+
+          const { data, error } = await supabase.auth.signInWithPassword({
+              email,
+              password,
+          });
+          
+          if (error) {
+              this.error = error.message;
+              notify(error.message, "danger");
+              this.render();
+              this.querySelector("sl-dialog").show();
+
+          }
+      }
+
+  }
+
+  customElements.define("anonymous-profile", AnonymousProfile );
+#+end_src
+
+And install it in =scripts.js=:
+
+#+begin_src javascript :tangle scripts.js
+  import './anonymous-profile.js';
+#+end_src
+
+{{< img img="screenshot_3.png" >}}
+
+And
+
+{{< img img="screenshot_4.png" >}}
+
+* =authed-profile=
+
+#+begin_src javascript :tangle authed-profile.js
+  import { supabase } from "./db.js";
+  import { notify } from "./notify.js";
+
+  class AuthedProfile extends HTMLElement {
+      constructor() {
+          super();
+      }
+
+      connectedCallback() {
+          this.innerHTML = `
+  <sl-dropdown class="profile-dropdown">
+    <sl-avatar slot="trigger"></sl-avatar>
+    <sl-menu>
+      <sl-menu-item>${this.getAttribute("email")}</sl-menu-item>
+      <sl-divider></sl-divider>
+      <sl-menu-item id="logout">Logout</sl-menu-item>
+    </sl-menu>
+  </sl-dropdown>
+  `;
+
+          const menu = document.querySelector(".profile-dropdown");
+
+          menu.addEventListener("sl-select", (event) => {
+              console.log("sl-select", event.detail.item);
+              if (event.detail.item.id === "logout") {
+                  supabase.auth.signOut();
+              }
+          });
+      }
+  }
+
+  customElements.define("authed-profile", AuthedProfile);
+#+end_src
+
+And add it to =scripts.js=:
+
+#+begin_src javascript :tangle scripts.js
+  import './authed-profile.js';
+#+end_src
+
+{{< img img="screenshot_5.png" >}}
+
+* Database
+
+Lets create a =posts= table:
+
+#+begin_src bash
+  supabase migration new posts
+#+end_src
+
+And then write the sql:
+
+#+begin_src sql :tangle supabase/migrations/20240902234248_posts.sql
+create table posts (
+  id bigint generated by default as identity primary key,
+  title text,
+  body text,
+  user_id uuid references auth.users,
+  created_at timestamp with time zone default now(),
+  updated_at timestamp with time zone default now()
+);
+
+-- 2. Enable RLS
+alter table posts enable row level security;
+
+-- select policy
+create policy "Posts are visible to everyone."
+on posts for select
+to anon, authenticated -- the Postgres Role (recommended)
+using ( true ); -- the actual Policy
+
+-- insert policy
+create policy "Users can create a post."
+on posts for insert
+to authenticated
+with check ( auth.uid() is not null );
+#+end_src
+
+Go to the [[http://127.0.0.1:54323/project/default/editor][local table view]] to see the before, and then run
+
+#+begin_src bash :results output
+  supabase migration up
+#+end_src
+
+#+RESULTS:
+: Connecting to local database...
+: Applying migration 20240902234248_posts.sql...
+: Local database is up to date.
+
+To see the after
+
+* =createPost= and =getPosts=
+
+#+begin_src javascript 
+  // db.js continued
+  export async function getPosts() {
+    const { data, error } = await supabase
+      .from("posts")
+      .select("*")
+      .order("created_at", { ascending: true });
+      
+      if (error) {
+          console.log( error );
+      }
+
+      return {data, error};
+  }
+
+  export async function createPost(title, body) {
+      const { data, error } = await supabase.from("posts").insert({ title, body });
+
+      if (error) {
+          console.log( error );
+      }
+
+      return {data, error};
+  }
+
+#+end_src
+* =post-form=
+
+#+begin_src javascript :tangle post-form.js
+  import { createPost } from "./db.js";
+
+  class PostForm extends HTMLElement {
+    constructor() {
+      super();
+    }
+
+    connectedCallback() {
+      this.render();
+      const form = this.querySelector("form");
+      form.addEventListener("submit", this.handleSubmit.bind(this));
+    }
+
+    render() {
+      this.innerHTML = `
+  <form class="input-validation-required">
+    <sl-input name="title" label="Title" required></sl-input>
+    <br />
+    <sl-textarea name="body" label="Body" required></sl-textarea>
+    <br /><br />
+    <sl-button type="submit" variant="primary">Submit</sl-button>
+  </form>`;
+    }
+
+    async handleSubmit(event) {
+      event.preventDefault();
+      const formData = new FormData(event.target);
+      const title = formData.get("title");
+      const body = formData.get("body");
+      await createPost(title, body);
+    }
+  }
+
+  customElements.define("post-form", PostForm);
+
+#+end_src
+
+And add it to =scripts.js=:
+
+#+begin_src javascript :tangle scripts.js
+  import './post-form.js';
+#+end_src
+
+{{< img img="screenshot_6.png" >}}
+
+* =post-list=
+
+#+begin_src javascript :tangle post-list.js
+  import { supabase, getPosts } from "./db.js";
+
+  class PostList extends HTMLElement {
+    constructor() {
+      super();
+      this.attachShadow({ mode: "open" });
+      this.posts = [];
+    }
+
+    async connectedCallback() {
+      this.render();
+        const {data,error} = await getPosts();
+        this.posts = data;
+        if( error ) {
+            notify( error.message, "danger" );
+            }
+      this.channel = supabase
+        .channel("schema-db-changes")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+          },
+          (payload) => {
+            console.log(payload);
+            if (payload.eventType === "INSERT") {
+              this.posts.push(payload.new);
+              this.render();
+            }
+          }
+        )
+        .subscribe();
+      this.render();
+    }
+
+    disconnectedCallback() {
+      this.channel.unsubscribe();
+    }
+
+    render() {
+      this.shadowRoot.innerHTML = `
+        <style>
+          ul {
+            list-style: none;
+            padding: 0;
+          }
+          h2 {
+            font-size: var(--sl-font-size-large);
+          }
+          p {
+            font-size: var(--sl-font-size-medium);
+          }
+            time {
+            font-size: var(--sl-font-size-small);
+          }
+        </style>
+        <ul class="posts">
+        </ul>
+      `;
+
+      const ul = this.shadowRoot.querySelector("ul");
+      this.posts.forEach((post) => {
+        const li = document.createElement("li");
+        li.innerHTML = `
+  <h2>${post.title}</h2>
+  <time>${post.created_at}</time>
+  </time>
+  <p>${post.body}</p>
+  `;
+        ul.appendChild(li);
+      });
+    }
+  }
+
+  customElements.define("post-list", PostList);
+
+#+end_src
+
+And add it to =scripts.js=:
+
+#+begin_src javascript :tangle scripts.js
+  import './post-list.js';
+#+end_src
+
+{{< img img="screenshot_7.png" >}}
+
+* Enable realtime
+
+If you go into the table editor and flip on =Realtime on= the updates
+will be broadcast to all active session.  Since we subscribed to the
+database changes, we'll get the updates on all the sites!  Very nifty.
+
+* Deploying everything
+
+** github pages
+
+push this to a repo, and then go to =Settings > Pages= and set to
+"deploy from main".
+
+It's that easy.
+
+
+** supabase
+
+Head over to [[https://supabase.com/][supabase.com]] and create a project.  Make sure you keep a
+note of your database password!
+
+Then, on your local machine, link the two together:
+
+#+begin_src bash
+supabase link
+#+end_src
+
+Then push the database migrations
+#+begin_src bash
+supabase db push
+#+end_src
+
+On the supabase site, go into =Settings > API= and note the URL and the
+anon public role.
+
+Change the =db.js= to have
+
+#+begin_src javascript
+  let api_url="https://aqghyiuxzwrxqfmcnpmo.supabase.co"
+  let anon_key="eyJhbGciOiJIUzI1NiIsInR5cCI6Ikp..."
+
+  if ( window.location.hostname ==  '127.0.0.1' ) {
+      api_url="http://127.0.0.1:54321";
+      anon_key="eyJhbGciOiJIUzI1NiIsInR5cCI6Ikp..."
+      }
+
+  export const supabase = createClient(api_url, anon_key);
+#+end_src
+
+Then, in the supabase site go to =Authentication > URL Settings= and put
+in the url from above, in my case its
+[[https://wschenk.github.io/supabase-auth-test/]].
+
+Finally, go to =Project Settings > Integrations= and connect the github
+repo to the project.  This will run the migrations and other things
+when you push to the repo so everything is up to date.
+
+* Test it out
+
+Go through the steps.  You should get a email confirmation email that
+will link you back to the site.
+
+Make sure that you turn on real time notifications on the table that
+was created.
+
+Forgot password or password reset isn't implemented by these
+webcomponents yet, but there's nothing stopping you!
+
+
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
