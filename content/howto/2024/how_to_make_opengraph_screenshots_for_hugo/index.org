@@ -1,0 +1,183 @@
+#+title: How to make opengraph screenshots for hugo
+#+date: 2024-09-04T16:53:05
+#+draft: true
+
+#+begin_src html :tangle og.html
+    <!DOCTYPE html>
+    <html lang="en">
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Sample Project</title>
+        <style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,100..900;1,9..144,100..900&display=swap');
+
+  :root {
+      --main-font-family: "Fraunces", system-ui;
+      --background: #fafaf9;
+      --text-color: #451a03;
+      --header-color: #032e45;
+      --diminished-text-color: #78716c;
+  }
+
+  body {
+  font-family: var( --main-font-family );
+  color: var( --text-color );
+  background: var( --background );
+  margin: 0;
+
+  }
+
+  main {
+    max-width: 1200px;
+    height: 630px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 600px;
+    padding-left: 100px;
+    padding-right: 100px;
+  }
+
+  h1 {
+  font-size: 80px;
+  color: var( --header-color );
+  margin: 0;
+  }
+
+  h2 {
+  font-size: 60px;
+  color: var( --diminished-text-color );
+  margin: 0;
+  }
+
+  h3 { font-size: 40px;
+  color: var( --diminished-header-color );
+  text-transform: uppercase;
+  margin:0;
+  }
+
+
+        </style>
+        <link rel="stylesheet" href="styles.css" />
+      </head>
+      <body>
+
+        <main>
+
+          <div>
+            <h3>SECTION</h3>
+          
+            <h1>TITLE</h1>
+            <h2>SUBTITLE</h2>
+            <!--
+            <ul>
+              <li>tags</li>
+              <li>tags</li>
+            </ul>
+            -->
+          </div>
+      </body>
+    </html>
+#+end_src
+
+#+begin_src ruby :tangle make_images
+  #!/bin/env/ruby
+
+  require 'fileutils'
+
+  BASE_DIR="/Users/wschenk/willschenk.com"
+  WORK_DIR="/tmp"
+  TEMPLATE="og.html"
+
+  class Page
+    def initialize( file )
+      @file = file
+      read_attributes
+    end
+
+    def outdir
+      File.dirname(@file.gsub( /#{BASE_DIR}/, WORK_DIR ))
+    end
+
+    def outfile
+      "#{outdir}/cover.png"
+    end
+
+    def read_attributes
+      contents = File.read( @file ).split( /\n/ );
+      @title = contents.grep( /#\+title/ ).first.split( /:/ ).last
+      subtitle = contents.grep( /#\+subtitle/ ).first
+      if subtitle
+        @subtitle = subtitle.split(/:/).last
+      else
+        @subtitle = ""
+      end
+      @tags = contents.grep( /#\+tags/ )
+      @section = @file.split( /\// )[-4]
+    end
+
+    def make_image
+      FileUtils.mkdir_p outdir
+      file = "#{outdir}/og.html"
+      puts "writing #{file}"
+      File.open( file, "w" ) do |out|
+        template = File.read TEMPLATE
+        template.gsub!( /SUBTITLE/, @subtitle )
+        template.gsub!( /TITLE/, @title )
+        template.gsub!( /SECTION/, @section )
+        out << template
+      end
+
+      cmd = "shot-scraper -w 1200 -h 630 -o #{outdir}/cover.png #{file}"
+
+      puts "Running #{cmd}"
+      system(cmd)
+
+      cmd = "cp #{outfile} #{File.dirname( @file )}"
+      puts "Running #{cmd}"
+      system(cmd)
+    end
+
+    def exist?
+      File.exist? outfile
+    end
+  end
+
+  Dir.glob( "#{BASE_DIR}/content/*/*/*/*.org" ).each do |file|
+    p = Page.new( file )
+    if !p.exist?
+      p.make_image
+    end
+  end
+#+end_src
+
+
+  Dir.glob( "#{BASE_DIR}/content/*/*/*/*.org" ).each do |file|
+    contents = File.read( file ).split( /\n/ );
+    title = contents.grep( /#\+title/ )
+    subtitle = contents.grep( /#\+subtitle/ );
+    tags = contents.grep( /#\+tags/ )
+    puts title
+    puts subtitle
+    puts tags
+    puts ""
+  end
+
+
+                                     
+
+#+end_src
+* References
+
+https://zidhuss.tech/posts/generating-opengraph-images-for-hugo
+https://www.hackification.io/software-development/hugo/html/open-graph-tags/
+https://aarol.dev/posts/hugo-og-image/
+https://github.com/simonw/shot-scraper?tab=readme-ov-file
+https://www.himpler.com/en/blog/auto-generate-og-images-for-hugo/
+https://github.com/search?q=repo%3Agohugoio%2Fhugo%20twitter_cards&type=code
+https://gohugo.io/templates/embedded/#open-graph
+
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

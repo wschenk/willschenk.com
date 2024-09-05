@@ -1,0 +1,68 @@
+#!/bin/env/ruby
+
+require 'fileutils'
+
+BASE_DIR="/Users/wschenk/willschenk.com"
+WORK_DIR="/tmp"
+TEMPLATE="og.html"
+
+class Page
+  def initialize( file )
+    @file = file
+    read_attributes
+  end
+
+  def outdir
+    File.dirname(@file.gsub( /#{BASE_DIR}/, WORK_DIR ))
+  end
+
+  def outfile
+    "#{outdir}/cover.png"
+  end
+
+  def read_attributes
+    contents = File.read( @file ).split( /\n/ );
+    @title = contents.grep( /#\+title/ ).first.split( /:/ ).last
+    subtitle = contents.grep( /#\+subtitle/ ).first
+    if subtitle
+      @subtitle = subtitle.split(/:/).last
+    else
+      @subtitle = ""
+    end
+    @tags = contents.grep( /#\+tags/ )
+    @section = @file.split( /\// )[-4]
+  end
+
+  def make_image
+    FileUtils.mkdir_p outdir
+    file = "#{outdir}/og.html"
+    puts "writing #{file}"
+    File.open( file, "w" ) do |out|
+      template = File.read TEMPLATE
+      template.gsub!( /SUBTITLE/, @subtitle )
+      template.gsub!( /TITLE/, @title )
+      template.gsub!( /SECTION/, @section )
+      out << template
+    end
+
+    cmd = "shot-scraper -w 1200 -h 630 -o #{outdir}/cover.png #{file}"
+
+    puts "Running #{cmd}"
+    system(cmd)
+
+    cmd = "cp #{outfile} #{File.dirname( @file )}"
+    puts "Running #{cmd}"
+    system(cmd)
+  end
+
+  def exist?
+    File.exist? outfile
+  end
+end
+
+Dir.glob( "#{BASE_DIR}/content/*/*/*/*.org" ).each do |file|
+  p = Page.new( file )
+  if !p.exist?
+    p.make_image
+  end
+end
