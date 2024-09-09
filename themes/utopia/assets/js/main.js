@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
     });
 
     const element = document.querySelector("#search");
-    const headerLinks = document.querySelectorAll("header.main a")
+    const headerLinks = document.querySelectorAll("header.body a")
     const trigger = headerLinks[headerLinks.length-1];
 
     trigger.addEventListener('click', () => {
