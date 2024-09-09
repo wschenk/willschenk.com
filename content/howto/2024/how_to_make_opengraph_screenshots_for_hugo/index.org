@@ -1,6 +1,27 @@
 #+title: How to make opengraph screenshots for hugo
-#+date: 2024-09-04T16:53:05
-#+draft: true
+#+subtitle: it sure looks a lot nicer!
+#+tags[]: hugo static_sites shot-scaper
+#+date: 2024-09-09T14:15:58
+
+Mostly I write these posts for myself -- the act of writing is great
+to clarify my thinking, and I actually do use the search on the site a
+lot to remember stuff that I forgot.  (Will I ever remember how to use
+=asdf=?  Doubtful.)  I did notice though that if you share the links on
+social media, it looks boring.  So lets fix it.
+
+We are going to generate images automatically from the posts.  We'll
+loop through all of the files -- a historical mix of markdown and
+lately all =org= files -- pull out the title and subtitle, stick all of
+that into an HTML page, and the use [[https://github.com/simonw/shot-scraper][shot-scraper]] to generate an image
+and move it into the leaf pages.  Which means that we'll need to make
+sure that everything is in a leaf page.
+
+Lets go:
+
+* HTML Template
+
+This is our template.  It's straight HTML and we're going to replace
+=TITLE= with the title and =SUBTITLE= with.. you get it.
 
 #+begin_src html :tangle og.html
     <!DOCTYPE html>
@@ -9,6 +30,7 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Sample Project</title>
+        <script src="https://kit.fontawesome.com/9a33cfed92.js" crossorigin="anonymous"></script>
         <style>
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,100..900;1,9..144,100..900&display=swap');
 
@@ -81,19 +103,86 @@
     </html>
 #+end_src
 
+* Test
+
+If you don't have =shot-scraper=
+
+#+begin_src bash
+  pip install shot-scraper
+#+end_src
+
+Then
+
+#+begin_src bash :results output
+  shot-scraper -w 1200 -h 630 -o shot.png og.html 2>&1
+#+end_src
+
+#+RESULTS:
+: Screenshot of 'file:/Users/wschenk/willschenk.com/content/howto/2024/how_to_make_opengraph_screenshots_for_hugo/og.html' written to 'shot.png'
+
+
+{{< img img="shot.png" >}}
+
+* Move all pages to leaf pages
+
+My posts are in the form
+
+=content/{section}/{year}/title=
+
+So my glob looks like that.  You may need to change it.
+
+#+begin_src ruby :tangle make_leaf
+  #!/bin/env/ruby
+
+  BASE_DIR="/Users/wschenk/willschenk.com"
+
+  Dir.glob( "#{BASE_DIR}/content/*/*/*{md,org}" ).each do |page|
+    puts page
+    base = File.dirname( page )
+    puts "base", base
+    name = File.basename( page, File.extname(page))
+    puts "name", name
+
+    cmd = "mkdir -p #{base}/#{name}"
+    puts cmd
+    system( cmd )
+
+    cmd = "mv #{page} #{base}/#{name}/index#{File.extname(page)}"
+    puts cmd
+    system( cmd )
+    puts
+  end
+#+end_src
+
+* Make the images
+
+This goes through everything and creates a =cover.png= for each of the
+leaf pages.
+
 #+begin_src ruby :tangle make_images
   #!/bin/env/ruby
 
+  require 'bundler/inline'
+
+  gemfile do
+    source 'https://rubygems.org'
+    gem 'front_matter_parser'
+  end
+
   require 'fileutils'
+  require 'date'
 
   BASE_DIR="/Users/wschenk/willschenk.com"
   WORK_DIR="/tmp"
   TEMPLATE="og.html"
 
   class Page
+    attr_reader :title, :subtitle, :section, :tags
     def initialize( file )
       @file = file
-      read_attributes
+      read_attributes_org if File.extname(@file) == ".org"
+      read_attributes_md if File.extname(@file) == ".md"
+      @section = @file.split( /\// )[-4]
     end
 
     def outdir
@@ -104,7 +193,17 @@
       "#{outdir}/cover.png"
     end
 
-    def read_attributes
+    def read_attributes_md
+      loader = FrontMatterParser::Loader::Yaml.new(allowlist_classes: [Date,Time])
+      parsed = FrontMatterParser::Parser.parse_file(@file, loader: loader)
+            
+      fm = parsed.front_matter
+      @title = fm['title']
+      @subtitle = fm['subtitle'] || ""
+      @tags = fm['tags']
+    end
+
+    def read_attributes_org
       contents = File.read( @file ).split( /\n/ );
       @title = contents.grep( /#\+title/ ).first.split( /:/ ).last
       subtitle = contents.grep( /#\+subtitle/ ).first
@@ -114,7 +213,6 @@
         @subtitle = ""
       end
       @tags = contents.grep( /#\+tags/ )
-      @section = @file.split( /\// )[-4]
     end
 
     def make_image
@@ -144,7 +242,7 @@
     end
   end
 
-  Dir.glob( "#{BASE_DIR}/content/*/*/*/*.org" ).each do |file|
+  Dir.glob( "#{BASE_DIR}/content/*/*/*/index.{org,md}" ).each do |file|
     p = Page.new( file )
     if !p.exist?
       p.make_image
@@ -152,31 +250,31 @@
   end
 #+end_src
 
+* Adding the hugo short codes.
 
-  Dir.glob( "#{BASE_DIR}/content/*/*/*/*.org" ).each do |file|
-    contents = File.read( file ).split( /\n/ );
-    title = contents.grep( /#\+title/ )
-    subtitle = contents.grep( /#\+subtitle/ );
-    tags = contents.grep( /#\+tags/ )
-    puts title
-    puts subtitle
-    puts tags
-    puts ""
-  end
+Inside of the =<head>= tag, which for me is in the template
+=layouts/partials/head.html= be sure to add in the =opengraph= and
+=twitter_cards= internal hugo templates.
 
-
-                                     
-
+#+begin_src html
+  {{ template "_internal/opengraph.html" . }}
+  {{ template "_internal/twitter_cards.html" . }}
 #+end_src
+
+* Dynamically
+
+This all started by going down a rabbit how for [[https://supabase.com/docs/guides/functions/examples/og-image][dynamically generating
+og-images]] but ultimately the static version was easier.
+
 * References
 
-https://zidhuss.tech/posts/generating-opengraph-images-for-hugo
-https://www.hackification.io/software-development/hugo/html/open-graph-tags/
-https://aarol.dev/posts/hugo-og-image/
-https://github.com/simonw/shot-scraper?tab=readme-ov-file
-https://www.himpler.com/en/blog/auto-generate-og-images-for-hugo/
-https://github.com/search?q=repo%3Agohugoio%2Fhugo%20twitter_cards&type=code
-https://gohugo.io/templates/embedded/#open-graph
+1. https://zidhuss.tech/posts/generating-opengraph-images-for-hugo
+1. https://www.hackification.io/software-development/hugo/html/open-graph-tags/
+1. https://aarol.dev/posts/hugo-og-image/
+1. https://github.com/simonw/shot-scraper?tab=readme-ov-file
+1. https://www.himpler.com/en/blog/auto-generate-og-images-for-hugo/
+1. https://github.com/search?q=repo%3Agohugoio%2Fhugo%20twitter_cards&type=code
+1. https://gohugo.io/templates/embedded/#open-graph
 
 # Local Variables:
 # eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
