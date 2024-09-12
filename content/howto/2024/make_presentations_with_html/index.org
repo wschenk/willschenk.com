@@ -1,0 +1,366 @@
+#+title: Quick slide show
+#+subtitle: who needs a server or anything fancy
+#+tags[]: javascript static_sites
+#+date: 2024-09-12T08:49:15
+#+remote: https://github.com/wschenk/quick_slides
+
+I'm thinking about making videos, and I want to see how to speed up my
+workflow.  So of course I went down a rabbit hole.
+
+Here's the preview of what we've got:
+
+- You can edit the page that you see
+- You can create and navigate new sections
+- You can use the inspector to add new elements if you want
+- Everything is stored as a hash on the url
+
+  See also: [[https://willschenk.com/howto/2024/recreating_notepadtab/][recreating notepad]].
+
+* Share by copy and paste
+
+Everything you need is in the url, and the code is simple.  So it just
+works.
+
+* Slides-holder
+
+The first part of this is the =slides-holder= webcomponent.  This is
+responsible for creating the =content-slide= components, which represent
+each page.  We aren't using the shadow dom so we get the global
+styling.
+
+In the constructor we copy the inner html to use as a template, and
+then recreate everything from the window hash.  This is a JSON object
+which has all of the elements on each of the sections.
+
+=newSection= creates a new section on the bottom of the document.
+
+=nextSlide= and =prevSlide= attempt to move forward and backwards on the
+page depending on what is visible.  There's probably a more elegant
+way.
+
+#+begin_src javascript :tangle scripts.js
+  import {deflateToBase64, inflateFromBase64} from './compress.js'
+
+  class SlidesHolder extends HTMLElement {
+      constructor() {
+          super();
+          // Treat the whole thing as a template
+          
+          this.template = `${this.innerHTML}`;
+          
+          const header = `<header>
+   <button id="saveState">Save State</button>
+   <button id="newSlide">New Slide</button>
+   <button id="nextSlide">Next Slide</button>
+   </header>`;
+
+          // default
+          let sections = [`<section>${this.template}</section>`];
+
+          // load from cache if exists
+          const hash = window.location.hash;
+          if( hash != '' ) {
+              sections = [];
+              
+              const state = JSON.parse(inflateFromBase64( hash.substring( 1 ) ))
+              for( let section of state ) {
+                  let frag = `<section><content-slide>`
+
+                  for( let elem of section ) {
+                      frag += `<${elem.nodeName}>${elem.text}</${elem.nodeName}>`
+                  }
+                  
+                  frag += "</content-slide></section>"
+
+                  sections.push( frag );
+              }
+          }
+                  
+          this.innerHTML = `${header}${sections.join( "\n")}`
+      }
+      
+      connectedCallback() {
+          this.querySelector( "#nextSlide" ).
+              addEventListener( "click", () => this.nextSlide() );
+          this.querySelector( "#newSlide" ).
+              addEventListener( "click", () => this.newSection() );
+          this.querySelector( "#saveState" ).
+              addEventListener( "click", () => this.getState() );
+      }
+      
+      getState() {
+          const state = []
+          for( let child of this.children ) {
+              const slide = child.querySelector( "content-slide" );
+              if( slide ) {
+                  state.push(slide.getState())
+              }
+          }
+          
+          const json = JSON.stringify(state);
+          window.location.hash = deflateToBase64( json );
+      }
+
+      newSection() {
+          this.innerHTML += `<section>${this.template}</section>`;
+          this.connectedCallback();
+      }
+
+      nextSlide() {
+          let first = true;
+          let lastneg = false
+          for( let section of this.querySelectorAll("section" ) ) {
+              let top = section.getBoundingClientRect().top
+              if( top > 0 && lastneg ) {
+                  section.scrollIntoView()
+                  return;
+              }
+              lastneg = top <= 0
+              if( first && top > 0 ) {
+                  lastneg = true;
+                  }
+              first = false;
+          }
+      }
+
+      prevSlide() {
+          let last = undefined
+          for( let section of this.querySelectorAll("section" ) ) {
+              let top = section.getBoundingClientRect().top
+
+              if( top >= 0 && last) {
+                  last.scrollIntoView();
+                  return;
+                  }
+              last = section;
+          }
+      }
+
+  }
+
+  customElements.define("slides-holder", SlidesHolder);
+
+#+end_src
+
+* Keydown
+
+Navigation and what not -- we check to make sure that the event is
+targetting the body and not another element to the contenteditable
+stuff isn't damaged.
+
+#+begin_src javascript :tangle scripts.js
+  document.addEventListener('keydown', function(event) {
+      const body = document.querySelector( "body" );
+      const slides = document.querySelector( "slides-holder ");
+
+      if( event.target == body ) {
+          if( event.key === 'ArrowRight' ) {
+              slides.nextSlide();
+          }
+          
+          if( event.key == 'ArrowLeft' ) {
+              slides.prevSlide();
+          }
+
+          if( event.key == 'n' ) {
+              slides.newSection();
+          }
+      }
+  });
+
+#+end_src
+
+* Content-slide
+
+This is pretty simple, it just makes sure that everything is editable
+and when there's a change on anything it calls the =slides-holder= to
+update the state in the menu bar.
+
+#+begin_src javascript :tangle scripts.js
+  class ContentSlide extends HTMLElement {
+      constructor() {
+          super();
+      }
+
+      connectedCallback() {
+          for( let child of this.children ) {
+              child.setAttribute( "contenteditable", true);
+              // child.addEventListener( "click", (e) => {console.log( "click", e.target );} )
+              child.addEventListener( "input", (e) => {
+                  document.querySelector("slides-holder").getState();
+              } );
+          }
+      }
+
+      getState() {
+          let state = [];
+          for( let child of this.children ) {
+              state.push( {nodeName: child.nodeName, text: child.innerHTML})
+          }
+
+          return state;
+      }
+  }
+
+  customElements.define("content-slide", ContentSlide);
+#+end_src
+
+
+
+* Compress
+
+#+begin_src javascript :tangle compress.js
+  // compress.js
+  import pako from 'https://cdn.jsdelivr.net/npm/pako@2.1.0/+esm'
+
+  export function deflateToBase64( inputData ) {
+      const compressed = pako.deflate( inputData );
+      const base64 = window.btoa( String.fromCharCode.apply(null, compressed ));
+      
+      return base64;
+  }
+
+  export function inflateFromBase64( base64 ) {
+      const reverseBase64 = atob(base64);
+
+      const reverseBase64Array = new Uint8Array(reverseBase64.split("").map(function(c) {
+          return c.charCodeAt(0); }));
+
+      const inflatedRaw = pako.inflate( reverseBase64Array );
+      const decompressed = String.fromCharCode.apply( null, inflatedRaw );
+
+      return decompressed;
+  }
+#+end_src
+
+
+
+* CSS and HTML
+
+
+#+begin_src css :tangle styles.css
+  :root {
+      --main-font-family: "Fraunces", system-ui;
+      --background: #fafaf9;
+      --text-color: #451a03;
+      --header-color: #032e45;
+      --diminished-text-color: #78716c;
+  }
+
+  body {
+      font-family: var( --main-font-family );
+      color: var( --text-color );
+      background: var( --background );
+      margin: 0;
+  }
+
+  header {
+      opacity: 0;
+      transition: all 1s ease-out;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      max-width: 600px;
+      margin: 0 auto;
+      height: 50px;
+      width: 100%;
+      display: flex;
+      justify-content: space-around;
+
+      &:hover {
+          opacity: 1;
+      }
+  }
+
+  section {
+      height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+  }
+
+  main {
+      max-width: 1200px;
+      height: 630px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 600px;
+      padding-left: 100px;
+      padding-right: 100px;
+  }
+
+  h1 {
+      font-size: 80px;
+      font-size: clamp( 40px, 7vw, 80px );
+      color: var( --header-color );
+      margin: 0;
+  }
+
+  h2 {
+      font-size: 60px;
+      font-size: clamp( 40px, 5vw, 60px );
+      color: var( --diminished-text-color );
+      margin: 0;
+  }
+
+  h3 {
+      font-size: 40px;
+      font-size: clamp( 20px, 4vw, 40px );
+       color: var( --diminished-header-color );
+       text-transform: uppercase;
+       margin:0;
+  }
+
+  p {
+      font-size: clamp( 16px, 3vw, 36px );
+      }
+
+
+#+end_src
+
+And the html frame work
+
+#+begin_src html :tangle index.html
+  <!DOCTYPE html>
+  <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>Sample Project</title>
+      <style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,100..900;1,9..144,100..900&display=swap');
+
+      </style>
+      <link rel="stylesheet" href="styles.css" />
+    </head>
+    <body>
+      <slides-holder>
+        <content-slide>
+          <h3>SECTION</h3>
+          
+          <h1>TITLE</h1>
+          <h2>SUBTITLE</h2>
+          
+          <p>This is text</p>
+        </content-slide>
+      </slides-holder>
+
+      <script src="scripts.js" type="module"></script>
+    </body>
+  </html>
+#+end_src
+
+* Check it out!
+
+[[https://wschenk.github.io/quick_slides/][Empty presentation]]
+
+[[https://wschenk.github.io/quick_slides/#eJyFk0Fv00AQhf/KyBcuVi3orapAoVjEFBKIHaqqVNXanmaXODvGM8ZYqP+dXSM1oRFbyYfZ0Rvre29nb25+R5ZqXKgdRmfR/DSKI8Ff4uvl1bvr6CH+V/ByL/iktgg/elNtgRtTIx+JX+3F33sWqAmMgLEgGqHsaGDsng593s9kMCgrIARa/URQwGbXNui6o2+ypgFaJN8SbezGAdzG/zf0ZZ1dXEJezFbFs7YcJioeQ44+eEcb8iQK+q4JGHGOdyNUiv2PGbRIy2dJMnCl0W5PNkZ0X54YSqY07/6mmYTd5MVylUJWQLaAYp7CfJbPQ7ZKF2Dpk3LBTWna2iWoOnz21ipqx0neKpYj+YHNMPBleg2L2dfs/azIlosQ6j11g+rqGEpVbWOwOIQYa7Iv3EWgQEP8uF1C1Bwt5AFroQ2D+6ZjkHudp1PAb1fLqzxdhcCnlcDaLY9H0LI7WopDcGO5xUoo9AQOMYFpWsoYOrPR8ubp2Prjfu68Ma/vTcdynrjKn3KsyNbf7GNj7Nupdu5v/wDZ8knJ][Presentation]]
+
+
+
+
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
