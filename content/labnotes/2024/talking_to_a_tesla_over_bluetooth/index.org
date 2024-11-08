@@ -1,0 +1,336 @@
+#+title: Talking to a tesla over bluetooth
+#+subtitle: limited functionality
+#+tags[]: tesla bluetooth
+#+date: 2024-11-08T11:55:39
+
+We are working on an Apple Watch app for the Tesla, and I'm experimenting with
+talking to the car directly over bluetooth.  It works albiet with some severe
+limitations.
+
+What you can do:
+
+- turn climate on and off
+- set climate temp (not read)
+- set all the seat heaters and steering wheel
+- honk
+- flash lights
+- open/close trunk
+- open frunk
+- vent and close windows
+- lock, unlock
+- turn on keyless driving
+- get body controller state
+- set charging level
+- set charging schedule
+- set precondition schedule
+
+What you can't do
+
+- getting battery level
+- reading temperature settings
+- is the climate currently on?
+- is the car charging?
+
+Lets get going!
+
+* Env variables
+
+We are going to setup some environment variables to make it easier to
+pass in command line options.
+
+If you use the FleetAPI or the old Rest API, you can get the vehicle
+information automatically, but for this you need to know the VIN
+before hand.  You can get this from the settings on your app, or I
+guess look in the window.
+
+#+begin_src bash
+  export TESLA_KEY_NAME=$(whoami)
+  export TESLA_VIN=7SAXCBE6XPF404825
+#+end_src
+
+* Create the keys with =tesla-keygen=:
+
+#+begin_src bash
+  go mod init github.com/wschenk/tesla-ble
+#+end_src
+
+
+#+begin_src bash
+  go get   github.com/teslamotors/vehicle-command/cmd/tesla-keygen
+  go build github.com/teslamotors/vehicle-command/cmd/tesla-keygen
+#+end_src
+
+This will generate and put the private key in your keyring.  It'll
+also print out the public_key, which you need for a few things.
+
+#+begin_src bash
+  tesla-keygen create > public_key.pem
+#+end_src
+
+* Setting up tesla-control
+
+
+#+begin_src bash
+    go get   github.com/teslamotors/vehicle-command/cmd/tesla-control
+    go build github.com/teslamotors/vehicle-command/cmd/tesla-control
+#+end_src
+
+
+Now, bring your laptop to the car, and run:
+
+#+begin_src bash
+   ./tesla-control -vin ${TESLA_VIN} -ble add-key-request owner cloud_key
+#+end_src
+
+Put the keycard in the center console to activate.
+
+* Commands
+
+=body-controller-state= gets returns what's going on with the car.  This
+is all you can really get over BLE at this time.
+
+#+begin_src bash
+./tesla-control -ble body-controller-state
+{
+        "closureStatuses": {
+                "frontDriverDoor": "CLOSURESTATE_CLOSED",
+                "frontPassengerDoor": "CLOSURESTATE_CLOSED",
+                "rearDriverDoor": "CLOSURESTATE_CLOSED",
+                "rearPassengerDoor": "CLOSURESTATE_CLOSED",
+                "rearTrunk": "CLOSURESTATE_CLOSED",
+                "frontTrunk": "CLOSURESTATE_CLOSED",
+                "chargePort": "CLOSURESTATE_OPEN",
+                "tonneau": "CLOSURESTATE_CLOSED"
+        },
+        "vehicleLockState": "VEHICLELOCKSTATE_UNLOCKED",
+        "vehicleSleepStatus": "VEHICLE_SLEEP_STATUS_AWAKE",
+        "userPresence": "VEHICLE_USER_PRESENCE_PRESENT"
+}
+
+#+end_src
+
+This will return all of the keys setup in the vehicle:
+
+#+begin_src bash
+   ./tesla-control -ble list-keys   
+#+end_src
+
+
+You need to wake up the car before you can unlock it.
+
+#+begin_src bash
+  ./tesla-control -ble wake
+
+  ./tesla-control -ble lock
+
+  ./tesla-control -ble unlock
+
+  # keyless driving
+  ./tesla-control -ble drive
+#+end_src
+
+Important stuff, though I do use this when in the airport parking lot
+after a bit of a trip.
+
+#+begin_src bash
+  ./tesla-control -ble honk
+
+  ./tesla-control -ble flash-lights
+#+end_src
+
+Climate controls:
+
+#+begin_src bash
+  ./tesla-control -ble climate-off 
+
+  ./tesla-control -ble climate-on
+
+  ./tesla-control -ble climate-set-temp 72f
+
+  ./tesla-control -ble auto-seat-and-climate LR auto
+#+end_src
+
+
+#+begin_src bash
+  ./tesla-control -ble seat-heater 3rd-row-left medium
+
+  ./tesla-control -ble seat-heater 3rd-row-left off
+#+end_src
+
+#+begin_src bash
+
+  ./tesla-control -ble windows-vent
+  
+  ./tesla-control -ble windows-close
+
+#+end_src
+
+
+charging-schedule and precondition not tested
+
+* =ble=
+
+We'll need the private key that's stored in the system key ring:
+
+#+begin_src bash
+  ./tesla-keygen export > private.pem
+
+#+end_src
+
+Lets write some bluetooth go code!  The logic here is that we want to
+unlock the car, and in order to do that the car needs to be awake, so
+we fix check to see its sleep status and wake it up as needed, and
+then unlock it as needed.
+
+
+Run like:
+
+#+begin_src bash
+  go run unlock.go -vin ${TESLA_VIN} -key private.pem  
+#+end_src
+
+
+#+begin_src golang :tangle unlock.go
+// Example program: Use a BLE connection to unlock a vehicle and turn on the AC.
+
+package main
+
+import (
+	"context"
+	"flag"
+	"fmt"
+	"log"
+	"os"
+	"time"
+
+	"github.com/teslamotors/vehicle-command/pkg/connector/ble"
+	"github.com/teslamotors/vehicle-command/pkg/protocol"
+	"github.com/teslamotors/vehicle-command/pkg/protocol/protobuf/vcsec"
+	"github.com/teslamotors/vehicle-command/pkg/vehicle"
+)
+
+func main() {
+	logger := log.New(os.Stderr, "", 0)
+	status := 1
+	defer func() {
+		os.Exit(status)
+	}()
+
+	// Provided through command line options
+	var (
+		privateKeyFile string
+		vin            string
+	)
+	flag.StringVar(&privateKeyFile, "key", "private.pem", "Private key `file` for authorizing commands (PEM PKCS8 NIST-P256)")
+	flag.StringVar(&vin, "vin", "", "Vehicle Identification Number (`VIN`) of the car")
+	flag.Parse()
+
+	// For simplcity, allow 30 seconds to wake up the vehicle, connect to it,
+	// and unlock. In practice you'd want a fresh timeout for each command.
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if vin == "" {
+		logger.Printf("Must specify VIN")
+		return
+	}
+
+	var err error
+	var privateKey protocol.ECDHPrivateKey
+	if privateKeyFile != "" {
+		if privateKey, err = protocol.LoadPrivateKey(privateKeyFile); err != nil {
+			logger.Printf("Failed to load private key: %s", err)
+			return
+		}
+	}
+
+	conn, err := ble.NewConnection(ctx, vin)
+	if err != nil {
+		logger.Printf("Failed to connect to vehicle: %s", err)
+		return
+	}
+	defer conn.Close()
+
+	car, err := vehicle.NewVehicle(conn, privateKey, nil)
+	if err != nil {
+		logger.Printf("Failed to connect to vehicle: %s", err)
+		return
+	}
+
+	if err := car.Connect(ctx); err != nil {
+		logger.Printf("Failed to connect to vehicle: %s\n", err)
+		return
+	}
+	defer car.Disconnect()
+
+	// Most interactions with the car require an authenticated client.
+	// StartSession() performs a handshake with the vehicle that allows
+	// subsequent commands to be authenticated.
+	// if err := car.StartSession(ctx, nil); err != nil {
+	// 	logger.Printf("Failed to perform handshake with vehicle: %s\n", err)
+	// 	return
+	// }
+
+	fmt.Println("Getting vehicle status...")
+	info, err := car.BodyControllerState(ctx)
+	if err != nil {
+		logger.Printf("Failed to get vehicle status: %s\n", err)
+		return
+	}
+	fmt.Println(info)
+
+	if info.GetVehicleLockState() == vcsec.VehicleLockState_E_VEHICLELOCKSTATE_LOCKED {
+		fmt.Println("Vehicle is locked")
+
+		fmt.Println("Performing handshake with vehicle...")
+		if err := car.StartSession(ctx, nil); err != nil {
+			logger.Printf("Failed to perform handshake with vehicle: %s\n", err)
+			return
+		}
+
+		defer car.Disconnect()
+
+		if info.GetVehicleSleepStatus() != vcsec.VehicleSleepStatus_E_VEHICLE_SLEEP_STATUS_AWAKE {
+			fmt.Println("Vehicle is not awake")
+
+			err = car.Wakeup(ctx)
+			if err != nil {
+				logger.Printf("Failed to wakeup vehicle: %s\n", err)
+				return
+			}
+		} else {
+			fmt.Println("Vehicle is awake")
+		}
+
+		fmt.Println("Unlocking vehicle...")
+		err = car.Unlock(ctx)
+		if err != nil {
+			logger.Printf("Failed to unlock vehicle: %s\n", err)
+			return
+		}
+	} else {
+		fmt.Println("Vehicle is not locked")
+	}
+
+	fmt.Println("Getting vehicle status...")
+	info, err = car.BodyControllerState(ctx)
+	if err != nil {
+		logger.Printf("Failed to get vehicle status: %s\n", err)
+		return
+	}
+	fmt.Println(info)
+
+	status = 0
+}
+
+#+end_src
+
+
+
+* References
+
+1. https://github.com/teslamotors/vehicle-command
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
