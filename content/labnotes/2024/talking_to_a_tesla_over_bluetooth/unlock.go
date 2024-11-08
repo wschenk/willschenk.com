@@ -90,7 +90,7 @@ func main() {
 		fmt.Println("Vehicle is locked")
 
 		fmt.Println("Performing handshake with vehicle...")
-		if err := car.StartSession(ctx, nil); err != nil {
+		if err := car.StartSession(ctx, []protocol.Domain{protocol.DomainVCSEC}); err != nil {
 			logger.Printf("Failed to perform handshake with vehicle: %s\n", err)
 			return
 		}
