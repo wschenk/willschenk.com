@@ -1,0 +1,216 @@
+#+title: Coding with AI
+#+subtitle: v0 and cursor
+#+tags[]: nextjs v0 cursor
+#+date: 2024-09-13T10:21:38
+#+draft: true
+
+* v0
+
+Head over to v0.chat dev, and lets give it a prompt:
+
+#+begin_quote
+Make a UI that is to help people plan road trips. It will search and
+show you where electric vehicle chargers are and when you look at a
+charger it will show you the things that are nearby it
+#+end_quote
+
+Click add to codebase on the top right, and copy it to the clipboard.
+
+In my case
+
+#+begin_src bash
+  npx shadcn@latest add "https://v0.dev/chat/b/2hbXmv8?token=eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..I0FAEsakOaAJzb39.gDmpasvmglij1M-9qv8S9W22x2ySMS2F1G5mZS-TObk9_p-6GqE.8abpyK0OchsJ3jMu_53r-A"
+#+end_src
+
+* Setup the nextjs app
+
+#+begin_src bash
+  cd $(mktemp -d)
+  npx create-next-app@latest
+
+#+end_src
+
+I named it =roadtrip= and accepted all of the defaults.
+
+#+begin_src bash
+  cd roadtrip
+  cursor roadtrip
+  #+end_src
+
+* Add our page
+
+Run the =shadcn= command above
+
+#+begin_src bash
+✔ You need to create a component.json file to add components. Proceed? … yes
+✔ Which style would you like to use? › New York
+✔ Which color would you like to use as the base color? › Zinc
+✔ Would you like to use CSS variables for theming? … no / yes
+✔ Writing components.json.
+✔ Checking registry.
+✔ Installing dependencies.
+✔ Created 6 files:
+  - components/road-trip-planner.tsx
+  - components/ui/button.tsx
+  - components/ui/input.tsx
+  - components/ui/card.tsx
+  - components/ui/tabs.tsx
+  - components/ui/scroll-area.tsx
+#+end_src
+
+Then replace =app/page.tsx= with
+
+#+begin_src typescript
+  import { RoadTripPlannerComponent } from "@/components/road-trip-planner";
+
+  export default function Home() {
+    return <RoadTripPlannerComponent />;
+  }
+#+end_src
+
+Run =npm run dev= to start up the server and check out
+[[http://localhost:3000]]
+
+* Comsposer
+
+command i to start the composer
+
+add the mapbox docs by typeing @docs and then putting in [[https://docs.mapbox.com/]]
+
+add openrouting serving by typing @docs and then adding https://openrouteservice.org/dev/
+
+add road-trip-planner to the composer
+
+#+begin_quote
+with @Mapboxfactor our the place holder of the map to use mapbox.
+when its first loaded the map will be centered around where the user
+is, and when map is dragged around it will do a search to the backend
+to see which chargers are available.  If the user enters in location,
+it will first look to see where the @OpenRouteService drive is and
+plot that on the map, giving a list of chargers that are nearby
+#+end_quote
+
+then i say
+
+#+begin_quote
+put that component in a seperate file
+#+end_quote
+
+Accept all the changes.
+
+Add the library it asks
+
+#+begin_src bash
+  npm install mapbox-gl @types/mapbox-gl
+#+end_src
+
+Sign up for a mapbox account
+
+Get an access token, and then =.env.local= file with the token in it.
+Add to =.gitignore= and make sure that the =MapComponent= is using it.
+
+(Select it, command-k, and say "pull the token from the environment file")
+
+Looks like the refactoring didn't work totally, just select everything
+in =road-trip-planner= and say that the map stuff should be in the
+subcomponent.
+
+* Add route look up
+
+Clear out the composer, and open up the road-trip-planner pane
+
+#+begin_quote
+for the location planner, use @OpenRouteService to lookup a list of
+matching city names.  Once the user selects them, put a pin on the map
+to the destination and look up the route to drive from one place to
+the other
+#+end_quote
+
+Go to openrouteservice.org
+
+Create an account and create a key
+
+Update =OPENROUTE_API_KEY= in =.env.local=
+
+Test it out, and it doesn't work.  Looking at the web console I see an error
+
+#+begin_quote
+Instead of having to press the button to search, can you have it start
+searching while I'm typing.  Also, it says GET
+http://localhost:3000/api/geocode?query=burtlington 404 (Not Found)
+#+end_quote
+
+Apply the changes, add the new library
+
+#+begin_src bash
+  npm install use-debounce
+#+end_src
+
+and restart
+
+* Tweaks
+
+#+begin_quote
+show the label part in the city selector
+#+end_quote
+
+#+begin_quote
+do to the trip planning itself, a curl call to get the results looks
+like this
+
+curl -X POST \
+  'https://api.openrouteservice.org/v2/directions/driving-car' \
+  -H 'Content-Type: application/json; charset=utf-8' \
+  -H 'Accept: application/json, application/geo+json, application/gpx+xml, img/png; charset=utf-8' \
+  -H 'Authorization: 5b3ce3597851110001cf624896eaf204218948f19f0b26277e6b19ba' \
+  -d '{"coordinates":[[8.681495,49.41461],[8.686507,49.41943],[8.687872,49.420318]]}'.  the results look like this   curl -X POST \
+  'https://api.openrouteservice.org/v2/directions/driving-car' \
+  -H 'Content-Type: application/json; charset=utf-8' \
+  -H 'Accept: application/json, application/geo+json, application/gpx+xml, img/png; charset=utf-8' \
+  -H 'Authorization: 5b3ce3597851110001cf624896eaf204218948f19f0b26277e6b19ba' \
+  -d '{"coordinates":[[8.681495,49.41461],[8.686507,49.41943],[8.687872,49.420318]]}'
+#+end_quote
+
+* Add chargers to the map
+
+
+#+begin_quote
+ok, now i want to search for chargers that are around the polyline,
+and pin them on the map.  Update the list on the left to show which
+chargers are available.  Use the end point
+@https://chargermap.fly.dev/in_map?n=44.600735057768574&e=-72.87918090820314&s=44.36804189293885&w=-73.72238159179689&connectors=null&dc=true&level1=true&level2=true
+which is the box that it will return the chargers in, and the three
+different types of chargers.  level1, level2 and dc fast chargers.
+show a different pin for each of the chargers.  an example of the json
+it returns is {
+
+
+        "id": 32973,
+        "latitude": 44.469281,
+        "longitude": -73.154972,
+        "name": "Burlington International Airport",
+        "address": "1200 Airport Dr",
+        "city": "South Burlington",
+        "state": "VT",
+        "zip": "05403",
+        "country": "US",
+        "facility": "AIRPORT",
+        "level1": null,
+        "level2": 6,
+        "dcfast": null,
+        "network": "Non-Networked",
+        "date_last_confirmed": "2023-09-14",
+        "workplace": "true",
+        "chademo": null,
+        "j1772": 1,
+        "j1772combo": null,
+        "nema1450": null,
+        "nema515": null,
+        "tesla": null
+    },
+#+end_quote
+* References
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
+

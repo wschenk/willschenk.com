@@ -1,0 +1,99 @@
+#+title: Compressing images for web
+#+subtitle: just smoosh them
+#+tags[]: node javascript sharp
+#+date: 2024-11-04T13:25:04
+#+draft: true
+
+#+begin_src bash
+  npm i -D sharp
+#+end_src
+
+Then, assuming your source images in the =src/images= directory:
+
+#+begin_src javascript
+  const sharp = require("sharp");
+  const fs = require("fs");
+  const path = require("path");
+
+  const imagesDir = path.join(__dirname, "src", "images");
+
+  // Read all files in the images directory
+  fs.readdir(imagesDir, (err, files) => {
+    if (err) {
+      console.error("Error reading images directory:", err);
+      return;
+    }
+
+    // Process each image file
+    files.forEach((file) => {
+      // Skip files that already end with _small.jpg
+      if (file.endsWith("_small.jpg")) {
+        return;
+      }
+
+      console.log(`Processing ${file}`);
+
+      const inputPath = path.join(imagesDir, file);
+
+      // Generate output filename by inserting _small before extension
+      const parsedFile = path.parse(file);
+      const outputFile = `${parsedFile.name}_small.jpg`;
+      const outputPath = path.join(imagesDir, outputFile);
+
+      // Compress and convert to jpg
+      sharp(inputPath)
+        .jpeg({
+          quality: 80, // Adjust quality (0-100)
+          chromaSubsampling: "4:4:4",
+        })
+        .resize(1920, 1080, {
+          fit: "inside", // Maintain aspect ratio
+          withoutEnlargement: true, // Don't enlarge smaller images
+        })
+        .toFile(outputPath)
+        .then(() => {
+          console.log(`Compressed ${file} -> ${outputFile}`);
+        })
+        .catch((err) => {
+          console.error(`Error processing ${file}:`, err);
+        });
+    });
+  });
+
+
+#+end_src
+
+
+Which really gets things down:
+
+#+begin_src bash
+  node compress.js         
+Processing image1.png
+Processing image2.png
+Processing image3.png
+Processing image4.png
+Compressed image3.png -> image3_small.jpg
+Compressed image1.png -> image1_small.jpg
+Compressed image2.png -> image2_small.jpg
+Compressed image4.png -> image4_small.jpg
+wschenk@Wills-MacBook-Pro thefocus-landing % ls -l src/images 
+total 27936
+-rw-r--r--@ 1 wschenk  staff  2900871 Oct 23 16:27 image1.png
+-rw-r--r--@ 1 wschenk  staff   355771 Nov  4 13:34 image1_small.jpg
+-rw-r--r--@ 1 wschenk  staff  3215392 Oct 23 16:27 image2.png
+-rw-r--r--@ 1 wschenk  staff   387309 Nov  4 13:34 image2_small.jpg
+-rw-r--r--@ 1 wschenk  staff  1864875 Oct 23 16:28 image3.png
+-rw-r--r--@ 1 wschenk  staff   252299 Nov  4 13:34 image3_small.jpg
+-rw-r--r--@ 1 wschenk  staff  5263239 Oct 23 16:28 image4.png
+-rw-r--r--@ 1 wschenk  staff    45470 Nov  4 13:34 image4_small.jpg
+
+#+end_src
+
+
+* References
+
+1. https://sharp.pixelplumbing.com/install#prebuilt-binaries
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

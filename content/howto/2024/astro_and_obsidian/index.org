@@ -1,0 +1,412 @@
+#+title: Astro and Obsidian
+#+subtitle: easy editing
+#+tags[]: obsidian astro
+#+date: 2024-11-19T19:01:26
+
+I like obsidian a lot as an editor, and I wanted to see if I could
+use it to manage an astro site.  Also, I've never built an astro site.
+
+Obsidian has a built in publishing feature, but I'm not sure that I
+fully understand how it works.  Specifically I don't like the links
+between, the graph thing, and I'm not really sure how it thinks of how
+the content is managed.  It could be amazing -- I haven't really
+looked at it.
+
+Anyway, lets figure it out. First you need node, then you need
+obsidian.
+
+* Create the site and add tailwind
+
+#+begin_src bash
+  npm create astro@latest my-project
+#+end_src
+
+Say blank, whatever you want to typescript, and install dependancies
+and a git repo.
+
+Then =cd my-project= and
+
+#+begin_src bash
+  npx astro add tailwind
+  npm install -D @tailwindcss/typography
+#+end_src
+
+And then make sure that you have the typography plugin installed in
+=tailwind.config.mjs=:
+
+#+begin_src javascript
+  /** @type {import('tailwindcss').Config} */
+  export default {
+    content: ["./src/**/*.{astro,html,js,jsx,md,mdx,svelte,ts,tsx,vue}"],
+    theme: {
+      extend: {},
+    },
+    plugins: [require("@tailwindcss/typography")],
+  };
+
+#+end_src
+
+* Create the BaseLayout
+
+And start up the dev server
+
+#+begin_src bash
+  npm run dev
+
+#+end_src
+
+Make a layout in =src/layouts/BaseLayout.astro=:
+
+#+begin_src html
+  ---
+  const pageTitle = Astro.props.title || "My Astro Blog";
+  ---
+  <html lang="en">
+  	<head>
+  		<meta charset="utf-8" />
+  		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  		<meta name="viewport" content="width=device-width" />
+  		<meta name="generator" content={Astro.generator} />
+  		<title>{pageTitle}</title>
+  	</head>
+  	<body class="container mx-auto">
+          <slot/>
+  	</body>
+  </html>
+
+
+#+end_src
+
+You can test out if tailwind is working right by changing the content
+of =src/pages/index.astro= and adding some tailwind classes, like
+
+#+begin_src html
+---
+import BaseLayout from "../layout/BaseLayout.astro";
+---
+<BaseLayout pageTitle="Index">
+	<h1 class="text-4xl font-bold pt-10">Astro</h1>
+	<p class="text-lg">Here is a bunch of my text</p>
+</BaseLayout>
+#+end_src
+
+
+* Add =astro-rehype-relative-markdown-links=
+
+One of the fun things is to link between notes.  Lets set that up so
+astro understands obsidian links.  First the astro side:
+
+#+begin_src bash
+  npm install astro-rehype-relative-markdown-links
+#+end_src
+
+And so your =astro.config.mjs= looks like:
+
+#+begin_src js
+  import { defineConfig } from "astro/config";
+
+  import tailwind from "@astrojs/tailwind";
+  import rehypeAstroRelativeMarkdownLinks from "astro-rehype-relative-markdown-links";
+
+  // https://astro.build/config
+  export default defineConfig({
+    integrations: [tailwind()],
+    markdown: {
+      rehypePlugins: [rehypeAstroRelativeMarkdownLinks],
+    },
+  });
+#+end_src
+
+Now on the Obsidian side, go to =Manage Vaults= and then create a new vault.
+
+Call the vault =posts= and put it the =my-project/src/content= directory.
+
+In preferences, under =Files and Links=, turn off "wikilinks".
+
+* Make the post page templates
+
+Then create =src/pages/posts/[...slug].astro=:
+
+First we define =getStaticPaths=, which returns a list of pages that we
+want to render.  The =slug= is the name of the url (basically) and =entry=
+is the post itself.  This is what tell astro that these urls exist and
+need to be rendered.
+
+Then in the html part, we put the title, date, and a list of tags that
+may or may not be defined.
+
+#+begin_src html
+  ---
+  import BaseLayout from "../../layout/BaseLayout.astro";
+  import { getCollection } from 'astro:content';
+  import type { CollectionEntry } from 'astro:content';
+
+  // 1. Generate a new path for every collection entry
+  export async function getStaticPaths() {
+    const blogEntries = await getCollection('posts');
+    return blogEntries.map(entry => ({
+      params: { slug: entry.slug }, props: { entry },
+    }));
+  }
+  // 2. For your template, you can get the entry directly from the prop
+
+  const { entry } = Astro.props;
+  type Props = {
+    entry: CollectionEntry<'posts'>;
+  };
+  const { Content } = await entry.render();
+  ---
+  <BaseLayout pageTitle={entry.data.title}>
+    <h1 class="text-2xl font-bold pt-10">{entry.data.title}</h1>
+    <p class="text-sm py-2">{entry.data.date}</p>
+    <h2 class="font-bold py-2">Tags</h2>
+    <ul class="list-disc list-inside py-2">
+      {entry.data.tags?.map((tag) => <li><a href={`/tags/${tag}`}>{tag}</a></li>)}
+    </ul>
+    <div class="prose">
+      <Content />
+    </div>
+  </BaseLayout>
+#+end_src
+
+If you run the dev server, and don't have the BaseLayout specify the right
+charset you might see smart quotes all funky.
+
+#+begin_src html
+  <meta charset="UTF-8" />
+#+end_src
+
+So make that that is in the header (which probably should be there
+anyway.)
+
+
+* Create a few pages
+
+Back in obsidian, lets create some pages.  In the Welcome page, remove
+everything and then create a new link to a new page.
+
+You can drag images into Obsidian and they will get optimized and
+deployed as needed.
+
+* Add support for callouts
+
+#+begin_src bash
+  npm install remark-obsidian-callout --save-dev
+
+#+end_src
+
+And inside of =astro.config.mjs=:
+
+#+begin_src javascript
+import { defineConfig } from "astro/config";
+
+import tailwind from "@astrojs/tailwind";
+import rehypeAstroRelativeMarkdownLinks from "astro-rehype-relative-markdown-links";
+import remarkObsidianCallout from "remark-obsidian-callout";
+
+// https://astro.build/config
+export default defineConfig({
+  integrations: [tailwind()],
+  markdown: {
+    rehypePlugins: [rehypeAstroRelativeMarkdownLinks],
+    remarkPlugins: [remarkObsidianCallout],
+  },
+});
+#+end_src
+
+/Adjust your blockquote styles as needed/.
+
+
+* Create a template for a post
+
+Create a =templates= folder and create =post.md= inside.  
+
+#+begin_src markdown
+---
+title: 
+date: {{date}}
+tags:
+---  
+
+#+end_src
+
+Inside of your obsidian settings select =templates= as the template
+folder.
+
+* Create a blog index
+
+Get all the posts from the post collection, and sort them by date.
+
+=src/pages/blog.astro=:
+
+#+begin_src html
+  ---
+  import BaseLayout from "../layout/BaseLayout.astro";
+  import { getCollection } from 'astro:content';
+
+  const allPosts = await getCollection('posts');
+  // Sort posts by date
+  allPosts.sort((a, b) => new Date(b.data.date).getTime() - new Date(a.data.date).getTime());
+
+  ---
+  <BaseLayout pageTitle="Posts">
+  <h1 class="text-4xl font-bold py-10">Posts</h1>
+  <ul class="list-decimal list-inside">
+      {allPosts.map((post) => <li><a href={`/posts/${post.slug}`}>{post.data.title || post.slug}</a></li>)}
+  </ul>
+  </BaseLayout>
+
+
+#+end_src
+
+This links to the =posts/= pages that we defined above.
+
+* Tags
+
+How about tags?
+
+First lets create =src/pages/tags.astro= to display the list of tags.
+
+We get all of the posts, then all of the tags in each post and add
+them to a map of arrays.  We could list out each post here, or just show
+the count of posts with that specific date.
+
+#+begin_src html
+  ---
+  import { getCollection } from 'astro:content';
+  import BaseLayout from "../layout/BaseLayout.astro";
+  const allPosts = await getCollection('posts');
+
+  const tags = {};
+
+  allPosts.forEach((post) => {
+    post.data.tags?.forEach((tag) => {
+      tags[tag] = tags[tag] || [];
+      tags[tag].push(post);
+    });
+  });
+
+  ---
+  <BaseLayout pageTitle="Tags">
+    <h1 class="text-4xl font-bold py-10">Tags</h1>
+
+    <ul class="list-disc list-inside">
+      {Object.keys(tags).map((tag) => <li><a href={`/tags/${tag}`}>{tag}</a> ({tags[tag].length})</li>)}
+    </ul>
+  </BaseLayout>
+
+#+end_src
+
+And then we can create =src/pages/tags/[...slug].astro= to render each of the tag pages:
+
+#+begin_src html
+  ---
+  import { getCollection } from 'astro:content';
+  import BaseLayout from "../../layout/BaseLayout.astro";
+
+  // 1. Generate a new path for every collection entry
+  export async function getStaticPaths() {
+    const allPosts = await getCollection('posts');
+    const uniqueTags = [...new Set(allPosts.flatMap(post => post.data.tags ?? []))];
+    
+    return uniqueTags.map(tag => ({
+      params: { slug: tag },
+      props: { 
+        tag,
+        posts: allPosts.filter(post => post.data.tags?.includes(tag))
+      }
+    }));
+  }
+
+  // 2. For your template, you can get the entry directly from the prop
+  const { tag,posts } = Astro.props;
+  ---
+  <BaseLayout pageTitle={tag}>
+  <h1 class="text-4xl font-bold py-10">{tag}</h1>
+  <ul class="list-disc list-inside">
+    {posts.map((post) => <li><a href={`/posts/${post.slug}`}>{post.data.title || post.slug}</a></li>)}
+    </ul>
+  </BaseLayout>
+#+end_src
+
+
+* RSS
+
+First lets add the package:
+
+#+begin_src bash
+npm install @astrojs/rss
+#+end_src
+
+
+=src/utils/posts.js=:
+
+#+begin_src javascript
+import { getCollection } from "astro:content";
+
+export async function getPosts() {
+  let posts = await getCollection("posts");
+  // Sort posts by date
+  posts.sort(
+    (a, b) => new Date(b.data.date).getTime() - new Date(a.data.date).getTime()
+  );
+
+  // Filter out posts without a date or where date is not a real date
+  posts = posts.filter(
+    (post) => post.data.date && !isNaN(new Date(post.data.date).getTime())
+  );
+
+  return posts;
+}
+#+end_src
+
+And then create =src/pages/rss.xml.js=:
+
+#+begin_src javascript
+  import rss from "@astrojs/rss";
+  import { getPosts } from "../utils/posts";
+
+  export async function GET(context) {
+    const posts = await getPosts();
+
+    posts.forEach((post) => {
+      console.log("title", post.data.title || post.slug);
+      console.log("date", post.data.date);
+      console.log(
+        "description",
+        post.data.description || post.data.title || post.slug
+      );
+      console.log("link", `/posts/${post.slug}`);
+      console.log("---");
+    });
+
+    //   console.log(blog);
+    return rss({
+      title: "Obsidian Blog",
+      description: "Rocks are cool",
+      site: context.site || "https://obsidian.blog",
+      items: posts.map((post) => ({
+        title: post.data.title || post.slug,
+        pubDate: post.data.date,
+        description: post.data.description || post.data.title || post.slug,
+        // Compute RSS link from post `slug`
+        link: `/posts/${post.slug}`,
+      })),
+    });
+  }
+#+end_src
+
+
+
+* References
+
+1. https://stackoverflow.com/questions/76163067/using-markdown-wiki-links-in-astro-framework
+1. https://github.com/vernak2539/astro-rehype-relative-markdown-links
+1. https://www.npmjs.com/package/remark-obsidian-callout
+2. https://help.obsidian.md/Editing+and+formatting/Callouts
+3. https://docs.astro.build/en/guides/rss/
+
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

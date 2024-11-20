@@ -1,0 +1,53 @@
+#!/usr/bin/env ruby
+
+require 'date'
+require 'fileutils'
+
+dir = "/Users/wschenk/Library/Mobile Documents/iCloud~md~obsidian/Documents/my awesome vault/links"
+
+# Create a hash to store files by week
+files_by_week = {}
+
+# Loop through files in the directory
+Dir.glob(File.join(dir, "*.md")).each do |file|
+  filename = File.basename(file, ".md")
+  puts filename
+  date = Date.parse(filename) rescue next  # Skip if filename is not a valid date
+
+  # Determine the week number
+  week = date.strftime("%Y-W%W")
+
+  # Initialize array for this week if it doesn't exist
+  files_by_week[week] ||= []
+
+  # Add file to the appropriate week
+  files_by_week[week] << file
+end
+
+# Process each week
+files_by_week.each do |week, files|
+  output = "# Week #{week}\n\n"
+
+  files.sort.each do |file|
+    filename = File.basename(file)
+    content = File.read(file)
+
+    # Remove date and ".md" from filename
+    header = File.basename(filename, ".md").sub(/^\d{4}-\d{2}-\d{2}-/, '')
+    output += "## #{header}\n\n"
+
+    # Add file contents
+    output += "#{content}\n\n"
+  end
+
+  # Write output to file
+  output_dir = File.join(dir, "../weekly_summaries")
+  FileUtils.mkdir_p(output_dir)
+  output_file = File.join(output_dir, "#{week}.md")
+  File.write(output_file, output)
+  
+  # Print directory and filename
+  puts "Writing file: #{output_file}"
+end
+
+puts "Output directory: #{File.join(dir, 'weekly_summaries')}"
