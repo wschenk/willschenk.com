@@ -1,0 +1,231 @@
+#+title: Adding seo and social to astro
+#+subtitle: Simple stuff but its important
+#+tags[]: astro seo
+#+date: 2024-11-27T11:45:29
+
+I've been working on an astro site, and wanted to add some seo stuff
+to the headers.  This is a slightly different way to generate the
+images from [[https://willschenk.com/howto/2024/how_to_make_opengraph_screenshots_for_hugo/][previous post]] in that it gets generated during the build
+process on github actions, but its more or less the same.
+
+* RSS
+
+#+begin_src bash
+  npm install @astrojs/rss
+#+end_src
+
+Then in =astro.config.mjs= add a site configuration, for example:
+
+#+begin_src bash
+site: 'https://thefocus.ai'
+#+end_src
+
+And then add =src/pages/rss.js=
+
+#+begin_src javascript
+import rss from "@astrojs/rss";
+import { getPosts } from "../utils/posts";
+
+export async function GET(context) {
+  const posts = await getPosts();
+  /*
+  posts.forEach((post) => {
+    console.log("title", post.data.title || post.slug);
+    console.log("date", post.data.date);
+    console.log(
+      "description",
+      post.data.description || post.data.title || post.slug
+    );
+    console.log("link", `/posts/${post.slug}`);
+    console.log("---");
+  });
+  */
+
+  //   console.log(blog);
+  return rss({
+    title: "The Focus AI",
+    description:
+      "Keep up to date with the latest news and updates from The Focus AI",
+    site: context.site || "https://thefocus.ai",
+    items: posts.map((post) => ({
+      title: post.data.title || post.slug,
+      pubDate: post.data.date,
+      description: post.data.description || post.data.title || post.slug,
+      // Compute RSS link from post `slug`
+      link: `/posts/${post.slug}`,
+    })),
+  });
+}
+#+end_src
+
+And then in the =<head>= add the reference:
+
+#+begin_src html
+  <link
+    rel="alternate"
+    type="application/rss+xml"
+    title="Your Site's Title"
+    href={new URL("rss.xml", Astro.site)}
+/>
+#+end_src
+
+* SEO and OG-Images
+
+#+begin_src bash
+  npm install astro-seo
+  npx astro add astro-opengraph-images
+  npm i -D react
+  npm install @fontsource/dm-sans
+#+end_src
+
+Lets first create a renderer for our images.  We'll put it in
+=src/components/ogimage.tsx=:
+
+#+begin_src javascript
+  import React from "react";
+  import type { RenderFunctionInput } from "astro-opengraph-images";
+  export async function ogimage({
+    title,
+    description,
+  }: RenderFunctionInput): Promise<React.ReactNode> {
+    return Promise.resolve(
+      <div
+        style={{
+          height: "100%",
+          width: "100%",
+          display: "flex",
+          flexDirection: "column",
+          backgroundColor: "#000",
+          padding: "55px 70px",
+          color: "#fff",
+          fontFamily: "DM Sans",
+          fontSize: 72,
+        }}
+      >
+        <div
+          style={{
+            marginTop: 96,
+            fontWeight: 700,
+            marginBottom: 16,
+          }}
+        >
+          {title}
+        </div>
+        <div
+          style={{
+            fontSize: 40,
+          }}
+        >
+          {description ?? ""}
+        </div>
+      </div>
+    );
+  }
+#+end_src
+
+Now that we have that, lets install =astro-seo= and
+=astro-opengraph-images= into your =astro.config.mjs= file,
+and we'll also include a reference to our custom fonts:
+
+#+begin_src javascript
+  import { defineConfig } from "astro/config";
+
+import tailwind from "@astrojs/tailwind";
+import rehypeAstroRelativeMarkdownLinks from "astro-rehype-relative-markdown-links";
+import remarkObsidianCallout from "remark-obsidian-callout";
+import fs from "fs";
+import { ogimage } from "./src/components/ogimage";
+
+import opengraphImages from "astro-opengraph-images";
+
+const opengraphImagesConfig = {
+  options: {
+    fonts: [
+      {
+        name: "DM Sans",
+        weight: 400,
+        style: "normal",
+        data: fs.readFileSync(
+          "node_modules/@fontsource/dm-sans/files/dm-sans-latin-400-normal.woff"
+        ),
+      },
+    ],
+  },
+  render: ogimage,
+};
+
+// https://astro.build/config
+export default defineConfig({
+  site: "https://thefocus.ai",
+  integrations: [tailwind(), opengraphImages(opengraphImagesConfig)],
+  markdown: {
+    rehypePlugins: [rehypeAstroRelativeMarkdownLinks],
+    remarkPlugins: [remarkObsidianCallout],
+  },
+});
+#+end_src
+
+
+Inside of our =BaseLayout= we need to add the seo tag, and make sure
+that we have a =title= and a =description= for all pages.  So on the top,
+something like
+
+#+begin_src javascript
+  import { SEO } from "astro-seo";
+  import { getImagePath } from "astro-opengraph-images";
+
+  const pageTitle = Astro.props.pageTitle || "the focus.ai";
+  const bigHeader = Astro.props.bigHeader || false;
+
+  const description = Astro.props.description || "Come a visit us";
+  const { url, site } = Astro;
+  const openGraphImageUrl = getImagePath({ url, site });
+#+end_src
+
+
+Then inside the layout astro file that has your =head= tag:
+
+#+begin_src html
+      <SEO
+        title={pageTitle}
+        description={description}
+        openGraph={{
+          basic: {
+            title: pageTitle,
+            type: "website",
+            image: openGraphImageUrl
+          },
+          optional: {
+            description: description,
+          }
+        }}
+        twitter={{
+          creator: "@wschenk"
+        }}
+        extend={{
+          // extending the default link tags
+          link: [{ rel: "icon", href: "/favicon.ico" }],
+          // extending the default meta tags
+          meta: [
+            {
+              name: "twitter:image",
+              content: openGraphImageUrl,
+            },
+            { name: "twitter:title", content: pageTitle },
+            { name: "twitter:description", content: description },
+          ],
+        }}
+      />
+
+#+end_src
+
+
+* References
+
+1. https://docs.astro.build/en/guides/rss/
+1. https://kremalicious.com/favicon-generation-with-astro/
+1. https://github.com/shepherdjerred/astro-opengraph-images
+      
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
