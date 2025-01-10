@@ -1,0 +1,100 @@
+#!/bin/bash
+
+# Exit immediately on errors
+set -e
+
+# Default values
+MODEL="llama3.2"
+URL=""
+VERBOSE=false
+
+# Usage function
+usage() {
+  {
+    echo "Usage: $0 [-m model] [-u url] [-v] [--] [ollama_args...]"
+    echo
+    echo "Options:"
+    echo "  -m model        Specify the model to use (default: llama3.2)"
+    echo "  -u url          Specify the URL to fetch data from (if not provided, input is read from stdin)"
+    echo "  -v              Enable verbose logging"
+    echo "  ollama_args...  Remaining arguments are passed to the ollama command"
+    echo
+    echo "Examples:"
+    echo "  $0 -m llama3.2 -u https://www.mozilla.org/en-GB/firefox/ 'Explain this text'"
+    echo "  echo 'Input text' | $0 -m llama3.2 -v 'Analyze this text'"
+  } >&2
+  exit 1
+}
+
+# Log function (only logs when verbose is enabled)
+log() {
+  if $VERBOSE; then
+    echo "$@" >&2
+  fi
+}
+
+# Parse options
+while getopts ":m:u:v" opt; do
+  case ${opt} in
+    m )
+      MODEL="$OPTARG"
+      ;;
+    u )
+      URL="$OPTARG"
+      ;;
+    v )
+      VERBOSE=true
+      ;;
+    \? )
+      echo "Error: Invalid option -$OPTARG" >&2
+      usage
+      ;;
+    : )
+      echo "Error: Option -$OPTARG requires an argument." >&2
+      usage
+      ;;
+  esac
+done
+
+# Shift processed options to leave remaining arguments
+shift $((OPTIND - 1))
+
+# Validate remaining arguments for ollama
+if [ "$#" -eq 0 ]; then
+  echo "Error: No arguments provided for ollama command." >&2
+  usage
+fi
+
+# Create a temporary file to store input
+TEMP_FILE=$(mktemp)
+log "Temporary file created: $TEMP_FILE"
+
+# Fetch input
+if [ -n "$URL" ]; then
+  # Download markdown content from the URL
+  log "Fetching data from $URL..."
+  ENCODED_URL=$(echo -n "$URL" | jq -s -R -r @uri)
+  curl -s "https://urltomarkdown.herokuapp.com/?url=${ENCODED_URL}" -o "$TEMP_FILE"
+  if [ ! -s "$TEMP_FILE" ]; then
+    echo "Error: Failed to fetch data from URL." >&2
+    rm -f "$TEMP_FILE"
+    exit 1
+  fi
+else
+  # Check if stdin is available
+  if [ -t 0 ]; then
+    ollama run "$MODEL" "$*"
+    exit 0
+  fi
+  # Read from stdin and save to the temporary file
+  log "Reading input from stdin..."
+  cat > "$TEMP_FILE"
+fi
+
+# Run the ollama command with the model and arguments
+log "Running ollama with model '$MODEL' and arguments: $*"
+ollama run "$MODEL" "$*" < "$TEMP_FILE"
+
+# Clean up temporary file
+log "Removing temporary file $TEMP_FILE"
+rm -f "$TEMP_FILE"

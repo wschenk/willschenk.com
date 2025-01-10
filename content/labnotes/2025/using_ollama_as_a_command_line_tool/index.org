@@ -1,0 +1,380 @@
+#+title: Using Ollama as a command line tool
+#+subtitle: Put together little scripts
+#+tags[]: ollama 
+#+date: 2025-01-09T15:46:53
+#+draft: true
+
+We can pass things into the =ollama= cli -- including files, using the
+standard linux pipes -- that let us to simple things on the command
+line.
+
+The basic idea is
+
+=ollama run= /model/ /prompt/ < /filename/
+
+So something like
+
+#+begin_src bash
+  ollama run llama3.2 "Summarize the file in one sentence" \
+         < text-of-the-declaration.md
+#+end_src
+
+Let's get started.
+
+* Converting to markdown
+
+Here's a simple script that lets us convert a url into markdown.  This
+is handy to have around, so lets make it a standalone thing.
+
+#+begin_src bash :tangle url_to_markdown
+  #!/bin/bash
+
+  # Check if a URL argument is provided
+  if [ -z "$1" ]; then
+    echo "Usage: $0 <URL>"
+    exit 1
+  fi
+
+  # Get the URL from the argument
+  URL="$1"
+
+  # Encode the URL for use in the GET request
+  ENCODED_URL=$(echo -n "$URL" | jq -s -R -r @uri)
+
+  # Generate a file name based on the URL
+  FILE_NAME=$(basename "$URL").md
+
+  # Make the GET request and save the result to the generated file name
+  curl -s "https://urltomarkdown.herokuapp.com/?url=${ENCODED_URL}" -o "$FILE_NAME"
+
+  # Confirm the file has been saved
+  if [ $? -eq 0 ]; then
+    echo "Markdown content saved to $FILE_NAME"
+  else
+    echo "Failed to retrieve content. Please check the URL or the service."
+  fi
+
+#+end_src
+
+Lets give it a go:
+
+#+begin_src bash :results output
+  chmod +x ./url_to_markdown
+  ./url_to_markdown https://www.owleyes.org/text/the-declaration-of-independence-of-the-united/read/text-of-the-declaration
+#+end_src
+
+#+RESULTS:
+: Markdown content saved to text-of-the-declaration.md
+
+* Ask it a question
+
+Lets look at how we can use ollama on the command line.  Here's a simple one:
+
+
+#+begin_src bash :results output
+  ollama run llama3.2 "Summarize the file in one sentence" \
+         < text-of-the-declaration.md | \
+         fold -w 80 -s
+
+#+end_src
+
+#+RESULTS:
+: The text is an analysis of Thomas Jefferson's Declaration of Independence, 
+: discussing its historical context, influences from John Locke's political 
+: philosophy, and the founding principles of democracy that it establishes, 
+: highlighting the document's significance in American history.
+: 
+
+OK so that works, lets wrap it into a script:
+
+#+begin_src bash :tangle process_with_ollama
+  #!/bin/bash
+
+  # Exit immediately on errors
+  set -e
+
+  # Default values
+  MODEL="llama3.2"
+  URL=""
+  VERBOSE=false
+
+  # Usage function
+  usage() {
+    {
+      echo "Usage: $0 [-m model] [-u url] [-v] [--] [ollama_args...]"
+      echo
+      echo "Options:"
+      echo "  -m model        Specify the model to use (default: llama3.2)"
+      echo "  -u url          Specify the URL to fetch data from (if not provided, input is read from stdin)"
+      echo "  -v              Enable verbose logging"
+      echo "  ollama_args...  Remaining arguments are passed to the ollama command"
+      echo
+      echo "Examples:"
+      echo "  $0 -m llama3.2 -u https://www.mozilla.org/en-GB/firefox/ 'Explain this text'"
+      echo "  echo 'Input text' | $0 -m llama3.2 -v 'Analyze this text'"
+    } >&2
+    exit 1
+  }
+
+  # Log function (only logs when verbose is enabled)
+  log() {
+    if $VERBOSE; then
+      echo "$@" >&2
+    fi
+  }
+
+  # Parse options
+  while getopts ":m:u:v" opt; do
+    case ${opt} in
+      m )
+        MODEL="$OPTARG"
+        ;;
+      u )
+        URL="$OPTARG"
+        ;;
+      v )
+        VERBOSE=true
+        ;;
+      \? )
+        echo "Error: Invalid option -$OPTARG" >&2
+        usage
+        ;;
+      : )
+        echo "Error: Option -$OPTARG requires an argument." >&2
+        usage
+        ;;
+    esac
+  done
+
+  # Shift processed options to leave remaining arguments
+  shift $((OPTIND - 1))
+
+  # Validate remaining arguments for ollama
+  if [ "$#" -eq 0 ]; then
+    echo "Error: No arguments provided for ollama command." >&2
+    usage
+  fi
+
+  # Create a temporary file to store input
+  TEMP_FILE=$(mktemp)
+  log "Temporary file created: $TEMP_FILE"
+
+  # Fetch input
+  if [ -n "$URL" ]; then
+    # Download markdown content from the URL
+    log "Fetching data from $URL..."
+    ENCODED_URL=$(echo -n "$URL" | jq -s -R -r @uri)
+    curl -s "https://urltomarkdown.herokuapp.com/?url=${ENCODED_URL}" -o "$TEMP_FILE"
+    if [ ! -s "$TEMP_FILE" ]; then
+      echo "Error: Failed to fetch data from URL." >&2
+      rm -f "$TEMP_FILE"
+      exit 1
+    fi
+  else
+    # Check if stdin is available
+    if [ -t 0 ]; then
+      ollama run "$MODEL" "$*"
+      exit 0
+    fi
+    # Read from stdin and save to the temporary file
+    log "Reading input from stdin..."
+    cat > "$TEMP_FILE"
+  fi
+
+  # Run the ollama command with the model and arguments
+  log "Running ollama with model '$MODEL' and arguments: $*"
+  ollama run "$MODEL" "$*" < "$TEMP_FILE"
+
+  # Clean up temporary file
+  log "Removing temporary file $TEMP_FILE"
+  rm -f "$TEMP_FILE"
+#+end_src
+
+* Testing it out
+
+Straight questions:
+
+#+begin_src bash :results output
+./process_with_ollama can i have 5 penguin names
+#+end_src
+
+#+RESULTS:
+: Here are 5 penguin name suggestions:
+: 
+: 1. Percy
+: 2. Nova (meaning "new" in Latin)
+: 3. Finley
+: 4. Caspian (after the world's largest inland body of water, the Caspian Sea)
+: 5. Tux (a nod to their iconic tuxedo-like feathers)
+: 
+
+Pulling in from a URL:
+
+#+begin_src bash :results output
+  ./process_with_ollama -u https://willschenk.com summarize in one sentence \
+      | fold -w 80 -s
+#+end_src
+
+#+RESULTS:
+: Sherlock Holmes, known for his vast knowledge, surprisingly lacks awareness of 
+: fundamental scientific concepts such as the Copernican Theory and Solar System 
+: composition, revealing that even an intelligent person can have blind spots to 
+: essential information.
+:
+
+* Different models
+
+#+begin_src bash :results output
+  ./process_with_ollama \
+      -m phi4 \
+      -u https://willschenk.com "summarize in one sentence" \
+      | fold -w 80 -s
+
+#+end_src
+
+#+RESULTS:
+#+begin_example
+In this excerpt from Sherlock Holmes, Holmes emphasizes the importance of 
+selective knowledge, advocating for retaining only useful information rather 
+than an overload of unnecessary facts. While he acknowledges his lack of 
+awareness about certain contemporary topics and even fundamental scientific 
+concepts like the Copernican Theory, he considers them irrelevant to his 
+detective work. Holmes argues that a well-organized mind should be equipped 
+with specific tools pertinent to one's trade, discarding extraneous details 
+that could clutter thought processes. He illustrates this philosophy by 
+dismissing the significance of whether Earth orbits the sun or moon in relation 
+to his profession.
+
+---
+
+This summary captures Holmes' perspective on knowledge management and its 
+relevance to his work as a detective.
+
+#+end_example
+
+Not exactly one sentence, and it takes up a ton of memory, but seems good.
+
+#+begin_src bash :results output
+  ./process_with_ollama \
+      -m gemma2 \
+      -u https://willschenk.com "summarize in one sentence" \
+      | fold -w 80 -s
+
+#+end_src
+
+#+RESULTS:
+: This excerpt from Sherlock Holmes explores the concept of selective knowledge, 
+: arguing that it's more valuable to focus on useful information rather than 
+: accumulating unnecessary facts.  
+
+That seems a bit more like it.
+
+* Other prompts
+
+#+begin_src bash :results output
+  ./process_with_ollama \
+      -m gemma2 \
+      -u https://willschenk.com/howto/2024/astro_and_obsidian/ \
+      "your task is to index the following paper and list out the top main topics that this covers" \
+      | fold -w 80 -s
+
+#+end_src
+
+#+RESULTS:
+#+begin_example
+This is a great start to a blog post outlining how to use Obsidian with Astro 
+for a static site! It covers the essential steps clearly and provides useful 
+code snippets. Here's how we can make it even better:
+
+,**Enhancements:**
+
+,* **Structure & Clarity:**
+    ,*  **Headings:** Use more specific headings (e.g., instead of "Make the 
+post page templates," try "Defining Post Page Templates with Astro"). 
+    ,* **Bullet Points:** Break down longer paragraphs into concise bullet 
+points for easier readability.
+
+,* **Completeness:**
+    ,* **Obsidian Configuration:** Provide more detailed instructions on setting 
+up Obsidian, including the specific plugins and settings needed for this 
+workflow (e.g., "Publish to Web" plugin).
+    ,* **Tagging Implementation:** Explain how tags are implemented in Obsidian 
+and how Astro uses them to create dynamic tag pages. Include code examples for 
+tag extraction and filtering.
+
+,* **Visuals:** 
+    ,*  Add screenshots or diagrams to illustrate key concepts, such as the file 
+structure, Obsidian vault setup, and code snippets.
+
+
+,* **Examples:**
+    ,* Provide more concrete examples of Obsidian notes (Markdown) and how they 
+are transformed into Astro pages.
+
+,* **Tailwind CSS Customization:** Include a section on customizing Tailwind 
+styles within your Astro project to create unique layouts and designs.
+
+,* **Deployment:** Briefly mention common deployment strategies for static 
+websites built with Astro (e.g., Netlify, Vercel).
+
+,**Revised Outline Example:**
+
+
+
+,*   **Introduction: Why Obsidian & Astro?**
+    ,*  Highlight the benefits of combining Obsidian's powerful note-taking 
+capabilities with Astro's flexibility and speed.
+    ,*  Mention potential use cases (personal blogging, documentation, knowledge 
+management).
+
+,*   **Setting Up Your Environment**
+    ,*  Node.js and npm installation.
+    ,*  Astro project creation (`astro create my-project`). 
+
+,*   **Obsidian Vault Configuration**
+    ,*  Create a new Obsidian vault specifically for your Astro content.
+    ,*  Configure the vault settings (e.g., publishing options, link handling).
+
+,* **File Structure & Templates:**
+    ,*  Establish a clear directory structure for your project.
+    ,*  Create essential templates: `BaseLayout.astro`, `post/[...slug].astro`, 
+and potentially `tags/[...slug].astro`.
+
+,*   **Linking Between Notes & Astro Pages** 
+    ,*  Explain how Obsidian links work internally.
+    ,*  Use the `astro-rehype-relative-markdown-links` plugin to ensure proper 
+link resolution within Astro pages.
+    ,*  Provide code examples for linking between notes and Astro content.
+
+,* **Adding Tailwind CSS:**
+    ,*  Integrate Tailwind CSS for styling.
+    ,*  Customize themes and utilities to match your design preferences.
+
+,*   **Creating Dynamic Content with Astro Components**
+    ,*  Define Astro components (e.g., `BlogPost`) to display note content 
+dynamically.
+
+,* **Tags & Metadata:**
+    ,*  Introduce a system for adding tags and metadata to Obsidian notes.
+    ,*  Demonstrate how to extract tags from notes and use them to generate 
+dynamic tag pages.
+
+
+,*   **RSS Feed Generation:** 
+    ,*  Explain how Astro can create RSS feeds for your blog content.
+
+,* **Deployment & Hosting:**
+    ,*  Provide a brief overview of common deployment options (e.g., Netlify, 
+Vercel).
+
+
+
+By incorporating these suggestions, you'll create a comprehensive and valuable 
+guide on using Obsidian and Astro for static site generation.
+
+#+end_example
+
+* References
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
