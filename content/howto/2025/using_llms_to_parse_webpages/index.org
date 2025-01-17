@@ -1,0 +1,125 @@
+#+title: Using LLMS to parse webpages
+#+date: 2025-01-16T16:57:28
+#+draft: true
+
+#+begin_src bash
+  brew install llm
+#+end_src
+
+* Screenshot, then ask questions
+
+Install =shot-scraper=:
+#+begin_src bash
+  pip install shot-scraper
+  # Now install the browser it needs:
+  shot-scraper install
+#+end_src
+
+Take the shot, I'm limiting the height to 2000 since this page is long:
+
+#+begin_src bash
+  shot-scraper -w 1200 -h 2000 -o outfile.png https://willschenk.com
+#+end_src
+
+#+RESULTS:
+
+#+begin_src bash :results output
+  llm -m 4o "what is this all about" -a outfile.png | fold -s -w 80
+#+end_src
+
+#+RESULTS:
+#+begin_example
+The content appears to be from a personal blog or website by someone named Will 
+Schenk. It provides a brief introduction about him, mentioning that he is a 
+father, entrepreneur, technologist, and aspiring woodsman living in Northwest 
+Connecticut with his family.
+
+The blog post titled "Tools I like as an amateur" discusses his interest and 
+professional work with AI. It reflects on the different aspects of 
+understanding AI and highlights various tools and developments in the field, 
+such as OpenAI releases, mid-journey models, and specific tools like Ollama and 
+DeepSeek. The author shares his thoughts on how these tools can be fascinating 
+and empowering, particularly in the realm of AI model privacy and 
+infrastructure.
+#+end_example
+
+* Anti-robot
+
+Install [[https://github.com/rebrowser/rebrowser-patches][rebrowser-puppeteer]]:
+
+#+begin_src bash
+  npm i rebrowser-puppeteer
+#+end_src
+
+download.js
+
+#+begin_src javascript :tangle download.js
+  const puppeteer = require('puppeteer');
+  const fs = require('fs').promises;
+  const path = require('path');
+
+  // Get URL from command line arguments
+  const url = process.argv[2];
+
+  if (!url) {
+      console.error('Please provide a URL as a command line argument');
+      console.error('Usage: node script.js <url>');
+      process.exit(1);
+  }
+
+  async function downloadPage(url) {
+      try {
+          // Launch browser
+          const browser = await puppeteer.launch({
+              headless: "new" // Using new headless mode
+          });
+
+          // Create new page
+          const page = await browser.newPage();
+
+          // Navigate to URL
+          console.log(`Navigating to ${url}...`);
+          await page.goto(url, {
+              waitUntil: 'networkidle0' // Wait until network is idle
+          });
+
+          // Get page title for filename
+          const title = await page.title();
+          const sanitizedTitle = title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+          
+          // Create downloads directory if it doesn't exist
+          const downloadDir = path.join(process.cwd(), 'downloads');
+          await fs.mkdir(downloadDir, { recursive: true });
+
+          // Save HTML content
+          const htmlContent = await page.content();
+          const htmlPath = path.join(downloadDir, `${sanitizedTitle}.html`);
+          await fs.writeFile(htmlPath, htmlContent);
+          console.log(`HTML saved to: ${htmlPath}`);
+
+          // Save screenshot
+          const screenshotPath = path.join(downloadDir, `${sanitizedTitle}.png`);
+          await page.screenshot({
+              path: screenshotPath,
+              fullPage: true
+          });
+          console.log(`Screenshot saved to: ${screenshotPath}`);
+
+          // Close browser
+          await browser.close();
+          console.log('Download completed successfully!');
+
+      } catch (error) {
+          console.error('An error occurred:', error);
+          process.exit(1);
+      }
+  }
+
+  // Run the download function
+  downloadPage(url);
+#+end_src
+
+* References
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
