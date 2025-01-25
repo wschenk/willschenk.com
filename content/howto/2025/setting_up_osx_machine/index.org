@@ -1,0 +1,535 @@
+#+title: Setting up OSX machine
+#+subtitle: get everything up and running quickly
+#+tags[]: osx setup homebrew asdf
+#+date: 2025-01-25T17:26:32
+
+My machine is a development machine -- I doomscroll with the best of
+them but mainly my machine is setup to do software development.  This
+is how I get everything up to date.
+
+Most everything that I care about data-wise is either in github,
+iCloud, or Dropbox.  I think of the computer as a work place for this
+data, that gets pushed or synced or whatever, and I don't really worry
+about backups.
+
+Many of the scripts that I use live in this repository, in =/bin=.  I
+write a literate blog post, which saves the script there, and then its
+just part of my toolbox.  It pulls the password out of =1password= when
+needed and we are good to go.
+
+This is my main =emacs= directory, basically everything lives out of here,
+gets synced to =github= and =github pages=.
+
+For other development tasks, I rely on =Cursor= / =vscode=.  I create
+[[labnotes/2025/autorun_tasks_on_vscode_startup/][tasks that run on startup]] so when I open up a project, it spins up
+whatever is needed and you can just start developing.  Close the
+window and it all goes away.
+
+Similiarly as much as I can I use =docker= to manage processes.  From a
+=supabase start= to get a local supabase environment going to running
+[[https://github.com/wschenk/willschenk.com/blob/master/bin/pgadmin][pgadmin]] or [[https://github.com/wschenk/willschenk.com/blob/master/bin/openweb-ui][openweb-ui]] having it fire up in a container makes it easy
+to keep up to date and not have to worry about it leaving junk around.
+
+I've also switched over to [[https://pnpm.io/][pnmp]] for managing node environments
+and [[https://github.com/astral-sh/uv][uv]] for managing python enviroments.
+
+* System
+
+Here's the basics.  Install [[https://developer.apple.com/xcode/][xcode]] and [[https://brew.sh/][homebrew]].
+
+** xcode
+
+#+begin_src bash
+xcode-select --install
+
+sudo xcodebuild -license
+#+end_src
+
+
+** homebrew
+
+*** =Brewfile=
+On your old computer you can
+
+#+begin_src bash
+  brew bundle dump
+#+end_src
+
+
+which makes a =Brewfile=, which you can then load up with
+
+ #+begin_src bash :tangle ~/willschenk.com/bin/load_homebrew
+    #!/usr/bin/env bash
+
+    if test ! $(which brew); then
+        echo "Installing homebrew..."
+        ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+    fi
+
+    brew update
+    brew bundle
+#+end_src
+
+Mine looks like
+
+#+begin_src ruby
+  tap "d12frosted/emacs-plus"
+  tap "homebrew/bundle"
+  brew "agg"
+  brew "asciinema"
+  brew "gmp"
+  brew "coreutils"
+  brew "curl"
+  brew "flyctl"
+  brew "gh"
+  brew "git"
+  brew "hugo"
+  brew "ispell"
+  brew "jq"
+  brew "libyaml"
+  brew "plantuml"
+  brew "the_silver_searcher"
+  brew "wget"
+  brew "d12frosted/emacs-plus/emacs-plus@29", args: ["with-imagemagick", "with-modern-sexy-v2-icon", "with-native-comp", "with-xwidgets"]
+  cask "1password-cli"
+  cask "arc"
+  cask "cursor"
+  cask "dictionaries"
+  cask "discord"
+  cask "docker"
+  cask "idagio"
+  cask "istat-menus"
+  cask "mimestream"
+  cask "obsidian"
+  cask "orion"
+  cask "pocket-casts"
+  cask "slack"
+  cask "spotify"
+  cask "superwhisper"
+  cask "telegram"
+  cask "vlc"
+  cask "warp"
+  cask "webtorrent"
+  cask "whatsapp"
+#+end_src
+
+*** By hand
+
+#+begin_src bash
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+#+end_src
+
+=.zprofile=
+#+begin_src bash
+eval "$(/opt/homebrew/bin/brew shellenv)"
+#+end_src
+
+
+And then some basics:
+
+#+begin_src bash
+brew install coreutils curl git wget hugo jq ag
+#+end_src
+
+** 1password
+
+Keep all of your credentials synced up into the cloud.  Only enter
+in that one password again.
+
+#+begin_src bash
+brew install 1password-cli
+brew install --cask 1password
+#+end_src
+
+[[/labnotes/2024/using_1password_from_a_script/][Here's how to use it in scripts]].
+
+** iStat menus
+
+I use the weather and network access all the time.
+
+#+begin_src bash
+brew install --cask istat-menus
+#+end_src
+
+* Browsers
+
+** arc
+
+#+begin_src bash
+brew install --cask arc
+#+end_src
+
+** Chrome
+
+#+begin_src bash
+brew install --cask google-chrome
+#+end_src
+
+** firefox
+
+#+begin_src bash
+brew install --cask firefox
+#+end_src
+
+** orion
+
+[[https://kagi.com/orion/][Orion by Kagi]] -- new kid on the block.
+#+begin_src bash
+  brew install --cask orion
+#+end_src
+
+
+** =shot-scraper=
+
+(You'll need to install =uv= first.)
+
+[[https://github.com/simonw/shot-scraper][shot-scraper]] is a super useful tool that lets you
+create screenshots of webpages.
+
+#+begin_src bash
+  uv tool install shot-scraper
+  shot-scraper install
+#+end_src
+
+* Editors
+
+** Cursor
+
+When I'm not in emacs I'm in [[https://www.cursor.com/][cursor]].
+
+#+begin_src bash
+brew install --cask cursor
+#+end_src
+
+
+** emacs
+
+I [[/howto/2023/setting_up_emacs_reredux/][wrote a longer post about this]] but here's the gist of it.
+
+#+begin_src bash
+brew tap d12frosted/emacs-plus
+brew install emacs-plus@29 --with-imagemagick --with-native-comp \
+ --with-modern-sexy-v2-icon --with-xwidgets
+
+brew install plantuml graphviz
+brew tap homebrew/cask-fonts
+brew install font-roboto font-roboto-slab font-roboto-mono font-hack
+#+end_src
+
+I keep my =.emacs= config in that blog post, so it will get tangled and
+updated as needed.
+
+
+** Obsidian
+
+I use [[https://obsidian.md/][obsidian]] for note taking, as well as [[/howto/2024/astro_and_obsidian/][content management for
+thefocus.ai]].
+
+#+begin_src bash
+brew install --cask obsidian
+#+end_src
+
+** warp
+
+[[https://www.warp.dev/][Warp -- The intelligent terminal.]]
+
+#+begin_src bash
+brew install warp
+#+end_src
+
+
+** Dictionaries
+
+#+begin_src bash
+  brew install ispell
+#+end_src
+
+
+[[https://jsomers.net/blog/dictionary][Websters]]:
+#+begin_src bash
+
+  brew install sdcv
+  brew install --cask dictionaries
+  wget https://s3.amazonaws.com/jsomers/dictionary.zip
+  unzip dictionary.zip
+
+#+end_src
+
+
+* Languages
+
+=ruby= and =go= I use =asdf= for.  =pnmp= for node stuff and =uv= for python
+stuff, mainly because they let you set the version in the lock file so
+it automatically installs.  pnpm is much faster and better on disk
+space and I have no idea what's going on in the python world so I
+don't want to think about it more than this.
+
+** asdf
+
+[[https://asdf-vm.com/][asdf: The Multiple Runtime Version Manager]]:
+
+#+begin_src bash
+  git clone https://github.com/asdf-vm/asdf.git ~/.asdf --branch v0.15.0
+#+end_src
+
+inside =.zshrc=
+#+begin_src bash
+  . "$HOME/.asdf/asdf.sh"
+#+end_src
+
+** deno
+
+Since it auto updates its easier to use its own shell.
+
+#+begin_src bash
+  curl -fsSL https://deno.land/install.sh | sh
+#+end_src
+
+
+** go
+
+#+begin_src bash
+asdf plugin add golang https://github.com/asdf-community/asdf-golang.git
+
+asdf install golang 1.23.5
+asdf global golang 1.23.5
+#+end_src
+
+** node/pnpm
+
+[[https://pnpm.io/][pnpm: Fast, disk space efficient package manager.]] One thing I really
+like about this is it manages different node versions.
+
+#+begin_src bash
+  curl -fsSL https://get.pnpm.io/install.sh | env PNPM_VERSION=10.0.0 sh -
+
+  pnpm env use --global lts
+#+end_src
+
+Inside of =package.json= you can specify what version is needed.
+
+#+begin_src javascript
+"engines": {
+  "node": ">=22",
+  "pnpm": ">=10"
+}
+#+end_src
+
+** python
+
+[[https://docs.astral.sh/uv/][uv: A single tool to replace pip, pip-tools, pipx, poetry, pyenv,
+twine, virtualenv, and more.]]
+
+#+begin_src bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+#+end_src
+
+inside of =.zshrc=
+
+#+begin_src bash
+source $HOME/.local/bin/env
+#+end_src
+
+
+** ruby
+
+[[/fragments/2024/i_heart_ruby/][Still the best]]
+
+#+begin_src bash
+brew install libyaml
+
+asdf plugin add ruby https://github.com/asdf-vm/asdf-ruby.git
+
+asdf install ruby 3.3.7
+asdf global ruby 3.3.7
+#+end_src
+
+* Hosting
+
+** Docker
+
+[[/tags/docker/][Plenty of docker posts to check out]]:
+
+/the docker desktop app/
+
+#+begin_src bash
+brew install --cask docker
+#+end_src
+
+or
+
+/just the cli:/ =brew install docker=
+
+** fly
+
+I've got a [[/tags/flyio/][bunch of posts on how to use this]]:
+
+#+begin_src bash
+brew install flyctl
+#+end_src
+
+** GitHub
+
+#+begin_src bash
+brew install --cask github
+brew install gh
+#+end_src
+
+
+** supabase
+
+[[/tags/supabase/][supabase posts]]:
+
+#+begin_src bash
+brew install supabase/tap/supabase
+#+end_src
+
+** tailscale
+
+#+begin_src bash
+brew install tailscale
+#+end_src
+
+** vercel
+
+[[/tags/vercel/][vercel posts]]:
+
+#+begin_src bash
+pnpm i -g vercel
+#+end_src
+
+* AI
+
+** ollama
+
+[[/tags/ollama/][ollama posts]]:
+
+#+begin_src bash
+  brew install ollama
+#+end_src
+
+
+** llm
+
+[[https://llm.datasette.io/en/stable/][A CLI utility and Python library for interacting with Large Language Models, both via remote APIs and models that can be installed and run on your own machine.]]
+
+[[https://simonwillison.net/tags/llm/][Simon Willison's tool]].
+
+#+begin_src bash
+uv tool install llm
+
+llm install llm-ollama
+#+end_src
+
+
+** claude
+
+#+begin_src bash
+brew install --cask claude
+#+end_src
+
+
+** openai
+
+https://openai.com/chatgpt/download/
+
+** superwhisper
+
+#+begin_src bash
+brew install --cask superwhisper
+#+end_src
+
+* Communication
+
+** asciinema
+
+[[/labnotes/2025/asciinema_for_terminal_recordings/][Deeper blog post]]:
+
+#+begin_src bash
+brew install asciinema agg
+#+end_src
+
+** discord
+
+Weirdly I only use this to communicate with my children.
+
+#+begin_src bash
+brew install --cask discord
+#+end_src
+
+
+** mimestream
+
+This is my preferred email client
+
+#+begin_src bash
+brew install --cask mimestream
+#+end_src
+
+
+** slack
+
+Work chat.
+
+#+begin_src bash
+brew install --cask slack
+#+end_src
+
+** telegram
+
+#+begin_src bash
+brew install --cask telegram
+#+end_src
+
+** whatsapp
+
+#+begin_src bash
+brew install --cask whatsapp
+#+end_src
+
+
+* Media
+
+** idagio
+
+#+begin_src bash
+brew install --cask idagio
+#+end_src
+
+
+** pocketcast
+
+#+begin_src bash
+brew install --cask pocket-casts
+#+end_src
+
+** spotify
+
+#+begin_src bash
+brew install --cask spotify
+#+end_src
+
+** vlc
+
+#+begin_src bash
+brew install --cask vlc
+#+end_src
+
+
+** webtorrent
+
+#+begin_src bash
+brew install --cask webtorrent
+#+end_src
+
+
+
+* References
+
+[[/howto/2019/computer_setup_script/][I wrote about this 5 years ago!]]
+
+1. https://cpojer.net/posts/set-up-a-new-mac-fast
+1. https://www.swyx.io/new-mac-setup
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
