@@ -1,79 +1,79 @@
-import { OllamaEmbeddings } from "@langchain/community/embeddings/ollama"
+import { OllamaEmbeddings } from "@langchain/community/embeddings/ollama";
 import { Ollama } from "@langchain/community/llms/ollama";
 import { OpenAI } from "@langchain/openai";
 import { Chroma } from "@langchain/community/vectorstores/chroma";
 import { PromptTemplate } from "@langchain/core/prompts";
-import { StringOutputParser } from "@langchain/core/output_parsers"
-import { marked } from 'marked';
+import { StringOutputParser } from "@langchain/core/output_parsers";
+import { marked } from "marked";
 
 class GenerateResponse extends HTMLElement {
-    connectedCallback() {
-        console.log( "created");
-        this.state = {
-            status: "",
-            documents: [],
-            loading: true,
-            query: this.getAttribute( "query" )
-        }
+  connectedCallback() {
+    console.log("created");
+    this.state = {
+      status: "",
+      documents: [],
+      loading: true,
+      query: this.getAttribute("query"),
+    };
 
-        this.doQuery();
+    this.doQuery();
 
-        this.render();
-    }
+    this.render();
+  }
 
-    async doQuery() {
-        this.state.status = "loading embeddings";
-        this.render();
-        
-        const collectionName = 'sofreshandclean';
-        const embeddingModel = 'nomic-embed-text';
-        const llmModel = 'llama3';
+  async doQuery() {
+    this.state.status = "loading embeddings";
+    this.render();
 
-        //const llm = new Ollama({
-        //    model: llmModel
-        //});
-        const llm = new OpenAI({
-//            model: "gpt-4o",
-        });
+    const collectionName = "sofreshandclean";
+    const embeddingModel = "nomic-embed-text";
+    const llmModel = "llama3.1";
 
-        const ollamaEmbeddings = new OllamaEmbeddings({
-            model: embeddingModel
-        });
-        
-        const vectorStore = await Chroma.fromExistingCollection(
-            ollamaEmbeddings, { collectionName }
-        );
+    const llm = new Ollama({
+      model: llmModel,
+    });
+    //         const llm = new OpenAI({
+    // //            model: "gpt-4o",
+    //         });
 
-        const chromaRetriever = vectorStore.asRetriever();
+    const ollamaEmbeddings = new OllamaEmbeddings({
+      model: embeddingModel,
+    });
 
-        const userQuestion = this.state.query;
+    const vectorStore = await Chroma.fromExistingCollection(ollamaEmbeddings, {
+      collectionName,
+    });
 
-        const simpleQuestionPrompt = PromptTemplate.fromTemplate(`
+    const chromaRetriever = vectorStore.asRetriever();
+
+    const userQuestion = this.state.query;
+
+    const simpleQuestionPrompt = PromptTemplate.fromTemplate(`
 For following user question convert it into a standalone question
 {userQuestion}`);
 
-        const simpleQuestionChain = simpleQuestionPrompt
-              .pipe(llm)
-              .pipe(new StringOutputParser())
-              .pipe(chromaRetriever);
+    const simpleQuestionChain = simpleQuestionPrompt
+      .pipe(llm)
+      .pipe(new StringOutputParser())
+      .pipe(chromaRetriever);
 
-        const documents = await simpleQuestionChain.invoke({
-            userQuestion: userQuestion
-        });
+    const documents = await simpleQuestionChain.invoke({
+      userQuestion: userQuestion,
+    });
 
-        this.state.status = "generating response"
-        this.state.documents = documents
-        this.render();
+    this.state.status = "generating response";
+    this.state.documents = documents;
+    this.render();
 
-        //Utility function to combine documents
-        function combineDocuments(docs) {
-            return docs.map((doc) => doc.pageContent).join('\n\n');
-        }
+    //Utility function to combine documents
+    function combineDocuments(docs) {
+      return docs.map((doc) => doc.pageContent).join("\n\n");
+    }
 
-        //Combine the results into a string
-        const combinedDocs = combineDocuments(documents);
+    //Combine the results into a string
+    const combinedDocs = combineDocuments(documents);
 
-        const questionTemplate = PromptTemplate.fromTemplate(`
+    const questionTemplate = PromptTemplate.fromTemplate(`
   You are an expert in electric vehicles and transportation. Answer the below question using the context.
       Strictly use the context and answer in crisp and point to point.
 
@@ -82,49 +82,47 @@ For following user question convert it into a standalone question
     </context>
 
     question: {userQuestion}
-`)
+`);
 
-        const answerChain = questionTemplate.pipe(llm);
+    const answerChain = questionTemplate.pipe(llm);
 
-        const llmResponse = await answerChain.invoke({
-            context: combinedDocs,
-            userQuestion: userQuestion
-        });
+    const llmResponse = await answerChain.invoke({
+      context: combinedDocs,
+      userQuestion: userQuestion,
+    });
 
-        this.state.status = llmResponse;
-        this.state.loading = false
-        this.render();
+    this.state.status = llmResponse;
+    this.state.loading = false;
+    this.render();
 
-        console.log("llmResponse", llmResponse);
+    console.log("llmResponse", llmResponse);
+  }
+
+  render() {
+    let h = "";
+
+    h += `<h2 font-header text-2xl>${this.state.query}</h2>`;
+
+    if (this.state.loading) {
+      h += `<sl-progress-bar indeterminate py-2></sl-progress-bar>`;
     }
 
-
-    render() {
-        let h = ""
-
-        h += `<h2 font-header text-2xl>${this.state.query}</h2>`
-        
-        if( this.state.loading ) {
-            h += `<sl-progress-bar indeterminate py-2></sl-progress-bar>`
-        }
-
-        if( this.state.status != "" ) {
-            h += `<div font-header>`
-            h += marked.parse( this.state.status )
-            h += `</div>`
-        }
-
-        console.log( this.state.documents )
-        h += `<h3 font-header>Relavent documents</h3><ul>`;
-        for( let document of this.state.documents ) {
-            console.log( "document", document );
-            h += `<li><a target="_blank" href="${document.metadata.source}">${document.metadata.source}</a></li>`
-        }
-        h += "</ul>";
-
-
-        this.innerHTML = h;
+    if (this.state.status != "") {
+      h += `<div font-header>`;
+      h += marked.parse(this.state.status);
+      h += `</div>`;
     }
+
+    console.log(this.state.documents);
+    h += `<h3 font-header>Relavent documents</h3><ul>`;
+    for (let document of this.state.documents) {
+      console.log("document", document);
+      h += `<li><a target="_blank" href="${document.metadata.source}">${document.metadata.source}</a></li>`;
+    }
+    h += "</ul>";
+
+    this.innerHTML = h;
+  }
 }
 
-customElements.define("generate-response", GenerateResponse );
+customElements.define("generate-response", GenerateResponse);

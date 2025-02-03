@@ -1,0 +1,121 @@
+#+title: Pulling from the wayback machine
+#+subtitle: download everything
+#+tags[]: waybackmachine download scraping
+#+date: 2024-12-05T15:54:46
+#+draft: true
+
+* Ruby =wayback-machine-downloader=
+** Building docker image
+
+=Dockerfile.ruby=:
+#+begin_src Dockerfile :tangle Dockerfile.ruby
+FROM  ruby:3.3
+
+WORKDIR /app
+
+RUN git clone https://github.com/ShiftaDeband/wayback-machine-downloader.git
+
+RUN cd wayback-machine-downloader && bundle install
+
+WORKDIR /app/wayback-machine-downloader
+
+CMD ["bash"]
+# RUN ls -la /app/wayback-machine-downloader/bin
+
+ENTRYPOINT ["ruby", "/app/wayback-machine-downloader/bin/wayback_machine_downloader"]
+
+# CMD ["ruby", "bin/wayback-machine-downloader.rb"]
+#+end_src
+
+Then
+
+#+begin_src bash
+  docker build . -f Dockerfile.ruby -t rubydownloader
+#+end_src
+
+
+** Download
+
+=rubydownload=:
+#+begin_src bash :tangle rubydownloader
+  #!/bin/bash
+
+  if [ -z "$2" ]
+  then
+      echo "Usage: $0 <url> <timestamp>"
+      echo "eg: $0 http://sublimeguile.com 20040803021022"
+      exit 1
+  fi
+
+
+  # Run the downloader
+  docker run --rm -it \
+         -v $PWD/websites:/websites \
+         -v $PWD/text:/text \
+         rubydownloader -t $2 --concurrency 20 -d /websites/$2  $1
+#+end_src
+
+e.g.
+
+#+begin_src bash
+bash rubydownloader http://sublimeguile.com 20021012215933
+
+#+end_src
+
+
+* Python =waybackpack=
+
+#+begin_src dockerfile :tangle Dockerfile.python
+  FROM python:3.8-slim
+
+  # Install git and required packages
+  RUN apt-get update && \
+      apt-get install -y git && \
+      apt-get clean && \
+      rm -rf /var/lib/apt/lists/*
+
+  # Clone waybackpack repository
+  RUN git clone https://github.com/jsvine/waybackpack.git /waybackpack
+
+  # Install waybackpack
+  WORKDIR /waybackpack
+  RUN python setup.py install
+
+  # Set working directory
+  WORKDIR /websites
+
+  # Set entrypoint
+  ENTRYPOINT ["waybackpack"]
+
+#+end_src
+
+
+
+#+begin_src bash :tangle rubydownloader
+  #!/bin/bash
+
+  if [ -z "$2" ]
+  then
+      echo "Usage: $0 <url> <timestamp>"
+      echo "eg: $0 http://sublimeguile.com 20040803021022"
+      exit 1
+  fi
+
+
+  # Run the downloader
+  docker run --rm -it \
+         -v $PWD/websites:/websites \
+         -v $PWD/text:/text \
+         rubydownloader -t $2 --concurrency 20 -d /websites/$2  $1
+#+end_src
+
+
+
+docker run --rm -it -v $PWD/websites:/websites pythondownload --to-date 20021012215933 -d /websites/20021012215933 http://sublimeguile.com 
+* References
+
+1. https://github.com/ShiftaDeband/wayback-machine-downloader
+1. https://github.com/jsvine/waybackpack
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

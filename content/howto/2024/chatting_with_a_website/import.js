@@ -32,9 +32,7 @@ const ollamaEmbeddings = new OllamaEmbeddings({
 const vectorStore = await Chroma.fromDocuments(
     docs,
     ollamaEmbeddings, {
-        collectionName,
-        url: "https://chromadb-on-fly-io.fly.dev",
-        auth: {provider: "token", credentials: "test-token"}
+        collectionName
     });
 
 console.log( "stored" )

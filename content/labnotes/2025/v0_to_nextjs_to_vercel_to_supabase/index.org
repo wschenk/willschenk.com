@@ -1,0 +1,194 @@
+#+title: v0 to nextjs to vercel to supabase
+#+subtitle: quickly deploy everything
+#+tags[]: supabase nextjs vercel v0
+#+date: 2025-01-15T09:04:21
+#+draft: true
+
+* Supabase
+
+
+First [[https://supabase.com/dashboard/sign-in?returnTo=%2Fprojects][signin to supabase]], and then create a new project.
+
+Generate and store the password somewhere safe
+
+Wait for it to provision
+
+Login locally
+
+#+begin_src bash
+  supabase login
+#+end_src
+
+** Database
+
+Then link the database
+
+#+begin_src bash
+  supabase link
+#+end_src
+
+Pull down the remote db
+
+#+begin_src bash
+  supabase db pull
+#+end_src
+
+
+Create a new migration file:
+
+#+begin_src bash
+  supabase migration new initial_database
+#+end_src
+
+Then do the diff.
+
+#+begin_src bash
+  supabase db diff
+#+end_src
+
+This might pull down a whole bunch of stuff, so the first time it'll
+take a while.  If you like what you see, put it in to the migration
+file.
+
+Then
+
+#+begin_src bash
+  supabase db push
+#+end_src
+
+** Populate if needed
+
+Create a =.env.production=
+
+Go into the =Connection= button of supabase, and get the =DATABASE_URL=
+
+=.env.production=:
+#+begin_src bash
+  DATABASE_URL=postgresql://postgres.rnur..
+  NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciO...
+  NEXT_PUBLIC_SUPABASE_URL=https://rnurhv...
+#+end_src
+
+
+* Vercel
+
+Make sure you can build the project locally, using
+
+#+begin_src bash
+  npm run build
+
+#+end_src
+
+Or put this in your =next.config=
+
+#+begin_src javascript
+  const nextConfig: NextConfig = {
+  /* config options here */
+  eslint: {
+    // Warning: This allows production builds to successfully complete even if
+    // your project has ESLint errors.
+    ignoreDuringBuilds: true,
+  },
+};
+
+#+end_src
+Login to vercel.
+
+Connect your github project.
+
+Deploy the app
+
+Go into the environment, and copy the =.env.production= that you created
+into ercel
+
+Turn off the vercel toolbar
+
+Redeploy it
+
+
+* Deploying DB changes
+
+#+begin_src bash
+  supabase migration new database_changes
+#+end_src
+
+Then a diff
+
+#+begin_src bash
+  supabase db diff > supabase/migrations/migration_name
+#+end_src
+
+And then push it:
+
+#+begin_src bash
+  supabase db push
+#+end_src
+
+* Creating =seed.sql=
+
+Install postgres 15
+
+#+begin_src bash
+  brew install postgresql@15
+#+end_src
+
+Make a dump of your database into =seed.sql=:
+
+#+begin_src bash
+  PGPASSWORD=postgres \
+      /opt/homebrew/opt/postgresql@15/bin/pg_dump \
+      -h 127.0.0.1 \
+      -p 54322 \
+      -U postgres \
+      -d postgres \
+      -n public \
+      --inserts --data-only --column-inserts > supabase/seed.sql
+#+end_src
+
+* Migrating Data
+
+I use =pgadmin= for this.  I run it in a docker container like so:
+
+#+begin_src bash
+  docker run -it --rm \
+       -p 8080:80 \
+       -v pgadmin:/var/lib/pgadmin \
+       -e 'PGADMIN_DEFAULT_EMAIL=wschenk@gmail.com' \
+       -e 'PGADMIN_DEFAULT_PASSWORD=SuperSecret' \
+       -e 'PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION=True' \
+       -e 'PGADMIN_CONFIG_LOGIN_BANNER="Authorised users only!"' \
+       -e 'PGADMIN_CONFIG_CONSOLE_LOG_LEVEL=10' \
+       --name pgadmin \
+       dpage/pgadmin4:latest
+#+end_src
+
+And then connect to the supabase production database.
+
+Be sure to use the inet4 address -- its at the bottom of the
+connection window.
+
+Your local database will be on host =host.docker.internal= and port =54322=.
+
+** Steps to extract data
+
+1. Connect to the local server
+2. Navigate to the table you want to move over
+3. Right-click =Backup=
+4. Name the file the same as the table (helpful not necessary)
+5. In the second tab, select =Data Only=
+6. Run.
+
+** Steps to restore data
+
+1. Connect to the remote server
+2. Navigate to the table
+3. Right click =Restore=
+4. Just select the file and to restore
+
+* References
+
+1. https://supabase.com/docs/guides/local-development/overview
+1. https://github.com/supabase/supabase/issues/29856#issuecomment-2484186297
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
