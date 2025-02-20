@@ -1,0 +1,119 @@
+#+title: Fonts with NextJS
+#+subtitle: its easy but i needed to work it out
+#+tags[]: nextjs fonts google
+#+date: 2025-02-20T14:35:53
+
+The nextjs font package is very cool, and makes it easy to have your fonts
+served up locally.  This works just as well for local fonts that you've
+downloaded or something pulled straight from the google mother ship.
+
+Lets hop to it.
+
+* Sample project
+
+#+begin_src bash
+  cd $(mktemp -d)
+  pnpx create-next-app
+  cursor my-app
+#+end_src
+
+* fonts and tailwind
+
+=app/globals.css=
+
+#+begin_src css
+  
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: var(--font-sans);
+}
+#+end_src
+
+
+Here I'ms setting =font-headings= to point to =var(--font-national-park)=
+which we will define below.
+
+=tailwind.config.ts=
+#+begin_src typescript
+    theme: {
+      extend: {
+        fontFamily: {
+          headings: ["var(--font-national-park)"],
+        },
+
+#+end_src
+
+And a sample page:
+
+=app/page.tsx=
+#+begin_src typescript
+  export default function Home() {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <h1 className="text-4xl font-headings">Hello World</h1>
+
+        <p>This is my fancy new font.</p>
+      </div>
+    );
+  }
+#+end_src
+
+** Add the local font
+
+I'm going to use the [[https://nationalparktypeface.com/Downloads-Donations][National Park Typeface]]
+
+Download and the put the =woff2= files in =app/fonts/national-park=
+
+And then in =app/layout.tsx=
+
+#+begin_src typescript
+  import localFont from "next/font/local";
+
+  const nationalPark = localFont({
+    src: "./fonts/national-park/NationalPark-Regular.woff2",
+    variable: "--font-national-park",
+    display: "swap",
+  });
+
+  /* ... */
+
+      <body className={`${nationalPark.variable} antialiased`}>{children}</body>
+#+end_src
+
+And done.  The =nationalPark.variable= will handle all the font swapping
+magic.
+
+
+* Google fonts
+
+Just as easy, in fact easier!
+
+=app/layout.tsx=
+#+begin_src typescript
+  import { Fraunces } from "next/font/google";
+
+  const fraunces = Fraunces({
+      subsets: ["latin"],
+      variable: "--font-fraunces",
+      display: "swap",
+  });
+
+  /* ... */
+     
+
+      <body className={`${fraunces.variable} antialiased`}>{children}</body>
+#+end_src
+
+And then =tailwind.config.ts=
+
+#+begin_src typescript
+  fontFamily: {
+    headings: ["var(--font-fraunces)"],
+  },
+#+end_src
+
+* References
+
+1. [[https://nextjs.org/docs/pages/building-your-application/optimizing/fonts][nextjs font docs]]
+
