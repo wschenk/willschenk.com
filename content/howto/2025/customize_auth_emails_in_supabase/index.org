@@ -1,0 +1,102 @@
+#+title: Customize Auth emails in Supabase
+#+subtitle: react-email and all
+#+tags[]: supabase authhook react-email email
+#+date: 2025-02-08T06:19:38
+#+draft: true
+
+* Email rate limiting
+
+Be sure to up the liits of how many emails you can send, it defaults to 2.
+
+
+* Customizing emails
+
+
+Remove supabase from the next build in tsconfig.json
+
+#+begin_src javascript
+  "exclude": ["node_modules", "supabase/**/*"]
+#+end_src
+
+Lets add react-email to the main project
+
+#+begin_src bash
+  pnpm add -D react-email
+#+end_src
+
+Lets create a new function.
+#+begin_src bash
+  supabase functions new send-email
+#+end_src
+
+Then create a template directory.
+
+#+begin_src bash
+  mkdir -p supabase/functions/send-email/_templates
+#+end_src
+
+And create a =deno.json= file
+
+#+begin_src javascript
+  {
+    "imports": {
+      "react": "npm:react@18.3.1",
+      "react-email": "npm:react-email@3.0.6",
+      "@react-email/components": "npm:@react-email/components@0.0.32"
+    },
+    "tasks": {
+      "dev": "pnpx react-email dev --dir _templates/"
+    }
+  }
+#+end_src
+
+
+
+// write function...
+
+
+Deploy
+
+#+begin_src bash
+  supabase functions deploy send-email --no-verify-jwt
+#+end_src
+
+Go to auth hook
+
+Add the url
+
+Generate a secret. 
+
+Create =functions/.env= and put
+
+=RESEND_API_KEY= and =SEND_EMAIL_HOOK_SECRET= in there.  **REMOVE v1 and
+whsec_ from the front!**
+
+#+begin_src bash
+  supabase secrets set --env-file supabase/functions/.env
+
+#+end_src
+
+
+
+* Testing magic link
+
+#+begin_src javascript
+async function signInWithEmail() {
+  const { data, error } = await supabase.auth.signInWithOtp({
+    email: 'valid.email@supabase.io',
+    options: {
+      // set this to false if you do not want the user to be automatically signed up
+      shouldCreateUser: false,
+      emailRedirectTo: 'https://example.com/welcome',
+    },
+  })
+}
+#+end_src
+
+
+
+* References
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

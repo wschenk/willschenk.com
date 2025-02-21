@@ -1,0 +1,352 @@
+#+title: Magic Link with NextJS and Supabase
+#+date: 2025-02-08T14:54:45
+#+draft: true
+
+
+
+#+begin_src bash
+  pnpx create-next-app@latest magiclinks
+#+end_src
+
+* Supabase
+
+#+begin_src bash
+  supabase init
+  pnpm i @supabase/ssr @supabase/supabase-js
+  supabase start
+#+end_src
+
+#+begin_src bash
+  supabase status | \
+      awk -F ": " '/API URL/ {print "NEXT_PUBLIC_SUPABASE_URL=" $2}' \
+          >> .env.development
+
+  supabase status | \
+      awk -F ": " '/anon key/ {print "NEXT_PUBLIC_SUPABASE_ANON_KEY=" $2}' \
+          >> .env.development
+
+#+end_src
+
+* Frontend
+
+
+ pnpx shadcn@latest add login-05
+
+
+ =components/form-message.tsx=
+
+ #+begin_src typescript
+"use client";
+
+import { useEffect, useState } from "react";
+
+export function FormMessage() {
+  const [message, setMessage] = useState<string | null>(null);
+  const [type, setType] = useState<"success" | "error" | "message" | null>(
+    null
+  );
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.get("success")) {
+      setType("success");
+      setMessage(searchParams.get("success"));
+    } else if (searchParams.get("error")) {
+      setType("error");
+      setMessage(searchParams.get("error"));
+    } else if (searchParams.get("message")) {
+      setType("message");
+      setMessage(searchParams.get("message"));
+    }
+  }, []);
+
+  return (
+    <div className="flex flex-col gap-2 w-full max-w-md text-sm">
+      {type === "success" && (
+        <div className="text-foreground border-l-2 border-foreground px-4">
+          {message}
+        </div>
+      )}
+      {type === "error" && (
+        <div className="text-destructive-foreground border-l-2 border-destructive-foreground px-4">
+          {message}
+        </div>
+      )}
+      {type === "message" && (
+        <div className="text-foreground border-l-2 px-4">{message}</div>
+      )}
+    </div>
+  );
+}
+
+ #+end_src
+ =components/submit-button.tsx=
+ 
+ #+begin_src typescript
+"use client";
+
+import { Button } from "@/components/ui/button";
+import { type ComponentProps } from "react";
+import { useFormStatus } from "react-dom";
+
+type Props = ComponentProps<typeof Button> & {
+  pendingText?: string;
+};
+
+export function SubmitButton({
+  children,
+  pendingText = "Submitting...",
+  ...props
+}: Props) {
+  const { pending } = useFormStatus();
+
+  return (
+    <Button type="submit" aria-disabled={pending} {...props}>
+      {pending ? pendingText : children}
+    </Button>
+  );
+}
+
+ #+end_src
+
+ =utils/supabase/server.ts=
+ #+begin_src typescript
+
+   import { createServerClient } from "@supabase/ssr";
+   import { cookies } from "next/headers";
+
+   export const createClient = async () => {
+     const cookieStore = await cookies();
+
+     return createServerClient(
+       process.env.NEXT_PUBLIC_SUPABASE_URL!,
+       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+       {
+         cookies: {
+           getAll() {
+             return cookieStore.getAll();
+           },
+           setAll(cookiesToSet) {
+             try {
+               cookiesToSet.forEach(({ name, value, options }) => {
+                 cookieStore.set(name, value, options);
+               });
+             } catch (error) {
+               // The `set` method was called from a Server Component.
+               // This can be ignored if you have middleware refreshing
+               // user sessions.
+             }
+           },
+         },
+       }
+     );
+   };
+ #+end_src
+
+ Inside of =login-form.tsx=
+
+ #+begin_src html
+   <SubmitButton type="submit" className="w-full" formAction={signInWithEmail}>
+     Login
+   </SubmitButton>
+   <FormMessage/>
+
+ #+end_src
+
+ And then =app/actions.ts=
+
+ #+begin_src typescript
+   "use server";
+
+   import { createClient } from "@/utils/supabase/server";
+   import { encodedRedirect } from "@/utils/utils";
+
+   export const signInWithEmail = async (formData: FormData) => {
+     const email = formData.get("email")?.toString();
+     const supabase = await createClient();
+
+     if (!email) {
+       return encodedRedirect("error", "/sign-in", "Email is required");
+     }
+
+     const { data, error } = await supabase.auth.signInWithOtp({
+       email: email,
+       options: {
+         // set this to false if you do not want the user to be automatically signed up
+         shouldCreateUser: true,
+         emailRedirectTo: "/auth/callback",
+       },
+     });
+
+     if (error) {
+       return encodedRedirect("error", "/sign-in", error.message);
+     }
+
+     return encodedRedirect("success", "/sign-in", "Magic link sent to email");
+   };
+
+ #+end_src
+
+ =middleware.ts=
+
+ #+begin_src typescript
+   import { type NextRequest } from "next/server";
+   import { updateSession } from "@/utils/supabase/middleware";
+
+   export async function middleware(request: NextRequest) {
+     return await updateSession(request);
+   }
+
+   export const config = {
+     matcher: [
+       /*
+        ,* Match all request paths except:
+        ,* - _next/static (static files)
+        ,* - _next/image (image optimization files)
+        ,* - favicon.ico (favicon file)
+        ,* - images - .svg, .png, .jpg, .jpeg, .gif, .webp
+        ,* Feel free to modify this pattern to include more paths.
+        ,*/
+       "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+     ],
+   };
+
+ #+end_src
+
+ =utils/supabase/middleware.ts=
+ #+begin_src typescript
+   import { createServerClient } from "@supabase/ssr";
+   import { type NextRequest, NextResponse } from "next/server";
+
+   export const updateSession = async (request: NextRequest) => {
+     // This `try/catch` block is only here for the interactive tutorial.
+     // Feel free to remove once you have Supabase connected.
+     try {
+       // Create an unmodified response
+       let response = NextResponse.next({
+         request: {
+           headers: request.headers,
+         },
+       });
+
+       const supabase = createServerClient(
+         process.env.NEXT_PUBLIC_SUPABASE_URL!,
+         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+         {
+           cookies: {
+             getAll() {
+               return request.cookies.getAll();
+             },
+             setAll(cookiesToSet) {
+               cookiesToSet.forEach(({ name, value }) =>
+                 request.cookies.set(name, value)
+               );
+               response = NextResponse.next({
+                 request,
+               });
+               cookiesToSet.forEach(({ name, value, options }) =>
+                 response.cookies.set(name, value, options)
+               );
+             },
+           },
+         }
+       );
+
+       // This will refresh session if expired - required for Server Components
+       // https://supabase.com/docs/guides/auth/server-side/nextjs
+       const user = await supabase.auth.getUser();
+
+       // protected routes
+       if (request.nextUrl.pathname.startsWith("/protected") && user.error) {
+         return NextResponse.redirect(new URL("/sign-in", request.url));
+       }
+
+       if (request.nextUrl.pathname === "/" && !user.error) {
+         return NextResponse.redirect(new URL("/protected", request.url));
+       }
+
+       return response;
+     } catch (e) {
+       // If you are here, a Supabase client could not be created!
+       // This is likely because you have not set up environment variables.
+       // Check out http://localhost:3000 for Next Steps.
+       return NextResponse.next({
+         request: {
+           headers: request.headers,
+         },
+       });
+     }
+   };
+
+ #+end_src
+
+
+ =app/auth/confirm/route.ts=
+
+ #+begin_src typescript
+import { type EmailOtpType } from "@supabase/supabase-js";
+import { type NextRequest } from "next/server";
+
+import { createClient } from "@/utils/supabase/server";
+import { redirect } from "next/navigation";
+
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const token_hash = searchParams.get("token_hash");
+  const type = searchParams.get("type") as EmailOtpType | null;
+  const next = searchParams.get("next") ?? "/";
+
+  if (token_hash && type) {
+    const supabase = await createClient();
+
+    const { error } = await supabase.auth.verifyOtp({
+      type,
+      token_hash,
+    });
+    if (!error) {
+      // redirect user to specified redirect URL or root of app
+      redirect(next);
+    }
+  }
+
+  // redirect the user to an error page with some instructions
+  redirect("/error");
+}
+
+ #+end_src
+
+
+ Change the email template
+
+ =supabase/config.toml=
+
+ #+begin_src toml
+
+[auth.email.template.magic_link]
+subject = "Confirm your Signup"
+content_path = "./supabase/templates/magic_link.html"
+
+ #+end_src
+
+ =supabase/templates/magic_link.html=
+ #+begin_src bash
+   <h2>Confirm your signup</h2>
+
+   <p>Follow this link to confirm your user:</p>
+   <p>
+     <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email"
+       >Confirm your mail</a
+     >
+   </p>
+
+
+ #+end_src
+
+ #+begin_src bash
+   supabase stop
+   supabase start
+
+ #+end_src
+* References
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
