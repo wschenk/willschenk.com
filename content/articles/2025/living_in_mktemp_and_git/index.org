@@ -1,0 +1,264 @@
+#+title: Living in mktemp and git and codespaces
+#+subtitle: Everything is throw away until it isn't
+#+tags[]: mktemp git docker transient
+#+date: 2025-02-22T20:28:06
+#+draft: true
+
+
+Kids today don't know what a file system is.  The use the app, or the
+site, or whatever, and the expect everything to move aloung with it.
+The understand installing something, but even discord has /servers/, and
+its all fluid.
+
+
+* =cd $(mktemp -d)=
+
+In =.zshrc=:
+
+#+begin_src bash
+  alias nd='cd $(mktemp -d)'
+#+end_src
+
+This makes it easy to create a new temporary directory, and then you
+can play around.
+
+/e.g./
+
+Create a blank nextjs project
+
+#+begin_src bash
+  nd
+  pnpx create-next-app@latest
+#+end_src
+
+Create a blank astro project
+#+begin_src bash
+  nd
+  pnpm create astro@latest
+  cd *
+  pnpm run dev
+#+end_src
+
+Download a random git repo and play around with it.
+#+begin_src bash
+  nd
+  git clone https://github.com/jeremyevans/roda-sequel-stack.git
+  $EDITOR *
+#+end_src
+
+* Starting Processes in project consoles
+
+[[https://willschenk.com/labnotes/2025/autorun_tasks_on_vscode_startup/][autorun tasks on vscode project startup]].  This means that when you
+open up the project things start going, and when you close it it all
+goes away.
+
+But this also can work with things like =redis= and =pgadmin=, open those
+things up in the vscode/cursor windows so things are going, and when
+you close the window it all disappears.
+
+
+* =pnpx=
+
+This command runs node packages directly without having to install them.
+
+** pnpx live-server
+
+By far my most used goto.  Quickly serve up a directory of html files.
+Handles auto updates.
+
+#+begin_src bash :tangle ~/willschenk.com/bin/live-server
+  #!/bin/bash
+
+  pnpx live-server $*
+
+#+end_src
+* codespaces
+
+If you've setup =gh=, you can do =gh browse= in your local directory to
+open up github.  Press the =,= (comma) key and it will move you to the
+codespaces window, where it will start up a server on github.
+
+You can see your [[https://github.com/codespaces][list of codespaces]].  When idle it will close down,
+and it will know if there are changes that need to be commited.
+
+My [[https://github.com/wschenk/wschenk][github profile]] repository was all written in codespaces.  It's
+rebuilt using a github action trigged by cron that pulls in feeds.
+
+My [[https://github.com/wschenk/tilde][customize tilde]] homepage was also built on codespaces.
+
+This means you don't ever need to have the code on your machine.
+
+* Docker
+
+These wrapper scripts to docker containers give us a couple of
+advantages.  First we can install whatever version we want fairly
+easily, and we can isolate all of the files that it writes.  If we
+want something to persist over time, then we can give it a docker
+volume which lives beyond the invocation.
+
+I almost aways use =--rm -it= which means remove the container once the
+process is done, and open up an interactive terminal
+
+** Postgres
+
+Lets spin up postgres and pgadmin in little scripts. This pulls down
+the container, sets up the volumes, and when you close out everything
+goes away except the volumes.
+
+=ppgserver=
+#+begin_src bash :tangle ~/willschenk.com/bin/pgserver
+  #!/bin/bash
+  # pgserver
+
+  docker run --rm -it \
+         -p 5432:5432 \
+         -e PGDATA=/var/lib/postgresql/data/pgdata \
+  	   -v postgres:/var/lib/postgresql/data \
+         --name pgserver \
+         -e POSTGRES_HOST_AUTH_METHOD=trust \
+         -e POSTGRES_PASSWORD=mysecretpassword \
+         postgres
+#+end_src
+
+
+** Pgadmin
+
+To create the server connection, host is =host.docker.local=, user is =postgres=,
+and password is =mysecretpassword=.
+
+=pgadmin=
+#+begin_src bash :tangle ~/willschenk.com/bin/pgadmin
+  #!/bin/bash
+
+  (sleep 3;open http://localhost:8080)&
+
+
+  docker run -it --rm \
+         -p 8080:80 \
+         -v pgadmin:/var/lib/pgadmin \
+         -e 'PGADMIN_DEFAULT_EMAIL=wschenk@gmail.com' \
+         -e 'PGADMIN_DEFAULT_PASSWORD=mysecretpassword' \
+         -e 'PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION=True' \
+         -e 'PGADMIN_CONFIG_LOGIN_BANNER="Authorised users only!"' \
+         -e 'PGADMIN_CONFIG_CONSOLE_LOG_LEVEL=10' \
+         --name pgadmin \
+         dpage/pgadmin4:latest
+#+end_src
+
+** Openweb
+
+=openweb-ui=
+#+begin_src bash :tangle ~/willschenk.com/bin/openweb-ui
+  #!/bin/bash
+
+  (sleep 1;open http://localhost:3000)&
+
+  docker run -it --rm -p 3000:8080 \
+           -v open-webui:/app/backend/data \
+           ghcr.io/open-webui/open-webui:main
+
+#+end_src
+
+** mitm
+
+=mitm=
+#+begin_src bash :tangle ~/willschenk.com/bin/mitm
+  #!/bin/bash
+
+  (sleep 1;open http://localhost:8080)&
+
+
+  docker run --rm -it \
+         -p 8080:8080 \
+         -p 127.0.0.1:8081:8081 \
+         mitmproxy/mitmproxy mitmweb --web-host 0.0.0.0
+
+#+end_src
+
+** redis
+
+=redis=
+#+begin_src bash :tangle ~/willschenk.com/bin/redis
+  #!/bin/bash
+
+  docker run -it --rm -p 6379:6379 redis
+#+end_src
+
+And then a cli instance
+
+=redis-cli=
+#+begin_src bash :tangle ~/willschenk.com/bin/redis-cli
+  #!/bin/bash
+  docker run -it --rm --network=host redis redis-cli 
+#+end_src
+
+I was having trouble getting the cli to connect.  So I did =nd=, asked
+warp to write a script to connect to redis and increment a counter,
+and verified that the server was working.  This directory with those
+temporary files will go away and I'll never need to think about them
+again.
+
+** doku
+
+=doku=
+
+#+begin_src bash :tangle ~/willschenk.com/bin/doku
+  #!/bin/bash
+
+  (sleep 1;open http://localhost:9090)&
+  
+  docker run --rm -it \
+         -v /var/run/docker.sock:/var/run/docker.sock:ro \
+         -v /:/hostroot:ro -p 9090:9090 \
+         amerkurev/doku
+#+end_src
+
+* Scripts
+** Inline ruby
+
+[[https://bundler.io/guides/bundler_in_a_single_file_ruby_script.html][Ruby scripts can include gems in a single file.]]
+
+#+begin_src ruby
+#!/usr/bin/env ruby
+
+require 'bundler/inline'
+
+gemfile do
+  source 'https://rubygems.org'
+  gem 'front_matter_parser'
+end
+
+#+end_src
+
+These can be named whatever you want, and don't need to have a =Gemfile=
+floating around.
+
+** Inline =uv= dependancies
+
+#+begin_src python :tangle example.py
+  #!/usr/bin/env uv run
+  # /// script
+  # dependencies = [
+  #   "requests<3",
+  #   "rich",
+  # ]
+  # ///
+
+  import requests
+  from rich.pretty import pprint
+
+  resp = requests.get("https://peps.python.org/api/peps.json")
+  data = resp.json()
+  pprint([(k, v["title"]) for k, v in data.items()][:10])
+#+end_src
+
+The first time you run this it will download the needed dependancies.
+
+
+* References
+
+1. https://willschenk.com/articles/2020/leveraging_disposability_for_exploration/
+
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

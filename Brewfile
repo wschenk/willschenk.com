@@ -12,7 +12,6 @@ brew "git"
 brew "hugo"
 brew "ispell"
 brew "jq"
-brew "libpq", link: true
 brew "libyaml"
 brew "ollama"
 brew "plantuml"
