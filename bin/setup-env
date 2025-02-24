@@ -1,0 +1,62 @@
+#!/bin/bash
+
+# Function to check if 1Password CLI is needed and available
+check_1password() {
+    if grep -q "op get" env.template && ! command -v op &> /dev/null; then
+        echo "Error: 1Password CLI (op) is not installed but required by template"
+        echo "Please install it from: https://1password.com/downloads/command-line/"
+        exit 1
+    fi
+
+    if grep -q "op get" env.template && ! op whoami &> /dev/null; then
+        echo "Please sign in to 1Password CLI first using: op signin"
+        exit 1
+    fi
+}
+
+# Check if .env.template exists
+if [ ! -f env.template ]; then
+    echo "Error: env.template not found"
+    exit 1
+fi
+
+# Check if .env.local already exists
+if [ -f .env.local ]; then
+    echo ".env.local already exists. Do you want to overwrite it? (y/n)"
+    read -r response
+    if [[ ! $response =~ ^[Yy]$ ]]; then
+        echo "Aborted."
+        exit 1
+    fi
+fi
+
+# Check for 1Password CLI if needed
+check_1password
+
+# Create temporary script to evaluate commands
+temp_script=$(mktemp)
+chmod +x "$temp_script"
+
+# Process template and create evaluation script
+echo "#!/bin/bash" > "$temp_script"
+echo "cat <<EOT" >> "$temp_script"
+cat env.template >> "$temp_script"
+echo "EOT" >> "$temp_script"
+
+# Execute the temporary script and save to .env.local
+"$temp_script" > .env.local 2>/dev/null
+
+# Check if any commands failed
+if [ $? -ne 0 ]; then
+    echo "Warning: Some commands in the template failed to execute"
+    # Continue anyway as some values might be optional
+fi
+
+# Clean up
+rm "$temp_script"
+
+echo "Environment file .env.local created successfully!"
+
+# Optional: Display the generated file (commented out by default)
+# echo "Generated .env.local contents:"
+# cat .env.local

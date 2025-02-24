@@ -1,17 +1,56 @@
 #+title: Living in mktemp and git and codespaces
 #+subtitle: Everything is throw away until it isn't
 #+tags[]: mktemp git docker transient
-#+date: 2025-02-22T20:28:06
-#+draft: true
+#+date: 2025-02-24T06:06:14
 
+Ok boomer, is your laptop backed up?  Do you compulsively press =C-s= to
+make sure that you files are saved?  No, because who needs to do that
+nonesense anymore.  Kids today, don't even know what a file system
+is...
 
-Kids today don't know what a file system is.  The use the app, or the
-site, or whatever, and the expect everything to move aloung with it.
-The understand installing something, but even discord has /servers/, and
-its all fluid.
+This article is about thinking of your local computer as a cache for
+data that primary lives somewhere else.  Or in the case of git,
+doesn't really live anywhere, and moves around at will.  One thing
+that is nice about it is that you don't need to worry about backups,
+and you can easily move around from one machine to another.
 
+A couple of key points
+- Work out of temporary directories
+- Script everything
+- Use someone elses servers
+- Do nothing except on user action (github actions and flyio)
+- If you care about it, put it directly on github instead of a local directory
+- If you care about it, put it on iCloud/Dropbox/Drive instead of a local directory
+- If you case about it, script up how to recreate it from scratch
 
-* =cd $(mktemp -d)=
+* Have a main workspace that lives out of git
+
+For me this is this blog.  All my notes and scripts I want to move
+around are here.  I also use =Obsidian= for regular type notes and
+keeping track of links and that sort of thing, but all of my config
+files and local scripts ultimately are documented here in a literate
+coding style.
+
+When I got a new machine, the first thing I did was to git clone this
+repo.  Then I ran scripts that lived in this repo to recreate the
+entire environment.  I get =emacs= working by following along my emacs
+post, for example.
+
+Between this (where all code stuff lives) and =Obsidian= all my personal
+data is synced between machines.  I've got the new and the backup
+laptop, so with "the cloud" I have three backups of everything.
+
+For personal stuff I think it's most important that you rely primarily
+on open source tools that can work on different operating systems.
+
+For business documents I copy everything both to iCloud and google
+drive.  A lot of times I'd edit with google docs, and then export to
+PDF onto iCloud, and then mail from my local filesystem to the
+customer.  So there are 3 copies of everything in the cloud.
+
+* Initially work out of =/tmp=
+
+It's all about =cd $(mktemp -d)=
 
 In =.zshrc=:
 
@@ -21,6 +60,15 @@ In =.zshrc=:
 
 This makes it easy to create a new temporary directory, and then you
 can play around.
+
+Write down what you are doing, so you can recreate it.  Often times,
+it better to throw away the first couple iterations till you figure
+out what you want, and if you know that you are going to toss it you
+don't need to be so precious about what you are doing.
+
+If you like what you've done, create a github repo (private), push it
+there, and then check it out again recreating whatever =env= files are
+needed.
 
 /e.g./
 
@@ -52,26 +100,136 @@ Download a random git repo and play around with it.
 open up the project things start going, and when you close it it all
 goes away.
 
+I also use =shell= in emacs quite a lot.  The hugo dev server starts up
+with emacs so I have access to all of these notes locally if I want,
+plus if I'm working on a project I'll have multiple processes running.
+When I kill emacs it all goes away.
+
 But this also can work with things like =redis= and =pgadmin=, open those
 things up in the vscode/cursor windows so things are going, and when
 you close the window it all disappears.
 
+And if you are running stuff out of =/tmp= all of the flotsom
+dissappears.
 
-* =pnpx=
+* Using 1password vaults for project secrets
 
-This command runs node packages directly without having to install them.
+I have a couple of project that I'm working on.  For development
+stuff, I create a "Development" vault with the general keys, and when
+I'm ready to deploy I put the production keys there.
 
-** pnpx live-server
+Inside of my projects, I create a =env.template= file that defines what
+the environment needs, For example:
 
-By far my most used goto.  Quickly serve up a directory of html files.
-Handles auto updates.
+=env.template= /This gets checked into git/
+#+begin_src bash
+# API Keys
+OPENAI_API_KEY=$(op read "op://Upperhand/Upperhand OpenAI/notesPlain")
+RESEND_API_KEY=$(op read "op://Development/Resend API/notesPlain")
+NEXT_PUBLIC_SUPABASE_URL=$(supabase status | \
+      awk -F ": " '/API URL/ {print $2}')
+NEXT_PUBLIC_SUPABASE_ANON_KEY=$(supabase status | \
+      awk -F ": " '/anon key/ {print $2}')
+#+end_src
 
-#+begin_src bash :tangle ~/willschenk.com/bin/live-server
-  #!/bin/bash
+Then I have a =setup-env= script that parses all of that into a
+=.env.local=.  /This does not get checked into git/
 
-  pnpx live-server $*
+#+begin_src bash :tangle ~/willschenk.com/bin/setup-env
+#!/bin/bash
+
+# Function to check if 1Password CLI is needed and available
+check_1password() {
+    if grep -q "op get" env.template && ! command -v op &> /dev/null; then
+        echo "Error: 1Password CLI (op) is not installed but required by template"
+        echo "Please install it from: https://1password.com/downloads/command-line/"
+        exit 1
+    fi
+
+    if grep -q "op get" env.template && ! op whoami &> /dev/null; then
+        echo "Please sign in to 1Password CLI first using: op signin"
+        exit 1
+    fi
+}
+
+# Check if .env.template exists
+if [ ! -f env.template ]; then
+    echo "Error: env.template not found"
+    exit 1
+fi
+
+# Check if .env.local already exists
+if [ -f .env.local ]; then
+    echo ".env.local already exists. Do you want to overwrite it? (y/n)"
+    read -r response
+    if [[ ! $response =~ ^[Yy]$ ]]; then
+        echo "Aborted."
+        exit 1
+    fi
+fi
+
+# Check for 1Password CLI if needed
+check_1password
+
+# Create temporary script to evaluate commands
+temp_script=$(mktemp)
+chmod +x "$temp_script"
+
+# Process template and create evaluation script
+echo "#!/bin/bash" > "$temp_script"
+echo "cat <<EOT" >> "$temp_script"
+cat env.template >> "$temp_script"
+echo "EOT" >> "$temp_script"
+
+# Execute the temporary script and save to .env.local
+"$temp_script" > .env.local 2>/dev/null
+
+# Check if any commands failed
+if [ $? -ne 0 ]; then
+    echo "Warning: Some commands in the template failed to execute"
+    # Continue anyway as some values might be optional
+fi
+
+# Clean up
+rm "$temp_script"
+
+echo "Environment file .env.local created successfully!"
+
+# Optional: Display the generated file (commented out by default)
+# echo "Generated .env.local contents:"
+# cat .env.local
 
 #+end_src
+
+Then basically once I push code to git, I can get rid of that local
+folder if or when I need and I'll be able to recreate it with github
+and 1password.
+
+
+* Running in github actions
+
+Github actions run when you do git stuff.  The obvious is on push, so
+most of the repos I have build on push.  The static sites check out
+their dependancies, build and optimize whatever, and then push to
+(normally) github pages.  Vercel projects push and build (on vercel
+servers) and things I've deployed on [[https://fly.io/][fly.io]] also get built and
+deployed on push.
+
+In my [[https://github.com/wschenk][github profile page]] there's [[https://github.com/wschenk/wschenk/blob/main/.github/workflows/build.yml][a script that runs every hour]] to
+update the content.  It pulls down a couple RSS feeds and updates the
+readme.  No servers involved.
+
+I also have an example of using [[https://github.com/wschenk/issue-blog/blob/main/.github/workflows/issue_to_post.yml][github issues to write blog posts]].
+
+* flyio autoscale to 0
+
+On the do nothing until user action side, almost all of my little toy
+fly.io project have autoscale down to 0.  Which means that they cost
+basically nothing to have a full machine ready to go.  Its also nice
+for these projects to have attached storage, so you can keep it really
+simple code wise (just reading and writing to a filesystem) but get
+the benefits of not having to manage the operating system
+
 * codespaces
 
 If you've setup =gh=, you can do =gh browse= in your local directory to
@@ -88,6 +246,21 @@ My [[https://github.com/wschenk/tilde][customize tilde]] homepage was also built
 
 This means you don't ever need to have the code on your machine.
 
+* =pnpx=
+
+This command runs node packages directly without having to install them.
+
+** pnpx live-server
+
+By far my most used goto.  Quickly serve up a directory of html files.
+Handles auto updates.
+
+#+begin_src bash :tangle ~/willschenk.com/bin/live-server
+  #!/bin/bash
+
+  pnpx live-server $*
+
+#+end_src
 * Docker
 
 These wrapper scripts to docker containers give us a couple of
@@ -214,7 +387,19 @@ again.
 #+end_src
 
 * Scripts
-** Inline ruby
+
+** Check for dependancies at the top
+
+When writing scripts, make sure that you check and/or install
+dependancies at the top.
+
+For the bash script that does enviroment variables, the first thing we
+do is check for the 1password cli to be installed.
+
+** Inline ruby deps
+
+If you are scripting in a better scripting language, you can specify
+the requirements inline.
 
 [[https://bundler.io/guides/bundler_in_a_single_file_ruby_script.html][Ruby scripts can include gems in a single file.]]
 
@@ -255,7 +440,16 @@ floating around.
 The first time you run this it will download the needed dependancies.
 
 
-* References
+* Conclusion
+
+The rules here are
+
+- Plan on throwing everything away
+- ...so document what you are doing
+- ...either in text or in machine scripts
+- Push everything to a central spot that you can pull down from whereever
+- Your laptop, desktop, mobile, server etc are just running cache of the dat
+
 
 1. https://willschenk.com/articles/2020/leveraging_disposability_for_exploration/
 
