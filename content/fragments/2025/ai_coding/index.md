@@ -9,4 +9,6 @@ date: 2025-02-23
 
 Hit my usage limits twice in one day.
 
+*Update*
 
+![](/fragments/2025/ai_coding/o1.png)
