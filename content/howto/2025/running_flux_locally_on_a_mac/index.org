@@ -1,0 +1,294 @@
+#+title: Running flux locally on a mac
+#+subtitle: lets get those gpus running
+#+tags[]: local llm flux osx
+#+date: 2025-02-26T08:29:24
+
+I got this new computer and I wanted to get the GPUs running hot!
+
+Lets go!
+
+* Install =uv= and =mflux=
+
+Go to the [[https://docs.astral.sh/uv/getting-started/installation/][uv installation page]] and follow then instructions.
+
+Then install mflux with python version 3.12
+
+#+begin_src bash
+  uv tool install -p 3.12 --upgrade mflux
+#+end_src
+
+
+* Basic running
+
+I'm passing in =-q 4= for the smallest quantizied version.  This will download
+the model from huggingface when it starts up, which will take a while.
+
+30G a while.
+
+#+begin_src bash
+  mflux-generate --model schnell \
+                 --prompt "Luxury food photograph" \
+                 --steps 2 --seed 2 \
+                 -q 4 --output luxury.png \
+                 --metadata
+
+#+end_src
+
+#+RESULTS:
+
+{{< img img="luxury.png" fit="750x750 smart">}}
+
+* Dev model
+
+Install huggingface
+
+#+begin_src bash
+  brew install huggingface-cli
+
+#+end_src
+
+#+begin_src bash
+  huggingface-cli login
+
+#+end_src
+
+Then go to
+
+[[https://huggingface.co/black-forest-labs/FLUX.1-dev]]
+
+But this model didn't make any good outputs for me, so I stuck with
+=schnell=.
+
+
+* lora
+
+Lets combine some post training.
+
+Download the tensors from [[https://civitai.com/models/545264/impressionism-sdxl-pony-flux][impressionism-sdxl-pony-flux]]
+
+#+begin_src bash
+  mflux-generate --model schnell \
+                 --prompt "forest with a lot of undergrowth" \
+                 --steps 5 -q 4 \
+                 --lora-paths ImpressionismFlux.safetensors \
+                 --lora-scales 1.0 --metadata \
+                 --height 1024 --width 1024 --seed 2 \
+                 --output forest.png
+#+end_src
+
+{{< img img="forest.png" fit="1000x1000 smart">}}
+
+
+How about [[https://civitai.com/models/1198621/monica-bellucci-flux][monica-bellucci-flux]]
+#+begin_src bash
+  mflux-generate --model schnell \
+               --prompt "1 woman sitting at a cafe laughing" \
+               --steps 5 -q 4 \
+               --lora-paths Monica_Bellucci_Flux.safetensors \
+               --lora-scales 1.0 --metadata \
+               --height 1024 --width 1024 --seed 2 \
+               --output cafe.png
+#+end_src
+
+{{< img img="cafe.png" fit="1000x1000 smart">}}
+
+
+Or: [[https://civitai.com/models/652699][Amateur Photography]]
+
+#+begin_src bash
+  mflux-generate --model schnell \
+               --prompt "a man with wild hair holding up handwritten sign that says boo" \
+               --steps 5 -q 4 \
+               --lora-paths amateurphoto-v6-forcu.safetensors \
+               --lora-scales 0.8 --metadata \
+               --height 1152 --width 896 --seed 2 \
+               --output sign.png
+
+#+end_src
+
+{{< img img="sign.png" fit="1000x1000 smart">}}
+
+
+* image to image
+
+Lets see if we can swap out the face.  Lets first grab a [[https://www.pexels.com/photo/beautiful-model-in-oregon-wearing-a-forest-green-linen-dress-portrait-taken-by-portland-photographer-lance-reis-on-my-sonya7iii-on-location-19797389/][nice image from the internet]]
+
+Before:
+
+{{< img img="pexels-lance-reis-255748881-19797385.jpg" fit="1000x1000 smart">}}
+
+And then pass it from image to image with the monica belluci lora:
+
+#+begin_src bash
+  mflux-generate --model schnell \
+                 --init-image-path pexels-lance-reis-255748881-19797385.jpg \
+                 --init-image-strength 0.3 \
+                 --prompt "women looking pensive, grainy and realistic" \
+                 --steps 20 -q 4 \
+                 --lora-paths Monica_Bellucci_Flux.safetensors \
+                 --lora-scales 1.0 --metadata \
+                 --height 1500 --width 1200 --seed 2 \
+                 --output monica.png
+#+end_src
+
+{{< img img="monica.png" fit="1000x1000 smart">}}
+
+
+* pinokio
+
+YouTube suggested [[https://pinokio.computer/][pinokio.computer]] to do the download, but it didn't
+really work out of the box.  Which is the point of it, that it works
+out of the box.
+
+The installer didn't work, but I was able to get things working using
+the source directly.
+
+#+begin_src bash
+  git clone git@github.com:pinokiocomputer/pinokio.git
+  cd pinokio
+  npm i
+  npm run start
+#+end_src
+
+From here you can search for MFlux-webui and play around there.  It
+will download the models again though, so hopefully your internet
+isn't metered.
+
+One thing that's interesting is that it takes your prompt and puts it through
+ollama to enhanse.  Let do that.
+
+
+* Ollama prompt enhancement
+
+Lets make a nice new =Modelfile=
+
+#+begin_src markdown :tangle Modelfile
+  FROM dolphin-mistral
+  SYSTEM "
+  # Image Prompt Enhancement System
+
+  ## Objective
+  Enhance incoming image prompts by transforming them into comprehensive, highly detailed descriptions covering every visual element of the scene.
+
+  ## External Variables
+  - [image_type]
+  - [subject]
+  - [environment]
+  - [subject_details]
+  - [weather]
+  - [orientation]
+  - [artistic_influence]
+
+  ## Internal Variables
+
+  ### Photography-specific
+  - [camera]: If [image_type] is a photo, choose an appropriate camera model (e.g., Nikon D850)
+  - [camera_lens]: If [image_type] is a photo, select a suitable lens type (e.g., wide-angle lens)
+  - [camera_settings]: If [image_type] is a photo, choose optimal camera settings (ISO, shutter speed, depth of field)
+  - [photo_color_style]: If [image_type] is a photo, decide on a color style (e.g., natural, vibrant)
+  - [photographer]: If [image_type] is a photo, you may reference a famous photographer for style
+
+  ### Art-specific
+  - [art_style]: If [image_type] is art, select an art style (e.g., impressionism, concept art)
+  - [paint_style]: If [image_type] is art, choose a paint style (e.g., oil painting with thick brush strokes)
+  - [artist]: If [image_type] is art, you may reference a famous artist for style
+
+  ### General
+  - [mood]: Determine a dominant mood based on the [subject] and [environment]
+  - [model]: Build a detailed description of the [subject] using [subject_details]
+  - [shot_factors]: Based on the [environment], choose background focal points
+
+  ### Prompt Structure
+  - [prompt_starter]: 'Ultra High Resolution [image_type] of '
+  - [prompt_end_part1]: ' award-winning, epic composition, ultra detailed.'
+
+  ## Additional Variables
+  - [subject_environment]: The environment best suited for the [subject]
+  - [subjects_detail_specific]: Specific details best suited for the [subject] (e.g., a 20-year-old female with blonde hair wearing a red dress)
+  - [subjects_weatherOrLights_Specific]: Weather or lighting that complements the [subject] and [environment]
+
+  ## Enhancement Process
+
+  1. **Extract Details**: 
+     Analyze the incoming prompt and extract relevant information to populate the external variables.
+
+  2. **Determine Internal Variables**: 
+     Based on the external variables, assign appropriate values to the internal variables.
+
+  3. **Construct the Enhanced Prompt**:
+     - Begin with [prompt_starter]
+     - Incorporate [model], including [subjects_detail_specific]
+     - Describe the [environment] in detail, incorporating [subject_environment] and [shot_factors]
+     - Include details about [weather] or [subjects_weatherOrLights_Specific]
+     - If applicable, mention the [camera], [camera_lens], and [camera_settings]
+     - Reference the [artistic_influence], [photographer], or [artist] if provided
+     - Convey the [mood] throughout the description
+     - Use vivid language to describe textures, lighting, movements, reflections, and shadows
+     - Insert [prompt_end_part1] just before the end
+     - Do not end with a period
+
+  4. **Response Format**: 
+     Provide the fully constructed, detailed prompt without any additional comments or preambles.
+  "
+#+end_src
+
+Then create it:
+#+begin_src bash
+  ollama create imageplus -f Modelfile
+#+end_src
+
+Test it:
+
+
+#+begin_src bash :results output
+  ollama run imageplus 'Luxury food photograph'
+#+end_src
+
+#+RESULTS:
+:  Ultra High Resolution luxury food photograph of an exquisite meal,
+:  award-winning, epic composition, ultra detailed. Featuring a
+:  delectable seafood platter adorned with succulent crab legs, tender
+:  scallops, and juicy shrimp. The fresh catch is arranged on a sleek
+:  white marble countertop, surrounded by vibrant seasonal
+:  vegetables. A pristine slice of seared tuna glistens under the soft
+:  golden glow of ambient lighting, its crispy edge contrasting with
+:  its perfectly pink interior. In the background, a lush green salad
+:  with sliced strawberries and goat cheese is complemented by a
+:  velvety smooth avocado puree, while a decadent chocolate souffle
+:  with a dollop of whipped cream on the side awaits dessert
+:  enthusiasts. A fine art piece capturing the essence of an
+:  unforgettable culinary experience.
+: 
+
+
+Now we can pass our prompts through it:
+
+#+begin_src bash :results raw
+  mflux-generate --model schnell \
+               --prompt "$(ollama run imageplus 'Luxury food photograph')" \
+               --steps 2 --seed 2 \
+               --metadata \
+               -q 4 --output enhance.png
+#+end_src
+
+Before:
+
+{{< img img="luxury.png" fit="750x750 smart">}}
+
+After
+
+{{< img img="enhance.png" fit="750x750 smart">}}
+
+
+
+* asitop
+
+#+begin_src bash
+  brew install asitop
+#+end_src
+
+
+* References
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
