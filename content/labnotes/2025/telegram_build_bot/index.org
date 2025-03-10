@@ -1,0 +1,104 @@
+#+title: Telegram Build Bot
+#+subtitle: Easier notifications
+#+tags[]: github telegram
+#+date: 2025-03-10T18:09:43
+
+* Create the bot
+
+Go to the [[http://t.me/botfather][botfather]] and create a bot.
+
+=/newbot=
+
+I named mine "the focus build bot" and "thefocus_build_bot"
+
+Save the secret somewhere careful.  In =TELEGRAM_BOT_TOKEN= say.
+
+* Get a chat id
+
+Send a message in your bot’s chat:
+
+1. In Telegram, search for your newly created bot by its username (the one ending in “bot”).
+2. Press Start to initiate the chat.
+3. Send a short message, like “Hello.”
+
+Then go to =https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates= in
+your browser.  You should be able to see the =chat= id there.
+
+Save it in =TELEGRAM_CHAT_ID=
+
+* Send a test message from your machine
+
+#+begin_src bash :results output
+  export TELEGRAM_BOT_TOKEN="$(op read "op://Development/Focus Bot Secret/notesPlain")"
+  export TELEGRAM_CHAT_ID="$(op read "op://Development/Focus Bot Chat Id/notesPlain")"
+  curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+        -d chat_id="${TELEGRAM_CHAT_ID}" \
+        -d text="❌ BOOM ❌" | jq .
+#+end_src
+
+#+RESULTS:
+#+begin_example
+{
+  "ok": true,
+  "result": {
+    "message_id": 6,
+    "from": {
+      "id": 8073526226,
+      "is_bot": true,
+      "first_name": "Focus Build Bot",
+      "username": "thefocus_build_bot"
+    },
+    "chat": {
+      "id": 5920486792,
+      "first_name": "Will",
+      "last_name": "Schenk",
+      "type": "private"
+    },
+    "date": 1741645616,
+    "text": "❌ BOOM ❌"
+  }
+}
+#+end_example
+
+* Add the secrets to your repository
+
+#+begin_src bash
+  export TELEGRAM_BOT_TOKEN="$(op read "op://Development/Focus Bot Secret/notesPlain")"
+  export TELEGRAM_CHAT_ID="$(op read "op://Development/Focus Bot Chat Id/notesPlain")"
+
+  gh secret set TELEGRAM_BOT_TOKEN --body "${TELEGRAM_BOT_TOKEN}"
+  gh secret set TELEGRAM_CHAT_ID --body "${TELEGRAM_CHAT_ID}"
+#+end_src
+
+And you can to go
+
+#+begin_src bash
+  gh browse
+#+end_src
+
+=Settings > Secrets and Variables > Actions= to see if they are there.
+
+* Adding to the github action
+
+Inside of whatever your github action is, put this at the end of the =build= set.
+
+#+begin_src yaml
+    - name: Send Telegram Success
+      if: success()
+      run: |
+        curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+        -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+        -d text="✅ Build succeeded for ${{ github.repository }}!"
+
+    - name: Send Telegram Failure
+      if: failure()
+      run: |
+        curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+        -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+        -d text="❌ Build failed for ${{ github.repository }}!"
+#+end_src
+
+
+* Deploy and enjoy
+
+Push and see that alert come in!
