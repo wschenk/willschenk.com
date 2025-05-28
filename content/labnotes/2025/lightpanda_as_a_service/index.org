@@ -1,0 +1,303 @@
+#+title: Lightpanda to markdown
+#+subtitle: llm scraping
+#+tags[]: markdown lightpanda http
+#+date: 2025-05-27T17:29:09
+#+draft: true
+
+
+Lightpanda is purpose-built for AI and automation workflows. If you
+want to pull down some data from a website and have it parse
+Javascript and all that, this is a fast and lightweight tool that
+makes it happen.
+
+
+* Install (macos)
+
+#+begin_src bash
+curl -L -o lightpanda https://github.com/lightpanda-io/browser/releases/download/nightly/lightpanda-aarch64-macos && \
+chmod a+x ./lightpanda
+#+end_src
+
+Pull down a page:
+
+#+begin_src bash
+  ./lightpanda fetch --dump https://willschenk.com
+#+end_src
+
+* Test
+
+Install =htmlq= if you don't have it
+
+#+begin_src bash
+  brew install htmlq
+
+#+end_src
+
+=test.html=:
+#+begin_src html :tangle test.html
+  <html>
+    <head><title>This is a dynamic page</title></head>
+    <body>
+      <div id="content"></div>
+      <script>
+        document.querySelector('#content').innerHTML = `<h1>Hi there</h1>
+          <p>This content was dynamically inserted using JavaScript.</p>
+          `
+      </script>
+    </body>
+  </html>
+
+#+end_src
+
+setup a simple server:
+
+#+begin_src bash
+npx http-server
+#+end_src
+
+Then
+
+#+begin_src bash :results output
+  ./lightpanda --dump http://127.0.0.1:8080/test.html |htmlq -p
+
+#+end_src
+
+#+RESULTS:
+#+begin_example
+
+<html>
+  <head>
+    <title>This is a dynamic page
+    </title>
+  </head>
+  <body>
+    <div id="content">
+      <h1>
+        Hi there
+      </h1>
+      <p>
+        This content was dynamically inserted using JavaScript.
+      </p>
+    </div>
+    <script>
+      
+      document.querySelector('#content').innerHTML = `&lt;h1&gt;Hi there&lt;/h1&gt;
+        &lt;p&gt;This content was dynamically inserted using JavaScript.&lt;/p&gt;
+        `
+    </script>
+  </body>
+</html>
+#+end_example
+
+So you can see the that the javascript was run.
+
+* Use defuddle to markdown
+
+Add the necessary libraries:
+#+begin_src bash
+  pnpm init
+  pnpm add defuddle jsdom
+#+end_src
+
+And then create a script:
+
+#+begin_src javascript :tangle parse.js
+  import { Defuddle } from "defuddle/node";
+  import fs from "fs";
+
+  import { exec } from "child_process";
+  import { promisify } from "util";
+
+  const execAsync = promisify(exec);
+
+  async function parse(url) {
+      // Execute lightpanda command and get output
+      const { stdout } = await execAsync(`./lightpanda --dump ${url}`);
+
+      const result = await Defuddle(stdout, url, {
+          // debug: true, // Enable debug mode for verbose logging
+          markdown: true, // Convert content to markdown
+      });
+
+      return result;
+  }
+
+  const url = process.argv[2];
+  if (!url) {
+      console.error("Please provide a URL as the first argument");
+      process.exit(1);
+  }
+
+  const result = await parse(url).then((result) => {
+      console.log("title:",result.title);
+      console.log("author:",result.author);
+      console.log("content")
+      console.log(result.content);
+      
+      
+      process.exit(0);
+  });
+
+#+end_src
+
+And run it:
+
+#+begin_src bash :results output
+  node parse http://127.0.0.1:8080/test.html
+#+end_src
+
+#+RESULTS:
+: Initial parse returned very little content, trying again
+: title: This is a dynamic page
+: author: 
+: content
+: ## Hi there
+: 
+: This content was dynamically inserted using JavaScript.
+
+Another example:
+
+#+begin_src bash :results output
+node parse.js https://willschenk.com/fragments/2024/unnecessary_knowledge/ | fmt
+#+end_src
+
+#+RESULTS:
+#+begin_example
+title: Unnecessary Knowledge author: Will Schenk content From
+Sherlock Holmes:
+
+"His ignorance was as remarkable as his knowledge. Of contemporary
+literature, philosophy and politics he appeared to know next to
+nothing. Upon my quoting Thomas Carlyle, he inquired in the naivest
+way who he might be and what he had done. My surprise reached a
+climax, however, when I found incidentally that he was ignorant of
+the Copernican Theory and of the composition of the Solar System.
+That any civilized human being in this nineteenth century should
+not be aware that the earth travelled round the sun appeared to be
+to me such an extraordinary fact that I could hardly realize it.
+
+“You appear to be astonished,” he said, smiling at my expression
+of surprise. “Now that I do know it I shall do my best to forget
+it.”
+
+“To forget it!”
+
+“You see,” he explained, “I consider that a man’s brain originally
+is like a little empty attic, and you have to stock it with such
+furniture as you choose. A fool takes in all the lumber of every
+sort that he comes across, so that the knowledge which might be
+useful to him gets crowded out, or at best is jumbled up with a lot
+of other things so that he has a difficulty in laying his hands
+upon it. Now the skillful workman is very careful indeed as to what
+he takes into his brain-attic. He will have nothing but the tools
+which may help him in doing his work, but of these he has a large
+assortment, and all in the most perfect order. It is a mistake to
+think that that little room has elastic walls and can distend to
+any extent. Depend upon it there comes a time when for every addition
+of knowledge you forget something that you knew before. It is of
+the highest importance, therefore, not to have useless facts elbowing
+out the useful ones.”
+
+“But the Solar System!” I protested.
+
+“What the deuce is it to me?” he interrupted impatiently; “you say
+that we go round the sun. If we went round the moon it would not
+make a pennyworth of difference to me or to my work.”
+
+Previously
+
+[labnotes](/labnotes)
+
+## Load enviroments the nextjs way
+
+### for scripts
+
+tags
+
+Next
+
+[labnotes](/labnotes)
+
+## Open-WebUI to use ollama
+
+### have a nice little command center
+
+tags
+#+end_example
+
+* CDP Server
+
+/From the docs:/
+
+Start the server:
+
+#+begin_src bash
+  ./lightpanda serve --host 127.0.0.1 --port 9222
+#+end_src
+
+And the =cdp.js=:
+
+#+begin_src javascript :tangle cdp.js
+  'use strict'
+   
+  import puppeteer from 'puppeteer-core'
+   
+  // use browserWSEndpoint to pass the Lightpanda's CDP server address.
+  const browser = await puppeteer.connect({
+    browserWSEndpoint: "ws://127.0.0.1:9222",
+  })
+   
+  // The rest of your script remains the same.
+  const context = await browser.createBrowserContext()
+  const page = await context.newPage()
+   
+  // Dump all the links from the page.
+  await page.goto('https://wikipedia.com/')
+   
+  const links = await page.evaluate(() => {
+    return Array.from(document.querySelectorAll('a')).map(row => {
+      return row.getAttribute('href')
+    })
+  })
+   
+  console.log(links)
+   
+  await page.close()
+  await context.close()
+  await browser.disconnect()
+#+end_src
+
+Install the library:
+
+#+begin_src bash
+  pnpm add puppeteer-core
+#+end_src
+
+Then run
+
+#+begin_src bash :results output
+  node cdp.js | head -10
+#+end_src
+
+#+RESULTS:
+#+begin_example
+[
+  '//en.wikipedia.org/',
+  '//ja.wikipedia.org/',
+  '//ru.wikipedia.org/',
+  '//de.wikipedia.org/',
+  '//es.wikipedia.org/',
+  '//fr.wikipedia.org/',
+  '//zh.wikipedia.org/',
+  '//it.wikipedia.org/',
+  '//pt.wikipedia.org/',
+#+end_example
+
+
+* References
+
+1. https://lightpanda.io/
+1. https://gist.github.com/willurd/5720255
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
