@@ -1,0 +1,104 @@
+#!/bin/bash
+
+# Script to create a new project in ~/The-Focus-AI and GitHub
+# Usage: ./create-project.sh <project-name>
+
+set -e  # Exit on any error
+
+# Function to print status messages
+print_status() {
+    echo "[INFO] $1"
+}
+
+print_success() {
+    echo "[SUCCESS] $1"
+}
+
+print_error() {
+    echo "[ERROR] $1" >&2
+}
+
+# Check if project name is provided
+if [ $# -eq 0 ]; then
+    print_error "Please provide a project name"
+    echo "Usage: $0 <project-name>"
+    exit 1
+fi
+
+PROJECT_NAME="$1"
+BASE_DIR="$HOME/The-Focus-AI"
+PROJECT_DIR="$BASE_DIR/$PROJECT_NAME"
+
+# Validate project name (no spaces, special characters)
+if [[ ! "$PROJECT_NAME" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    print_error "Project name can only contain letters, numbers, hyphens, and underscores"
+    exit 1
+fi
+
+# Check if gh CLI is installed
+if ! command -v gh >/dev/null 2>&1; then
+    print_error "GitHub CLI (gh) is not installed. Please install it first: brew install gh"
+    exit 1
+fi
+
+# Check if user is authenticated with GitHub
+if ! gh auth status >/dev/null 2>&1; then
+    print_error "Not authenticated with GitHub. Please run: gh auth login"
+    exit 1
+fi
+
+print_status "Creating project: $PROJECT_NAME"
+
+# Create base directory if it doesn't exist
+mkdir -p "$BASE_DIR"
+
+# Create project directory
+if [ ! -d "$PROJECT_DIR" ]; then
+    mkdir -p "$PROJECT_DIR"
+    cd "$PROJECT_DIR"
+    
+    # Initialize git repository
+    git init
+    
+    # Create README.md
+    echo "# $PROJECT_NAME" > README.md
+    echo "A new project created on $(date '+%Y-%m-%d')" >> README.md
+
+    # Create .gitignore
+    echo "node_modules/" > .gitignore
+
+    # Initial commit
+    git add .
+    git commit -m "Initial commit: Project setup for $PROJECT_NAME"
+    
+    print_success "Local repository created successfully!"
+    
+    # Create GitHub repository under The-Focus-AI organization
+    print_status "Creating GitHub repository under The-Focus-AI organization..."
+    if gh repo create "The-Focus-AI/$PROJECT_NAME" --private --source=. --remote=origin --push; then
+        print_success "GitHub repository created and linked successfully!"
+    else
+        print_error "Failed to create GitHub repository. You may need to create it manually."
+        print_status "Local repository is ready at: $PROJECT_DIR"
+    fi
+    
+else
+    print_error "Project directory '$PROJECT_DIR' already exists"
+    exit 1
+fi
+
+# Open in Cursor
+print_status "Opening project in Cursor..."
+if command -v cursor >/dev/null 2>&1; then
+    cursor "$PROJECT_DIR"
+    print_success "Project opened in Cursor!"
+elif [ -d "/Applications/Cursor.app" ]; then
+    open -a "Cursor" "$PROJECT_DIR"
+    print_success "Project opened in Cursor!"
+else
+    print_error "Cursor not found. Please install Cursor or open the project manually"
+    print_status "Project location: $PROJECT_DIR"
+fi
+
+print_success "Project '$PROJECT_NAME' setup complete!"
+
