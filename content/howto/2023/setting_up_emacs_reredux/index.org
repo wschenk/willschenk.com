@@ -476,48 +476,31 @@ Haha, why not?
 #+begin_src elisp :tangle ~/.emacs.d/init.el
   (use-package ellama
     :ensure t
-    :init
-    ;; setup key bindings
-    (setopt ellama-keymap-prefix "C-c e")
-    )
-
-#+end_src
-
-* Obsidian
-
-#+begin_src elisp :tangle ~/.emacs.d/init.el
-  (use-package obsidian
-    :ensure t
-    :demand t
+    :bind ("C-c e" . ellama)
+    ;; send last message in chat buffer with C-c C-c
+    :hook (org-ctrl-c-ctrl-c-final . ellama-chat-send-last-message)
+    :init (setopt ellama-auto-scroll t)
     :config
-    (obsidian-specify-path "/Users/wschenk/Library/Mobile Documents/iCloud~md~obsidian/Documents/my awesome vault")
-    (global-obsidian-mode t)
-    :custom
-    ;; This directory will be used for `obsidian-capture' if set.
-    (obsidian-inbox-directory "Inbox")
-    ;; Create missing files in inbox? - when clicking on a wiki link
-    ;; t: in inbox, nil: next to the file with the link
-    ;; default: t
-    ;(obsidian-wiki-link-create-file-in-inbox nil)
-    ;; The directory for daily notes (file name is YYYY-MM-DD.md)
-    (obsidian-daily-notes-directory "Daily")
-    ;; Directory of note templates, unset (nil) by default
-    ;(obsidian-templates-directory "Templates")
-    ;; Daily Note template name - requires a template directory. Default: Daily Note Template.md
-    ;(setq obsidian-daily-note-template "Daily Note Template.md")
-    :bind (:map obsidian-mode-map
-    ;; Replace C-c C-o with Obsidian.el's implementation. It's ok to use another key binding.
-    ("C-c C-o" . obsidian-follow-link-at-point)
-    ;; Jump to backlinks
-    ("C-c C-b" . obsidian-backlink-jump)
-    ;; If you prefer you can use `obsidian-insert-link'
-    ("C-c C-l" . obsidian-insert-wikilink)))
+    ;; show ellama context in header line in all buffers
+    (ellama-context-header-line-global-mode +1)
+    ;; show ellama session id in header line in all buffers
+    (ellama-session-header-line-global-mode +1))
 #+end_src
 
 * And bring in other files
 
 #+begin_src elisp :tangle ~/.emacs.d/init.el
-(load "~/.emacs.d/blog.el")
+
+  ;; Load all .el files from ~/.emacs.d/local/
+  (let ((local-dir (expand-file-name "local" user-emacs-directory)))
+    (when (file-directory-p local-dir)
+      (dolist (file (directory-files local-dir t "\\.el\\'"))
+        (condition-case err
+            (progn
+              (message "Loading %s..." (file-name-nondirectory file))
+              (load file))
+          (error 
+           (message "Error loading %s: %s" (file-name-nondirectory file) err))))))
 #+end_src
 
 * References
