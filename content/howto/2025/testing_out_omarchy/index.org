@@ -1,0 +1,241 @@
+#+title: Testing out Omarchy
+#+date: 2025-06-30T08:17:07
+#+draft: true
+
+We are going to do this on osx.
+
+You can do the manual version (qemu cli), or the slightly less manual
+version (UTM).  I did the manual way at first, which was an education,
+but it wasn't able to capture all the keyboard inputs so I ended up
+switch to UTM.
+
+* Download archboot
+
+Both paths we will use the archboot to set things up.
+
+#+begin_src bash
+  curl -L -o archboot-aarch64.iso \
+       "https://release.archboot.com/aarch64/latest/iso/archboot-2025.06.30-02.23-6.15.3-3-aarch64-ARCH-aarch64.iso"
+#+end_src
+
+* Manual/CLI install
+
+#+begin_src bash
+  brew install qemu
+#+end_src
+
+** Creating the disk
+
+#+begin_src bash
+  qemu-img create -f qcow2 arch-linux.qcow2 20G
+#+end_src
+
+Then start it up, adjusting to where you have the iso.
+
+#+begin_src bash
+  qemu-system-aarch64 \
+      -machine virt,accel=hvf \
+      -cpu cortex-a72 \
+      -smp 4 -m 4G \
+      -bios /opt/homebrew/share/qemu/edk2-aarch64-code.fd \
+      -drive if=virtio,file=arch-linux.qcow2,format=qcow2 \
+      -cdrom archboot-aarch64.iso \
+      -boot d \
+      -device virtio-net-pci,netdev=net0 \
+      -netdev user,id=net0 \
+      -device virtio-gpu-pci \
+      -device virtio-keyboard-pci \
+      -device virtio-mouse-pci \
+      -device qemu-xhci,id=xhci \
+      -device usb-kbd,bus=xhci.0 \
+      -device usb-mouse,bus=xhci.0 \
+      -display cocoa
+#+end_src
+
+
+
+* UTM Install
+
+#+begin_src bash
+  brew install utm
+#+end_src
+
+Open up the UTM app.
+
+Create a new virtual machine, and put that iso you downloaded into the CDDrive.
+
+* Setup arch
+
+Once its up, press =C-C= to get to bash, then type =setup=.
+
+I did the defaults for the disk.  Just let it rip.
+
+Installed the base tools.
+
+Set the root password.  Installed neovim.
+
+Select =systemd= rather than busybox.
+
+I needed to select grub as the boot loader.
+
+#+begin_src bash
+  arch-chroot /mnt/install
+
+#+end_src
+
+Then install some additional packages:
+
+#+begin_src bash
+  pacman -S dhcpcd wget sudo
+#+end_src
+
+And then
+
+#+begin_src bash
+  systemctl enable dhcpcd.service
+#+end_src
+
+
+Easy
+
+* Create a user
+
+And create a user if you haven't:
+
+#+begin_src bash
+  useradd -m -G wheel,audio,video -s /bin/bash alice
+  passwd alice
+#+end_src
+
+/And update /etc/sudoers if you need to/
+
+Then =shutdown -fh= to turn shutdown the installer.
+
+*If you are using UTM, eject the CD before restarting*
+
+* Installing omarchy
+
+Reboot the system, and log on as yourself.  Then run
+
+#+begin_src bash
+  wget -qO- https://omarchy.org/install | bash
+#+end_src
+
+There was an error with mise and ruby, so lets see what that is about.
+
+* Manually building QEMU
+
+Neither of these things are doing well when it comes to capturing the input from the host operating system,
+so lets install qemu from source and see if the =sdl= drivers do any better.
+
+#+begin_src
+  brew uninstall qemu
+  brew install pkg-config glib pixman sdl2 ninja meson
+
+#+end_src
+
+Get the source:
+
+#+begin_src bash
+  git clone https://gitlab.com/qemu-project/qemu.git
+  cd qemu
+#+end_src
+
+Configure
+
+#+begin_src bash
+  ./configure --target-list=aarch64-softmmu,x86_64-softmmu \
+              --enable-sdl \
+              --enable-cocoa \
+              --enable-hvf \
+              --enable-slirp \
+              --disable-werror
+
+#+end_src
+
+them build and install:
+
+#+begin_src bash
+  make -j$(sysctl -n hw.logicalcpu) && make install
+#+end_src
+
+And then
+
+#+begin_src bash
+    qemu-system-aarch64 \
+      -machine virt,accel=hvf \
+      -cpu cortex-a72 \
+      -smp 4 -m 4G \
+      -bios /opt/homebrew/share/qemu/edk2-aarch64-code.fd \
+      -drive if=virtio,file=arch-linux.qcow2,format=qcow2 \
+      -cdrom archboot-aarch64.iso \
+      -boot d \
+      -device virtio-net-pci,netdev=net0 \
+      -netdev user,id=net0 \
+      -device virtio-gpu-pci \
+      -device virtio-keyboard-pci \
+      -device virtio-mouse-pci \
+      -device qemu-xhci,id=xhci \
+      -device usb-kbd,bus=xhci.0 \
+      -device usb-mouse,bus=xhci.0 \
+      -display sdl
+
+
+#+end_src
+
+* Fun things in omarchy that I'm copying
+
+** Starting up apps via aerospace
+
+I ended up writing a whole [[https://willschenk.com/howto/2025/how_to_turn_aerospace_into_an_application_launcher/][post about this]] but it's super fun.
+Basically, when you enter in the key combo of an app it opens it up if
+it hasn't been already.  It turns it into an application launcher and
+switcher, so it feels like everything is always running while it's
+there.
+
+** Using PWAs
+
+I've been adding a few apps here and there on my Desktop (like my
+prompt viewer) but it's actually nice to have them in their own webapp
+window.  This works surprisingly well, and keeps them in their own
+place.
+
+{{< img img="chromeapps.png" >}}
+
+** eza
+
+https://eza.rocks/
+
+#+begin_src bash
+  brew install eza
+
+
+#+end_src
+
+** =fzf=
+
+https://junegunn.github.io/fzf/
+
+
+
+** lazydocker
+
+This is a tui for docker.
+
+#+begin_src bash
+  brew install jesseduffield/lazydocker/lazydocker
+#+end_src
+
+{{< img img="lazydocker.png" >}}
+
+
+
+
+* References
+
+1. https://manuals.omamix.org/2/the-omarchy-manual/50/getting-started
+1. https://www.youtube.com/watch?v=5nwnJjr5eOo
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:

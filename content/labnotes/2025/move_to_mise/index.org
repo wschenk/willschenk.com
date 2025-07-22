@@ -1,0 +1,169 @@
+#+title: Move to Mise
+#+subtitle: way faster than asdf and makes more sense
+#+tags[]: mise asdf
+#+date: 2025-03-05T10:39:31
+#+draft: true
+
+* Installation
+** Disabling asdf
+
+First remove the asdf line in the zshrc file.
+
+* * Install mise
+
+#+begin_src bash
+  brew install mise
+#+end_src
+
+And then in your =.zshrc=
+
+#+begin_src bash
+  echo 'eval "$(mise activate zsh)"' >> ~/.zshrc
+#+end_src
+
+Then start a new shell
+
+** Use your old stuff
+
+Make sure that things are looking good:
+
+#+begin_src bash
+  mise doctor
+#+end_src
+
+Then
+
+#+begin_src bash
+  mise install
+#+end_src
+
+My =.tool-versions= looks like:
+
+#+begin_src bash
+golang 1.23.5
+ruby 3.4.1
+#+end_src
+
+And now
+
+#+begin_src bash :results output
+go version
+#+end_src
+
+#+RESULTS:
+: go version go1.23.5 darwin/arm64
+
+#+begin_src bash :results output
+  ruby -v
+#+end_src
+
+#+RESULTS:
+: ruby 3.4.1 (2024-12-25 revision 48d4efcb85) +PRISM [arm64-darwin24]
+
+** Removing =.asdf=
+
+#+begin_src bash
+  rm -r ~/.asdf
+#+end_src
+
+* Installing global tools
+
+#+begin_src bash
+  mise use -g go@latest
+  mise use -g ruby@3.4.1
+  muse use -g node@latest
+#+end_src
+
+You can also install cli tools from say npm.  For example:
+
+#+begin_src bash
+  mise use -g npm:repomix
+#+end_src
+
+* Setting up =mise.toml=
+
+Here's a sample pnmp based node project.  Put this in your project
+directory, and run =mise dev= and it should download all of the
+requirements, from node to node_modules.
+
+#+begin_src toml
+  [tools]
+  node = "20"
+  pnpm = "latest"
+  [npm:repomix] = "latest"
+
+  [hooks]
+
+  [env]
+  _.path = ['./node_modules/.bin']
+
+  [tasks.pnpm-install]
+  description = 'Installs dependencies with pnpm'
+  run = 'pnpm install'
+  sources = ['package.json', 'pnpm-lock.yaml', 'mise.toml']
+  outputs = ['node_modules/.pnpm/lock.yaml']
+
+  [tasks.dev]
+  description = 'Calls your dev script in `package.json`'
+  run = 'npm run dev'
+  depends = ['pnpm-install']
+
+  [tasks.clean]
+  description = 'Clears out dist'
+  run = 'rm -rf dist/'
+
+  [tasks.build]
+  description = 'Clears out dist'
+  run = ['npm run build', 'du -sh dist']
+  depends = ['pnpm-install','clean']
+
+  [tasks.llm-dump]
+  description = 'Runs repomix'
+  run = ['repomix --ignore "output*,**/*.log,tmp/,inputs/**/*md,data_integrity/**/*.json"']
+
+  [tasks.llm-clipboard]
+  description = 'Copies repomix to the clipboard'
+  run = [ 'cat repomix-output.txt | pbcopy']
+  depends = [ 'llm-dump' ]
+#+end_src
+
+
+* Tasks
+Another way to define tasks is to create something in, for example,
+=mise/tasks/summarize=
+
+#+begin_src bash
+  #!/bin/bash
+  #MISE description="Summarize the post"
+
+  PROMPT="give me 5 different, two sentences summaries of this post get people to read more"
+  if [ -z "$1" ]; then
+      echo "Usage: $0 <file> <prompt>"
+      exit 1
+  fi
+
+  if [ -z "$2" ]; then
+      echo "Usage: $0 <file> <prompt>"
+      exit 1
+  fi
+
+
+  if [ ! -f "$1" ]; then
+      echo "File $1 does not exist"
+      exit 1
+  fi
+
+
+
+  # Get MODEL from environment, default to claude-3.7-sonnet
+  MODEL=${MODEL:-claude-3.7-sonnet}
+
+  cat "$1" | \
+  llm -m $MODEL \
+  	"$(PROMPT)"
+#+end_src
+
+Here you get the benefit of syntax highlight and all the rest.
+
+
+

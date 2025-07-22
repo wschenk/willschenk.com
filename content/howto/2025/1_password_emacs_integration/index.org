@@ -1,0 +1,85 @@
+#+title: 1Password emacs integration
+#+subtitle: all the password managers
+#+tags[]: auth-source 1password
+#+date: 2025-07-02T17:45:41
+#+draft: true
+
+Here's a simple way to write up 1password so that =auth-source= can use
+it to get your credentials.
+
+* Plugging in auth-source
+
+=1password.el=
+
+#+begin_src elisp :tangle ~/.emacs.d/local/1password.el
+  (require 'auth-source)
+
+  (cl-defun onepassword-auth-source-search (&rest spec &key host user _port _backend _type &allow-other-keys)
+    "1Password auth source backend using 'op' CLI."
+    (when host
+      (condition-case nil
+          (let* ((notes-cmd (format "op item get %s --fields notesPlain" (shell-quote-argument host)))
+                 (notes-output (shell-command-to-string notes-cmd))
+                 (notes-trimmed (string-trim notes-output))
+                 ;; Remove surrounding quotes if present
+                 (notes-cleaned (if (and (> (length notes-trimmed) 1)
+                                        (string-prefix-p "\"" notes-trimmed)
+                                        (string-suffix-p "\"" notes-trimmed))
+                                   (substring notes-trimmed 1 -1)
+                                 notes-trimmed))
+                 ;; If notes is empty, try password field
+                 (secret (if (and notes-cleaned (not (string-empty-p notes-cleaned)))
+                            notes-cleaned
+                          (let* ((pass-cmd (format "op item get %s --fields password --reveal" (shell-quote-argument host)))
+                                 (pass-output (shell-command-to-string pass-cmd))
+                                 (pass-trimmed (string-trim pass-output)))
+                            ;; Remove quotes from password too if present
+                            (if (and (> (length pass-trimmed) 1)
+                                    (string-prefix-p "\"" pass-trimmed)
+                                    (string-suffix-p "\"" pass-trimmed))
+                               (substring pass-trimmed 1 -1)
+                             pass-trimmed)))))
+            (when (and secret (not (string-empty-p secret)))
+              (list (list :host host
+                          :user (or user "")
+                          :secret secret))))
+        (error nil))))
+
+  (defun onepassword-auth-source-backend-parse (entry)
+    "Parse onepassword entries from `auth-sources'."
+    (when (eq entry 'onepassword)
+      (auth-source-backend-parse-parameters 
+       entry
+       (auth-source-backend
+        :source "1Password"
+        :type 'onepassword
+        :search-function #'onepassword-auth-source-search))))
+
+  ;; Register the parser function
+  (add-hook 'auth-source-backend-parser-functions #'onepassword-auth-source-backend-parse)
+
+  ;; Add 'onepassword symbol to auth-sources
+  (add-to-list 'auth-sources 'onepassword)
+#+end_src
+
+And if you want a test function:
+
+#+begin_src elisp
+
+  ;; Test function
+  (defun test-onepassword-final ()
+    "Final test of onepassword auth source."
+    (interactive)
+    (let ((result (auth-source-search :host "fal api")))
+      (message "Result: %S" result)
+      (when result
+        (let ((secret (plist-get (car result) :secret)))
+          (message "Secret: %S" secret)
+          (message "Secret length: %d" (length secret))))))
+
+#+end_src
+
+* References
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
