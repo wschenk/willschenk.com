@@ -1,0 +1,147 @@
+#+title: Claude Code in Emacs
+#+subtitle: Integrating Anthropic's CLI with your editor
+#+date: 2025-08-25T11:42:05
+#+tags[]: emacs ai claude-code
+
+Claude Code provides a CLI interface to Claude that maintains full
+project context and can execute commands directly. The claude-code.el
+package integrates this into Emacs, giving you access to Claude's
+capabilities without leaving your editor.
+
+* Key Integration Points
+
+** Project Scope Management
+Claude Code operates on entire directory trees rather than individual
+files. When you start a session from your project root, Claude has
+read access to all files in that directory and can understand
+relationships between components, build configurations, and test
+files.
+
+** Terminal Backend
+The integration uses a terminal emulator (eat or vterm) to run Claude
+Code's CLI. This means Claude can execute shell commands, run tests,
+install dependencies, and interact with git - not just generate code
+suggestions.
+
+** Context Preservation
+Sessions persist across Emacs restarts. You can resume conversations,
+and Claude maintains awareness of previous changes made to your
+codebase during that session.
+
+** Error Location Awareness
+The =claude-code-fix-error-at-point= function sends Claude both the
+error message and surrounding code context, including file paths and
+line numbers. Claude can then make targeted fixes with full
+understanding of the error's location.
+
+* Installation
+
+#+begin_src elisp
+  ;; Terminal backend for Claude's command execution
+  (use-package eat
+    :straight (:type git
+                     :host codeberg
+                     :repo "akib/emacs-eat"
+                     :files ("*.el" ("term" "term/*.el") "*.texi"
+                             "*.ti" ("terminfo/e" "terminfo/e/*")
+                             ("terminfo/65" "terminfo/65/*")
+                             ("integration" "integration/*")
+                             (:exclude ".dir-locals.el" "*-tests.el"))))
+
+  ;; Optional: IDE features like go-to-definition
+  (use-package monet
+    :straight (:type git :host github :repo "stevemolitor/monet"))
+
+  ;; Main Claude Code package
+  (use-package claude-code
+    :straight (:type git :host github :repo "stevemolitor/claude-code.el")
+    :bind-keymap ("C-c c" . claude-code-command-map)
+    :config 
+    ;; Enable IDE integration
+    (add-hook 'claude-code-process-environment-functions #'monet-start-server-function)
+    (monet-mode 1))
+#+end_src
+
+* Usage
+
+** Starting Sessions
+- =C-c c c= (~claude-code~): Start from current buffer's directory
+- =C-c c d= (~claude-code-start-in-directory~): Select specific directory scope
+
+** Sending Context
+- =C-c c e= (~claude-code-fix-error-at-point~): Send error at cursor with surrounding context
+- =C-c c r= (~claude-code-send-region~): Send selected region or current buffer
+- =C-c c o= (~claude-code-send-buffer-file~): Send entire current file
+- =C-c c s= (~claude-code-send-command~): Send arbitrary text command
+
+** Session Management
+- =C-c c C= (~claude-code-continue~): Resume last session
+- =C-c c R= (~claude-code-resume~): Select from all previous sessions
+- =C-c c k= (~claude-code-kill~): Terminate current session
+
+* Working Patterns
+
+** Directory Scope Selection
+The choice of starting directory determines Claude's file access
+scope. Starting from a project root gives access to build files,
+documentation, and full source tree. Starting from a subdirectory
+limits scope to that subtree, which can be useful for large monorepos
+or when working with sensitive files.
+
+** Multi-File Operations
+Claude can modify multiple files in a single response when it has
+appropriate context. For example, renaming a function will update its
+definition, all call sites, tests, and documentation if they're within
+the accessible directory tree.
+
+** Terminal Integration
+Commands execute in a persistent shell session. This means environment
+variables, directory changes, and installed packages persist
+throughout the session. Claude can run test suites, install
+dependencies, and create git commits as part of its responses.
+
+** Error Context
+=claude-code-fix-error-at-point= sends the error message, cursor
+position, and surrounding code context. This often provides sufficient
+information for Claude to identify the root cause and implement fixes
+across related files.
+
+** Session Continuity
+Conversations persist across Emacs sessions. Claude maintains context
+about previous modifications and can refer to earlier parts of the
+conversation when making new changes.
+
+* Command Reference
+
+| Key Binding | Function | Description |
+|-------------|----------|-------------|
+| =C-c c c= | claude-code | Start session from current directory |
+| =C-c c d= | claude-code-start-in-directory | Start session with directory selection |
+| =C-c c e= | claude-code-fix-error-at-point | Send error context to Claude |
+| =C-c c r= | claude-code-send-region | Send region or buffer content |
+| =C-c c o= | claude-code-send-buffer-file | Send current file |
+| =C-c c s= | claude-code-send-command | Send text command |
+| =C-c c C= | claude-code-continue | Resume last session |
+| =C-c c R= | claude-code-resume | Select previous session |
+| =C-c c k= | claude-code-kill | Terminate current session |
+| =C-c c m= | claude-code-transient | Open command menu |
+| =C-c c b= | claude-code-switch-to-buffer | Switch to Claude buffer |
+| =C-c c z= | claude-code-toggle-read-only-mode | Toggle text selection mode |
+
+* Configuration Notes
+
+The package requires a terminal emulator backend (eat or vterm) and
+assumes Claude Code CLI is available in your PATH. The optional Monet
+integration provides IDE features like go-to-definition within Claude
+sessions.
+
+Directory selection affects performance and response relevance. Large
+codebases benefit from scoping to specific subtrees. The persistent
+shell session means Claude can maintain state across multiple commands
+within a session.
+
+* References
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
+
