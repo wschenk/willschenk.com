@@ -1,7 +1,9 @@
 #!/bin/bash
 
 # Script to create a new project in ~/The-Focus-AI and GitHub
-# Usage: ./create-project.sh <project-name>
+# Usage: ./create-project.sh <project-name> [--copy-files]
+# Options:
+#   --copy-files    Copy all files from current directory to the new project
 
 set -e  # Exit on any error
 
@@ -18,16 +20,44 @@ print_error() {
     echo "[ERROR] $1" >&2
 }
 
+# Parse command line arguments
+PROJECT_NAME=""
+COPY_FILES=false
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --copy-files)
+            COPY_FILES=true
+            shift
+            ;;
+        -*)
+            print_error "Unknown option: $1"
+            echo "Usage: $0 <project-name> [--copy-files]"
+            exit 1
+            ;;
+        *)
+            if [ -z "$PROJECT_NAME" ]; then
+                PROJECT_NAME="$1"
+            else
+                print_error "Multiple project names provided"
+                echo "Usage: $0 <project-name> [--copy-files]"
+                exit 1
+            fi
+            shift
+            ;;
+    esac
+done
+
 # Check if project name is provided
-if [ $# -eq 0 ]; then
+if [ -z "$PROJECT_NAME" ]; then
     print_error "Please provide a project name"
-    echo "Usage: $0 <project-name>"
+    echo "Usage: $0 <project-name> [--copy-files]"
     exit 1
 fi
 
-PROJECT_NAME="$1"
 BASE_DIR="$HOME/The-Focus-AI"
 PROJECT_DIR="$BASE_DIR/$PROJECT_NAME"
+SOURCE_DIR="$(pwd)"
 
 # Validate project name (no spaces, special characters)
 if [[ ! "$PROJECT_NAME" =~ ^[a-zA-Z0-9_-]+$ ]]; then
@@ -57,15 +87,49 @@ if [ ! -d "$PROJECT_DIR" ]; then
     mkdir -p "$PROJECT_DIR"
     cd "$PROJECT_DIR"
     
+    # Copy files from source directory if requested
+    if [ "$COPY_FILES" = true ]; then
+        print_status "Copying files from $SOURCE_DIR to $PROJECT_DIR..."
+        
+        # Copy all files and directories, excluding common patterns
+        rsync -av \
+            --exclude='.git/' \
+            --exclude='node_modules/' \
+            --exclude='.DS_Store' \
+            --exclude='*.log' \
+            --exclude='.env' \
+            --exclude='.env.local' \
+            --exclude='dist/' \
+            --exclude='build/' \
+            --exclude='target/' \
+            --exclude='.vscode/' \
+            --exclude='.idea/' \
+            "$SOURCE_DIR/" "$PROJECT_DIR/"
+        
+        print_success "Files copied successfully!"
+    fi
+    
     # Initialize git repository
     git init
     
-    # Create README.md
-    echo "# $PROJECT_NAME" > README.md
-    echo "A new project created on $(date '+%Y-%m-%d')" >> README.md
+    # Create or update README.md if it doesn't exist or wasn't copied
+    if [ ! -f "README.md" ]; then
+        echo "# $PROJECT_NAME" > README.md
+        echo "A new project created on $(date '+%Y-%m-%d')" >> README.md
+    else
+        print_status "README.md already exists, skipping creation"
+    fi
 
-    # Create .gitignore
-    echo "node_modules/" > .gitignore
+    # Create or update .gitignore if it doesn't exist or wasn't copied
+    if [ ! -f ".gitignore" ]; then
+        echo "node_modules/" > .gitignore
+    else
+        # Append common patterns to existing .gitignore if they don't exist
+        grep -q "node_modules/" .gitignore || echo "node_modules/" >> .gitignore
+        grep -q ".env" .gitignore || echo ".env" >> .gitignore
+        grep -q ".DS_Store" .gitignore || echo ".DS_Store" >> .gitignore
+        print_status ".gitignore already exists, updated with common patterns"
+    fi
 
     # Initial commit
     git add .
@@ -101,4 +165,3 @@ else
 fi
 
 print_success "Project '$PROJECT_NAME' setup complete!"
-
