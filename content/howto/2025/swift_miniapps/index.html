@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Swift WebKit Bridge Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+        }
+        
+        button {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        
+        button:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        input, textarea {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 10px;
+            border-radius: 6px;
+            margin: 5px 0;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        
+        input::placeholder, textarea::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        #log {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            padding: 15px;
+            min-height: 200px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        
+        .status.connected {
+            background: rgba(76, 175, 80, 0.3);
+            border: 1px solid rgba(76, 175, 80, 0.5);
+        }
+        
+        .status.waiting {
+            background: rgba(255, 152, 0, 0.3);
+            border: 1px solid rgba(255, 152, 0, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Swift WebKit Bridge Test</h1>
+        
+        <div id="bridge-status" class="status waiting">
+            🔄 Waiting for Swift bridge...
+        </div>
+        
+        <h2>Send Messages to Swift</h2>
+        
+        <div>
+            <input type="text" id="messageInput" placeholder="Enter message to send to Swift" value="Hello from JavaScript!">
+            <button onclick="sendSimpleMessage()">Send Simple Message</button>
+        </div>
+        
+        <div>
+            <button onclick="sendObjectMessage()">Send Object Message</button>
+            <button onclick="sendTimestamp()">Send Timestamp</button>
+            <button onclick="sendUserInfo()">Send User Info</button>
+        </div>
+        
+        <div>
+            <textarea id="customJson" placeholder="Enter custom JSON to send" rows="3">{"type": "custom", "data": {"hello": "world"}}</textarea>
+            <button onclick="sendCustomJson()">Send Custom JSON</button>
+        </div>
+        
+        <div>
+            <button onclick="clearLog()">Clear Log</button>
+            <button onclick="testBridgeAvailability()">Test Bridge</button>
+        </div>
+        
+        <h2>Message Log</h2>
+        <div id="log"></div>
+    </div>
+
+    <script>
+        let logElement = document.getElementById('log');
+        let bridgeStatusElement = document.getElementById('bridge-status');
+        
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.textContent += `[${timestamp}] ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        function updateBridgeStatus(connected) {
+            if (connected) {
+                bridgeStatusElement.textContent = '✅ Swift bridge connected';
+                bridgeStatusElement.className = 'status connected';
+            } else {
+                bridgeStatusElement.textContent = '❌ Swift bridge not available';
+                bridgeStatusElement.className = 'status waiting';
+            }
+        }
+        
+        function sendSimpleMessage() {
+            const message = document.getElementById('messageInput').value;
+            if (window.sendToSwift) {
+                window.sendToSwift(message);
+                log(`Sent simple message: "${message}"`);
+            } else {
+                log('ERROR: sendToSwift function not available');
+                updateBridgeStatus(false);
+            }
+        }
+        
+        function sendObjectMessage() {
+            const data = {
+                type: 'object_message',
+                content: 'This is an object message',
+                timestamp: Date.now(),
+                random: Math.floor(Math.random() * 1000)
+            };
+            
+            if (window.sendToSwift) {
+                window.sendToSwift(data);
+                log(`Sent object: ${JSON.stringify(data, null, 2)}`);
+            } else {
+                log('ERROR: sendToSwift function not available');
+                updateBridgeStatus(false);
+            }
+        }
+        
+        function sendTimestamp() {
+            const data = {
+                type: 'timestamp',
+                time: new Date().toISOString(),
+                unix: Date.now()
+            };
+            
+            if (window.sendToSwift) {
+                window.sendToSwift(data);
+                log(`Sent timestamp: ${JSON.stringify(data)}`);
+            } else {
+                log('ERROR: sendToSwift function not available');
+                updateBridgeStatus(false);
+            }
+        }
+        
+        function sendUserInfo() {
+            const data = {
+                type: 'user_info',
+                userAgent: navigator.userAgent,
+                language: navigator.language,
+                platform: navigator.platform,
+                cookieEnabled: navigator.cookieEnabled,
+                windowSize: {
+                    width: window.innerWidth,
+                    height: window.innerHeight
+                }
+            };
+            
+            if (window.sendToSwift) {
+                window.sendToSwift(data);
+                log(`Sent user info: ${JSON.stringify(data, null, 2)}`);
+            } else {
+                log('ERROR: sendToSwift function not available');
+                updateBridgeStatus(false);
+            }
+        }
+        
+        function sendCustomJson() {
+            const customText = document.getElementById('customJson').value;
+            try {
+                const data = JSON.parse(customText);
+                if (window.sendToSwift) {
+                    window.sendToSwift(data);
+                    log(`Sent custom JSON: ${JSON.stringify(data, null, 2)}`);
+                } else {
+                    log('ERROR: sendToSwift function not available');
+                    updateBridgeStatus(false);
+                }
+            } catch (e) {
+                log(`ERROR: Invalid JSON - ${e.message}`);
+            }
+        }
+        
+        function testBridgeAvailability() {
+            if (window.sendToSwift) {
+                updateBridgeStatus(true);
+                log('✅ Bridge is available and ready');
+                
+                // Test the bridge
+                window.sendToSwift({
+                    type: 'bridge_test',
+                    message: 'Testing bridge connectivity',
+                    timestamp: Date.now()
+                });
+            } else {
+                updateBridgeStatus(false);
+                log('❌ Bridge is not available');
+            }
+        }
+        
+        function clearLog() {
+            logElement.textContent = '';
+        }
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            log('🚀 Page loaded, testing bridge...');
+            
+            // Test bridge availability after a short delay
+            setTimeout(testBridgeAvailability, 100);
+            
+            // Set up periodic bridge checks
+            setInterval(() => {
+                if (window.sendToSwift && bridgeStatusElement.classList.contains('waiting')) {
+                    updateBridgeStatus(true);
+                    log('✅ Bridge became available');
+                }
+            }, 1000);
+        });
+        
+        // Listen for console messages from Swift
+        const originalLog = console.log;
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            log(`Console: ${args.join(' ')}`);
+        };
+        
+        log('📄 JavaScript bridge test page initialized');
+    </script>
+</body>
+</html>
