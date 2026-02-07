@@ -44,9 +44,50 @@ understanding of the error's location.
                      :repo "akib/emacs-eat"
                      :files ("*.el" ("term" "term/*.el") "*.texi"
                              "*.ti" ("terminfo/e" "terminfo/e/*")
-                             ("terminfo/65" "terminfo/65/*")
+                             ("terminfo/65" "terminfo/65/*") 
                              ("integration" "integration/*")
-                             (:exclude ".dir-locals.el" "*-tests.el"))))
+                             (:exclude ".dir-locals.el" "*-tests.el")))
+    :config
+    ;; Make URLs clickable in eat buffers
+    (add-hook 'eat-mode-hook #'goto-address-mode))
+
+  ;; Force dark background in eat buffers for consistent Claude colors
+  ;; This ensures Claude's terminal colors display correctly regardless
+  ;; of your Emacs theme (light or dark)
+  (defun my/eat-force-dark-background ()
+    "Force dark background and high-contrast colors for eat buffers."
+    (face-remap-add-relative 'default :background "#1e1e1e" :foreground "#e0e0e0")
+    ;; Remap all colors for good contrast on dark background
+    (face-remap-add-relative 'eat-term-color-0 :foreground "#808080")   ; black -> medium gray
+    (face-remap-add-relative 'eat-term-color-1 :foreground "#ff6b6b")   ; red
+    (face-remap-add-relative 'eat-term-color-2 :foreground "#69ff94")   ; green
+    (face-remap-add-relative 'eat-term-color-3 :foreground "#ffff6b")   ; yellow
+    (face-remap-add-relative 'eat-term-color-4 :foreground "#6bb5ff")   ; blue
+    (face-remap-add-relative 'eat-term-color-5 :foreground "#ff6bff")   ; magenta
+    (face-remap-add-relative 'eat-term-color-6 :foreground "#6bffff")   ; cyan
+    (face-remap-add-relative 'eat-term-color-7 :foreground "#ffffff")   ; white
+    (face-remap-add-relative 'eat-term-color-8 :foreground "#a0a0a0")   ; bright black
+    (face-remap-add-relative 'eat-term-color-9 :foreground "#ff8a8a")   ; bright red
+    (face-remap-add-relative 'eat-term-color-10 :foreground "#8affb0")  ; bright green
+    (face-remap-add-relative 'eat-term-color-11 :foreground "#ffff8a")  ; bright yellow
+    (face-remap-add-relative 'eat-term-color-12 :foreground "#8ac5ff")  ; bright blue
+    (face-remap-add-relative 'eat-term-color-13 :foreground "#ff8aff")  ; bright magenta
+    (face-remap-add-relative 'eat-term-color-14 :foreground "#8affff")  ; bright cyan
+    (face-remap-add-relative 'eat-term-color-15 :foreground "#ffffff")) ; bright white
+
+  (add-hook 'eat-mode-hook #'my/eat-force-dark-background)
+
+  ;; Notify process of window size changes
+  (add-hook 'eat-mode-hook
+            (lambda ()
+              (add-hook 'window-size-change-functions
+                        (lambda (_frame)
+                          (when (and (eq major-mode 'eat-mode)
+                                     eat-terminal)
+                            (eat-term-resize eat-terminal
+                                             (window-max-chars-per-line)
+                                             (window-text-height))))
+                        nil t)))
 
   ;; Optional: IDE features like go-to-definition
   (use-package monet
@@ -56,7 +97,7 @@ understanding of the error's location.
   (use-package claude-code
     :straight (:type git :host github :repo "stevemolitor/claude-code.el")
     :bind-keymap ("C-c c" . claude-code-command-map)
-    :config 
+    :config
     ;; Enable IDE integration
     (add-hook 'claude-code-process-environment-functions #'monet-start-server-function)
     (monet-mode 1))
