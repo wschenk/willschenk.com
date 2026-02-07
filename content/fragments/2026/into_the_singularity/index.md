@@ -15,6 +15,10 @@ imagination block where we don't even know how to think about what
 comes next. There will be a transition to something else -- it's
 actually quite different to have intelligence everywhere in the world.
 
+<div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden;">
+  <iframe src="https://www.youtube.com/embed/SQVGjnV-ikM" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0;" allowfullscreen></iframe>
+</div>
+
 In the physical world, [Full Self
 Driving](https://www.tesla.com/fsd) is magical. I expect a
 two-and-a-half hour drive from the country down to the city to have
