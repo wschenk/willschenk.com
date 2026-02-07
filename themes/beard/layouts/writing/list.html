@@ -1,0 +1,62 @@
+{{ define "main" }}
+<section class="container writing-page">
+  <h1>All Writing</h1>
+
+  <div class="writing-filters">
+    <button class="active" data-filter="all">All</button>
+    <button data-filter="howto">Howto</button>
+    <button data-filter="labnotes">Labnotes</button>
+    <button data-filter="articles">Articles</button>
+    <button data-filter="fragments">Fragments</button>
+  </div>
+
+  {{ $.Scratch.Set "lastYear" 0 }}
+  {{ range .Site.RegularPages.ByDate.Reverse }}
+    {{ $year := .Date.Year }}
+    {{ $lastYear := $.Scratch.Get "lastYear" }}
+    {{ if ne $year $lastYear }}
+      {{ if ne $lastYear 0 }}
+        </ul>
+      {{ end }}
+      <h2 class="writing-year">{{ $year }}</h2>
+      <ul class="writing-list">
+      {{ $.Scratch.Set "lastYear" $year }}
+    {{ end }}
+
+    <li class="writing-item" data-section="{{ .Type }}">
+      {{ partial "section-badge.html" . }}
+      <a href="{{ .RelPermalink }}">
+        <span class="writing-title">{{ .Title }}</span>
+        {{ with .Params.Subtitle }}
+        <span class="writing-subtitle">{{ . | markdownify }}</span>
+        {{ end }}
+      </a>
+      <span class="writing-date">{{ .Date | time.Format "Jan 2" }}</span>
+    </li>
+  {{ end }}
+  </ul>
+</section>
+
+<script>
+(function() {
+  var buttons = document.querySelectorAll('.writing-filters button');
+  var items = document.querySelectorAll('.writing-item');
+
+  buttons.forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      buttons.forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+
+      var filter = btn.getAttribute('data-filter');
+      items.forEach(function(item) {
+        if (filter === 'all' || item.getAttribute('data-section') === filter) {
+          item.classList.remove('hidden');
+        } else {
+          item.classList.add('hidden');
+        }
+      });
+    });
+  });
+})();
+</script>
+{{ end }}
