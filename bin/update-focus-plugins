@@ -1,0 +1,40 @@
+#!/bin/bash
+# Update all Focus.AI marketplace plugins from their git repos
+
+set -e
+
+CACHE_DIR="$HOME/.claude/plugins/cache/focus-marketplace"
+GITHUB_ORG="https://github.com/The-Focus-AI"
+
+echo "Updating Focus.AI plugins..."
+echo
+
+for plugin_dir in "$CACHE_DIR"/*/; do
+    plugin_name=$(basename "$plugin_dir")
+    version_dir=$(ls -d "$plugin_dir"*/ 2>/dev/null | head -1)
+
+    if [ -z "$version_dir" ]; then
+        echo "⚠️  $plugin_name: no version directory found"
+        continue
+    fi
+
+    echo "→ $plugin_name"
+    cd "$version_dir"
+
+    # Initialize git if needed
+    if [ ! -d ".git" ]; then
+        git init -q
+        git remote add origin "$GITHUB_ORG/$plugin_name.git" 2>/dev/null || true
+    fi
+
+    # Fetch and reset to latest
+    if git fetch origin main -q 2>/dev/null; then
+        git checkout -f origin/main -q 2>/dev/null
+        echo "   ✓ updated to $(git log -1 --format='%h %s')"
+    else
+        echo "   ✗ failed to fetch (repo may not exist)"
+    fi
+done
+
+echo
+echo "Done. Restart Claude Code to pick up changes."
