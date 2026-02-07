@@ -1,0 +1,173 @@
+#+title: Reverse engineering a website
+#+date: 2025-11-18T16:36:23
+#+draft: true
+
+Remember in those olden days when it was [[https://willschenk.com/labnotes/2025/fonts_from_a_website/][exciting to get fonts from a
+website]]?  Well now we can do so much more!
+
+I was sumbled upon [[https://www.wacho.me/][https://www.wacho.me/]], the site of [[https://www.linkedin.com/in/michalvasko/][Michal Vasko]] who
+is (evidently) an amazing designer at meta.
+
+It's super cool.  Things move around, and more importantly, when you
+move the mouse around it does fluid type animation.
+
+#+BEGIN_EXPORT html
+<video width="100%" controls loop muted autoplay>
+  <source src="wacho-movement.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
+#+END_EXPORT
+
+I wanted to see how it worked, and if we could recreate it here.
+
+Lets go!
+
+* Setup
+
+For this we'll need [[https://www.claude.com/product/claude-code][claude-code]] and [[https://formulae.brew.sh/formula/wget][wget]].
+
+I like to use mise to manage my ai tools, like so:
+#+begin_src bash
+  cd $(mktemp -d)
+  mise use node@latest
+  mise use npm:@anthropic-ai/claude-code
+#+end_src
+
+OK, lets download the site:
+
+#+begin_src bash
+  wget --recursive \
+     --no-clobber \
+     --page-requisites \
+     --html-extension \
+     --convert-links \
+     --restrict-file-names=windows \
+     --domains wacho.me \
+     --no-parent \
+     https://www.wacho.me
+  #+end_src
+
+* Prompting
+
+Fire up claude and our first prompt is:
+
+#+attr_html: :class monospaced
+#+begin_quote
+explain how the mouse trail effects work in @www.wacho.me/index.html
+#+End_quote
+
+Then it thinks a whole while, and gives us an overview, that its made
+with framer motion and the "WebGL-based fluid solver" code that gives
+the effect is in external modules.
+
+#+attr_html: :class monospaced
+#+begin_quote
+can you download that code and see how it works?
+#+end_quote
+
+And off it goes!  It figures out the code, and explains all the
+parameters and even explains stuff with a fun emoji:
+
+#+attr_html: :class monospaced
+#+begin_quote
+The "trail" isn't a simple line - it's a full 2D fluid simulation
+where your cursor acts like a stirring rod in colored water! 🌊
+#+end_quote
+
+And:
+
+#+attr_html: :class monospaced
+#+begin_quote
+This creates the beautiful, flowing, colorful trails that respond to
+mouse movements with realistic fluid dynamics, all rendered at 60fps
+using GPU acceleration!
+#+end_quote
+
+* Extracting the knowledge
+
+First, lets give it a moment to really think about what it's going to
+do.
+
+#+attr_html: :class monospaced
+#+begin_quote
+This is really good stuff.  Imagine you are a webgl tutorial writer,
+and you are writing up a walktrough of how to implement something like
+this from scratch on your website.  Think thought the code again, and
+then make a markdown file that explains how to set this up step by
+step, each step building upon what works, with trouble shooting
+sections if things are working correctly.
+#+end_quote
+
+This took roughly 4 minutes of thinking.  I'm imagining that the
+lights got dim in a small town somewhere next to the data center, the
+cooling fans kicked into high gear and a hum slowly getting louder and
+louder.  And then -- silence, with the fans spinning down, and a neat
+little 11 point check list to build it.
+
+And lets go!
+
+* Pass one:
+
+#+attr_html: :class monospaced
+#+begin_quote
+Great lets now try to build a demo page with @webgl-fluid-tutorial.md
+I'll run the live server off of the index.html page that you'll
+create, and lets go step by step to make sure that it works
+#+end_quote
+
+That starts going, and in another window I run =npx live-server= so I
+can see what the file looks like.  I make it split screen so I can
+interact with the agent that way.
+
+{{< img img="dual.png" fit="900x900 smart">}}
+
+Everything went smoothly until step 5.  Oh no!  I copied the browser
+logs into the coding agent and then it iterated a few times and we
+were back on track.
+
+Also, I'm taking this opportunity to tweak the requirements as I go.
+I view this as a scuplting exercise, where we are both figuring out
+the technical limitations and the requirements at the same time.
+
+And we need to make sure that it remembers for later:
+
+#+attr_html: :class monospaced
+#+begin_quote
+Lets make a new markdown file that records all of the ways that the
+toturial needs to be edited after we finish, and at each step that
+we've learned something make sure we write it down
+#+end_quote
+
+For example:
+
+#+attr_html: :class monospaced
+#+begin_quote
+That looks ok but the dots aren't connected -- can we make it like ink
+or something, where the faster you move the lighter the line is as the
+slower the bigger?  I don't like the unconnected dots.  But this
+dissipation looks great
+#+end_quote
+
+...and at step 9 it became clear that it was not going to produce what I
+wanted.
+
+#+begin_quote
+yes, lets take everything that we've learned, readjust the tutorial to
+have things in the better order and we can start again
+#+end_quote
+
+
+
+* Pass two:
+
+
+
+
+* References
+
+1. https://www.wacho.me/
+2.https://combray-fluid.pgs.sh/water-ripple-tutorial-plan.md
+   
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
