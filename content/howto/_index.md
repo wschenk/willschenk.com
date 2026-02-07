@@ -1,7 +1,4 @@
 ---
 title: Howto
+description: "Guides on how to get things done."
 ---
-
-# Howto
-
-Guides on how to get things done.
