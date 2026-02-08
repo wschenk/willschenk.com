@@ -1,15 +1,17 @@
-document.addEventListener('DOMContentLoaded', function() {
+function initMain() {
     // Pagefind search
-    new PagefindUI({
-        element: "#search",
-        showImages: false
-    });
+    if (typeof PagefindUI !== 'undefined') {
+        new PagefindUI({
+            element: "#search",
+            showImages: false
+        });
+    }
 
     var searchEl = document.getElementById('search');
 
     // Desktop search toggle
     var searchToggle = document.getElementById('search-toggle');
-    if (searchToggle) {
+    if (searchToggle && searchEl) {
         searchToggle.addEventListener('click', function() {
             searchEl.classList.toggle('hidden');
             if (!searchEl.classList.contains('hidden')) {
@@ -23,23 +25,25 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Cmd+K shortcut
-    document.addEventListener('keydown', function(event) {
-        if (event.metaKey && event.key === 'k') {
-            event.preventDefault();
-            searchEl.classList.toggle('hidden');
-            if (!searchEl.classList.contains('hidden')) {
-                var input = searchEl.querySelector('input');
-                if (input) {
-                    input.value = '';
-                    input.focus();
+    if (searchEl) {
+        document.addEventListener('keydown', function(event) {
+            if (event.metaKey && event.key === 'k') {
+                event.preventDefault();
+                searchEl.classList.toggle('hidden');
+                if (!searchEl.classList.contains('hidden')) {
+                    var input = searchEl.querySelector('input');
+                    if (input) {
+                        input.value = '';
+                        input.focus();
+                    }
                 }
             }
-        }
-        // Escape to close search
-        if (event.key === 'Escape' && !searchEl.classList.contains('hidden')) {
-            searchEl.classList.add('hidden');
-        }
-    });
+            // Escape to close search
+            if (event.key === 'Escape' && !searchEl.classList.contains('hidden')) {
+                searchEl.classList.add('hidden');
+            }
+        });
+    }
 
     // Mobile nav
     var hamburger = document.getElementById('hamburger-btn');
@@ -67,4 +71,10 @@ document.addEventListener('DOMContentLoaded', function() {
             toc.classList.toggle('collapsed');
         });
     }
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initMain);
+} else {
+    initMain();
+}
