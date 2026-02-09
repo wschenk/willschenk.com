@@ -4,67 +4,62 @@ document.addEventListener('DOMContentLoaded', function() {
   const codeBlocks = document.querySelectorAll('.chroma, pre.example, pre.src, pre');
 
   codeBlocks.forEach(function(codeBlock) {
-    // Skip if already processed or if it's too small
+    // Skip if already processed
     if (codeBlock.classList.contains('expandable-processed') ||
         codeBlock.closest('.expandable-code')) {
       return;
     }
 
-    // Check if the code block is tall enough to need expansion
     const codeHeight = codeBlock.scrollHeight;
-    const maxHeight = 400; // Should match CSS max-height
+    const maxHeight = 400;
+    const needsExpand = codeHeight > maxHeight;
 
-    if (codeHeight <= maxHeight) {
-      return; // Not tall enough to need expansion
-    }
-
-    // Create wrapper
+    // Create wrapper for ALL code blocks (for copy button + overflow)
     const wrapper = document.createElement('div');
     wrapper.className = 'expandable-code';
+    if (!needsExpand) {
+      wrapper.classList.add('expanded'); // short blocks start expanded
+    }
     codeBlock.parentNode.insertBefore(wrapper, codeBlock);
     wrapper.appendChild(codeBlock);
 
-    // Create toggle button
-    const toggleBtn = document.createElement('button');
-    toggleBtn.className = 'code-toggle';
-    toggleBtn.setAttribute('type', 'button');
-    toggleBtn.setAttribute('aria-label', 'Toggle code block expansion');
-    wrapper.appendChild(toggleBtn);
+    // Only add toggle button if block is tall enough
+    if (needsExpand) {
+      const toggleBtn = document.createElement('button');
+      toggleBtn.className = 'code-toggle';
+      toggleBtn.setAttribute('type', 'button');
+      toggleBtn.setAttribute('aria-label', 'Toggle code block expansion');
+      wrapper.appendChild(toggleBtn);
 
-    // Create copy button
+      toggleBtn.addEventListener('click', function() {
+        wrapper.classList.toggle('expanded');
+        const isExpanded = wrapper.classList.contains('expanded');
+        toggleBtn.setAttribute('aria-label',
+          isExpanded ? 'Collapse code block' : 'Expand code block'
+        );
+        const codeId = generateCodeId(codeBlock);
+        localStorage.setItem(`code-expanded-${codeId}`, isExpanded);
+      });
+
+      // Check for saved preference
+      const codeId = generateCodeId(codeBlock);
+      const wasExpanded = localStorage.getItem(`code-expanded-${codeId}`) === 'true';
+      if (wasExpanded) {
+        wrapper.classList.add('expanded');
+        toggleBtn.setAttribute('aria-label', 'Collapse code block');
+      }
+    }
+
+    // Always add copy button
     const copyBtn = document.createElement('button');
     copyBtn.className = 'code-copy';
     copyBtn.setAttribute('type', 'button');
     copyBtn.setAttribute('aria-label', 'Copy code to clipboard');
     wrapper.appendChild(copyBtn);
 
-    // Add toggle functionality
-    toggleBtn.addEventListener('click', function() {
-      wrapper.classList.toggle('expanded');
-
-      // Update aria-label
-      const isExpanded = wrapper.classList.contains('expanded');
-      toggleBtn.setAttribute('aria-label',
-        isExpanded ? 'Collapse code block' : 'Expand code block'
-      );
-
-      // Store preference in localStorage
-      const codeId = generateCodeId(codeBlock);
-      localStorage.setItem(`code-expanded-${codeId}`, isExpanded);
-    });
-
-    // Add copy functionality
     copyBtn.addEventListener('click', function() {
       copyCodeToClipboard(codeBlock, copyBtn);
     });
-
-    // Check for saved preference
-    const codeId = generateCodeId(codeBlock);
-    const wasExpanded = localStorage.getItem(`code-expanded-${codeId}`) === 'true';
-    if (wasExpanded) {
-      wrapper.classList.add('expanded');
-      toggleBtn.setAttribute('aria-label', 'Collapse code block');
-    }
 
     // Mark as processed
     codeBlock.classList.add('expandable-processed');

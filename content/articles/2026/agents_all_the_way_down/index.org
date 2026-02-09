@@ -1,0 +1,200 @@
+#+title: Agents all the way down
+#+subtitle: Git repos, data flywheels, and the end of the app
+#+tags[]: ai agents claude-code git automation workflows
+#+date: 2026-02-08T10:00:00
+
+I've been writing a lot over at [[https://thefocus.ai/insights][The Focus AI]] about how I'm
+actually using AI day-to-day, and three recent pieces have kind of
+converged into a single idea that I want to pull together here.  The
+short version: I don't really build "apps" anymore.  I build habitats
+for agents.
+
+{{< img img="header.png" style="width: 100%" >}}
+
+* The three pieces
+
+[[https://thefocus.ai/posts/claude-code-non-coding][Claude Code, not Code]] was about how Claude Code isn't really a coding
+tool -- it's a workflow orchestrator.  I use it to manage hiring
+pipelines, track my health data, draft newsletters, automate grocery
+shopping.  The key insight was: don't just ask Claude to do things,
+ask it to document how it did them so it can do them again.
+
+[[https://thefocus.ai/posts/data-flywheel-pattern][The Data Flywheel Pattern]] described the architecture that keeps
+emerging: drop data into a folder, let AI parse it, build views on
+top, and the outputs become inputs for the next cycle.  No schema
+design.  No migrations.  The app emerges from the data.
+
+[[https://thefocus.ai/posts/agent-habitat][The Agent Habitat]] tied it together with a concrete model.  An agent
+isn't just automation with LLM calls.  It carries state, accumulates
+memory, and makes bounded decisions under uncertainty -- and a git repo
+is where all of that lives.
+
+* What I actually do now
+
+I have about half a dozen of these "habitats" running.  A Twitter
+feed tracker that fetches tweets, summarizes threads, and flags things
+I should respond to.  A YouTube transcript summarizer.  A newsletter
+aggregator.  An operations briefing system that pulls commits across
+client repos and generates weekly status reports.
+
+Each one is a git repo.  Each one has a =CLAUDE.md= that serves as the
+agent's long-term memory.  Each one has a =prompts/= directory with
+playbooks, a =data/= directory with working state, and a =scripts/=
+directory with the hardened automation.
+
+The pattern is always the same four stages:
+
+1. *Conversation* -- I work interactively with Claude, figuring out
+   the API, the edge cases, what I actually want.
+2. *Prompt* -- I extract what I learned into a markdown file in
+   =prompts/=.  This is the agent's playbook.
+3. *Optimization* -- I separate the deterministic work (bash scripts)
+   from the judgment work (LLM calls).  The mechanical stuff gets
+   downgraded to cheaper models.
+4. *Automation* -- Cron job.  No human in the loop.
+
+This is basically what I described in [[https://willschenk.com/articles/2025/living_in_mktemp_and_git/][Living in mktemp and git]] taken
+to its logical conclusion.  That article was about treating your
+laptop as a cache.  This is the same idea, but for your workflows.
+The repo is the source of truth.  The machine it runs on is
+disposable.
+
+* The data flywheel in practice
+
+{{< img img="flywheel.png" style="width: 100%" >}}
+
+The traditional way to build something: design a schema, build CRUD
+endpoints, create a UI, maintain consistency across all of it.  The
+new way: throw data at a folder and let AI figure it out.
+
+I built a fasting tracker in 90 minutes.  It pulls sleep data from
+Oura, parses DEXA scans, extracts bloodwork from lab exports, and
+generates meal plans.  Each new data source I added triggered new
+features -- I didn't plan them, they just emerged.  "Oh you have body
+composition data now?  Here's how that correlates with your sleep
+scores."
+
+The ops tracker for [[https://thefocus.ai][The Focus AI]] does the same thing.  It syncs
+with GitHub, extracts data from client contracts (PDFs), processes job
+applications from email, and rolls it all into a dashboard.  Running
+=/sync-with-github= pulls commits across all repositories and
+synthesizes changes into weekly reports.
+
+None of this required designing a database.  The =data/= directory IS
+the database.  Git gives you version history.  The AI gives you the
+query layer.
+
+* The back office that runs on six commands
+
+The biggest example of all of this coming together is the back office
+I built for [[https://thefocus.ai/case-study/ai-back-office][The Focus AI]].  We're a consultancy -- we have clients,
+invoices, candidates, a sales pipeline, meeting notes.  The kind of
+stuff that normally lives in five different SaaS tools.
+
+Instead, it's a git repo with markdown files.  Six commands run
+everything:
+
+| =/sync=            | Pull data from GitHub, meetings, email, newsletters |
+| =/daily=           | Morning briefing across all sources                 |
+| =/weekly=          | Full operational review + dashboard                 |
+| =/client-update=   | Draft branded status emails per client               |
+| =/talent-search=   | Search evaluated candidates by skills               |
+| =/push=            | Commit and sync changes                             |
+
+The file structure is simple:
+
+#+begin_src
+operations/
+  projects/clients/[name]/
+  hiring/applications/ & meetings/
+  finances/invoices.md & revenue/
+  sales/pipeline & meetings/
+#+end_src
+
+=/daily= synthesizes project files, commits, meeting transcripts,
+outstanding invoices, and task backlogs to surface what actually needs
+attention.  =/client-update [client]= reads the project status,
+invoices, and meeting history and drafts a branded HTML email -- what
+used to take 30 minutes is now a few seconds of review.
+
+We processed 50 job candidates in a weekend.  Applications come in
+via email, get parsed into evaluations that include GitHub research
+and portfolio assessment, and personalized responses get drafted
+automatically.  All 50 become a searchable talent pool.
+
+=invoices.md= is a markdown table.  That's the accounting system.
+=/weekly= calculates cash flow trends from it.  No spreadsheet
+formulas.
+
+The whole thing took 2 hours to set up and 4 days to integrate with
+our actual data sources.  It saves us 10+ hours a week.  And because
+it's markdown files in git, there's no vendor lock-in, no
+subscription, no migration if we want to change how it works.  We
+just edit the files.
+
+* Why git is the right substrate
+
+I keep coming back to git for this because it gives you three things
+that matter for agents:
+
+*Version history* -- You know what changed and when.  When an agent
+rewrites a date parser and breaks something downstream (this happened
+to me), you can see exactly what it did and roll back.
+
+*Credential isolation* -- Each repo gets its own =.env= with scoped
+API keys.  If one agent gets compromised, the blast radius is
+contained to that one service.
+
+*Audit trail* -- Self-modifying agents are powerful and dangerous in
+roughly equal measure.  Git diffs are how you catch drift.
+
+I run all of this inside Docker containers via Dagger, so agents
+can't access the host machine or each other's secrets.  Three layers:
+Docker isolation, scoped credentials, git audit trail.
+
+* The documentation loop
+
+{{< img img="claude-md.png" style="width: 100%" >}}
+
+The thing that makes all of this work is =CLAUDE.md=.  It's the
+agent's memory.  When I work with Claude interactively and figure out
+something new -- an API quirk, a parsing strategy, a rate limit
+workaround -- I say "update CLAUDE.md with what we learned."
+
+Next time Claude opens that repo, it already knows.  The memory
+persists across sessions.  Over time the =CLAUDE.md= file becomes a
+dense, practical document that captures everything about how to
+operate in that domain.
+
+This is the opposite of how most people think about AI.  They think
+"I'll ask it a question and it'll give me an answer."  What I'm doing
+is building up a persistent body of knowledge, scoped to a specific
+domain, that gets better every time I use it.
+
+* You don't deploy agents, you deploy repos
+
+The mental model shift is: stop thinking about building applications.
+Start thinking about building environments where agents can operate.
+
+A git repo with good documentation, clean data directories, and
+scoped credentials IS the application.  The agent reads the docs,
+processes the data, and does the work.  You don't need a framework.
+You don't need a platform.  You need a repo and a cron job.
+
+I know this sounds too simple.  I thought so too, until I realized I
+have six of these things running and they're handling work that would
+have taken me hours every week.
+
+The hard part isn't the technology.  It's the habit of documenting
+what you learn as you learn it, so the agent can do it next time
+without you.
+
+1. https://thefocus.ai/posts/agent-habitat
+2. https://thefocus.ai/posts/data-flywheel-pattern
+3. https://thefocus.ai/posts/claude-code-non-coding
+4. https://thefocus.ai/case-study/ai-back-office
+5. https://willschenk.com/articles/2025/living_in_mktemp_and_git/
+
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
