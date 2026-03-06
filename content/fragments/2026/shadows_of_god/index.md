@@ -4,7 +4,7 @@ subtitle: Denying the debt
 tags:
   - ai
   - philosophy
-date: 2026-03-05!
+date: 2026-03-05
 ---
 
 [Brendan McCord](https://x.com/mbrendan1/status/2028137693583221065):
