@@ -1,0 +1,362 @@
+#+title: Migrating to llama.cpp
+#+subtitle: drop ollama and run models directly
+#+tags[]: llm local llama.cpp ollama
+#+date: 2026-04-16T12:00:00
+
+Ollama made local LLMs easy, but it comes with real downsides --
+it's [[https://sleepingrobots.com/dreams/stop-using-ollama/][slower than running llama.cpp directly]], obscures what
+you're actually running, locks models into a hashed blob store, and
+trails upstream on new model support.  The good news is that
+=llama.cpp= itself has gotten very easy to use.
+
+If you use Ollama, you probably do three things:
+
+1. *=ollama run= / =ollama chat=* -- download a model, chat with
+   it interactively, have it unload when you're done
+2. *The Ollama API* -- point tools like Continue, aider, or Open
+   WebUI at =localhost:11434= for an OpenAI-compatible endpoint
+3. *The Ollama desktop app* -- a GUI to chat with models
+
+Here's the direct equivalent of each, and then we'll walk through
+setting it all up.
+
+| Ollama                        | llama.cpp equivalent                    |
+|-------------------------------+-----------------------------------------|
+| =ollama run gemma4=           | =llama-cli -hf ...:Q4_K_M -cnv=        |
+| =ollama serve= (API)         | =llama-server -hf ...= or =llama-swap=  |
+| Ollama desktop app            | =llama-server= web UI at =localhost:8080= |
+| =ollama list=                 | =ls ~/.cache/huggingface/hub/= or =hf cache ls= |
+| =ollama pull model=           | Automatic on first run with =-hf=        |
+| Modelfile for parameters      | CLI flags (=--temp=, =--ctx-size=, etc.) |
+| =~/.ollama/models= (hashed)  | =~/.cache/huggingface= (readable dirs)   |
+| Auto-unload after idle        | =llama-swap= with =ttl=                 |
+
+* Install llama.cpp
+
+On macOS with Homebrew:
+
+#+begin_src bash
+  brew install llama.cpp
+#+end_src
+
+That's it.  You get =llama-server=, =llama-cli=, and the rest of
+the tools.  Metal GPU acceleration works out of the box on Apple
+Silicon.
+
+You can also grab a pre-built binary from the [[https://github.com/ggml-org/llama.cpp/releases][releases page]], or
+build from source:
+
+#+begin_src bash
+  git clone https://github.com/ggml-org/llama.cpp
+  cd llama.cpp
+  cmake -B build
+  cmake --build build --config Release
+#+end_src
+
+* Choosing a model and quantization
+
+** The model
+
+We'll use *Gemma 4 26B-A4B* as our example.  It's a
+Mixture-of-Experts model -- 26B total parameters but only 3.8B
+active per token, so it runs almost as fast as a 4B model with
+much better quality.
+
+| Model           | Total Params | Active Params | Type  | Context |
+|-----------------+--------------+---------------+-------+---------|
+| Gemma 4 E2B     | 5.1B         | 2.3B          | Dense | 128K    |
+| Gemma 4 E4B     | 8B           | 4.5B          | Dense | 128K    |
+| Gemma 4 26B-A4B | 25.2B        | 3.8B          | MoE   | 256K    |
+| Gemma 4 31B     | 30.7B        | 30.7B         | Dense | 256K    |
+
+** The quantization
+
+The rule of thumb: *your model needs to fit in memory* with room
+left over for the KV cache (which stores the conversation context).
+Head to [[https://huggingface.co/unsloth/gemma-4-26B-A4B-it-GGUF][unsloth/gemma-4-26B-A4B-it-GGUF]] on Hugging Face to see
+all the available sizes.
+
+| Quant      | Size     | Notes                                  |
+|------------+----------+----------------------------------------|
+| UD-IQ2_XXS | ~10 GB   | Tight on RAM, willing to trade quality |
+| UD-Q3_K_M  | ~12.5 GB | Good balance for constrained systems   |
+| UD-Q4_K_M  | ~17 GB   | Best quality-per-GB sweet spot         |
+| UD-Q5_K_M  | ~21 GB   | Noticeably better than Q4              |
+| UD-Q6_K    | ~23 GB   | Diminishing returns vs Q5              |
+| Q8_0       | ~27 GB   | Near-lossless                          |
+| BF16       | ~50.5 GB | Full precision                         |
+
+*On this M4 Max with 64GB*, we can run =Q8_0= (27 GB) or even
+=BF16= (50.5 GB) and still have room for the full 256K context
+window.  For most machines, =Q4_K_M= at ~17 GB is the sweet spot.
+
+Ollama only offers Q4_K_M and Q8_0.  Here you get the full range
+from IQ2 to BF16, quantized by [[https://unsloth.ai][Unsloth]] with their Dynamic 2.0
+method that selectively quantizes different layers to preserve
+quality.
+
+** Why not always max context?
+
+The context window isn't free -- it requires a *KV cache* in memory
+on top of the model weights.  The bigger the context, the more RAM
+the KV cache uses.  For a single chat session this usually doesn't
+matter much, but if you're running a server handling multiple
+requests, or running multiple models via llama-swap, you may want
+to cap it to leave room.
+
+Use =--ctx-size 0= to get the model's full trained context (256K
+for Gemma 4 26B-A4B).  Or set a specific number if you need to
+budget memory.
+
+* 1. Interactive chat (=ollama run= replacement)
+
+#+begin_src bash
+  llama-cli -hf unsloth/gemma-4-26B-A4B-it-GGUF:Q4_K_M -cnv
+#+end_src
+
+That's the whole thing.  What happens:
+
+1. *Downloads* the model from Hugging Face if you don't have it
+2. *Loads* it into memory with Metal GPU acceleration
+3. *Starts an interactive chat* (=-cnv= is conversation mode)
+4. *Frees memory immediately* when you quit (=Ctrl+C=)
+
+The chat template is read from the GGUF metadata -- no Modelfile,
+no configuration.  Unlike Ollama there's no background daemon; the
+process runs, you chat, you quit, it's gone.
+
+Want different parameters?  Just add flags:
+
+#+begin_src bash
+  llama-cli \
+    -hf unsloth/gemma-4-26B-A4B-it-GGUF:Q8_0 \
+    --ctx-size 0 \
+    --temp 0.7 \
+    -cnv
+#+end_src
+
+Compare this to Ollama where changing temperature means creating a
+Modelfile, running =ollama create=, and potentially copying 20+ GB
+of model data.
+
+* 2. API server (=ollama serve= replacement)
+
+#+begin_src bash
+  llama-server -hf unsloth/gemma-4-26B-A4B-it-GGUF:Q4_K_M --ctx-size 0
+#+end_src
+
+This starts an OpenAI-compatible API on =http://localhost:8080=.
+Point any tool at it -- Continue, aider, Open WebUI, or just curl:
+
+#+begin_src bash
+  curl http://localhost:8080/v1/chat/completions \
+    -H "Content-Type: application/json" \
+    -d '{
+      "model": "gemma-4",
+      "messages": [
+        {"role": "user", "content": "Explain MoE architectures in two sentences"}
+      ]
+    }'
+#+end_src
+
+Or with Python:
+
+#+begin_src python
+  from openai import OpenAI
+
+  client = OpenAI(base_url="http://localhost:8080/v1", api_key="unused")
+
+  response = client.chat.completions.create(
+      model="gemma-4",
+      messages=[{"role": "user", "content": "Hello!"}],
+  )
+  print(response.choices[0].message.content)
+#+end_src
+
+
+* 3. Desktop chat UI (Ollama app replacement)
+
+=llama-server= includes a built-in web UI.  Just start the server
+and open =http://localhost:8080= in your browser.  You get a chat
+interface, no extra app to install.
+
+* Managing models
+
+** Listing downloaded models
+
+Since llama.cpp stores models in the standard Hugging Face cache,
+you can just look:
+
+#+begin_src bash
+  ls ~/.cache/huggingface/hub/
+#+end_src
+
+Which gives you readable directory names:
+
+#+begin_src
+  models--unsloth--gemma-4-26B-A4B-it-GGUF
+  models--mlx-community--Qwen3.5-9B-MLX-4bit
+#+end_src
+
+For more detail, install the =hf= CLI:
+
+#+begin_src bash
+  uv tool install huggingface_hub
+  hf cache ls
+#+end_src
+
+Which shows size and last access time:
+
+#+begin_src
+  id                                            size    last_accessed  last_modified  refs
+  model/unsloth/gemma-4-26B-A4B-it-GGUF         18.1G   3 minutes ago  5 minutes ago  ['main']
+  model/mlx-community/Qwen3.5-9B-MLX-4bit       6.0G    2 weeks ago    2 weeks ago    ['main']
+#+end_src
+
+** Deleting models
+
+#+begin_src bash
+  hf cache prune
+#+end_src
+
+No hashed blob filenames to decode -- just readable directory names
+you can also browse in Finder.
+
+* Multi-model hot-swapping with llama-swap
+
+A bare =llama-server= serves one model and runs until you stop it.
+If you want Ollama-style behavior where you can hit one endpoint
+with different model names and have them auto-load and auto-unload,
+that's what [[https://github.com/mostlygeek/llama-swap][llama-swap]] is for.
+
+llama-swap is a lightweight Go proxy that sits in front of
+=llama-server=.  When a request comes in, it looks at the =model=
+field, starts the right =llama-server=, and proxies the request.
+When a request comes in for a /different/ model, it stops the old
+one and starts the new one.  After the =ttl= expires with no
+requests, the model unloads and memory is freed.
+
+** Install
+
+#+begin_src bash
+  brew tap mostlygeek/llama-swap
+  brew install llama-swap
+#+end_src
+
+** Configure
+
+Create a =config.yaml=:
+
+#+begin_src yaml
+  models:
+    gemma4:
+      cmd: llama-server --port ${PORT} -hf unsloth/gemma-4-26B-A4B-it-GGUF:Q4_K_M --ctx-size 0
+      ttl: 120
+      aliases:
+        - gemma-4-26b
+
+    gemma4-31b:
+      cmd: llama-server --port ${PORT} -hf unsloth/gemma-4-31B-it-GGUF:Q4_K_M --ctx-size 0
+      ttl: 120
+      aliases:
+        - gemma-4-31b
+
+    gemma4-e2b:
+      cmd: llama-server --port ${PORT} -hf unsloth/gemma-4-E2B-it-GGUF:Q4_K_M --ctx-size 0
+      ttl: 120
+
+    nemotron:
+      cmd: llama-server --port ${PORT} -hf unsloth/Nemotron-3-Nano-30B-A3B-GGUF:Q4_K_M --ctx-size 0
+      ttl: 120
+      aliases:
+        - nemotron-3-nano
+
+    nemotron-4b:
+      cmd: llama-server --port ${PORT} -hf unsloth/NVIDIA-Nemotron-3-Nano-4B-GGUF:Q8_0 --ctx-size 0
+      ttl: 120
+
+    qwen3:
+      cmd: llama-server --port ${PORT} -hf unsloth/Qwen3-30B-A3B-GGUF:Q4_K_M --ctx-size 0
+      ttl: 120
+      aliases:
+        - qwen3-30b
+
+    qwen3-32b:
+      cmd: llama-server --port ${PORT} -hf unsloth/Qwen3-32B-GGUF:Q4_K_M --ctx-size 0
+      ttl: 120
+
+    qwen3-coder:
+      cmd: llama-server --port ${PORT} -hf unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q4_K_M --ctx-size 0
+      ttl: 120
+      aliases:
+        - qwen-coder
+#+end_src
+
+- =${PORT}=: llama-swap assigns a free port automatically
+- =ttl=: seconds of idle time before auto-unloading -- 120 means
+  2 minutes.  This is the Ollama auto-unload behavior.
+- =aliases=: friendly names for API calls.  Point your tools at
+  =gpt-4o-mini= and it routes to your local Gemma.
+
+** Run it
+
+#+begin_src bash
+  llama-swap --config config.yaml --listen :8080
+#+end_src
+
+Now it works just like Ollama -- one endpoint, multiple models:
+
+#+begin_src bash
+  # This starts gemma4 automatically
+  curl http://localhost:8080/v1/chat/completions \
+    -d '{"model": "gemma4", "messages": [{"role": "user", "content": "hi"}]}'
+
+  # This stops gemma4 and starts qwen3-coder
+  curl http://localhost:8080/v1/chat/completions \
+    -d '{"model": "qwen3-coder", "messages": [{"role": "user", "content": "write fizzbuzz"}]}'
+#+end_src
+
+First request to a model takes a few seconds while weights load.
+Subsequent requests are instant.  After =ttl= with no activity, it
+unloads.
+
+llama-swap also has a *web UI* at =http://localhost:8080/ui= for
+monitoring running models, viewing token metrics, and manually
+loading/unloading.
+
+** Running models concurrently
+
+By default llama-swap runs one model at a time.  If you have enough
+RAM, you can define a =matrix= to run multiple models
+simultaneously.  On a 64GB machine you could comfortably run two Q4
+models side by side.  See the [[https://github.com/mostlygeek/llama-swap/blob/main/docs/configuration.md][configuration docs]] for the matrix
+DSL.
+
+* Why switch?
+
+- *Performance*: community benchmarks show llama.cpp running
+  [[https://www.arsturn.com/blog/comparing-ollama-and-llamacpp][1.5-1.8x faster]] than Ollama on the same hardware.
+- *New models immediately*: GGUFs appear on Hugging Face within
+  hours of a model release.  With Ollama you wait for someone to
+  package it for their registry.
+- *Full quantization range*: Ollama only offers a handful of quant
+  levels.  On Hugging Face you get IQ2 through BF16.
+- *No lock-in*: models are plain GGUF files shared with any tool.
+- *Chat templates just work*: llama.cpp reads Jinja templates
+  embedded in the GGUF.  No Modelfile, no Go template translation.
+- *No background daemon*: nothing running when you're not using it.
+- *No VC pivot*: llama.cpp is MIT-licensed, community-driven, and
+  [[https://huggingface.co/blog/ggml-joins-hf][now part of the Hugging Face ecosystem]].
+
+* References
+
+- [[https://github.com/ggml-org/llama.cpp][llama.cpp on GitHub]]
+- [[https://sleepingrobots.com/dreams/stop-using-ollama/][Friends Don't Let Friends Use Ollama]] -- detailed history of
+  Ollama's issues
+- [[https://github.com/mostlygeek/llama-swap][llama-swap]] -- multi-model hot-swapping proxy
+- [[https://huggingface.co/unsloth/gemma-4-26B-A4B-it-GGUF][Gemma 4 26B-A4B GGUF on Hugging Face]] (Unsloth Dynamic quants)
+- [[https://huggingface.co/unsloth/gemma-4-31B-it-GGUF][Gemma 4 31B GGUF on Hugging Face]]
+
+# Local Variables:
+# eval: (add-hook 'after-save-hook (lambda ()(org-babel-tangle)) nil t)
+# End:
