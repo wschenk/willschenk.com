@@ -6,7 +6,6 @@ tags:
   - claude
   - meta
 date: 2026-07-08
-draft: true
 ---
 
 Most shared chat transcripts get it backwards. They dump the model's
