@@ -1,0 +1,129 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { margin: 0; background: #F5F0E8; font-family: "Courier New", monospace;
+         color: #1A1A1A; }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 12px; }
+  canvas { display: block; width: 100%; }
+  .readout { font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase;
+             text-align: center; margin: 8px 0 10px; }
+  .readout strong { color: #C41E1E; }
+  .controls { display: flex; gap: 10px; align-items: center; }
+  input[type=range] { flex: 1; accent-color: #C41E1E; }
+  button { font: inherit; font-size: 11px; text-transform: uppercase;
+           letter-spacing: 0.1em; background: #F5F0E8; color: #1A1A1A;
+           border: 1.5px solid #1A1A1A; padding: 4px 10px; cursor: pointer; }
+  button:hover { background: #1A1A1A; color: #F5F0E8; }
+  .hint { font-size: 11.5px; color: #6B6B6B; margin-top: 10px; line-height: 1.5; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <canvas id="sky"></canvas>
+  <div class="readout" id="readout"></div>
+  <div class="controls">
+    <input type="range" id="age" min="0" max="1" step="0.001">
+    <button id="today">today · 13.8 Gyr</button>
+    <button id="forever">forever</button>
+  </div>
+  <div class="hint">Drag to give light more time to travel. Each of the 540 sight
+    lines from the observer lights up red when it ends on a star. An eternal
+    universe has no dark directions left.</div>
+</div>
+<script>
+  const FIELD = 4000, STAR_R = 3, N = 24000, RAYS = 540;
+  const MAX_AGE = 2000, PX_PER_GYR = 4, TODAY = 13.8;
+
+  // deterministic star field
+  let seed = 42;
+  const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
+  const stars = [];
+  while (stars.length < N) {
+    const r = FIELD * Math.sqrt(rnd()), a = rnd() * 2 * Math.PI;
+    if (r < 30) continue;
+    stars.push({ x: r * Math.cos(a), y: r * Math.sin(a) });
+  }
+
+  // precompute, for every direction, where the sight line first hits a star
+  const hit = new Float64Array(RAYS);
+  for (let i = 0; i < RAYS; i++) {
+    const a = i / RAYS * 2 * Math.PI, dx = Math.cos(a), dy = Math.sin(a);
+    let best = Infinity;
+    for (let j = 0; j < N; j++) {
+      const s = stars[j], t = s.x * dx + s.y * dy;
+      if (t <= 0 || t - STAR_R >= best) continue;
+      const d2 = s.x * s.x + s.y * s.y - t * t, rr = STAR_R * STAR_R;
+      if (d2 < rr) {
+        const h = t - Math.sqrt(rr - d2);
+        if (h < best) best = h;
+      }
+    }
+    hit[i] = best;
+  }
+
+  const canvas = document.getElementById('sky'), ctx = canvas.getContext('2d');
+  const slider = document.getElementById('age'), readout = document.getElementById('readout');
+  const uOf = age => Math.log10(age) / Math.log10(MAX_AGE);
+  const ageOf = u => Math.pow(10, u * Math.log10(MAX_AGE));
+
+  function render() {
+    const cssSize = Math.min(canvas.parentNode.clientWidth - 4, 620);
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = cssSize * dpr; canvas.height = cssSize * dpr;
+    canvas.style.height = cssSize + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const age = ageOf(+slider.value), R = age * PX_PER_GYR;
+    const c = cssSize / 2, s = (c - 15) / Math.max(R, 250);
+
+    ctx.fillStyle = '#F5F0E8';
+    ctx.fillRect(0, 0, cssSize, cssSize);
+
+    // horizon
+    ctx.setLineDash([5, 5]);
+    ctx.strokeStyle = '#6B6B6B';
+    ctx.beginPath(); ctx.arc(c, c, R * s, 0, 7); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // stars: solid inside the light horizon, ghosts beyond it
+    const sr = Math.min(Math.max(STAR_R * s, 0.8), 5);
+    for (const st of stars) {
+      const d = Math.hypot(st.x, st.y);
+      if (d * s > c * 1.45) continue;
+      ctx.fillStyle = d <= R ? 'rgba(26,26,26,0.9)' : 'rgba(26,26,26,0.14)';
+      ctx.beginPath(); ctx.arc(c + st.x * s, c + st.y * s, sr, 0, 7); ctx.fill();
+    }
+
+    // sight lines
+    let lit = 0;
+    ctx.strokeStyle = 'rgba(26,26,26,0.10)';
+    ctx.fillStyle = '#C41E1E';
+    for (let i = 0; i < RAYS; i++) {
+      const a = i / RAYS * 2 * Math.PI, d = Math.min(hit[i], R);
+      const x = c + Math.cos(a) * d * s, y = c + Math.sin(a) * d * s;
+      ctx.beginPath(); ctx.moveTo(c, c); ctx.lineTo(x, y); ctx.stroke();
+      if (hit[i] <= R) {
+        lit++;
+        ctx.beginPath(); ctx.arc(x, y, 1.8, 0, 7); ctx.fill();
+      }
+    }
+
+    ctx.fillStyle = '#C41E1E';
+    ctx.beginPath(); ctx.arc(c, c, 3, 0, 7); ctx.fill();
+
+    const fmtAge = age < 10 ? age.toFixed(1) : Math.round(age);
+    readout.innerHTML = 'light travel time: ' + fmtAge + ' Gyr &middot; sky lit: <strong>'
+      + (100 * lit / RAYS).toFixed(1) + '%</strong>';
+  }
+
+  slider.value = uOf(TODAY);
+  slider.addEventListener('input', render);
+  document.getElementById('today').addEventListener('click', () => { slider.value = uOf(TODAY); render(); });
+  document.getElementById('forever').addEventListener('click', () => { slider.value = 1; render(); });
+  window.addEventListener('resize', render);
+  render();
+</script>
+</body>
+</html>
