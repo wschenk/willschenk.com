@@ -11,8 +11,8 @@ date: 2026-03-28
 
 In 1976 Hans Moravec wrote [a
 paper](https://stacks.stanford.edu/file/druid:ws563sd6050/ws563sd6050.pdf)
-at Stanford that made the argument that Intelligence is not a miracle
-it's about have enough power.
+at Stanford that made an argument the AI field wasn't ready to hear:
+intelligence is not a miracle. It's about having enough power.
 
 He opened with a tour through evolutionary pathways, all leading to
 intelligence by different paths.  Vertebrates and mollusks diverged
@@ -32,7 +32,7 @@ cortex is small and irrelevant in birds. They built the same
 capability out of completely different parts.
 
 Three lineages. Three architectures. Intelligence is not an
-anomoly. It's a consequence.
+anomaly. It's a consequence.
 
 Moravec measured the threshold. A hundred neurons runs a sessile
 animal. A thousand gets you a worm. A million gets you a bee -- fast
@@ -53,9 +53,9 @@ sufficient scale. Convergent evolution is the empirical proof --
 cephalopods, corvids, and primates are not coincidence. They are what
 power does.
 
-Moravec had essentially an engineering argument. If intelligence is a
+Moravec's point was engineering, not philosophy. If intelligence is a
 predictable consequence of sufficient connectivity, then building it
-shouldn't require genius-level theoretical breakthroughs. It requires
+doesn't require genius-level theoretical breakthroughs. It requires
 power. He estimated the brain at about 40 x 10^12 bits/sec -- a
 million times the PDP-10 that Stanford's AI lab was running on back
 in 1976. And then:
@@ -70,7 +70,7 @@ in 1976. And then:
 
 Today we call it [the bitter
 lesson](http://www.incompleteideas.net/IncIdeas/BitterLesson.html)
-since the AI field spent the next 70 years doing exactly what he
+since the AI field spent the next half century doing exactly what he
 warned against: expending human intelligence trying to find clever
 shortcuts around the power deficit. The belief that pure symbolic
 reasoning -- the right algorithm, the right representation -- could
