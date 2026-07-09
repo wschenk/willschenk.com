@@ -6,7 +6,6 @@ tags:
   - claude
   - tools
 date: 2026-07-09T12:59:16
-draft: true
 ---
 
 Can you dabble in AI? In the latest [Roden](https://craigmod.com/roden/102/#the-good-place), Craig Mod describes accidentally launching a members-only social network called The Good Place, built with Claude Code in between everything else in his life:
