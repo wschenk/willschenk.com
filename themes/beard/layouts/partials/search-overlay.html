@@ -1,1 +1,71 @@
-{{/* Search overlay is handled by #search div in baseof + JS */}}
+{{- $writingPages := (where site.RegularPages "Section" "in" (slice "articles" "howto" "labnotes" "fragments")).ByDate.Reverse -}}
+{{- $recent := first 5 $writingPages -}}
+{{- $topTags := first 10 site.Taxonomies.tags.ByCount -}}
+<div id="search-modal" class="search-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Search site">
+  <div class="search-backdrop" data-search-close></div>
+  <div class="search-dialog">
+    <div class="search-input-bar">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+      </svg>
+      <input type="search" id="search-modal-input" placeholder="Search {{ len $writingPages }} posts, #tags, or sections..." autocomplete="off">
+      <button type="button" class="search-esc-btn" data-search-close aria-label="Close search"><kbd>ESC</kbd></button>
+    </div>
+
+    <div class="search-body">
+      <div id="search-default-panel">
+        <div class="search-section">
+          <div class="search-section-label">Quick jump</div>
+          <div class="search-quick-pills">
+            <a href="/writing/" class="search-pill">Writing Archive</a>
+            <a href="/tags/" class="search-pill">Topics &amp; Tags</a>
+            <a href="/projects/" class="search-pill">Projects</a>
+            <a href="/about/" class="search-pill">About</a>
+            <button type="button" class="search-pill" id="search-toggle-theme">Toggle Night Ink</button>
+          </div>
+        </div>
+
+        <div class="search-section">
+          <div class="search-section-label">Recent writing</div>
+          <ul class="search-results-list" data-keyboard-list>
+            {{- range $recent }}
+            <li>
+              <a href="{{ .RelPermalink }}" class="search-result-item">
+                <div class="search-result-top">
+                  {{ partial "section-badge.html" . }}
+                  <span class="search-result-meta">{{ .Date | time.Format "Jan 2, 2006" }} &middot; {{ .ReadingTime }}m</span>
+                </div>
+                <div class="search-result-title">{{ .Title }}</div>
+                {{- with .Params.Subtitle }}
+                <div class="search-result-sub">{{ . | markdownify | plainify }}</div>
+                {{- end }}
+              </a>
+            </li>
+            {{- end }}
+          </ul>
+        </div>
+
+        <div class="search-section">
+          <div class="search-section-label">Popular topics</div>
+          <div class="search-quick-pills">
+            {{- range $topTags }}
+            <a href="/tags/{{ .Name | urlize }}/" class="search-pill">#{{ .Name }} <span>{{ .Count }}</span></a>
+            {{- end }}
+          </div>
+        </div>
+      </div>
+
+      <div id="search-results-panel" class="hidden">
+        <div class="search-results-count" id="search-results-count"></div>
+        <ul class="search-results-list" id="search-results-list" data-keyboard-list></ul>
+      </div>
+    </div>
+
+    <div class="search-footer">
+      <span><kbd>&uarr;</kbd><kbd>&darr;</kbd> move</span>
+      <span><kbd>Enter</kbd> open</span>
+      <span><kbd>#tag</kbd> match topic</span>
+      <span><kbd>Esc</kbd> close</span>
+    </div>
+  </div>
+</div>

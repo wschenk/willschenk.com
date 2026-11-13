@@ -1,62 +1,291 @@
 {{ define "main" }}
-<section class="container writing-page">
-  <h1>All Writing</h1>
+{{- $allPages := (where .Site.RegularPages "Section" "in" (slice "articles" "howto" "labnotes" "fragments")).ByDate.Reverse -}}
+{{- $yearGroups := $allPages.GroupByDate "2006" -}}
+{{- $maxYearCount := 1 -}}
+{{- range $yearGroups -}}
+  {{- if gt (len .Pages) $maxYearCount -}}
+    {{- $maxYearCount = len .Pages -}}
+  {{- end -}}
+{{- end -}}
 
-  <div class="writing-filters">
-    <button class="active" data-filter="all">All</button>
-    <button data-filter="howto">Howto</button>
-    <button data-filter="labnotes">Labnotes</button>
-    <button data-filter="articles">Articles</button>
-    <button data-filter="fragments">Fragments</button>
+<section class="container writing-page">
+  <header class="writing-header">
+    <div>
+      <h1>All Writing</h1>
+      <p class="writing-lead">{{ len $allPages }} essays, how-tos, labnotes, and fragments since 2014.</p>
+    </div>
+    <a href="/tags/" class="writing-topics-link">Browse all {{ len .Site.Taxonomies.tags }} topics &rarr;</a>
+  </header>
+
+  {{/* Interactive Workshop Activity Histogram (2014 -> present) */}}
+  <div class="archive-sparkline-wrap" aria-label="Posts per year">
+    <div class="archive-sparkline-head">
+      <span class="sparkline-title">Workshop cadence</span>
+      <span class="sparkline-hint">Click a year to jump</span>
+    </div>
+    <div class="archive-sparkline">
+      {{- range $yearGroups.Reverse }}
+        {{- $count := len .Pages -}}
+        {{- $pct := div (mul $count 100) $maxYearCount -}}
+        {{- if lt $pct 8 }}{{ $pct = 8 }}{{ end -}}
+        <button type="button" class="spark-col" data-year="{{ .Key }}" title="{{ .Key }}: {{ $count }} posts">
+          <span class="spark-count">{{ $count }}</span>
+          <span class="spark-bar-track">
+            <span class="spark-bar" style="height: {{ $pct }}%"></span>
+          </span>
+          <span class="spark-label">'{{ substr .Key 2 2 }}</span>
+        </button>
+      {{- end }}
+    </div>
   </div>
 
-  {{ $.Scratch.Set "lastYear" 0 }}
-  {{ range .Site.RegularPages.ByDate.Reverse }}
-    {{ $year := .Date.Year }}
-    {{ $lastYear := $.Scratch.Get "lastYear" }}
-    {{ if ne $year $lastYear }}
-      {{ if ne $lastYear 0 }}
-        </ul>
-      {{ end }}
-      <h2 class="writing-year">{{ $year }}</h2>
-      <ul class="writing-list">
-      {{ $.Scratch.Set "lastYear" $year }}
-    {{ end }}
+  {{/* Filter & Instant Search Toolbar */}}
+  <div class="writing-toolbar">
+    <div class="writing-filters" role="tablist" aria-label="Filter by section">
+      <button type="button" class="active" data-filter="all" role="tab" aria-selected="true">
+        All <span class="filter-count">{{ len $allPages }}</span>
+      </button>
+      {{- $sections := slice "articles" "howto" "labnotes" "fragments" -}}
+      {{- range $sections }}
+        {{- $secCount := len (where $allPages "Section" .) -}}
+        <button type="button" data-filter="{{ . }}" role="tab" aria-selected="false">
+          <span class="section-dot section-dot--{{ . }}" aria-hidden="true"></span>
+          {{ . | title }} <span class="filter-count">{{ $secCount }}</span>
+        </button>
+      {{- end }}
+    </div>
 
-    <li class="writing-item" data-section="{{ .Type }}">
-      {{ partial "section-badge.html" . }}
-      <a href="{{ .RelPermalink }}">
-        <span class="writing-title">{{ if .Draft }}<span class="draft-badge">DRAFT</span> {{ end }}{{ .Title }}</span>
-        {{ with .Params.Subtitle }}
-        <span class="writing-subtitle">{{ . | markdownify }}</span>
-        {{ end }}
-      </a>
-      <span class="writing-date">{{ .Date | time.Format "Jan 2" }}</span>
-    </li>
-  {{ end }}
-  </ul>
+    <div class="writing-search-box">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+      </svg>
+      <input type="search" id="writing-search" placeholder="Filter titles, subtitles, or #tags... (/)" aria-label="Filter writing archive" autocomplete="off">
+      <button type="button" id="writing-clear" class="writing-clear hidden" aria-label="Clear filters">&times;</button>
+    </div>
+  </div>
+
+  <div class="writing-status-bar">
+    <span id="writing-count">{{ len $allPages }} posts</span>
+    <span id="writing-active-tag" class="writing-active-tag hidden">
+      Topic: <strong id="writing-active-tag-label"></strong>
+      <button type="button" id="writing-clear-tag" aria-label="Remove topic filter">&times;</button>
+    </span>
+  </div>
+
+  <div id="writing-empty" class="writing-empty hidden">
+    <p>No posts match these filters.</p>
+    <button type="button" id="writing-reset-btn">Reset filters</button>
+  </div>
+
+  <div id="writing-groups">
+    {{- range $yearGroups }}
+    <section class="writing-year-group" id="year-{{ .Key }}" data-year="{{ .Key }}">
+      <h2 class="writing-year">
+        <span>{{ .Key }}</span>
+        <span class="year-count" data-year-count>{{ len .Pages }}</span>
+      </h2>
+      <ul class="writing-list">
+        {{- range .Pages }}
+          {{ partial "archive-row.html" . }}
+        {{- end }}
+      </ul>
+    </section>
+    {{- end }}
+  </div>
 </section>
 
 <script>
 (function() {
-  var buttons = document.querySelectorAll('.writing-filters button');
+  var filterBtns = document.querySelectorAll('.writing-filters button');
+  var searchInput = document.getElementById('writing-search');
+  var clearBtn = document.getElementById('writing-clear');
+  var countEl = document.getElementById('writing-count');
+  var activeTagWrap = document.getElementById('writing-active-tag');
+  var activeTagLabel = document.getElementById('writing-active-tag-label');
+  var clearTagBtn = document.getElementById('writing-clear-tag');
+  var emptyState = document.getElementById('writing-empty');
+  var resetBtn = document.getElementById('writing-reset-btn');
+  var yearGroups = document.querySelectorAll('.writing-year-group');
   var items = document.querySelectorAll('.writing-item');
+  var totalCount = items.length;
 
-  buttons.forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      buttons.forEach(function(b) { b.classList.remove('active'); });
-      btn.classList.add('active');
+  var state = {
+    section: 'all',
+    query: '',
+    tag: ''
+  };
 
-      var filter = btn.getAttribute('data-filter');
-      items.forEach(function(item) {
-        if (filter === 'all' || item.getAttribute('data-section') === filter) {
-          item.classList.remove('hidden');
-        } else {
-          item.classList.add('hidden');
+  // Restore initial URL params
+  try {
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('section')) state.section = params.get('section').toLowerCase();
+    if (params.get('q')) {
+      state.query = params.get('q');
+      if (searchInput) searchInput.value = state.query;
+    }
+    if (params.get('tag')) state.tag = params.get('tag').toLowerCase();
+  } catch (e) {}
+
+  function syncButtons() {
+    filterBtns.forEach(function(btn) {
+      var isMatch = btn.getAttribute('data-filter') === state.section;
+      btn.classList.toggle('active', isMatch);
+      btn.setAttribute('aria-selected', isMatch ? 'true' : 'false');
+    });
+  }
+
+  function syncUrl() {
+    try {
+      var params = new URLSearchParams();
+      if (state.section !== 'all') params.set('section', state.section);
+      if (state.query.trim()) params.set('q', state.query.trim());
+      if (state.tag) params.set('tag', state.tag);
+      var qs = params.toString();
+      var nextUrl = window.location.pathname + (qs ? '?' + qs : '') + window.location.hash;
+      history.replaceState(null, '', nextUrl);
+    } catch (e) {}
+  }
+
+  function applyFilters() {
+    var q = state.query.trim().toLowerCase();
+    var terms = q ? q.split(/\s+/) : [];
+    var totalVisible = 0;
+
+    yearGroups.forEach(function(group) {
+      var groupItems = group.querySelectorAll('.writing-item');
+      var groupVisible = 0;
+
+      groupItems.forEach(function(item) {
+        var sec = item.getAttribute('data-section');
+        var tags = (item.getAttribute('data-tags') || '').split(',');
+        var haystack = item.getAttribute('data-search') || '';
+
+        var matchSection = state.section === 'all' || sec === state.section;
+        var matchTag = !state.tag || tags.indexOf(state.tag) !== -1;
+        var matchQuery = terms.length === 0 || terms.every(function(term) {
+          if (term.charAt(0) === '#') {
+            var tagTerm = term.slice(1);
+            return tags.some(function(t) { return t.indexOf(tagTerm) !== -1; });
+          }
+          return haystack.indexOf(term) !== -1;
+        });
+
+        var show = matchSection && matchTag && matchQuery;
+        item.classList.toggle('hidden', !show);
+        if (show) {
+          groupVisible++;
+          totalVisible++;
         }
       });
+
+      var yc = group.querySelector('[data-year-count]');
+      if (yc) yc.textContent = groupVisible;
+      group.classList.toggle('hidden', groupVisible === 0);
+    });
+
+    if (countEl) {
+      countEl.textContent = (totalVisible === totalCount)
+        ? totalCount + ' posts'
+        : 'Showing ' + totalVisible + ' of ' + totalCount + ' posts';
+    }
+
+    var hasFilter = state.section !== 'all' || q.length > 0 || state.tag.length > 0;
+    if (clearBtn) clearBtn.classList.toggle('hidden', !hasFilter);
+    if (emptyState) emptyState.classList.toggle('hidden', totalVisible > 0);
+
+    if (activeTagWrap && activeTagLabel) {
+      if (state.tag) {
+        activeTagLabel.textContent = '#' + state.tag;
+        activeTagWrap.classList.remove('hidden');
+      } else {
+        activeTagWrap.classList.add('hidden');
+      }
+    }
+
+    // Dim sparkline columns whose year is hidden
+    document.querySelectorAll('.spark-col').forEach(function(col) {
+      var yr = col.getAttribute('data-year');
+      var grp = document.getElementById('year-' + yr);
+      col.classList.toggle('is-empty', !grp || grp.classList.contains('hidden'));
+    });
+
+    syncButtons();
+    syncUrl();
+  }
+
+  filterBtns.forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      state.section = btn.getAttribute('data-filter');
+      applyFilters();
     });
   });
+
+  if (searchInput) {
+    searchInput.addEventListener('input', function() {
+      state.query = searchInput.value;
+      applyFilters();
+    });
+  }
+
+  document.addEventListener('click', function(e) {
+    var tagBtn = e.target.closest('.row-tag');
+    if (tagBtn && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+      e.preventDefault();
+      var clickedTag = tagBtn.getAttribute('data-tag-filter');
+      state.tag = (state.tag === clickedTag) ? '' : clickedTag;
+      applyFilters();
+    }
+  });
+
+  function resetAll() {
+    state.section = 'all';
+    state.query = '';
+    state.tag = '';
+    if (searchInput) searchInput.value = '';
+    applyFilters();
+  }
+
+  if (clearBtn) clearBtn.addEventListener('click', resetAll);
+  if (resetBtn) resetBtn.addEventListener('click', resetAll);
+  if (clearTagBtn) {
+    clearTagBtn.addEventListener('click', function() {
+      state.tag = '';
+      applyFilters();
+    });
+  }
+
+  // Sparkline jump to year
+  document.querySelectorAll('.spark-col').forEach(function(col) {
+    col.addEventListener('click', function() {
+      var yr = col.getAttribute('data-year');
+      var grp = document.getElementById('year-' + yr);
+      if (!grp) return;
+      if (grp.classList.contains('hidden')) {
+        resetAll();
+      }
+      grp.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      var heading = grp.querySelector('.writing-year');
+      if (heading) {
+        heading.classList.remove('is-pulsed');
+        void heading.offsetWidth;
+        heading.classList.add('is-pulsed');
+      }
+    });
+  });
+
+  // "/" keyboard shortcut focuses archive filter when not typing
+  document.addEventListener('keydown', function(e) {
+    if (e.key === '/' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      var active = document.activeElement;
+      if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
+      if (searchInput) {
+        e.preventDefault();
+        searchInput.focus();
+      }
+    }
+  });
+
+  applyFilters();
 })();
 </script>
 {{ end }}

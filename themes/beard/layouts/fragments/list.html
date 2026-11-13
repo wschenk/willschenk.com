@@ -1,45 +1,26 @@
 {{ define "main" }}
-<section class="container page-list fragment-list">
+{{- $pages := .Pages.ByDate.Reverse -}}
+{{- $yearGroups := $pages.GroupByDate "2006" -}}
+<section class="container page-list">
+  <div class="list-breadcrumb">
+    <a href="/writing/">&larr; All Writing</a>
+    <span class="list-count">{{ len $pages }} {{ cond (eq (len $pages) 1) "post" "posts" }}</span>
+  </div>
   <h1>{{ .Title }}</h1>
   {{ with .Params.description }}<p class="section-description">{{ . }}</p>{{ end }}
 
-  {{ range .Paginator.Pages }}
-  <article>
-    <header>
-      <p class="fragment-meta">
-        {{ $dateMachine := .Date | time.Format "2006-01-02T15:04:05-07:00" }}
-        {{ $dateHuman := .Date | time.Format ":date_long" }}
-        <time datetime="{{ $dateMachine }}">{{ $dateHuman }}</time>
-      </p>
-
-      <h2><a href="{{ .RelPermalink }}">
-        {{ if .Draft }}DRAFT: {{ end }}
-        {{ .Title }}</a></h2>
-      {{ with .Params.Subtitle }}
-        <h3>{{ . | markdownify }}</h3>
-      {{ end }}
-
-      {{ with .Params.tags }}
-      <ul class="tags">
-        {{ range . }}
-        <li><a href="{{ "/tags/" | relURL }}{{ . | urlize }}">{{ . }}</a></li>
-        {{ end }}
-      </ul>
-      {{ end }}
-    </header>
-
-    <section>
-      {{ .Content }}
-    </section>
-  </article>
-  {{ end }}
-
-  {{- with .Paginator }}
-    {{- with .Next }}
-      <div class="pagination">
-        <a href="{{ .URL }}" aria-label="Next" class="page-link" role="button">&raquo; Older</a>
-      </div>
-    {{- end }}
+  {{- range $yearGroups }}
+  <section class="writing-year-group" id="year-{{ .Key }}">
+    <h2 class="writing-year">
+      <span>{{ .Key }}</span>
+      <span class="year-count">{{ len .Pages }}</span>
+    </h2>
+    <ul class="writing-list">
+      {{- range .Pages }}
+        {{ partial "archive-row.html" . }}
+      {{- end }}
+    </ul>
+  </section>
   {{- end }}
 </section>
 {{ end }}

@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  :root {
+    --paper: #F5F0E8;
+    --paper-elev: #FAF7F1;
+    --paper-sunk: #EAE3D5;
+    --ink: #1A1A1A;
+    --ink-faded: #666159;
+    --accent: #C41E1E;
+    --accent-soft: rgba(196, 30, 30, 0.14);
+    --border: #1A1A1A;
+    --border-light: #D2CBB8;
+  }
+  [data-theme="dark"] {
+    --paper: #161514;
+    --paper-elev: #1E1D1B;
+    --paper-sunk: #262421;
+    --ink: #EFECE6;
+    --ink-faded: #9E988E;
+    --accent: #E24A4A;
+    --accent-soft: rgba(226, 74, 74, 0.18);
+    --border: #3D3A35;
+    --border-light: #2B2925;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: Hack, "Courier New", monospace;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 14px;
+  }
+  .controls-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+  button {
+    font: inherit;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    background: var(--paper-elev);
+    color: var(--ink);
+    border: 1.5px solid var(--border);
+    border-radius: 3px;
+    padding: 5px 9px;
+    cursor: pointer;
+    transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+  }
+  button:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  button.is-active {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+  }
+  button.is-stack.is-active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #F5F0E8;
+  }
+  .stack-slider-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--ink-faded);
+  }
+  .stack-slider-wrap input[type=range] {
+    width: 110px;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: 1.35fr 1fr;
+    gap: 12px;
+    align-items: stretch;
+  }
+  @media (max-width: 540px) {
+    .grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  .panel {
+    border: 1.5px solid var(--border-light);
+    border-radius: 4px;
+    background: var(--paper-elev);
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+  }
+  .panel-title {
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-faded);
+    margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+  }
+  .patch-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+    justify-content: space-between;
+  }
+  #patchCanvas {
+    border: 1.5px solid var(--border);
+    border-radius: 3px;
+    aspect-ratio: 1 / 1;
+    max-height: 175px;
+    width: auto;
+    margin: 0 auto;
+  }
+  .ledger {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    font-size: 11px;
+  }
+  .stat {
+    border: 1px solid var(--border-light);
+    background: var(--paper);
+    border-radius: 3px;
+    padding: 5px 7px;
+  }
+  .stat-k {
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-faded);
+    margin-bottom: 2px;
+  }
+  .stat-v {
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .stat-v.accent {
+    color: var(--accent);
+  }
+  .caption {
+    font-size: 11px;
+    color: var(--ink-faded);
+    line-height: 1.45;
+    margin-top: 10px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="controls-bar">
+    <div class="pills" id="shellButtons">
+      <button type="button" data-shell="1">Shell 1R</button>
+      <button type="button" data-shell="2" class="is-active">Shell 2R</button>
+      <button type="button" data-shell="3">Shell 3R</button>
+      <button type="button" data-shell="4">Shell 4R</button>
+      <button type="button" data-shell="5">Shell 5R</button>
+      <button type="button" id="stackBtn" class="is-stack">Stack 1..N</button>
+    </div>
+    <label class="stack-slider-wrap" id="stackSliderWrap">
+      <span>Depth</span>
+      <input type="range" id="stackRange" min="1" max="24" step="1" value="8">
+      <strong id="stackVal">8</strong>
+    </label>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <div class="panel-title">
+        <span>Sight Cone d&Omega;</span>
+        <span id="coneSubtitle">Shell 2R highlighted</span>
+      </div>
+      <canvas id="coneCanvas"></canvas>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">
+        <span>1&deg; &times; 1&deg; Sky Patch</span>
+        <span id="patchSubtitle">4 stars &times; 1/4 flux</span>
+      </div>
+      <div class="patch-wrap">
+        <canvas id="patchCanvas"></canvas>
+        <div class="ledger" id="ledger"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="caption" id="caption"></div>
+</div>
+
+<script>
+(function() {
+  const wrapEl = document.querySelector('.wrap');
+  const coneCanvas = document.getElementById('coneCanvas');
+  const patchCanvas = document.getElementById('patchCanvas');
+  const shellBtns = document.querySelectorAll('[data-shell]');
+  const stackBtn = document.getElementById('stackBtn');
+  const stackRange = document.getElementById('stackRange');
+  const stackVal = document.getElementById('stackVal');
+  const coneSubtitle = document.getElementById('coneSubtitle');
+  const patchSubtitle = document.getElementById('patchSubtitle');
+  const ledgerEl = document.getElementById('ledger');
+  const captionEl = document.getElementById('caption');
+
+  let mode = 'single'; // 'single' | 'stack'
+  let activeShell = 2;
+  let stackDepth = 8;
+
+  // Deterministic star placements per shell (k = 1..24) in normalized cone coords and patch coords
+  function rngFactory(seed) {
+    let s = seed >>> 0;
+    return () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296;
+  }
+
+  const shellStars = {};
+  for (let k = 1; k <= 24; k++) {
+    const rand = rngFactory(1000 + k * 97);
+    const count = k * k;
+    const pts = [];
+    for (let i = 0; i < count; i++) {
+      // Spread points cleanly inside normalized patch [0.06..0.94]^2 and cone vertical [-0.84..0.84]
+      pts.push({
+        px: 0.06 + rand() * 0.88,
+        py: 0.06 + rand() * 0.88,
+        cy: (i + 0.5) / count * 1.66 - 0.83 + (rand() - 0.5) * 0.06,
+        cr: (rand() - 0.5) * 0.34
+      });
+    }
+    shellStars[k] = pts;
+  }
+
+  function cssVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  function renderCone() {
+    const w = coneCanvas.parentNode.clientWidth - 22;
+    const h = Math.max(200, Math.min(250, Math.round(w * 0.54)));
+    const dpr = window.devicePixelRatio || 1;
+    coneCanvas.width = w * dpr;
+    coneCanvas.height = h * dpr;
+    coneCanvas.style.height = h + 'px';
+    const ctx = coneCanvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const paper = cssVar('--paper');
+    const ink = cssVar('--ink');
+    const inkFaded = cssVar('--ink-faded');
+    const accent = cssVar('--accent');
+    const borderLight = cssVar('--border-light');
+
+    ctx.fillStyle = paper;
+    ctx.fillRect(0, 0, w, h);
+
+    const ox = 28;
+    const oy = h / 2;
+    const maxR = w - 46;
+    const halfAngle = 0.31; // cone half-angle
+
+    // Cone fill
+    ctx.fillStyle = document.documentElement.dataset.theme === 'dark'
+      ? 'rgba(239, 236, 230, 0.04)'
+      : 'rgba(26, 26, 26, 0.035)';
+    ctx.beginPath();
+    ctx.moveTo(ox, oy);
+    ctx.lineTo(ox + maxR * Math.cos(halfAngle), oy - maxR * Math.sin(halfAngle));
+    ctx.arc(ox, oy, maxR, -halfAngle, halfAngle);
+    ctx.closePath();
+    ctx.fill();
+
+    // Cone edges
+    ctx.strokeStyle = inkFaded;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(ox, oy);
+    ctx.lineTo(ox + maxR * 1.03 * Math.cos(halfAngle), oy - maxR * 1.03 * Math.sin(halfAngle));
+    ctx.moveTo(ox, oy);
+    ctx.lineTo(ox + maxR * 1.03 * Math.cos(halfAngle), oy + maxR * 1.03 * Math.sin(halfAngle));
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Draw concentric shells 1..5
+    const bandWidth = maxR / 5.4;
+    for (let k = 1; k <= 5; k++) {
+      const rMid = k * bandWidth;
+      const isLit = mode === 'single' ? (k === activeShell) : (k <= stackDepth);
+
+      ctx.strokeStyle = isLit ? accent : borderLight;
+      ctx.lineWidth = isLit ? 2.5 : 1.25;
+      ctx.beginPath();
+      ctx.arc(ox, oy, rMid, -halfAngle, halfAngle);
+      ctx.stroke();
+
+      // Label above cone
+      const lx = ox + rMid * Math.cos(-halfAngle - 0.04);
+      const ly = oy + rMid * Math.sin(-halfAngle - 0.04) - 6;
+      ctx.fillStyle = isLit ? accent : inkFaded;
+      ctx.font = (isLit ? '700 ' : '') + '10px Hack, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(k + 'R', lx, ly);
+
+      // Stars inside shell k
+      const stars = shellStars[k];
+      const dotR = isLit ? Math.max(2.1, 4.4 - k * 0.4) : 1.8;
+      for (const st of stars) {
+        const rr = rMid + st.cr * bandWidth * 0.38;
+        const ang = st.cy * (halfAngle * 0.88);
+        const sx = ox + rr * Math.cos(ang);
+        const sy = oy + rr * Math.sin(ang);
+
+        if (isLit && (mode === 'single' || k <= 4)) {
+          ctx.strokeStyle = document.documentElement.dataset.theme === 'dark'
+            ? 'rgba(226, 74, 74, 0.25)'
+            : 'rgba(196, 30, 30, 0.22)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(ox, oy);
+          ctx.lineTo(sx, sy);
+          ctx.stroke();
+        }
+
+        ctx.fillStyle = isLit ? accent : inkFaded;
+        ctx.globalAlpha = isLit ? 1 : 0.45;
+        ctx.beginPath();
+        ctx.arc(sx, sy, dotR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    // Extra badge if stackDepth > 5
+    if (mode === 'stack' && stackDepth > 5) {
+      ctx.fillStyle = accent;
+      ctx.font = '700 10px Hack, monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText('+ shells 6..' + stackDepth + ' ->', w - 8, h - 8);
+    }
+
+    // Observer eye dot
+    ctx.fillStyle = accent;
+    ctx.beginPath();
+    ctx.arc(ox, oy, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  function renderPatch() {
+    const size = Math.min(175, patchCanvas.parentNode.clientWidth - 4);
+    const dpr = window.devicePixelRatio || 1;
+    patchCanvas.width = size * dpr;
+    patchCanvas.height = size * dpr;
+    patchCanvas.style.width = size + 'px';
+    patchCanvas.style.height = size + 'px';
+    const ctx = patchCanvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // Night sky background behind stars
+    ctx.fillStyle = '#0E0D0C';
+    ctx.fillRect(0, 0, size, size);
+
+    const kStart = mode === 'single' ? activeShell : 1;
+    const kEnd = mode === 'single' ? activeShell : stackDepth;
+
+    let litPixels = 0;
+    const totalStars = mode === 'single'
+      ? activeShell * activeShell
+      : (stackDepth * (stackDepth + 1) * (2 * stackDepth + 1)) / 6;
+
+    // Draw far shells first, closer shells on top
+    for (let k = kEnd; k >= kStart; k--) {
+      const stars = shellStars[k];
+      // Apparent angular area drops as 1/k^2 while count grows as k^2
+      const rDisk = Math.max(1.3, (size * 0.145) / k);
+      const glowR = rDisk * 2.1;
+      const alpha = Math.max(0.28, Math.min(1, 1.35 / Math.pow(k, 0.45)));
+
+      for (const st of stars) {
+        const x = st.px * size;
+        const y = st.py * size;
+
+        const g = ctx.createRadialGradient(x, y, 0, x, y, glowR);
+        g.addColorStop(0, `rgba(255, 244, 224, ${alpha})`);
+        g.addColorStop(0.45, `rgba(255, 210, 150, ${alpha * 0.55})`);
+        g.addColorStop(1, 'rgba(255, 210, 150, 0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(x, y, glowR, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#FFFDF7';
+        ctx.beginPath();
+        ctx.arc(x, y, rDisk * 0.65, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Sample pixel brightness on sky patch for coverage estimate
+    const imgData = ctx.getImageData(0, 0, patchCanvas.width, patchCanvas.height).data;
+    for (let i = 0; i < imgData.length; i += 16) {
+      if (imgData[i] + imgData[i + 1] + imgData[i + 2] > 180) litPixels++;
+    }
+    const covPct = Math.min(100, Math.round((litPixels / (imgData.length / 16)) * 100));
+
+    if (mode === 'single') {
+      const k = activeShell;
+      const starsN = k * k;
+      coneSubtitle.textContent = `Shell ${k}R active`;
+      patchSubtitle.textContent = `${starsN} star${starsN === 1 ? '' : 's'} × 1/${starsN} flux`;
+      ledgerEl.innerHTML = `
+        <div class="stat"><div class="stat-k">Distance</div><div class="stat-v">${k}R</div></div>
+        <div class="stat"><div class="stat-k">Stars in cone</div><div class="stat-v">${starsN}</div></div>
+        <div class="stat"><div class="stat-k">Flux per star</div><div class="stat-v">1/${starsN}&times;</div></div>
+        <div class="stat"><div class="stat-k">Shell total</div><div class="stat-v accent">1.00&times;</div></div>
+      `;
+      captionEl.textContent = `Shell ${k}R holds ${starsN}× as many stars inside the cone, each 1/${starsN} as bright. Every single shell contributes the exact same 1.00× slice of light.`;
+    } else {
+      coneSubtitle.textContent = `Stacking shells 1R..${stackDepth}R`;
+      patchSubtitle.textContent = `${totalStars} cumulative stars`;
+      ledgerEl.innerHTML = `
+        <div class="stat"><div class="stat-k">Shells stacked</div><div class="stat-v">1..${stackDepth}</div></div>
+        <div class="stat"><div class="stat-k">Stars in patch</div><div class="stat-v">${totalStars}</div></div>
+        <div class="stat"><div class="stat-k">Sky filled</div><div class="stat-v">${covPct}%</div></div>
+        <div class="stat"><div class="stat-k">Total patch flux</div><div class="stat-v accent">${stackDepth}.00&times;</div></div>
+      `;
+      captionEl.textContent = `Each concentric shell adds another +1.00× of light. Stack enough shells and their dimmed disks overlap until no dark sky remains between them.`;
+    }
+  }
+
+  function renderAll() {
+    shellBtns.forEach(btn => {
+      btn.classList.toggle('is-active', mode === 'single' && Number(btn.dataset.shell) === activeShell);
+    });
+    stackBtn.classList.toggle('is-active', mode === 'stack');
+    stackVal.textContent = stackDepth;
+    renderCone();
+    renderPatch();
+    reportHeight();
+  }
+
+  let lastH = 0;
+  function reportHeight() {
+    const h = Math.ceil(wrapEl.getBoundingClientRect().height);
+    if (h && h !== lastH) {
+      lastH = h;
+      try { parent.postMessage({ type: 'ws-artifact-height', height: h }, '*'); } catch (e) {}
+    }
+  }
+
+  shellBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      mode = 'single';
+      activeShell = Number(btn.dataset.shell);
+      renderAll();
+    });
+  });
+
+  stackBtn.addEventListener('click', () => {
+    mode = 'stack';
+    renderAll();
+  });
+
+  stackRange.addEventListener('input', () => {
+    mode = 'stack';
+    stackDepth = Number(stackRange.value);
+    renderAll();
+  });
+
+  window.addEventListener('message', e => {
+    if (e.data && e.data.type === 'ws-theme') {
+      if (e.data.theme === 'dark') {
+        document.documentElement.dataset.theme = 'dark';
+      } else {
+        delete document.documentElement.dataset.theme;
+      }
+      renderAll();
+    }
+  });
+
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(() => {
+      renderCone();
+      renderPatch();
+      reportHeight();
+    }).observe(wrapEl);
+  }
+  window.addEventListener('resize', renderAll);
+
+  try { parent.postMessage({ type: 'ws-artifact-ready' }, '*'); } catch (e) {}
+  renderAll();
+})();
+</script>
+</body>
+</html>

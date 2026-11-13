@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  :root {
+    --paper: #F5F0E8;
+    --paper-elev: #FAF7F1;
+    --paper-sunk: #EAE3D5;
+    --ink: #1A1A1A;
+    --ink-faded: #666159;
+    --accent: #C41E1E;
+    --border: #1A1A1A;
+    --border-light: #D2CBB8;
+  }
+  [data-theme="dark"] {
+    --paper: #161514;
+    --paper-elev: #1E1D1B;
+    --paper-sunk: #262421;
+    --ink: #EFECE6;
+    --ink-faded: #9E988E;
+    --accent: #E24A4A;
+    --border: #3D3A35;
+    --border-light: #2B2925;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: Hack, "Courier New", monospace;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 14px;
+  }
+  .controls-top {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+  button {
+    font: inherit;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    background: var(--paper-elev);
+    color: var(--ink);
+    border: 1.5px solid var(--border);
+    border-radius: 3px;
+    padding: 5px 9px;
+    cursor: pointer;
+    transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+  }
+  button:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  button.is-active {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+  }
+  button.detector.is-active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #F5F0E8;
+  }
+  .slider-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    font-size: 11px;
+    color: var(--ink-faded);
+  }
+  .slider-row input[type=range] {
+    flex: 1;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  .stage {
+    display: grid;
+    grid-template-columns: 1fr 1.35fr;
+    gap: 12px;
+    align-items: stretch;
+  }
+  @media (max-width: 540px) {
+    .stage { grid-template-columns: 1fr; }
+  }
+  .panel {
+    border: 1.5px solid var(--border-light);
+    border-radius: 4px;
+    background: var(--paper-elev);
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .panel-title {
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-faded);
+    margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  canvas { display: block; width: 100%; }
+  #domeCanvas {
+    border: 1.5px solid var(--border);
+    border-radius: 4px;
+  }
+  .spectrum-bar {
+    margin-top: 8px;
+    position: relative;
+    height: 18px;
+    border: 1px solid var(--border-light);
+    border-radius: 3px;
+    display: grid;
+    grid-template-columns: 28% 36% 36%;
+    overflow: visible;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .band {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #F5F0E8;
+  }
+  .band-vis {
+    background: linear-gradient(90deg, #5469d4 0%, #e09f3e 55%, #C41E1E 100%);
+  }
+  .band-ir {
+    background: linear-gradient(90deg, #7f1d1d 0%, #3a1a1a 100%);
+    color: #e6d5cf;
+  }
+  .band-mw {
+    background: #1B1918;
+    color: #B4ABA0;
+  }
+  .needle {
+    position: absolute;
+    top: -4px;
+    bottom: -4px;
+    width: 3px;
+    background: var(--accent);
+    box-shadow: 0 0 0 1px #F5F0E8;
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
+  .readout-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-top: 10px;
+  }
+  @media (max-width: 560px) {
+    .readout-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  .stat {
+    border: 1px solid var(--border-light);
+    background: var(--paper-elev);
+    border-radius: 3px;
+    padding: 5px 7px;
+  }
+  .stat-k {
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-faded);
+  }
+  .stat-v {
+    font-size: 12.5px;
+    font-weight: 700;
+    margin-top: 2px;
+  }
+  .stat-v.accent { color: var(--accent); }
+  .caption {
+    font-size: 11px;
+    color: var(--ink-faded);
+    line-height: 1.45;
+    margin-top: 9px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="controls-top">
+    <div class="group" id="presets">
+      <button type="button" data-p="0" class="is-active">380 kyr &middot; z=1090</button>
+      <button type="button" data-p="0.47">Dark Ages &middot; z=40</button>
+      <button type="button" data-p="1">Today &middot; z=0</button>
+    </div>
+    <div class="group" id="detectors">
+      <button type="button" class="detector is-active" data-det="eye">Human Eye (visible)</button>
+      <button type="button" class="detector" data-det="dish">Microwave Dish (160 GHz)</button>
+    </div>
+  </div>
+
+  <div class="slider-row">
+    <span>380 kyr</span>
+    <input type="range" id="epochSlider" min="0" max="1" step="0.002" value="1">
+    <span>Today &middot; 13.8 Gyr</span>
+  </div>
+
+  <div class="stage">
+    <div class="panel">
+      <div class="panel-title">
+        <span>All-Sky Receiver</span>
+        <span id="detectorBadge">Eye</span>
+      </div>
+      <canvas id="domeCanvas"></canvas>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">
+        <span>Photon Stretch</span>
+        <span id="stretchBadge">&times;1.0</span>
+      </div>
+      <canvas id="waveCanvas"></canvas>
+      <div class="spectrum-bar">
+        <div class="band band-vis">Visible</div>
+        <div class="band band-ir">Infrared</div>
+        <div class="band band-mw">Microwave</div>
+        <div class="needle" id="specNeedle" style="left: 90%"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="readout-grid" id="readouts"></div>
+  <div class="caption" id="caption"></div>
+</div>
+
+<script>
+(function() {
+  const wrapEl = document.querySelector('.wrap');
+  const slider = document.getElementById('epochSlider');
+  const domeCanvas = document.getElementById('domeCanvas');
+  const waveCanvas = document.getElementById('waveCanvas');
+  const presetBtns = document.querySelectorAll('#presets button');
+  const detBtns = document.querySelectorAll('#detectors button');
+  const detectorBadge = document.getElementById('detectorBadge');
+  const stretchBadge = document.getElementById('stretchBadge');
+  const specNeedle = document.getElementById('specNeedle');
+  const readoutsEl = document.getElementById('readouts');
+  const captionEl = document.getElementById('caption');
+
+  let detector = 'eye';
+  let phase = 0;
+
+  // Deterministic field stars & CMB hot/cold patches
+  let seed = 77;
+  const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
+  const fgStars = Array.from({ length: 65 }, () => ({
+    x: rnd(), y: rnd() * 0.86, r: 0.6 + rnd() * 1.3, b: 0.45 + rnd() * 0.55
+  }));
+  const cmbSpots = Array.from({ length: 120 }, () => ({
+    x: rnd(), y: rnd(), r: 6 + rnd() * 18, delta: (rnd() - 0.5) * 2
+  }));
+
+  function cssVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  function stateFromSlider() {
+    const p = +slider.value; // 0 = recombination (z=1090), 1 = today (z=0)
+    const onePlusZ = Math.pow(1091, 1 - p);
+    const z = Math.max(0, onePlusZ - 1);
+    const stretchSinceRecomb = 1091 / onePlusZ; // 1x at recombination -> 1091x today
+    const temp = 2.725 * onePlusZ; // 2973 K -> 2.725 K
+    const peakMm = 2.898 / temp; // Wien displacement in mm
+    const band = peakMm < 0.00075 ? 'Visible' : (peakMm < 0.05 ? 'Infrared' : 'Microwave');
+    return { p, z, onePlusZ, stretchSinceRecomb, temp, peakMm, band };
+  }
+
+  function formatLambda(mm) {
+    if (mm < 0.001) return Math.round(mm * 1e6) + ' nm';
+    if (mm < 0.5) return (mm * 1000).toFixed(1) + ' μm';
+    return mm.toFixed(2) + ' mm';
+  }
+
+  function formatTemp(t) {
+    if (t >= 100) return Math.round(t).toLocaleString() + ' K';
+    if (t >= 10) return t.toFixed(1) + ' K';
+    return t.toFixed(2) + ' K';
+  }
+
+  function blackbodyEyeColor(temp) {
+    if (temp >= 2400) return [255, 206, 140];
+    if (temp >= 1500) {
+      const t = (temp - 1500) / 900;
+      return [Math.round(215 + 40 * t), Math.round(90 + 116 * t), Math.round(28 + 112 * t)];
+    }
+    if (temp >= 650) {
+      const t = (temp - 650) / 850;
+      return [Math.round(215 * t), Math.round(90 * t * 0.7), Math.round(28 * t * 0.5)];
+    }
+    return [12, 11, 12];
+  }
+
+  function renderDome(st) {
+    const w = domeCanvas.parentNode.clientWidth - 22;
+    const h = 158;
+    const dpr = window.devicePixelRatio || 1;
+    domeCanvas.width = w * dpr;
+    domeCanvas.height = h * dpr;
+    domeCanvas.style.height = h + 'px';
+    const ctx = domeCanvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    if (detector === 'eye') {
+      const rgb = blackbodyEyeColor(st.temp);
+      ctx.fillStyle = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+      ctx.fillRect(0, 0, w, h);
+
+      // Stars emerge late in cosmic history when plasma fades into IR
+      if (st.z < 18) {
+        const starVis = Math.max(0, Math.min(1, (18 - st.z) / 14));
+        for (const s of fgStars) {
+          ctx.fillStyle = `rgba(255, 250, 240, ${s.b * starVis})`;
+          ctx.beginPath();
+          ctx.arc(s.x * w, s.y * h, s.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      detectorBadge.textContent = st.temp > 750 ? 'Eye · sky glowing' : 'Eye · sky invisible';
+    } else {
+      // Microwave dish tuned to 160 GHz (today's CMB peak)
+      const mwStrength = Math.max(0.18, Math.min(1, st.stretchSinceRecomb / 300));
+      ctx.fillStyle = '#1E100E';
+      ctx.fillRect(0, 0, w, h);
+
+      for (const spot of cmbSpots) {
+        const cx = spot.x * w, cy = spot.y * h;
+        const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, spot.r * 1.4);
+        const warm = spot.delta > 0;
+        const c = warm ? '226, 74, 74' : '240, 175, 95';
+        const alpha = (0.14 + Math.abs(spot.delta) * 0.22) * (0.35 + 0.65 * mwStrength);
+        g.addColorStop(0, `rgba(${c}, ${alpha})`);
+        g.addColorStop(1, `rgba(${c}, 0)`);
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(cx, cy, spot.r * 1.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // All-sky baseline glow
+      ctx.fillStyle = `rgba(196, 30, 30, ${0.24 * mwStrength})`;
+      ctx.fillRect(0, 0, w, h);
+
+      detectorBadge.textContent = st.z < 20 ? '160 GHz · wall of 2.7 K glow' : '160 GHz · pre-microwave tail';
+    }
+
+    // Subtle treeline horizon silhouette at bottom
+    ctx.fillStyle = '#0D0C0B';
+    ctx.beginPath();
+    ctx.moveTo(0, h);
+    for (let x = 0; x <= w; x += 6) {
+      const treeH = 11 + Math.sin(x * 0.14) * 4 + Math.cos(x * 0.37) * 3;
+      ctx.lineTo(x, h - treeH);
+    }
+    ctx.lineTo(w, h);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function renderWave(st) {
+    const w = waveCanvas.parentNode.clientWidth - 22;
+    const h = 116;
+    const dpr = window.devicePixelRatio || 1;
+    waveCanvas.width = w * dpr;
+    waveCanvas.height = h * dpr;
+    waveCanvas.style.height = h + 'px';
+    const ctx = waveCanvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const paper = cssVar('--paper');
+    const inkFaded = cssVar('--ink-faded');
+    const accent = cssVar('--accent');
+
+    ctx.fillStyle = paper;
+    ctx.fillRect(0, 0, w, h);
+
+    // Axis line
+    ctx.strokeStyle = cssVar('--border-light');
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(8, h / 2);
+    ctx.lineTo(w - 8, h / 2);
+    ctx.stroke();
+
+    // Visual wavelength maps smoothly from 14px (at z=1090) -> 126px (at z=0)
+    const logStretch = Math.log10(st.stretchSinceRecomb) / Math.log10(1091); // 0..1
+    const waveLenPx = 14 + logStretch * 114;
+    const amp = 32 - logStretch * 6;
+
+    // Color follows band
+    let stroke = '#E09F3E';
+    if (st.band === 'Infrared') stroke = '#9E3224';
+    if (st.band === 'Microwave') stroke = accent;
+
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    for (let x = 8; x <= w - 8; x += 2) {
+      const y = h / 2 + Math.sin((x / waveLenPx) * Math.PI * 2 - phase) * amp;
+      if (x === 8) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // Label wavelength bracket
+    ctx.fillStyle = inkFaded;
+    ctx.font = '10px Hack, monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(`peak λ = ${formatLambda(st.peakMm)} (${st.band})`, 10, 16);
+
+    // Position needle along spectrum bar (log wavelength from 300nm to 3mm)
+    const minLog = Math.log10(0.00035);
+    const maxLog = Math.log10(3.0);
+    const norm = Math.max(2, Math.min(98, ((Math.log10(st.peakMm) - minLog) / (maxLog - minLog)) * 100));
+    specNeedle.style.left = norm.toFixed(1) + '%';
+  }
+
+  function updateUI(st) {
+    presetBtns.forEach(btn => {
+      btn.classList.toggle('is-active', Math.abs(Number(btn.dataset.p) - st.p) < 0.025);
+    });
+    detBtns.forEach(btn => {
+      btn.classList.toggle('is-active', btn.dataset.det === detector);
+    });
+
+    const stretchLabel = st.stretchSinceRecomb < 10
+      ? st.stretchSinceRecomb.toFixed(1) + '×'
+      : Math.round(st.stretchSinceRecomb).toLocaleString() + '×';
+    stretchBadge.textContent = 'stretched ' + stretchLabel;
+
+    const zText = st.z >= 10 ? Math.round(st.z).toLocaleString() : st.z.toFixed(1);
+    readoutsEl.innerHTML = `
+      <div class="stat"><div class="stat-k">Redshift z</div><div class="stat-v">${zText}</div></div>
+      <div class="stat"><div class="stat-k">Stretch</div><div class="stat-v">${stretchLabel}</div></div>
+      <div class="stat"><div class="stat-k">Sky Temp</div><div class="stat-v accent">${formatTemp(st.temp)}</div></div>
+      <div class="stat"><div class="stat-k">Peak &lambda;</div><div class="stat-v">${formatLambda(st.peakMm)}</div></div>
+    `;
+
+    if (st.p < 0.05) {
+      captionEl.textContent = 'At 380,000 years (recombination), the entire universe became transparent at once: every direction glowed like a 3,000 K oven.';
+    } else if (detector === 'eye' && st.z < 10) {
+      captionEl.textContent = 'To human eyes at z = 0, space looks black between the stars. The old 3,000 K wall of light is still arriving, stretched 1,091× into microwaves.';
+    } else if (detector === 'dish' && st.z < 10) {
+      captionEl.textContent = 'Tune a radio receiver to 160 GHz today and the "dark" sky lights back up uniformly in every direction at 2.725 K.';
+    } else {
+      captionEl.textContent = `Cosmic expansion has stretched space by ${stretchLabel} since recombination, cooling the background glow from 3,000 K down to ${formatTemp(st.temp)}.`;
+    }
+  }
+
+  let lastH = 0;
+  function reportHeight() {
+    const h = Math.ceil(wrapEl.getBoundingClientRect().height);
+    if (h && h !== lastH) {
+      lastH = h;
+      try { parent.postMessage({ type: 'ws-artifact-height', height: h }, '*'); } catch (e) {}
+    }
+  }
+
+  function renderFrame() {
+    const st = stateFromSlider();
+    renderDome(st);
+    renderWave(st);
+    updateUI(st);
+    reportHeight();
+  }
+
+  function tick() {
+    phase += 0.06;
+    const st = stateFromSlider();
+    renderWave(st);
+    requestAnimationFrame(tick);
+  }
+
+  slider.addEventListener('input', renderFrame);
+  presetBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      slider.value = btn.dataset.p;
+      renderFrame();
+    });
+  });
+  detBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      detector = btn.dataset.det;
+      renderFrame();
+    });
+  });
+
+  window.addEventListener('message', e => {
+    if (e.data && e.data.type === 'ws-theme') {
+      if (e.data.theme === 'dark') {
+        document.documentElement.dataset.theme = 'dark';
+      } else {
+        delete document.documentElement.dataset.theme;
+      }
+      renderFrame();
+    }
+  });
+
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(renderFrame).observe(wrapEl);
+  }
+  window.addEventListener('resize', renderFrame);
+
+  try { parent.postMessage({ type: 'ws-artifact-ready' }, '*'); } catch (e) {}
+  renderFrame();
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

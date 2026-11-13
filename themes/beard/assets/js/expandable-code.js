@@ -23,6 +23,17 @@ document.addEventListener('DOMContentLoaded', function() {
     codeBlock.parentNode.insertBefore(wrapper, codeBlock);
     wrapper.appendChild(codeBlock);
 
+    // Add language badge if detected
+    const langEl = codeBlock.querySelector('code[data-lang]');
+    const lang = langEl ? langEl.getAttribute('data-lang') : '';
+    if (lang && lang !== 'fallback') {
+      wrapper.classList.add('has-lang');
+      const langBadge = document.createElement('span');
+      langBadge.className = 'code-lang';
+      langBadge.textContent = lang;
+      wrapper.appendChild(langBadge);
+    }
+
     // Only add toggle button if block is tall enough
     if (needsExpand) {
       const toggleBtn = document.createElement('button');

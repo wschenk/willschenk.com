@@ -1,4 +1,5 @@
 {{ define "main" }}
+{{- $allPages := (where .Site.RegularPages "Section" "in" (slice "articles" "howto" "labnotes" "fragments")).ByDate.Reverse -}}
 
 {{/* 1. Hero */}}
 <section class="hero">
@@ -8,21 +9,47 @@
     <div class="tagline">
       {{ .Content }}
     </div>
+    <div class="hero-actions">
+      <a href="/writing/" class="hero-action-primary">Browse {{ len $allPages }} posts &rarr;</a>
+      <button type="button" class="hero-action-search" data-open-search>
+        Quick find <kbd>&#8984;K</kbd>
+      </button>
+    </div>
   </div>
 </section>
 
 <hr class="decorative">
 
-{{/* 2. Latest Post (any section) */}}
-{{ range first 1 .Site.RegularPages.ByDate.Reverse }}
-<section class="container latest-fragment">
-  <p class="fragment-label">Latest</p>
-  <h2><a href="{{ .RelPermalink }}">{{ .Title }}</a></h2>
-  <p class="fragment-date">
-    {{ .Date | time.Format ":date_long" }}
-  </p>
-  <div class="fragment-content">
-    {{ .Content }}
+{{/* 2. Latest Post (spotlight card) */}}
+{{ range first 1 $allPages }}
+<section class="container latest-section">
+  <div class="latest-spotlight">
+    <div class="latest-spotlight-meta">
+      <span class="fragment-label">Latest</span>
+      {{ partial "section-badge.html" . }}
+      <span class="fragment-date">{{ .Date | time.Format ":date_long" }} &middot; {{ .ReadingTime }} min read</span>
+    </div>
+    <h2><a href="{{ .RelPermalink }}" data-vt-link="{{ .RelPermalink }}"><span data-vt-target>{{ .Title }}</span></a></h2>
+    {{ with .Params.Subtitle }}
+    <p class="latest-subtitle">{{ . | markdownify | plainify }}</p>
+    {{ end }}
+    <div class="fragment-content">
+      {{- $hasInlineImg := or (in .RawContent "![") (in .RawContent "<img") -}}
+      {{ if and (eq .Section "fragments") (lt .WordCount 180) (not $hasInlineImg) }}
+        {{ .Content }}
+      {{ else }}
+        <p>{{ .Summary | plainify }}</p>
+      {{ end }}
+    </div>
+    <div class="latest-spotlight-foot">
+      <a href="{{ .RelPermalink }}" class="latest-read-more">
+        {{ if and (eq .Section "fragments") (lt .WordCount 180) (not $hasInlineImg) }}
+          Permalink &rarr;
+        {{ else }}
+          Read full {{ .Section | singularize }} ({{ .ReadingTime }} min read) &rarr;
+        {{ end }}
+      </a>
+    </div>
   </div>
 </section>
 {{ end }}
@@ -31,14 +58,17 @@
 
 {{/* 3. Recent Writing */}}
 <section class="container">
-  <h2>Recent Writing</h2>
+  <div class="section-heading-row">
+    <h2>Recent Writing</h2>
+    <a href="/writing/" class="section-more-link">All {{ len $allPages }} posts &rarr;</a>
+  </div>
   <div class="card-grid">
-    {{ range first 12 .Site.RegularPages.ByDate.Reverse }}
+    {{ range first 12 $allPages }}
       {{ partial "post-card.html" . }}
     {{ end }}
   </div>
-  <p style="text-align: center; margin-top: var(--space-m);">
-    <a href="/writing/">View all writing &rarr;</a>
+  <p class="section-footer-cta">
+    <a href="/writing/" class="cta-pill">View full archive &rarr;</a>
   </p>
 </section>
 
@@ -52,11 +82,15 @@
     {{ range $sections }}
       {{ $sectionPages := where $.Site.RegularPages "Section" . }}
       {{ $latest := first 1 $sectionPages.ByDate.Reverse }}
-      <a href="/{{ . }}/" class="section-card">
-        <p class="section-name">{{ . | title }}</p>
-        <p class="section-count">{{ len $sectionPages }} posts</p>
+      <a href="/{{ . }}/" class="section-card section-card--{{ . }}">
+        <div class="section-card-top">
+          <span class="section-dot section-dot--{{ . }}" aria-hidden="true"></span>
+          <span class="section-name">{{ . | title }}</span>
+          <span class="section-count">{{ len $sectionPages }}</span>
+        </div>
         {{ range $latest }}
           <p class="section-latest">{{ .Title }}</p>
+          <span class="section-latest-meta">{{ .Date | time.Format "Jan 2, 2006" }} &rarr;</span>
         {{ end }}
       </a>
     {{ end }}

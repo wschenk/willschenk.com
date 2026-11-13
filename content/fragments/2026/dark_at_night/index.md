@@ -5,8 +5,7 @@ tags:
   - ai
   - physics
   - transcripts
-date: 2026-07-08
-draft: true
+date: 2026-11-12T20:14:32
 ---
 
 This has been rattling around my head since I was a kid lying in the
@@ -14,9 +13,11 @@ yard: if the universe is that old and that full of stars, the night
 sky seems like it should be a wall of light. It turns out the
 darkness is the interesting part.
 
+(Built as a worked example of [this transcript format](/fragments/2026/transcript_format/): prompts upfront, model responses folded away, and the interactive toys inline.)
+
 {{< prompt >}}
 The universe is about 14 billion years old and has something like
-10^22 stars. If I draw a straight line from my eye out into space in
+10²² stars. If I draw a straight line from my eye out into space in
 any direction, shouldn't it eventually hit the surface of a star?
 Why isn't the whole night sky as bright as the sun?
 {{< /prompt >}}
@@ -50,6 +51,15 @@ The darkness of the night sky is therefore direct, naked-eye evidence
 that the universe is not infinitely old — that it had a beginning.
 {{< /response >}}
 
+The shell cancellation is the trap: step out to distance `kR` and each
+star fades by `1/k²`, which feels like it should rescue the dark sky.
+Except the wedge of space at `kR` captures `k²` times as many stars, so
+every concentric shell delivers the exact same `1.00×` slice of light —
+click between the shells below or stack them together to watch the dark
+patch disappear:
+
+{{< artifact file="shells.html" title="shells.html — why k² stars and 1/k² brightness cancel in every shell" height="400px" wide="true" >}}
+
 The inversion is what got me: the darkness isn't an absence of
 information, it *is* the information. You can stand in a field, look
 up, and rule out an eternal static cosmos with no equipment at all.
@@ -82,11 +92,19 @@ had time to reach us — essentially the modern answer, seventy years
 before cosmology could back him up.
 {{< /response >}}
 
-Poe got there first, in a prose poem, in 1848. And I love that the
-sky actually is uniformly bright right now — we're just tuned to the
-wrong channel.
+Poe got there first, in a prose poem, in 1848:
 
-At this point I wanted to *see* the geometry, so:
+> Were the succession of stars endless, then the background of the sky would present us an uniform luminosity, like that displayed by the Galaxy — since there could be absolutely no point, in all that background, at which would not exist a star. The only mode, therefore, in which, under such a state of affairs, we could comprehend the voids which our telescopes find in innumerable directions, would be by supposing the distance of the invisible background so immense that no ray from it has yet been able to reach us at all.
+
+And I love that the sky actually *is* uniformly bright right now —
+we're just tuned to the wrong channel. Slide forward from
+recombination to today and switch between your eyes and a 160 GHz
+microwave dish to see what is actually overhead:
+
+{{< artifact file="cmb.html" title="cmb.html — tuning between human eyes and the 2.7 K microwave sky" height="430px" wide="true" >}}
+
+At this point I wanted to *see* the horizon geometry from the ground
+up, so:
 
 {{< prompt label="Follow-up" >}}
 Build me a toy version I can play with: a 2D star field with an
@@ -114,15 +132,21 @@ render as faint ghosts — they exist, but their light hasn't reached
 you yet.
 {{< /response >}}
 
-Here it is. It starts at today — drag toward *forever* and watch the
-dark directions run out:
+Here it is, paired with what that exact slice of universe looks like
+looking up above the pines in the yard. It starts at today — press
+**Run clock** (or drag toward *Forever*) to watch the dark directions
+run out, hover any ray to inspect when its light arrives, or toggle
+**Expanding (redshift)** to see how expansion fades distant shells back
+out of view:
 
-{{< artifact file="olbers.html" title="olbers.html — every sight line ends on a star, eventually" height="820px" >}}
+{{< artifact file="olbers.html" title="olbers.html — every sight line ends on a star, eventually" height="820px" wide="true" >}}
 
 Even this cartoon universe — vastly denser with stars than the real
 one — is mostly dark at 13.8 billion years. Give light ten times
-longer to travel and the sky starts to close up; run it to forever
-and there are no dark directions left, which is Olbers' bright sky.
+longer to travel in a static cosmos and the sky above the treeline
+starts to close up; run it to forever and there are no dark directions
+left, which is Olbers' bright sky. Flip **Expanding** on and the
+geometric intersections still happen, yet redshift keeps the sky dark.
 
 So what do we learn from a dark ceiling? That the universe had a
 beginning, that it's expanding, and that the "missing" wall of light

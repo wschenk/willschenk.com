@@ -1,46 +1,26 @@
 {{ define "main" }}
+{{- $pages := .Pages.ByDate.Reverse -}}
+{{- $yearGroups := $pages.GroupByDate "2006" -}}
 <section class="container page-list">
+  <div class="list-breadcrumb">
+    <a href="/writing/">&larr; All Writing</a>
+    <span class="list-count">{{ len $pages }} {{ cond (eq (len $pages) 1) "post" "posts" }}</span>
+  </div>
   <h1>{{ .Title }}</h1>
   {{ with .Params.description }}<p class="section-description">{{ . }}</p>{{ end }}
 
-  <ul class="post-list">
-    {{ $.Scratch.Set "lastYear" "" }}
-    {{ $.Scratch.Set "lastMonth" "" }}
-    {{ range .Pages }}
-
-    {{ $year := .Date.Year }}
-    {{ $month := .Date.Month }}
-
-    {{ $lastYear := $.Scratch.Get "lastYear" }}
-    {{ $lastMonth := $.Scratch.Get "lastMonth" }}
-    {{ if eq $lastYear "" }}
-      <li class="year-heading">{{ $year }}</li>
-      <li class="month-heading">{{ $month }}</li>
-    {{ else }}
-      {{ if ne $year $lastYear }}
-        <li class="year-heading">{{ $year }}</li>
-      {{ end }}
-      {{ if ne $month $lastMonth }}
-        <li class="month-heading">{{ $month }}</li>
-      {{ end }}
-    {{ end }}
-
-    {{ $.Scratch.Set "lastYear" $year }}
-    {{ $.Scratch.Set "lastMonth" $month }}
-
-    <li>
-      <a href="{{ .RelPermalink }}">
-        <p>
-          {{ if .Draft }}DRAFT: {{ end }}
-          {{ .LinkTitle }}
-          {{ with .Params.Subtitle }}
-          <span class="subtitle">{{ . | markdownify }}</span>
-          {{ end }}
-        </p>
-        <time>{{ humanize .Date.Day }}</time>
-      </a>
-    </li>
-    {{ end }}
-  </ul>
+  {{- range $yearGroups }}
+  <section class="writing-year-group" id="year-{{ .Key }}">
+    <h2 class="writing-year">
+      <span>{{ .Key }}</span>
+      <span class="year-count">{{ len .Pages }}</span>
+    </h2>
+    <ul class="writing-list">
+      {{- range .Pages }}
+        {{ partial "archive-row.html" . }}
+      {{- end }}
+    </ul>
+  </section>
+  {{- end }}
 </section>
 {{ end }}

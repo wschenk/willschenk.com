@@ -1,52 +1,275 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <style>
-  body { margin: 0; background: #F5F0E8; font-family: "Courier New", monospace;
-         color: #1A1A1A; }
-  .wrap { max-width: 640px; margin: 0 auto; padding: 12px; }
-  canvas { display: block; width: 100%; }
-  .readout { font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase;
-             text-align: center; margin: 8px 0 10px; }
-  .readout strong { color: #C41E1E; }
-  .controls { display: flex; gap: 10px; align-items: center; }
-  input[type=range] { flex: 1; accent-color: #C41E1E; }
-  button { font: inherit; font-size: 11px; text-transform: uppercase;
-           letter-spacing: 0.1em; background: #F5F0E8; color: #1A1A1A;
-           border: 1.5px solid #1A1A1A; padding: 4px 10px; cursor: pointer; }
-  button:hover { background: #1A1A1A; color: #F5F0E8; }
-  .hint { font-size: 11.5px; color: #6B6B6B; margin-top: 10px; line-height: 1.5; }
+  :root {
+    --paper: #F5F0E8;
+    --paper-elev: #FAF7F1;
+    --paper-sunk: #EAE3D5;
+    --ink: #1A1A1A;
+    --ink-faded: #666159;
+    --accent: #C41E1E;
+    --border: #1A1A1A;
+    --border-light: #D2CBB8;
+  }
+  [data-theme="dark"] {
+    --paper: #161514;
+    --paper-elev: #1E1D1B;
+    --paper-sunk: #262421;
+    --ink: #EFECE6;
+    --ink-faded: #9E988E;
+    --accent: #E24A4A;
+    --border: #3D3A35;
+    --border-light: #2B2925;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: Hack, "Courier New", monospace;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 14px;
+  }
+  .telemetry {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  @media (max-width: 560px) {
+    .telemetry { grid-template-columns: 1fr; }
+  }
+  .stat {
+    border: 1px solid var(--border-light);
+    background: var(--paper-elev);
+    border-radius: 3px;
+    padding: 6px 9px;
+  }
+  .stat-k {
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-faded);
+  }
+  .stat-v {
+    font-size: 13.5px;
+    font-weight: 700;
+    margin-top: 2px;
+  }
+  .stat-v strong {
+    color: var(--accent);
+  }
+  .canvas-frame {
+    position: relative;
+    border: 1.5px solid var(--border);
+    border-radius: 4px;
+    background: var(--paper);
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+  }
+  #sky {
+    cursor: crosshair;
+  }
+  .hover-readout {
+    min-height: 24px;
+    padding: 4px 10px;
+    font-size: 11px;
+    color: var(--ink-faded);
+    border-top: 1px solid var(--border-light);
+    background: var(--paper-elev);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .hover-readout strong {
+    color: var(--accent);
+  }
+  .yard-block {
+    margin-top: 10px;
+    border: 1.5px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    background: #0D0C0B;
+  }
+  .yard-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 9px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: rgba(245, 240, 232, 0.78);
+    background: #171614;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-top: 10px;
+  }
+  .slider-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1 1 220px;
+    font-size: 10.5px;
+    color: var(--ink-faded);
+  }
+  input[type=range] {
+    flex: 1;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  .btn-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+  button {
+    font: inherit;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    background: var(--paper-elev);
+    color: var(--ink);
+    border: 1.5px solid var(--border);
+    border-radius: 3px;
+    padding: 5px 9px;
+    cursor: pointer;
+    transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+  }
+  button:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  button.is-active {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+  }
+  button.is-accent.is-active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #F5F0E8;
+  }
+  .hint {
+    font-size: 11px;
+    color: var(--ink-faded);
+    margin-top: 9px;
+    line-height: 1.48;
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <canvas id="sky"></canvas>
-  <div class="readout" id="readout"></div>
-  <div class="controls">
-    <input type="range" id="age" min="0" max="1" step="0.001">
-    <button id="today">today · 13.8 Gyr</button>
-    <button id="forever">forever</button>
+  <div class="telemetry">
+    <div class="stat">
+      <div class="stat-k">Light Travel Time</div>
+      <div class="stat-v" id="telAge">13.8 Gyr</div>
+    </div>
+    <div class="stat">
+      <div class="stat-k">Sight Lines Lit</div>
+      <div class="stat-v" id="telLit"></div>
+    </div>
+    <div class="stat">
+      <div class="stat-k">Sky State</div>
+      <div class="stat-v" id="telState"></div>
+    </div>
   </div>
-  <div class="hint">Drag to give light more time to travel. Each of the 540 sight
-    lines from the observer lights up red when it ends on a star. An eternal
-    universe has no dark directions left.</div>
+
+  <div class="canvas-frame">
+    <canvas id="sky"></canvas>
+    <div class="hover-readout" id="hoverReadout">
+      <span>Move over the starfield to inspect any sight line</span>
+      <span id="hoverDetail">540 rays &middot; 24,000 stars</span>
+    </div>
+  </div>
+
+  <div class="yard-block">
+    <div class="yard-bar">
+      <span>Looking up from the yard (360&deg; horizon)</span>
+      <span id="yardLabel">night sky</span>
+    </div>
+    <canvas id="yard"></canvas>
+  </div>
+
+  <div class="controls">
+    <div class="slider-group">
+      <span>1 Gyr</span>
+      <input type="range" id="age" min="0" max="1" step="0.001">
+      <span>2,000 Gyr</span>
+    </div>
+    <div class="btn-group">
+      <button type="button" id="playBtn" class="is-accent">&#9654; Run clock</button>
+      <button type="button" id="today">Today &middot; 13.8</button>
+      <button type="button" id="hundred">100 Gyr</button>
+      <button type="button" id="forever">Forever</button>
+    </div>
+    <div class="btn-group">
+      <button type="button" id="modeStatic" class="is-active">Static</button>
+      <button type="button" id="modeExpand">Expanding (redshift)</button>
+    </div>
+  </div>
+
+  <div class="hint">Drag or press <strong>Run clock</strong> to give starlight more time to travel. Lit sight lines glow vermilion from star to observer; toggle <strong>Expanding (redshift)</strong> to dim distant shells beyond visible light.</div>
 </div>
+
 <script>
+(function() {
   const FIELD = 4000, STAR_R = 3, N = 24000, RAYS = 540;
   const MAX_AGE = 2000, PX_PER_GYR = 4, TODAY = 13.8;
 
-  // deterministic star field
+  const wrapEl = document.querySelector('.wrap');
+  const canvas = document.getElementById('sky');
+  const ctx = canvas.getContext('2d');
+  const yardCanvas = document.getElementById('yard');
+  const yctx = yardCanvas.getContext('2d');
+
+  const slider = document.getElementById('age');
+  const telAge = document.getElementById('telAge');
+  const telLit = document.getElementById('telLit');
+  const telState = document.getElementById('telState');
+  const hoverReadout = document.getElementById('hoverReadout');
+  const hoverDetail = document.getElementById('hoverDetail');
+  const yardLabel = document.getElementById('yardLabel');
+  const playBtn = document.getElementById('playBtn');
+  const todayBtn = document.getElementById('today');
+  const hundredBtn = document.getElementById('hundred');
+  const foreverBtn = document.getElementById('forever');
+  const modeStaticBtn = document.getElementById('modeStatic');
+  const modeExpandBtn = document.getElementById('modeExpand');
+
+  // Deterministic star field
   let seed = 42;
   const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
   const stars = [];
   while (stars.length < N) {
     const r = FIELD * Math.sqrt(rnd()), a = rnd() * 2 * Math.PI;
     if (r < 30) continue;
-    stars.push({ x: r * Math.cos(a), y: r * Math.sin(a) });
+    stars.push({
+      x: r * Math.cos(a),
+      y: r * Math.sin(a),
+      d: r,
+      az: (a < 0 ? a + 2 * Math.PI : a) / (2 * Math.PI),
+      alt: 0.14 + rnd() * 0.78
+    });
   }
 
-  // precompute, for every direction, where the sight line first hits a star
+  // Precompute first star hit along each sight line
   const hit = new Float64Array(RAYS);
   for (let i = 0; i < RAYS; i++) {
     const a = i / RAYS * 2 * Math.PI, dx = Math.cos(a), dy = Math.sin(a);
@@ -63,67 +286,395 @@
     hit[i] = best;
   }
 
-  const canvas = document.getElementById('sky'), ctx = canvas.getContext('2d');
-  const slider = document.getElementById('age'), readout = document.getElementById('readout');
+  let expanding = false;
+  let playing = false;
+  let rafId = null;
+  let lastTs = 0;
+  let hoverIdx = -1;
+
   const uOf = age => Math.log10(age) / Math.log10(MAX_AGE);
   const ageOf = u => Math.pow(10, u * Math.log10(MAX_AGE));
 
-  function render() {
-    const cssSize = Math.min(canvas.parentNode.clientWidth - 4, 620);
+  function cssVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  function expandVis(distPx) {
+    if (!expanding) return 1;
+    const distGyr = distPx / PX_PER_GYR;
+    return Math.exp(-Math.max(0, distGyr - 14) / 68);
+  }
+
+  function renderSky(age, R) {
+    const w = canvas.parentNode.clientWidth;
+    const size = Math.min(w, 460);
+    if (w < 40 || size < 40) return null;
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = cssSize * dpr; canvas.height = cssSize * dpr;
-    canvas.style.height = cssSize + 'px';
+    canvas.width = w * dpr;
+    canvas.height = size * dpr;
+    canvas.style.height = size + 'px';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const age = ageOf(+slider.value), R = age * PX_PER_GYR;
-    const c = cssSize / 2, s = (c - 15) / Math.max(R, 250);
+    const paper = cssVar('--paper');
+    const ink = cssVar('--ink');
+    const inkFaded = cssVar('--ink-faded');
+    const accent = cssVar('--accent');
+    const isDark = document.documentElement.dataset.theme === 'dark';
 
-    ctx.fillStyle = '#F5F0E8';
-    ctx.fillRect(0, 0, cssSize, cssSize);
+    const cx = w / 2;
+    const cy = size / 2;
+    const s = Math.max(0.01, (Math.min(cx, cy) - 18) / Math.max(R, 250));
 
-    // horizon
+    ctx.fillStyle = paper;
+    ctx.fillRect(0, 0, w, size);
+
+    // Reference distance scale rings (10, 50, 100, 500, 1000 Gyr)
+    const rings = [10, 50, 100, 500, 1000];
+    ctx.font = '10px Hack, monospace';
+    ctx.textAlign = 'left';
+    for (const gyr of rings) {
+      const rrPx = gyr * PX_PER_GYR * s;
+      if (rrPx < 28 || rrPx > Math.max(w, size) * 0.65) continue;
+      ctx.strokeStyle = isDark ? 'rgba(239, 236, 230, 0.08)' : 'rgba(26, 26, 26, 0.08)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(cx, cy, rrPx, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillStyle = inkFaded;
+      ctx.globalAlpha = 0.65;
+      ctx.fillText(gyr + ' Gyr', cx + 4, cy - rrPx + 11);
+      ctx.globalAlpha = 1;
+    }
+
+    // Horizon boundary circle
     ctx.setLineDash([5, 5]);
-    ctx.strokeStyle = '#6B6B6B';
-    ctx.beginPath(); ctx.arc(c, c, R * s, 0, 7); ctx.stroke();
+    ctx.strokeStyle = inkFaded;
+    ctx.lineWidth = 1.25;
+    ctx.beginPath();
+    ctx.arc(cx, cy, R * s, 0, Math.PI * 2);
+    ctx.stroke();
     ctx.setLineDash([]);
 
-    // stars: solid inside the light horizon, ghosts beyond it
-    const sr = Math.min(Math.max(STAR_R * s, 0.8), 5);
-    for (const st of stars) {
-      const d = Math.hypot(st.x, st.y);
-      if (d * s > c * 1.45) continue;
-      ctx.fillStyle = d <= R ? 'rgba(26,26,26,0.9)' : 'rgba(26,26,26,0.14)';
-      ctx.beginPath(); ctx.arc(c + st.x * s, c + st.y * s, sr, 0, 7); ctx.fill();
-    }
-
-    // sight lines
-    let lit = 0;
-    ctx.strokeStyle = 'rgba(26,26,26,0.10)';
-    ctx.fillStyle = '#C41E1E';
-    for (let i = 0; i < RAYS; i++) {
-      const a = i / RAYS * 2 * Math.PI, d = Math.min(hit[i], R);
-      const x = c + Math.cos(a) * d * s, y = c + Math.sin(a) * d * s;
-      ctx.beginPath(); ctx.moveTo(c, c); ctx.lineTo(x, y); ctx.stroke();
-      if (hit[i] <= R) {
-        lit++;
-        ctx.beginPath(); ctx.arc(x, y, 1.8, 0, 7); ctx.fill();
+    // Stars: inside horizon sharp, outside faint ghosts
+    const sr = Math.min(Math.max(STAR_R * s, 0.85), 4.6);
+    const maxDraw = Math.hypot(cx, cy) * 1.1;
+    for (let i = 0; i < N; i++) {
+      const st = stars[i];
+      if (st.d * s > maxDraw) continue;
+      const inside = st.d <= R;
+      if (inside) {
+        const vis = expandVis(st.d);
+        const a = Math.max(0.15, (isDark ? 0.88 : 0.86) * vis);
+        ctx.fillStyle = isDark
+          ? `rgba(239, 236, 230, ${a})`
+          : `rgba(26, 26, 26, ${a})`;
+      } else {
+        ctx.fillStyle = isDark
+          ? 'rgba(239, 236, 230, 0.13)'
+          : 'rgba(26, 26, 26, 0.13)';
       }
+      ctx.beginPath();
+      ctx.arc(cx + st.x * s, cy + st.y * s, sr, 0, Math.PI * 2);
+      ctx.fill();
     }
 
-    ctx.fillStyle = '#C41E1E';
-    ctx.beginPath(); ctx.arc(c, c, 3, 0, 7); ctx.fill();
+    // Sight lines: unlit in faint ink, lit in glowing vermilion
+    let lit = 0;
+    let weightedBright = 0;
+    const unlitStroke = isDark ? 'rgba(239, 236, 230, 0.08)' : 'rgba(26, 26, 26, 0.09)';
 
-    const fmtAge = age < 10 ? age.toFixed(1) : Math.round(age);
-    readout.innerHTML = 'light travel time: ' + fmtAge + ' Gyr &middot; sky lit: <strong>'
-      + (100 * lit / RAYS).toFixed(1) + '%</strong>';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < RAYS; i++) {
+      if (hit[i] <= R) continue;
+      const a = i / RAYS * 2 * Math.PI;
+      const x = cx + Math.cos(a) * R * s;
+      const y = cy + Math.sin(a) * R * s;
+      ctx.strokeStyle = unlitStroke;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+    }
+
+    for (let i = 0; i < RAYS; i++) {
+      if (hit[i] > R) continue;
+      lit++;
+      const vis = expandVis(hit[i]);
+      weightedBright += vis;
+      const a = i / RAYS * 2 * Math.PI;
+      const x = cx + Math.cos(a) * hit[i] * s;
+      const y = cy + Math.sin(a) * hit[i] * s;
+
+      const alpha = expanding ? (0.12 + 0.72 * vis) : 0.68;
+      ctx.strokeStyle = isDark
+        ? `rgba(226, 74, 74, ${alpha})`
+        : `rgba(196, 30, 30, ${alpha})`;
+      ctx.lineWidth = 1.15;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+
+      ctx.fillStyle = accent;
+      ctx.globalAlpha = expanding ? Math.max(0.2, vis) : 1;
+      ctx.beginPath();
+      ctx.arc(x, y, 1.9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // Highlight hovered ray
+    if (hoverIdx >= 0 && hoverIdx < RAYS) {
+      const a = hoverIdx / RAYS * 2 * Math.PI;
+      const isLitRay = hit[hoverIdx] <= R;
+      const d = isLitRay ? hit[hoverIdx] : R;
+      const hx = cx + Math.cos(a) * d * s;
+      const hy = cy + Math.sin(a) * d * s;
+
+      ctx.strokeStyle = isLitRay ? accent : ink;
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(hx, hy);
+      ctx.stroke();
+
+      ctx.fillStyle = isLitRay ? accent : ink;
+      ctx.beginPath();
+      ctx.arc(hx, hy, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Center observer dot
+    ctx.fillStyle = accent;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    return { lit, weightedBright };
+  }
+
+  function renderYard(age, R, stats) {
+    const w = yardCanvas.parentNode.clientWidth;
+    const h = 112;
+    const dpr = window.devicePixelRatio || 1;
+    yardCanvas.width = w * dpr;
+    yardCanvas.height = h * dpr;
+    yardCanvas.style.height = h + 'px';
+    yctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const effRatio = Math.min(1, stats.weightedBright / RAYS);
+    // Warm up the sky as weighted bright lines saturate
+    const bgMix = Math.pow(effRatio, 1.4);
+    const rCol = Math.round(13 + bgMix * 238);
+    const gCol = Math.round(12 + bgMix * 212);
+    const bCol = Math.round(11 + bgMix * 168);
+    yctx.fillStyle = `rgb(${rCol},${gCol},${bCol})`;
+    yctx.fillRect(0, 0, w, h);
+
+    const colW = w / RAYS;
+    // Column wash for each hit sight line
+    for (let i = 0; i < RAYS; i++) {
+      if (hit[i] > R) continue;
+      const vis = expandVis(hit[i]);
+      const distFactor = Math.max(0.18, 1 - hit[i] / (FIELD * 1.1));
+      const x = (i / RAYS) * w;
+      yctx.fillStyle = expanding
+        ? `rgba(215, 110, 75, ${0.42 * vis})`
+        : `rgba(255, 224, 175, ${0.34 + 0.52 * distFactor})`;
+      yctx.fillRect(x, 0, Math.ceil(colW) + 0.6, h - 18);
+    }
+
+    // Crisp visible foreground stars inside horizon
+    for (let i = 0; i < 650; i++) {
+      const st = stars[i];
+      if (st.d > R) continue;
+      const vis = expandVis(st.d);
+      if (vis < 0.08) continue;
+      const x = st.az * w;
+      const y = (1 - st.alt) * (h - 24);
+      const rad = Math.max(0.7, Math.min(2.6, 55 / Math.max(st.d, 25)));
+      yctx.fillStyle = `rgba(255, 252, 240, ${Math.min(1, 0.55 + vis * 0.45)})`;
+      yctx.beginPath();
+      yctx.arc(x, y, rad, 0, Math.PI * 2);
+      yctx.fill();
+    }
+
+    // Highlight inspected azimuth on panorama
+    if (hoverIdx >= 0) {
+      const hx = (hoverIdx / RAYS) * w;
+      yctx.strokeStyle = cssVar('--accent');
+      yctx.lineWidth = 1.5;
+      yctx.beginPath();
+      yctx.moveTo(hx, 0);
+      yctx.lineTo(hx, h - 18);
+      yctx.stroke();
+    }
+
+    // Northwest Connecticut pines + barn roofline silhouette
+    yctx.fillStyle = '#0B0A09';
+    yctx.beginPath();
+    yctx.moveTo(0, h);
+    for (let x = 0; x <= w; x += 4) {
+      const pct = x / w;
+      let y = h - 16 - Math.abs(Math.sin(x * 0.13) * 11) - Math.abs(Math.cos(x * 0.31) * 6);
+      // Small barn gable around 72% across
+      if (pct > 0.68 && pct < 0.77) {
+        const b = (pct - 0.68) / 0.09;
+        const gable = b < 0.5 ? b * 2 : (1 - b) * 2;
+        y = Math.min(y, h - 22 - gable * 14);
+      }
+      yctx.lineTo(x, y);
+    }
+    yctx.lineTo(w, h);
+    yctx.closePath();
+    yctx.fill();
+
+    yardLabel.textContent = effRatio < 0.2
+      ? 'night sky'
+      : (effRatio < 0.7 ? 'closing in' : "Olbers' bright sky");
+  }
+
+  function updateUI(age, stats) {
+    const litPct = ((100 * stats.lit) / RAYS).toFixed(1);
+    const visPct = ((100 * stats.weightedBright) / RAYS).toFixed(1);
+    const fmtAge = age < 10 ? age.toFixed(1) : Math.round(age).toLocaleString();
+
+    telAge.textContent = fmtAge + ' Gyr';
+    if (expanding) {
+      telLit.innerHTML = `${stats.lit} / ${RAYS} &middot; visible: <strong>${visPct}%</strong>`;
+      telState.textContent = stats.lit / RAYS > 0.8 ? 'Stars hit, light redshifted' : 'Sparse + redshifted';
+    } else {
+      telLit.innerHTML = `${stats.lit} / ${RAYS} (<strong>${litPct}%</strong>)`;
+      telState.textContent = litPct >= 99.5 ? "Olbers' bright wall" : (stats.lit / RAYS > 0.4 ? 'Closing in' : 'Sparse night sky');
+    }
+
+    todayBtn.classList.toggle('is-active', Math.abs(age - TODAY) < 0.4);
+    hundredBtn.classList.toggle('is-active', Math.abs(age - 100) < 3);
+    foreverBtn.classList.toggle('is-active', age >= MAX_AGE - 20);
+    modeStaticBtn.classList.toggle('is-active', !expanding);
+    modeExpandBtn.classList.toggle('is-active', expanding);
+    playBtn.classList.toggle('is-active', playing);
+    playBtn.innerHTML = playing ? '&#9646;&#9646; Pause' : '&#9654; Run clock';
+
+    if (hoverIdx >= 0) {
+      const deg = Math.round((hoverIdx / RAYS) * 360);
+      const hitGyr = hit[hoverIdx] / PX_PER_GYR;
+      if (hit[hoverIdx] === Infinity) {
+        hoverReadout.firstElementChild.innerHTML = `Ray ${deg}&deg; &middot; <strong>escapes field</strong>`;
+      } else if (hitGyr <= age) {
+        hoverReadout.firstElementChild.innerHTML = `Ray ${deg}&deg; &middot; <strong>lit</strong> (star at ${hitGyr.toFixed(1)} Gyr)`;
+      } else {
+        const wait = (hitGyr - age).toFixed(1);
+        hoverReadout.firstElementChild.innerHTML = `Ray ${deg}&deg; &middot; star at ${hitGyr.toFixed(1)} Gyr (arrives in <strong>+${wait} Gyr</strong>)`;
+      }
+      hoverDetail.textContent = expanding ? `redshift vis ${Math.round(expandVis(hit[hoverIdx]) * 100)}%` : 'unredshifted';
+    }
+  }
+
+  let lastH = 0;
+  function reportHeight() {
+    const h = Math.ceil(wrapEl.getBoundingClientRect().height);
+    if (h && h !== lastH) {
+      lastH = h;
+      try { parent.postMessage({ type: 'ws-artifact-height', height: h }, '*'); } catch (e) {}
+    }
+  }
+
+  function render() {
+    const age = ageOf(+slider.value);
+    const R = age * PX_PER_GYR;
+    const stats = renderSky(age, R);
+    if (!stats) return;
+    renderYard(age, R, stats);
+    updateUI(age, stats);
+    reportHeight();
+  }
+
+  function stepPlay(ts) {
+    if (!playing) return;
+    if (!lastTs) lastTs = ts;
+    const dt = Math.min(0.05, (ts - lastTs) / 1000);
+    lastTs = ts;
+    const next = Math.min(1, +slider.value + dt * 0.095);
+    slider.value = next;
+    render();
+    if (next >= 1) {
+      playing = false;
+      updateUI(ageOf(next), { lit: RAYS, weightedBright: expanding ? 40 : RAYS });
+      render();
+      return;
+    }
+    rafId = requestAnimationFrame(stepPlay);
+  }
+
+  function stopPlay() {
+    playing = false;
+    if (rafId) cancelAnimationFrame(rafId);
+    lastTs = 0;
   }
 
   slider.value = uOf(TODAY);
-  slider.addEventListener('input', render);
-  document.getElementById('today').addEventListener('click', () => { slider.value = uOf(TODAY); render(); });
-  document.getElementById('forever').addEventListener('click', () => { slider.value = 1; render(); });
+  slider.addEventListener('input', () => { stopPlay(); render(); });
+
+  playBtn.addEventListener('click', () => {
+    if (playing) {
+      stopPlay();
+      render();
+    } else {
+      if (+slider.value >= 0.995) slider.value = uOf(1);
+      playing = true;
+      lastTs = 0;
+      rafId = requestAnimationFrame(stepPlay);
+      render();
+    }
+  });
+
+  todayBtn.addEventListener('click', () => { stopPlay(); slider.value = uOf(TODAY); render(); });
+  hundredBtn.addEventListener('click', () => { stopPlay(); slider.value = uOf(100); render(); });
+  foreverBtn.addEventListener('click', () => { stopPlay(); slider.value = 1; render(); });
+  modeStaticBtn.addEventListener('click', () => { expanding = false; render(); });
+  modeExpandBtn.addEventListener('click', () => { expanding = true; render(); });
+
+  canvas.addEventListener('mousemove', e => {
+    const rect = canvas.getBoundingClientRect();
+    const dx = (e.clientX - rect.left) - rect.width / 2;
+    const dy = (e.clientY - rect.top) - rect.height / 2;
+    let ang = Math.atan2(dy, dx);
+    if (ang < 0) ang += 2 * Math.PI;
+    hoverIdx = Math.round((ang / (2 * Math.PI)) * RAYS) % RAYS;
+    render();
+  });
+
+  canvas.addEventListener('mouseleave', () => {
+    hoverIdx = -1;
+    hoverReadout.firstElementChild.textContent = 'Move over the starfield to inspect any sight line';
+    hoverDetail.textContent = '540 rays · 24,000 stars';
+    render();
+  });
+
+  window.addEventListener('message', e => {
+    if (e.data && e.data.type === 'ws-theme') {
+      if (e.data.theme === 'dark') {
+        document.documentElement.dataset.theme = 'dark';
+      } else {
+        delete document.documentElement.dataset.theme;
+      }
+      render();
+    }
+  });
+
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(render).observe(wrapEl);
+  }
   window.addEventListener('resize', render);
+
+  try { parent.postMessage({ type: 'ws-artifact-ready' }, '*'); } catch (e) {}
   render();
+})();
 </script>
 </body>
 </html>

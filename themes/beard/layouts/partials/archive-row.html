@@ -1,0 +1,40 @@
+{{- $graph := partialCached "link-graph.html" "global" -}}
+{{- $s := $graph.scratch -}}
+{{- $inRels := $s.Get (printf "in:%s" .RelPermalink) | default (slice) -}}
+{{- $inCount := len $inRels -}}
+{{- $lowerTags := slice -}}
+{{- range (.Params.tags | default (slice)) -}}
+  {{- $lowerTags = $lowerTags | append (lower .) -}}
+{{- end -}}
+{{- $searchText := lower (printf "%s %s %s %s" .Title (.Params.Subtitle | default "") .Section (delimit $lowerTags " ")) -}}
+
+<li class="writing-item"
+    data-section="{{ .Section }}"
+    data-tags="{{ delimit $lowerTags "," }}"
+    data-search="{{ $searchText }}">
+  <div class="writing-item-badge">
+    {{ partial "section-badge.html" . }}
+  </div>
+  <div class="writing-item-main">
+    <a href="{{ .RelPermalink }}" class="writing-item-link" data-vt-link="{{ .RelPermalink }}">
+      <span class="writing-title" data-vt-target>{{ if .Draft }}<span class="draft-badge">DRAFT</span> {{ end }}{{ .Title }}</span>
+      {{- with .Params.Subtitle }}
+      <span class="writing-subtitle">{{ . | markdownify | plainify }}</span>
+      {{- end }}
+    </a>
+    {{- if or .Params.tags (gt $inCount 0) }}
+    <div class="writing-item-tags">
+      {{- range first 3 (.Params.tags | default (slice)) }}
+      <a href="{{ "/tags/" | relURL }}{{ . | urlize }}/" class="row-tag" data-tag-filter="{{ lower . }}">#{{ . }}</a>
+      {{- end }}
+      {{- if gt $inCount 0 }}
+      <span class="row-backlinks" title="Referenced in {{ $inCount }} {{ cond (eq $inCount 1) "post" "posts" }}">&swarr; {{ $inCount }}</span>
+      {{- end }}
+    </div>
+    {{- end }}
+  </div>
+  <div class="writing-item-meta">
+    <span class="writing-readtime">{{ .ReadingTime }}m</span>
+    <time class="writing-date" datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date | time.Format "Jan 2" }}</time>
+  </div>
+</li>

@@ -187,7 +187,7 @@ Looking at this, we see that github returns the contents of the file base64 enco
 5. Design a UI around in.
 6. Refactor the test "scripts" into ruby classes that fit that UI.
 
-Lets use rake to start managing the data. We're going to be using some of the techniques that were outlined in the [using rake for dataflow programming and data science](/using-rake-for-dataflow-programming-and-data-science/]) post. First step is to create a `lib/tasks/github.rake` file that we're going to put our tasks.
+Lets use rake to start managing the data. We're going to be using some of the techniques that were outlined in the [using rake for dataflow programming and data science](/using-rake-for-dataflow-programming-and-data-science/) post. First step is to create a `lib/tasks/github.rake` file that we're going to put our tasks.
 
 ```ruby
 require 'fileutils'

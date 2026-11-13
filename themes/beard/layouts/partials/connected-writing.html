@@ -1,0 +1,120 @@
+{{- $graph := partialCached "link-graph.html" "global" -}}
+{{- $s := $graph.scratch -}}
+{{- $pageByRel := $s.Get "pageByRel" -}}
+{{- $exclude := newScratch -}}
+{{- $exclude.Set .RelPermalink true -}}
+
+{{- $incomingPages := slice -}}
+{{- range ($s.Get (printf "in:%s" .RelPermalink) | default (slice)) -}}
+  {{- with index $pageByRel . -}}
+    {{- $incomingPages = $incomingPages | append . -}}
+    {{- $exclude.Set .RelPermalink true -}}
+  {{- end -}}
+{{- end -}}
+{{- $incomingPages = sort $incomingPages "Date" "desc" -}}
+
+{{- $outgoingPages := slice -}}
+{{- range ($s.Get (printf "out:%s" .RelPermalink) | default (slice)) -}}
+  {{- with index $pageByRel . -}}
+    {{- if not ($exclude.Get .RelPermalink) -}}
+      {{- $outgoingPages = $outgoingPages | append . -}}
+      {{- $exclude.Set .RelPermalink true -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{- $relatedRaw := .Site.RegularPages.Related . -}}
+{{- $relatedPages := slice -}}
+{{- range $relatedRaw -}}
+  {{- if and (not ($exclude.Get .RelPermalink)) (lt (len $relatedPages) 4) -}}
+    {{- $relatedPages = $relatedPages | append . -}}
+    {{- $exclude.Set .RelPermalink true -}}
+  {{- end -}}
+{{- end -}}
+
+{{- if or (gt (len $incomingPages) 0) (gt (len $outgoingPages) 0) (gt (len $relatedPages) 0) -}}
+<section class="connected-writing" id="connected-writing" aria-labelledby="connected-writing-title">
+  <div class="connected-header">
+    <span class="connected-kicker">Workshop Connections</span>
+    <h2 id="connected-writing-title">Connected writing</h2>
+  </div>
+
+  {{- if gt (len $incomingPages) 0 }}
+  <div class="connected-group">
+    <h3 class="connected-group-title">
+      <span>Referenced in</span>
+      <span class="connected-group-count">{{ len $incomingPages }}</span>
+    </h3>
+    <div class="connected-cards">
+      {{- range $incomingPages }}
+      <a href="{{ .RelPermalink }}" class="connected-card" data-vt-link="{{ .RelPermalink }}">
+        <div class="connected-card-meta">
+          {{ partial "section-badge.html" . }}
+          <span>{{ .Date | time.Format "Jan 2, 2006" }} &middot; {{ .ReadingTime }} min</span>
+        </div>
+        <p class="connected-card-title" data-vt-target>{{ .Title }}</p>
+        {{- with .Params.Subtitle }}
+        <p class="connected-card-sub">{{ . | markdownify | plainify }}</p>
+        {{- end }}
+      </a>
+      {{- end }}
+    </div>
+  </div>
+  {{- end }}
+
+  {{- if gt (len $outgoingPages) 0 }}
+  <div class="connected-group">
+    <h3 class="connected-group-title">
+      <span>Mentioned in this post</span>
+      <span class="connected-group-count">{{ len $outgoingPages }}</span>
+    </h3>
+    <ul class="connected-rows">
+      {{- range $outgoingPages }}
+      <li>
+        <a href="{{ .RelPermalink }}" class="connected-row" data-vt-link="{{ .RelPermalink }}">
+          {{ partial "section-badge.html" . }}
+          <span class="connected-row-main">
+            <span class="connected-row-title" data-vt-target>{{ .Title }}</span>
+            {{- with .Params.Subtitle }}
+            <span class="connected-row-sub">{{ . | markdownify | plainify }}</span>
+            {{- end }}
+          </span>
+          <span class="connected-row-date">{{ .Date.Year }}</span>
+        </a>
+      </li>
+      {{- end }}
+    </ul>
+  </div>
+  {{- end }}
+
+  {{- if gt (len $relatedPages) 0 }}
+  <div class="connected-group">
+    <h3 class="connected-group-title">
+      <span>Related across the archive</span>
+      <span class="connected-group-count">{{ len $relatedPages }}</span>
+    </h3>
+    <div class="connected-cards">
+      {{- range $relatedPages }}
+      <a href="{{ .RelPermalink }}" class="connected-card" data-vt-link="{{ .RelPermalink }}">
+        <div class="connected-card-meta">
+          {{ partial "section-badge.html" . }}
+          <span>{{ .Date | time.Format "Jan 2, 2006" }} &middot; {{ .ReadingTime }} min</span>
+        </div>
+        <p class="connected-card-title" data-vt-target>{{ .Title }}</p>
+        {{- with .Params.Subtitle }}
+        <p class="connected-card-sub">{{ . | markdownify | plainify }}</p>
+        {{- end }}
+        {{- with .Params.tags }}
+        <div class="connected-card-tags">
+          {{- range first 3 . }}
+          <span>#{{ . }}</span>
+          {{- end }}
+        </div>
+        {{- end }}
+      </a>
+      {{- end }}
+    </div>
+  </div>
+  {{- end }}
+</section>
+{{- end -}}

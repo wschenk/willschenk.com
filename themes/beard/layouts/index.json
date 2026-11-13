@@ -1,0 +1,24 @@
+{{- $graph := partialCached "link-graph.html" "global" -}}
+{{- $s := $graph.scratch -}}
+{{- $items := slice -}}
+{{- range (where site.RegularPages "Section" "in" (slice "articles" "howto" "labnotes" "fragments")).ByDate.Reverse -}}
+  {{- $inList := $s.Get (printf "in:%s" .RelPermalink) -}}
+  {{- $backlinks := 0 -}}
+  {{- if $inList -}}
+    {{- $backlinks = len $inList -}}
+  {{- end -}}
+  {{- $items = $items | append (dict
+    "title" .Title
+    "subtitle" (.Params.Subtitle | default "" | plainify)
+    "url" .RelPermalink
+    "section" .Section
+    "date" (.Date.Format "2006-01-02")
+    "dateShort" (.Date.Format "Jan 2, 2006")
+    "year" .Date.Year
+    "readingTime" .ReadingTime
+    "tags" (.Params.tags | default (slice))
+    "summary" (.Plain | plainify | truncate 160)
+    "backlinks" $backlinks
+  ) -}}
+{{- end -}}
+{{- dict "posts" $items | jsonify -}}

@@ -1,17 +1,34 @@
 {{ define "main" }}
-<article class="single section-{{ .Section }}">
-  <header>
+{{- $graph := partialCached "link-graph.html" "global" -}}
+{{- $s := $graph.scratch -}}
+{{- $inRels := $s.Get (printf "in:%s" .RelPermalink) | default (slice) -}}
+{{- $inCount := len $inRels -}}
+{{- $writingPages := where .Site.RegularPages "Section" "in" (slice "articles" "howto" "labnotes" "fragments") -}}
+{{- $hasToc := and .TableOfContents (ne .Section "fragments") (gt (len (findRE "<a " .TableOfContents)) 1) -}}
+
+<article class="single section-{{ .Section }}{{ if not $hasToc }} no-toc{{ end }}">
+  <header class="article-header">
     <div class="article-meta">
-      <div>
+      <a href="/{{ .Section }}/" class="article-back-section" title="All {{ .Section }}">
+        <span aria-hidden="true">&larr;</span>
         {{ partial "section-badge.html" . }}
+      </a>
+      <div class="article-stats">
+        {{ $dateMachine := .Date | time.Format "2006-01-02T15:04:05-07:00" }}
+        {{ $dateHuman := .Date | time.Format ":date_long" }}
+        <time datetime="{{ $dateMachine }}">{{ $dateHuman }}</time>
+        <span aria-hidden="true">&middot;</span>
+        <span>{{ .ReadingTime }} min read</span>
+        <span class="word-count-stat" aria-hidden="true">&middot; {{ .WordCount }} words</span>
+        {{- if gt $inCount 0 }}
+        <span aria-hidden="true">&middot;</span>
+        <a href="#connected-writing" class="backlink-pill">{{ $inCount }} {{ cond (eq $inCount 1) "reference" "references" }} &darr;</a>
+        {{- end }}
       </div>
-      {{ $dateMachine := .Date | time.Format "2006-01-02T15:04:05-07:00" }}
-      {{ $dateHuman := .Date | time.Format ":date_long" }}
-      <time datetime="{{ $dateMachine }}">{{ $dateHuman }}</time>
     </div>
 
     {{ if .Draft }}<p class="draft-badge">DRAFT</p>{{ end }}
-    <h1>{{ .Title }}</h1>
+    <h1 data-vt-slug="{{ .RelPermalink }}">{{ .Title }}</h1>
     {{ with .Params.Subtitle }}
     <p class="subtitle">{{ . | markdownify }}</p>
     {{ end }}
@@ -19,7 +36,16 @@
     {{ with .Params.tags }}
     <ul class="tags">
       {{ range . }}
-      <li><a href="{{ "/tags/" | relURL }}{{ . | urlize }}">{{ . }}</a></li>
+      {{ $tagKey := . | urlize }}
+      {{ $tagPages := index $.Site.Taxonomies.tags (. | lower) }}
+      {{ $tagCount := 0 }}
+      {{ if $tagPages }}{{ $tagCount = len $tagPages }}{{ end }}
+      <li>
+        <a href="{{ "/tags/" | relURL }}{{ $tagKey }}/">
+          <span class="tag-hash">#</span>{{ . }}
+          {{ if gt $tagCount 1 }}<span class="tag-chip-count">{{ $tagCount }}</span>{{ end }}
+        </a>
+      </li>
       {{ end }}
     </ul>
     {{ end }}
@@ -28,43 +54,53 @@
   <hr class="decorative">
 
   <div class="article-body">
-    <div class="prose">
+    <div class="prose" id="article-prose">
       {{ .Content }}
     </div>
 
-    {{ if and .TableOfContents (ne .Section "fragments") }}
-    <aside class="toc" id="toc">
-      <h3 class="toc-toggle" id="toc-toggle">Contents</h3>
-      <nav>
-        {{ .TableOfContents }}
-      </nav>
+    {{ if $hasToc }}
+    <aside class="toc" id="toc" aria-label="Table of contents">
+      <button type="button" class="toc-toggle" id="toc-toggle" aria-expanded="true">
+        <span>On this page</span>
+      </button>
+      <div class="toc-nav-wrap">
+        <div class="toc-nav-inner">
+          <div class="toc-track" id="toc-track">
+            <div class="toc-active-bar" id="toc-active-bar" aria-hidden="true"></div>
+            <nav>
+              {{ .TableOfContents }}
+            </nav>
+          </div>
+          <a href="#" class="toc-top-link">&uarr; Back to top</a>
+        </div>
+      </div>
     </aside>
     {{ end }}
   </div>
+
+  {{ partial "connected-writing.html" . }}
 
   <div class="article-end-logo">
     <a href="/" title="Back to home"><img src="/beard-hero.png" alt="Will Schenk"></a>
   </div>
 
-  <section class="forward-back">
-    {{ with .Prev }}
-    <div class="nav-post nav-prev">
-      <div class="nav-label">Previously</div>
-      <a href="{{ .RelPermalink }}">
-        <div class="nav-title">{{ .Title }}</div>
-      </a>
-    </div>
+  <section class="forward-back" aria-label="Adjacent posts">
+    {{ with ($writingPages.Prev .) }}
+    <a href="{{ .RelPermalink }}" class="nav-post nav-prev" data-vt-link="{{ .RelPermalink }}">
+      <div class="nav-label">&larr; Previously</div>
+      <div class="nav-title" data-vt-target>{{ .Title }}</div>
+      <div class="nav-meta">{{ .Date | time.Format "Jan 2, 2006" }}</div>
+    </a>
     {{ else }}
     <div></div>
     {{ end }}
 
-    {{ with .Next }}
-    <div class="nav-post nav-next">
-      <div class="nav-label">Next</div>
-      <a href="{{ .RelPermalink }}">
-        <div class="nav-title">{{ .Title }}</div>
-      </a>
-    </div>
+    {{ with ($writingPages.Next .) }}
+    <a href="{{ .RelPermalink }}" class="nav-post nav-next" data-vt-link="{{ .RelPermalink }}">
+      <div class="nav-label">Next &rarr;</div>
+      <div class="nav-title" data-vt-target>{{ .Title }}</div>
+      <div class="nav-meta">{{ .Date | time.Format "Jan 2, 2006" }}</div>
+    </a>
     {{ else }}
     <div></div>
     {{ end }}

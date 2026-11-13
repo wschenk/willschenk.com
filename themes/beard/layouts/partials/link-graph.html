@@ -1,0 +1,38 @@
+{{- $s := newScratch -}}
+{{- $s.Set "pageByRel" dict -}}
+{{- $s.Set "byPath" dict -}}
+
+{{- /* Pass 1: Index all pages and aliases by normalized RelPermalink */ -}}
+{{- range site.RegularPages -}}
+  {{- $p := . -}}
+  {{- $rel := $p.RelPermalink -}}
+  {{- $norm := strings.TrimSuffix "/" $rel -}}
+  {{- $s.SetInMap "pageByRel" $rel $p -}}
+  {{- $s.SetInMap "byPath" $norm $rel -}}
+  {{- range $p.Aliases -}}
+    {{- $normAlias := strings.TrimSuffix "/" . -}}
+    {{- $s.SetInMap "byPath" $normAlias $rel -}}
+  {{- end -}}
+{{- end -}}
+
+{{- $byPath := $s.Get "byPath" -}}
+
+{{- /* Pass 2: Scan RawContent for internal cross-links across sections */ -}}
+{{- range site.RegularPages -}}
+  {{- $src := . -}}
+  {{- $srcRel := $src.RelPermalink -}}
+  {{- $matches := findRE `(?:https?://(?:www\.)?willschenk\.com)?/(?:articles|howto|labnotes|fragments)/[0-9]{4}/[a-zA-Z0-9_-]+(?:\.[a-zA-Z0-9_-]+)*/?` $src.RawContent -}}
+  {{- $seen := newScratch -}}
+  {{- range $matches -}}
+    {{- $clean := replaceRE `^https?://(?:www\.)?willschenk\.com` "" . -}}
+    {{- $clean = strings.TrimSuffix "/" $clean -}}
+    {{- $targetRel := index $byPath $clean -}}
+    {{- if and $targetRel (ne $targetRel $srcRel) (not ($seen.Get $targetRel)) -}}
+      {{- $seen.Set $targetRel true -}}
+      {{- $s.Add (printf "out:%s" $srcRel) (slice $targetRel) -}}
+      {{- $s.Add (printf "in:%s" $targetRel) (slice $srcRel) -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{- return (dict "scratch" $s) -}}
